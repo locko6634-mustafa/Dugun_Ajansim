@@ -447,63 +447,66 @@ document.addEventListener('DOMContentLoaded', () => {
       ease: 'power3.out',
       clearProps: 'transform,opacity,visibility',
     });
-    /* 3D Perspective Tilt Kart Etkileşimi */
-    selectAll('.glass-card-neon').forEach((card) => {
-      card.addEventListener('mousemove', (e) => {
-        const rect = card.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const centerX = rect.width / 2;
-        const centerY = rect.height / 2;
-        const rotateX = (y - centerY) / 12;
-        const rotateY = (centerX - x) / 12;
+    /* 3D Perspective Tilt Kart Etkileşimi (Sadece Masaüstü / Fare Cihazlarında) */
+    const isFinePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (isFinePointer) {
+      selectAll('.glass-card-neon').forEach((card) => {
+        card.addEventListener('mousemove', (e) => {
+          const rect = card.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          const centerX = rect.width / 2;
+          const centerY = rect.height / 2;
+          const rotateX = (y - centerY) / 12;
+          const rotateY = (centerX - x) / 12;
 
-        gsap.to(card, {
-          rotateX: rotateX,
-          rotateY: rotateY,
-          transformPerspective: 1000,
-          scale: 1.02,
-          duration: 0.4,
-          ease: 'power2.out',
+          gsap.to(card, {
+            rotateX: rotateX,
+            rotateY: rotateY,
+            transformPerspective: 1000,
+            scale: 1.02,
+            duration: 0.4,
+            ease: 'power2.out',
+          });
+        });
+
+        card.addEventListener('mouseleave', () => {
+          gsap.to(card, {
+            rotateX: 0,
+            rotateY: 0,
+            scale: 1,
+            duration: 0.6,
+            ease: 'power2.out',
+          });
         });
       });
 
-      card.addEventListener('mouseleave', () => {
-        gsap.to(card, {
-          rotateX: 0,
-          rotateY: 0,
-          scale: 1,
-          duration: 0.6,
-          ease: 'power2.out',
+      /* Magnetik Buton Etkileşimi */
+      selectAll('.magnetic-element').forEach((element) => {
+        element.addEventListener('mousemove', (e) => {
+          const rect = element.getBoundingClientRect();
+          const x = e.clientX - rect.left - rect.width / 2;
+          const y = e.clientY - rect.top - rect.height / 2;
+          gsap.to(element, {
+            x: x * 0.25,
+            y: y * 0.25,
+            rotation: x * 0.02,
+            duration: 0.3,
+            ease: 'power2.out',
+          });
         });
-      });
-    });
 
-    /* Magnetik Buton Etkileşimi */
-    selectAll('.magnetic-element').forEach((element) => {
-      element.addEventListener('mousemove', (e) => {
-        const rect = element.getBoundingClientRect();
-        const x = e.clientX - rect.left - rect.width / 2;
-        const y = e.clientY - rect.top - rect.height / 2;
-        gsap.to(element, {
-          x: x * 0.25,
-          y: y * 0.25,
-          rotation: x * 0.02,
-          duration: 0.3,
-          ease: 'power2.out',
+        element.addEventListener('mouseleave', () => {
+          gsap.to(element, {
+            x: 0,
+            y: 0,
+            rotation: 0,
+            duration: 0.6,
+            ease: 'elastic.out(1, 0.4)',
+          });
         });
       });
-
-      element.addEventListener('mouseleave', () => {
-        gsap.to(element, {
-          x: 0,
-          y: 0,
-          rotation: 0,
-          duration: 0.6,
-          ease: 'elastic.out(1, 0.4)',
-        });
-      });
-    });
+    }
 
     /* Parallax Görsel Kaydırma */
     selectAll('.parallax-img').forEach((img) => {

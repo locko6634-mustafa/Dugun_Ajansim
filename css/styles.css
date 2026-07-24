@@ -3985,7 +3985,7 @@ button {
 }
 
 /* ==========================================================================
-   ÖZEL LÜKS PAKETLER BÖLÜMÜ (3D Neon Cam Kartlar & Koyu Gece Teması)
+   ÖZEL LÜKS PAKETLER BÖLÜMÜ (Mobil Uyumlu 3D Neon Cam Kartlar)
    ========================================================================== */
 
 #paketler {
@@ -3994,6 +3994,7 @@ button {
   position: relative;
   padding-top: 5rem;
   padding-bottom: 5rem;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
 #paketler .section-heading h2 {
@@ -4005,37 +4006,135 @@ button {
   color: var(--champagne-gold) !important;
 }
 
-/* 3D Neon Altın Cam Kartlar (Neon Glass Cards) */
+/* 3D Neon Altın Cam Kartlar (Tıklamada Beyazlaşma Engellendi) */
+#paketler .package,
 .glass-card-neon {
-  background: rgba(18, 16, 13, 0.85);
+  background: rgba(18, 16, 13, 0.85) !important;
   backdrop-filter: var(--backdrop-blur);
   -webkit-backdrop-filter: var(--backdrop-blur);
-  border: 1px solid rgba(212, 175, 55, 0.35);
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(212, 175, 55, 0.35) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
   border-radius: 1.5rem;
   padding: 2.2rem;
-  color: #ffffff;
+  color: #ffffff !important;
   transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform, box-shadow;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
+/* Mobilde ve Masaüstünde Seçili/Odaklanmış Kart Stili */
+#paketler .package.is-selected,
+#paketler .package:hover,
+#paketler .package:focus,
+#paketler .package:active,
+.glass-card-neon.is-selected {
+  background: linear-gradient(145deg, rgba(28, 24, 20, 0.95) 0%, rgba(18, 16, 13, 0.98) 100%) !important;
+  border-color: var(--champagne-gold) !important;
+  box-shadow: 0 35px 80px rgba(212, 175, 55, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+}
+
+/* Kart İçeriği Metin Renkleri Garantisi */
+#paketler .package h3,
+#paketler .package p,
+#paketler .package li,
+#paketler .package span,
+#paketler .package small,
 .glass-card-neon h3,
 .glass-card-neon p,
 .glass-card-neon li {
-  color: #ffffff;
+  color: #ffffff !important;
 }
 
-.glass-card-neon:hover {
-  transform: translateY(-12px) scale(1.02);
-  border-color: var(--champagne-gold);
-  box-shadow: 0 35px 80px rgba(212, 175, 55, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+#paketler .package__price {
+  color: var(--champagne-gold) !important;
 }
 
-.glass-card-neon--highlight {
-  border-color: var(--champagne-gold);
-  background: linear-gradient(145deg, rgba(28, 24, 20, 0.9) 0%, rgba(18, 16, 13, 0.95) 100%);
-  box-shadow: 0 30px 70px rgba(212, 175, 55, 0.3);
+#paketler .package__price small {
+  color: var(--muted) !important;
 }
+
+#paketler .package header > p span {
+  color: var(--champagne-gold) !important;
+}
+
+/* Paket İçi Butonların Dokunma/Tıklama Stilleri */
+#paketler .button--outline {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(212, 175, 55, 0.45) !important;
+  color: #ffffff !important;
+  border-radius: 999rem;
+  padding: 0.8rem 1.6rem;
+  transition: all 0.3s ease;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+#paketler .button--outline:hover,
+#paketler .button--outline:focus,
+#paketler .button--outline:active {
+  background: rgba(212, 175, 55, 0.25) !important;
+  border-color: var(--champagne-gold) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 25px rgba(212, 175, 55, 0.3) !important;
+}
+
+#paketler .button--primary {
+  background: linear-gradient(135deg, #d4af37 0%, #aa851d 100%) !important;
+  color: #070605 !important;
+  font-weight: 600;
+  border: none !important;
+  box-shadow: 0 10px 30px rgba(212, 175, 55, 0.4) !important;
+  border-radius: 999rem;
+  padding: 0.85rem 1.8rem;
+  transition: all 0.3s ease;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+#paketler .button--primary:hover,
+#paketler .button--primary:focus,
+#paketler .button--primary:active {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 40px rgba(212, 175, 55, 0.6) !important;
+  color: #070605 !important;
+}
+
+#paketler .package__actions > a {
+  color: var(--champagne-gold) !important;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+#paketler .package__actions > a:hover {
+  text-decoration: underline;
+}
+
+/* Mobil Ekran İyileştirmeleri */
+@media (max-width: 62rem) {
+  #paketler {
+    padding-top: 3.5rem;
+    padding-bottom: 3.5rem;
+  }
+
+  #paketler .package,
+  .glass-card-neon {
+    padding: 1.5rem 1.25rem !important;
+    border-radius: 1.25rem !important;
+  }
+
+  #paketler .package__actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  #paketler .package__actions button,
+  #paketler .package__actions a {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}
+
 
 
   .showreel__stage,
