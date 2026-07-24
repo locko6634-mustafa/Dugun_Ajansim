@@ -1,0 +1,17 @@
+{
+  "name": "dugun-ajansim",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test quality/tests/config.test.mjs quality/tests/frontend-contract.test.mjs quality/tests/responsive-overflow.test.mjs quality/tests/e2e-smoke.test.mjs",
+    "test:config": "node --test quality/tests/config.test.mjs",
+    "test:contract": "node --test quality/tests/frontend-contract.test.mjs",
+    "test:responsive": "node --test quality/tests/responsive-overflow.test.mjs",
+    "test:e2e": "node --test quality/tests/e2e-smoke.test.mjs",
+    "check": "npm test"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

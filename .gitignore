@@ -1,0 +1,20 @@
+# Markdown Belgeleri (AGENT.md, README.md ve tüm .md dosyaları)
+*.md
+
+# PNG Görselleri ve Ekran Görüntüleri
+*.png
+
+# Bağımlılıklar (Node.js Paketleri)
+node_modules/
+
+# Test Çıktıları ve Otomatik Raporlar (Ekran Görüntüleri ve JSON Çıktıları)
+quality/tests/screenshots/
+quality/tests/overflow-report.json
+*.log
+
+# Sistem ve IDE Dosyaları
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.temp/
