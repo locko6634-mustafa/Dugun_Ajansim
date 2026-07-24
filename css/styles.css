@@ -3985,12 +3985,12 @@ button {
 }
 
 /* ==========================================================================
-   ÖZEL LÜKS PAKETLER BÖLÜMÜ (Mobil Uyumlu 3D Neon Cam Kartlar)
+   ÖZEL LÜKS PAKETLER BÖLÜMÜ (Mobil & Masaüstü Açık Tema Uyumlu Kartlar)
    ========================================================================== */
 
 #paketler {
-  background-color: var(--noir-bg) !important;
-  color: var(--champagne-light) !important;
+  background-color: var(--ivory) !important;
+  color: var(--charcoal) !important;
   position: relative;
   padding-top: 5rem;
   padding-bottom: 5rem;
@@ -3998,49 +3998,53 @@ button {
 }
 
 #paketler .section-heading h2 {
-  color: #ffffff !important;
+  color: var(--charcoal) !important;
 }
 
-#paketler .section-heading p,
+#paketler .section-heading p {
+  color: var(--muted) !important;
+}
+
 #paketler .eyebrow {
-  color: var(--champagne-gold) !important;
+  color: var(--wine) !important;
 }
 
-/* Nefes Alan Şampanya Altın Çerçeve Animasyonu (Ambient Gold Pulse) */
+/* Nefes Alan Bordo/Şampanya Çerçeve Animasyonu (Ambient Light Pulse) */
 @keyframes ambientGoldPulse {
   0%, 100% {
-    border-color: rgba(212, 175, 55, 0.45) !important;
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 25px rgba(212, 175, 55, 0.2) !important;
+    border-color: rgba(138, 43, 56, 0.45) !important;
+    box-shadow: 0 15px 40px rgba(138, 43, 56, 0.12), 0 0 15px rgba(212, 175, 55, 0.15) !important;
   }
   50% {
-    border-color: rgba(212, 175, 55, 0.95) !important;
-    box-shadow: 0 35px 85px rgba(0, 0, 0, 0.85), 0 0 45px rgba(212, 175, 55, 0.45) !important;
+    border-color: rgba(138, 43, 56, 0.85) !important;
+    box-shadow: 0 20px 50px rgba(138, 43, 56, 0.22), 0 0 25px rgba(212, 175, 55, 0.3) !important;
   }
 }
 
-/* 3D Neon Altın Cam Kartlar (Mobilde %100 Görünürlük Garantili) */
+/* Açık Tema Cam/Kağıt Kartlar (Mobilde & Masaüstünde %100 Görünürlük Garantili) */
 #paketler .package,
-.glass-card-neon {
+.glass-card-neon:not(.custom-offer) {
   opacity: 1 !important;
   visibility: visible !important;
-  background: rgba(18, 16, 13, 0.85) !important;
+  background: var(--paper) !important;
   backdrop-filter: var(--backdrop-blur);
   -webkit-backdrop-filter: var(--backdrop-blur);
-  border: 1px solid rgba(212, 175, 55, 0.35) !important;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid hsl(31 23% 78% / 0.65) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
   border-radius: 1.5rem;
   padding: 2.2rem;
-  color: #ffffff !important;
+  color: var(--charcoal) !important;
   transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.4, 1), box-shadow 0.45s ease, border-color 0.45s ease;
   will-change: transform, box-shadow;
   -webkit-tap-highlight-color: transparent !important;
   -webkit-touch-callout: none;
 }
 
-/* Öne Çıkan Paket Kartına Nefes Alan Altın Pırıltı Entegrasyonu */
+/* Öne Çıkan Paket Kartına Nefes Alan Vurgu Entegrasyonu */
 .glass-card-neon--highlight {
   animation: ambientGoldPulse 3.5s infinite ease-in-out !important;
-  background: linear-gradient(145deg, rgba(28, 24, 20, 0.95) 0%, rgba(18, 16, 13, 0.98) 100%) !important;
+  background: var(--paper) !important;
+  border: 1.5px solid var(--wine) !important;
 }
 
 /* Dokunma / Parmağınızla Basma Anı Esnek Yaylanma (Soft Touch Spring) */
@@ -4056,11 +4060,11 @@ button {
 #paketler .package:hover,
 #paketler .package:focus,
 #paketler .package:active,
-.glass-card-neon.is-selected {
-  background: linear-gradient(145deg, rgba(28, 24, 20, 0.95) 0%, rgba(18, 16, 13, 0.98) 100%) !important;
-  border-color: var(--champagne-gold) !important;
-  box-shadow: 0 35px 80px rgba(212, 175, 55, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
-  color: #ffffff !important;
+.glass-card-neon.is-selected:not(.custom-offer) {
+  background: var(--paper) !important;
+  border-color: var(--wine) !important;
+  box-shadow: 0 20px 45px rgba(138, 43, 56, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  color: var(--charcoal) !important;
 }
 
 /* Kart İçeriği Metin Renkleri Garantisi */
@@ -4068,15 +4072,18 @@ button {
 #paketler .package p,
 #paketler .package li,
 #paketler .package span,
-#paketler .package small,
-.glass-card-neon h3,
-.glass-card-neon p,
-.glass-card-neon li {
-  color: #ffffff !important;
+.glass-card-neon:not(.custom-offer) h3,
+.glass-card-neon:not(.custom-offer) p,
+.glass-card-neon:not(.custom-offer) li {
+  color: var(--charcoal) !important;
+}
+
+#paketler .package li {
+  border-bottom: 1px solid hsl(31 23% 78% / 0.5) !important;
 }
 
 #paketler .package__price {
-  color: var(--champagne-gold) !important;
+  color: var(--wine) !important;
 }
 
 #paketler .package__price small {
@@ -4084,14 +4091,31 @@ button {
 }
 
 #paketler .package header > p span {
-  color: var(--champagne-gold) !important;
+  color: var(--wine) !important;
 }
 
-/* Paket İçi Butonların Dokunma/Tıklama Stilleri */
-#paketler .button--outline {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid rgba(212, 175, 55, 0.45) !important;
+#paketler .package header > p {
+  color: var(--rose) !important;
+}
+
+/* Özel Teklif Kartı Stili (Öne çıkan kontrast kart) */
+#paketler .custom-offer {
+  background: radial-gradient(circle at 75% 20%, hsl(12 42% 54% / 0.35), transparent 22rem), var(--wine) !important;
   color: #ffffff !important;
+  border: none !important;
+}
+
+#paketler .custom-offer h3,
+#paketler .custom-offer p,
+#paketler .custom-offer span {
+  color: #ffffff !important;
+}
+
+/* Paket İçi Butonların Dokunma/Tıklama Stilleri (Açık Tema) */
+#paketler .button--outline {
+  background: transparent !important;
+  border: 1px solid var(--wine) !important;
+  color: var(--wine) !important;
   border-radius: 999rem;
   padding: 0.8rem 1.6rem;
   transition: all 0.3s ease;
@@ -4101,18 +4125,18 @@ button {
 #paketler .button--outline:hover,
 #paketler .button--outline:focus,
 #paketler .button--outline:active {
-  background: rgba(212, 175, 55, 0.25) !important;
-  border-color: var(--champagne-gold) !important;
+  background: var(--wine) !important;
+  border-color: var(--wine) !important;
   color: #ffffff !important;
-  box-shadow: 0 10px 25px rgba(212, 175, 55, 0.3) !important;
+  box-shadow: 0 8px 20px rgba(138, 43, 56, 0.25) !important;
 }
 
 #paketler .button--primary {
-  background: linear-gradient(135deg, #d4af37 0%, #aa851d 100%) !important;
-  color: #070605 !important;
+  background: var(--wine) !important;
+  color: #ffffff !important;
   font-weight: 600;
   border: none !important;
-  box-shadow: 0 10px 30px rgba(212, 175, 55, 0.4) !important;
+  box-shadow: 0 8px 25px rgba(138, 43, 56, 0.3) !important;
   border-radius: 999rem;
   padding: 0.85rem 1.8rem;
   transition: all 0.3s ease;
@@ -4123,12 +4147,13 @@ button {
 #paketler .button--primary:focus,
 #paketler .button--primary:active {
   transform: translateY(-2px);
-  box-shadow: 0 15px 40px rgba(212, 175, 55, 0.6) !important;
-  color: #070605 !important;
+  background: hsl(346 42% 24%) !important;
+  box-shadow: 0 12px 35px rgba(138, 43, 56, 0.45) !important;
+  color: #ffffff !important;
 }
 
 #paketler .package__actions > a {
-  color: var(--champagne-gold) !important;
+  color: var(--wine) !important;
   text-decoration: none;
   font-size: 0.9rem;
 }
