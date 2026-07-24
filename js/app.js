@@ -684,28 +684,23 @@ document.addEventListener('DOMContentLoaded', () => {
           videos.forEach((v) => {
             if (v !== video) {
               v.muted = true;
-              const otherBtn = v.parentElement?.querySelector('[data-video-mute-toggle]');
+              const containerOther = v.closest('.hero__arch, .showreel-card__video-wrapper') || v.parentElement;
+              const otherBtn = containerOther?.querySelector('[data-video-mute-toggle]');
               if (otherBtn) {
                 otherBtn.classList.remove('is-unmuted');
-                const icon = otherBtn.querySelector('.sound-icon');
                 const label = otherBtn.querySelector('.sound-label');
-                if (icon) icon.textContent = '🔇';
                 if (label) label.textContent = 'Sesi Aç';
               }
             }
           });
           video.muted = false;
           btn.classList.add('is-unmuted');
-          const icon = btn.querySelector('.sound-icon');
           const label = btn.querySelector('.sound-label');
-          if (icon) icon.textContent = '🔊';
           if (label) label.textContent = 'Sesi Kapat';
         } else {
           video.muted = true;
           btn.classList.remove('is-unmuted');
-          const icon = btn.querySelector('.sound-icon');
           const label = btn.querySelector('.sound-label');
-          if (icon) icon.textContent = '🔇';
           if (label) label.textContent = 'Sesi Aç';
         }
       });
