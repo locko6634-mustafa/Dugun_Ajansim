@@ -1073,15 +1073,27 @@ ol {
 
 .showreel {
   padding-block: var(--space-xl);
+  background: var(--paper);
+  color: var(--charcoal);
+}
+
+.showreel__container {
+  width: var(--content);
+  margin-inline: auto;
   background:
-    radial-gradient(circle at 85% 15%, hsl(346 40% 30% / 0.18), transparent 28rem),
+    radial-gradient(circle at 85% 15%, hsl(346 40% 25% / 0.35), transparent 32rem),
     var(--espresso);
   color: var(--white);
+  border: 1px solid hsl(38 30% 75% / 0.25);
+  border-radius: 1.25rem;
+  padding: 3rem 2.5rem;
+  box-sizing: border-box;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
 }
 
 .showreel__intro,
 .showreel__stage {
-  width: var(--content);
+  width: 100%;
   margin-inline: auto;
 }
 
@@ -1091,7 +1103,7 @@ ol {
   gap: var(--space-md);
   align-items: end;
   padding-bottom: var(--space-md);
-  border-bottom: 1px solid var(--line-dark);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .showreel__intro h2 {
@@ -1100,10 +1112,11 @@ ol {
   font-weight: 400;
   letter-spacing: -0.045em;
   line-height: 0.94;
+  color: var(--white);
 }
 
 .showreel__intro > p:last-child {
-  color: hsl(34 16% 69%);
+  color: hsl(34 16% 78%);
 }
 
 .showreel__stage {
@@ -2884,10 +2897,7 @@ main {
   min-height: 100svh;
   display: grid;
   align-content: center;
-  background:
-    linear-gradient(90deg, transparent 7.9%, hsl(38 30% 75% / 0.1) 8%, transparent 8.1%),
-    radial-gradient(circle at 84% 14%, hsl(346 44% 30% / 0.28), transparent 31rem),
-    var(--charcoal);
+  background: var(--paper);
 }
 
 .showreel__intro {
@@ -4216,7 +4226,7 @@ button {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center;
+  object-position: center 10%;
   border-radius: inherit;
   transition: transform 1.2s var(--ease);
 }
@@ -4266,8 +4276,9 @@ button {
 /* Showreel Grid Section */
 .showreel__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 380px));
+  justify-content: center;
+  gap: 2.5rem;
   margin-top: 2.5rem;
   width: 100%;
 }
@@ -4291,7 +4302,8 @@ button {
 .showreel-card__video-wrapper {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 9 / 16;
+  max-height: 560px;
   overflow: hidden;
   background: #000;
   cursor: pointer;
@@ -4402,6 +4414,10 @@ button {
 }
 
 @media (max-width: 48rem) {
+  .showreel__container {
+    padding: 1.25rem 0.85rem;
+  }
+
   .showreel__grid {
     grid-template-columns: 1fr;
     gap: 1.5rem;
