@@ -2,7 +2,11 @@
 *.md
 
 # PNG Görselleri ve Ekran Görüntüleri
-*.png
+*.png,
+
+# mp4 ve WebM Video Dosyaları
+*.mp4
+*.webm
 
 # Bağımlılıklar (Node.js Paketleri)
 node_modules/
