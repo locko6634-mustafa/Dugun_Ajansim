@@ -27,6 +27,17 @@
   --text-2xl: clamp(2.25rem, 1.65rem + 2.35vw, 4.35rem);
   --text-hero: clamp(3.25rem, 2.25rem + 2.8vw, 5rem);
 
+  /* Lüks Koyu Gece & Şampanya Sinematik Teması (Paketler Bölümü İçin) */
+  --noir-bg: #070605;
+  --noir-surface: #12100d;
+  --champagne-gold: #d4af37;
+  --champagne-light: #f7f3ec;
+  --champagne-glow: rgba(212, 175, 55, 0.35);
+  --glass-bg-dark: rgba(18, 16, 13, 0.85);
+  --glass-border-dark: rgba(212, 175, 55, 0.3);
+  --glass-shadow: 0 35px 80px rgba(0, 0, 0, 0.65);
+  --backdrop-blur: blur(24px);
+
   --space-sm: clamp(0.8rem, 0.7rem + 0.3vw, 1.05rem);
   --space-md: clamp(1.2rem, 1rem + 0.65vw, 1.75rem);
   --space-lg: clamp(2rem, 1.55rem + 1.5vw, 3.35rem);
@@ -51,6 +62,7 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: calc(var(--header-height) + var(--demo-height) + 1rem);
+  background-color: var(--ivory);
 }
 
 body {
@@ -3869,9 +3881,162 @@ button {
     padding: 0.7rem;
   }
 
-  .hero__proof-card p > span {
-    display: none;
-  }
+/* ==========================================================================
+   RADİKAL SİNEMATİK KOYU GECE & NEON CAM SİSTEMİ (Awwwards Overhaul)
+   ========================================================================== */
+
+/* Tam Ekran Hero (Full-Screen Hero) */
+.hero--fullscreen {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  padding: var(--header-height) 1.5rem 4rem;
+  background-color: var(--noir-bg);
+}
+
+.hero__bg-media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.hero__bg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: brightness(0.38) contrast(1.15);
+  transform: scale(1.08);
+  will-change: transform;
+}
+
+.hero__overlay-gradient {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(circle at center, rgba(7, 6, 5, 0.2) 0%, rgba(7, 6, 5, 0.85) 85%),
+              linear-gradient(to bottom, rgba(7,6,5,0.4) 0%, transparent 40%, var(--noir-bg) 100%);
+  pointer-events: none;
+}
+
+.hero__content-center {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  max-width: 58rem;
+  margin: 0 auto;
+}
+
+.hero__title-giant {
+  font-family: var(--font-display);
+  font-size: var(--text-hero);
+  line-height: 1.05;
+  color: var(--white);
+  text-shadow: 0 15px 45px rgba(0, 0, 0, 0.9);
+  letter-spacing: -0.02em;
+  margin: 1.2rem 0;
+}
+
+.hero__title-giant em {
+  font-style: italic;
+  color: var(--champagne-gold);
+  background: linear-gradient(135deg, #fff 0%, #d4af37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero__subtitle {
+  font-size: clamp(1.1rem, 1rem + 0.4vw, 1.4rem);
+  color: var(--muted);
+  max-width: 38rem;
+  margin: 0 auto 2.5rem;
+  font-weight: 400;
+}
+
+.hero__cta-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.hero__scroll-indicator {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--champagne-gold);
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+  animation: pulseScroll 2.2s infinite ease-in-out;
+}
+
+/* ==========================================================================
+   ÖZEL LÜKS PAKETLER BÖLÜMÜ (3D Neon Cam Kartlar & Koyu Gece Teması)
+   ========================================================================== */
+
+#paketler {
+  background-color: var(--noir-bg) !important;
+  color: var(--champagne-light) !important;
+  position: relative;
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+}
+
+#paketler .section-heading h2 {
+  color: #ffffff !important;
+}
+
+#paketler .section-heading p,
+#paketler .eyebrow {
+  color: var(--champagne-gold) !important;
+}
+
+/* 3D Neon Altın Cam Kartlar (Neon Glass Cards) */
+.glass-card-neon {
+  background: rgba(18, 16, 13, 0.85);
+  backdrop-filter: var(--backdrop-blur);
+  -webkit-backdrop-filter: var(--backdrop-blur);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  border-radius: 1.5rem;
+  padding: 2.2rem;
+  color: #ffffff;
+  transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, box-shadow;
+}
+
+.glass-card-neon h3,
+.glass-card-neon p,
+.glass-card-neon li {
+  color: #ffffff;
+}
+
+.glass-card-neon:hover {
+  transform: translateY(-12px) scale(1.02);
+  border-color: var(--champagne-gold);
+  box-shadow: 0 35px 80px rgba(212, 175, 55, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.glass-card-neon--highlight {
+  border-color: var(--champagne-gold);
+  background: linear-gradient(145deg, rgba(28, 24, 20, 0.9) 0%, rgba(18, 16, 13, 0.95) 100%);
+  box-shadow: 0 30px 70px rgba(212, 175, 55, 0.3);
+}
+
 
   .showreel__stage,
   .showreel__intro,

@@ -117,14 +117,14 @@
           </p>
           <div class="hero__actions" data-reveal>
             <a
-              class="button button--primary"
+              class="button button--primary magnetic-element"
               href="#demo-toast"
               data-whatsapp
               data-package="Genel tarih sorgusu"
             >
               Tarihini sor <span aria-hidden="true">↗</span>
             </a>
-            <a class="text-link" href="#paketler">
+            <a class="text-link magnetic-element" href="#paketler">
               Paketleri incele <span aria-hidden="true">↓</span>
             </a>
           </div>
@@ -149,10 +149,11 @@
         </div>
 
         <div class="hero__visual" data-reveal>
-          <div class="hero__arch">
+          <div class="hero__arch parallax-wrapper">
             <picture>
               <source srcset="assets/images/hero-garden-walk.avif" type="image/avif">
               <img
+                class="parallax-img"
                 src="assets/images/hero-garden-walk.webp"
                 width="1920"
                 height="1280"
@@ -164,7 +165,7 @@
             </picture>
           </div>
 
-          <div class="hero__proof-card" aria-label="Hizmet özeti">
+          <div class="hero__proof-card glass-card glass-card--glow" aria-label="Hizmet özeti">
             <span class="proof-emblem" aria-hidden="true">DA</span>
             <p>
               <small>Çekimden sonra</small>
@@ -523,7 +524,7 @@
       </header>
 
       <div class="packages__list">
-        <article class="package" data-reveal>
+        <article class="package glass-card-neon" data-reveal>
           <header>
             <p><span>01</span> Dış çekim</p>
             <h3>İlk Kare</h3>
@@ -538,7 +539,7 @@
           </ul>
           <div class="package__actions">
             <button
-              class="button button--outline"
+              class="button button--outline magnetic-element"
               type="button"
               data-package-select
               data-package="İlk Kare — Dış Çekim"
@@ -549,11 +550,11 @@
           </div>
         </article>
 
-        <article class="package is-selected" data-reveal>
+        <article class="package glass-card-neon glass-card-neon--highlight is-selected" data-reveal>
           <header>
-            <p><span>02</span> Fotoğraf + film <b>En çok tercih edilen</b></p>
+            <p><span>02</span> Fotoğraf + film <b style="background: var(--champagne-gold); color: #000; padding: 0.2rem 0.6rem; border-radius: 99rem; font-size: 0.75rem;">Öne Çıkan Seçki</b></p>
             <h3>Tam Hikâye</h3>
-            <span class="package__price">29.900 TL’den<small>Başlangıç fiyatı</small></span>
+            <span class="package__price" style="color: var(--champagne-gold);">29.900 TL’den<small>Başlangıç fiyatı</small></span>
           </header>
           <ul>
             <li>8 saate kadar çekim</li>
@@ -565,7 +566,7 @@
           </ul>
           <div class="package__actions">
             <button
-              class="button button--primary"
+              class="button button--primary magnetic-element"
               type="button"
               data-package-select
               data-package="Tam Hikâye — Fotoğraf + Film"
@@ -576,7 +577,7 @@
           </div>
         </article>
 
-        <article class="package" data-reveal>
+        <article class="package glass-card-neon" data-reveal>
           <header>
             <p><span>03</span> Tam gün</p>
             <h3>Gün Boyu Sinema</h3>
@@ -592,7 +593,7 @@
           </ul>
           <div class="package__actions">
             <button
-              class="button button--outline"
+              class="button button--outline magnetic-element"
               type="button"
               data-package-select
               data-package="Gün Boyu Sinema — Tam Gün"
@@ -604,15 +605,15 @@
         </article>
       </div>
 
-      <aside class="custom-offer" data-reveal>
-        <span class="custom-offer__mark" aria-hidden="true">✦</span>
+      <aside class="custom-offer glass-card-neon" data-reveal style="margin-top: 3rem;">
+        <span class="custom-offer__mark" aria-hidden="true" style="color: var(--champagne-gold);">✦</span>
         <div>
-          <p class="eyebrow">Size göre şekillensin</p>
-          <h3>İki gün, farklı şehir veya özel bir akış mı?</h3>
+          <p class="eyebrow" style="color: var(--champagne-gold);">Size göre şekillensin</p>
+          <h3 style="color: #fff;">İki gün, farklı şehir veya özel bir akış mı?</h3>
           <p>İhtiyaçlarınıza göre fotoğraf, film ve albümü birlikte planlayalım.</p>
         </div>
         <a
-          class="button button--light"
+          class="button button--primary magnetic-element"
           href="#demo-toast"
           data-whatsapp
           data-package="Özel teklif"
