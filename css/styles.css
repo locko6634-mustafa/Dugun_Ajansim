@@ -4261,13 +4261,6 @@ button {
   user-select: none;
 }
 
-.hero__sound-toggle {
-  position: absolute;
-  top: 1.25rem;
-  right: 1.25rem;
-  z-index: 5;
-}
-
 .video-sound-btn:hover {
   background: rgba(220, 180, 140, 0.25);
   border-color: rgba(220, 180, 140, 0.6);
@@ -4288,6 +4281,23 @@ button {
   background: #ffffff;
   color: #000000;
   transform: translateY(-2px) scale(1.04);
+}
+
+/* Hero Sound Toggle Position & Hover Fix */
+.hero__sound-toggle {
+  position: absolute;
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.hero__sound-toggle.video-sound-btn:hover {
+  transform: translateX(-50%) translateY(-2px) scale(1.03);
+}
+
+.hero__sound-toggle.video-sound-btn.is-unmuted:hover {
+  transform: translateX(-50%) translateY(-2px) scale(1.04);
 }
 
 .video-sound-btn__icon-box {
