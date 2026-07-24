@@ -667,6 +667,72 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initCinematicMotion();
 
+  /* Video Autoplay & Mute/Unmute Controller */
+  const initVideoControllers = () => {
+    const videos = selectAll('video');
+    const muteToggles = selectAll('[data-video-mute-toggle]');
+
+    muteToggles.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const container = btn.closest('.hero__arch, .showreel-card__video-wrapper') || btn.parentElement;
+        const video = container ? container.querySelector('video') : null;
+        if (!video) return;
+
+        if (video.muted) {
+          // Mute all other videos before unmuting this one
+          videos.forEach((v) => {
+            if (v !== video) {
+              v.muted = true;
+              const otherBtn = v.parentElement?.querySelector('[data-video-mute-toggle]');
+              if (otherBtn) {
+                otherBtn.classList.remove('is-unmuted');
+                const icon = otherBtn.querySelector('.sound-icon');
+                const label = otherBtn.querySelector('.sound-label');
+                if (icon) icon.textContent = '🔇';
+                if (label) label.textContent = 'Sesi Aç';
+              }
+            }
+          });
+          video.muted = false;
+          btn.classList.add('is-unmuted');
+          const icon = btn.querySelector('.sound-icon');
+          const label = btn.querySelector('.sound-label');
+          if (icon) icon.textContent = '🔊';
+          if (label) label.textContent = 'Sesi Kapat';
+        } else {
+          video.muted = true;
+          btn.classList.remove('is-unmuted');
+          const icon = btn.querySelector('.sound-icon');
+          const label = btn.querySelector('.sound-label');
+          if (icon) icon.textContent = '🔇';
+          if (label) label.textContent = 'Sesi Aç';
+        }
+      });
+    });
+
+    // IntersectionObserver to auto-play when in viewport and pause when off-screen
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            const video = entry.target;
+            if (entry.isIntersecting) {
+              video.play().catch(() => {});
+            } else {
+              video.pause();
+            }
+          });
+        },
+        { threshold: 0.25 }
+      );
+
+      videos.forEach((video) => observer.observe(video));
+    }
+  };
+
+  initVideoControllers();
+
   /* Current year */
   selectAll('[data-current-year]').forEach((item) => {
     item.textContent = String(new Date().getFullYear());

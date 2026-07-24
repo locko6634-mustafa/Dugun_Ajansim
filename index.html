@@ -150,19 +150,20 @@
 
         <div class="hero__visual" data-reveal>
           <div class="hero__arch parallax-wrapper">
-            <picture>
-              <source srcset="assets/images/hero-garden-walk.avif" type="image/avif">
-              <img
-                class="parallax-img"
-                src="assets/images/hero-garden-walk.webp"
-                width="1920"
-                height="1280"
-                alt="Gün batımında kır bahçesindeki yolda yürüyen yeni evli çift"
-                loading="eager"
-                decoding="async"
-                fetchpriority="high"
-              >
-            </picture>
+            <video
+              class="hero__video"
+              src="assets/videos/video1.mp4"
+              poster="assets/images/hero-garden-walk.webp"
+              autoplay
+              muted
+              loop
+              playsinline
+              aria-label="Düğün Ajansım Sinematik Tanıtım Videosu"
+            ></video>
+            <button class="hero__sound-toggle glass-badge" type="button" data-video-mute-toggle aria-label="Sesi aç/kapat">
+              <span class="sound-icon" aria-hidden="true">🔇</span>
+              <span class="sound-label">Sesi Aç</span>
+            </button>
           </div>
 
           <div class="hero__proof-card glass-card glass-card--glow" aria-label="Hizmet özeti">
@@ -415,53 +416,76 @@
       </div>
     </section>
 
-    <section id="showreel" class="showreel" aria-labelledby="showreel-title" data-scene="dark">
+    <section id="showreel" class="showreel section" aria-labelledby="showreel-title" data-scene="dark">
       <div class="showreel__intro" data-reveal>
-        <p class="eyebrow"><span aria-hidden="true">✦</span> Foto-sekans</p>
+        <p class="eyebrow"><span aria-hidden="true">✦</span> SİNEMATİK SHOWREEL</p>
         <h2 id="showreel-title">Filminiz, günün<br><em>kendi ritminden</em> doğar.</h2>
         <p>
-          Showreel yayına alınana kadar aynı günün dört karesinden oluşan bu
-          sessiz sekans, anlatım yaklaşımımızı gösterir.
+          Büyük günün unutulmaz anlarını, doğal ışığı ve hissedilen duyguları 
+          zamansız 4K sinematik filmlere dönüştürüyoruz. Çekimlerimizden seçilmiş iki özel hikaye.
         </p>
       </div>
 
-      <div class="showreel__stage" data-showreel-stage aria-live="off">
-        <figure class="showreel__frame is-active" data-showreel-frame>
-          <picture>
-            <source srcset="assets/images/scene-preparation.avif" type="image/avif">
-            <img src="assets/images/scene-preparation.webp" alt="Hazırlık sırasında aynaya bakan gelin" loading="lazy">
-          </picture>
-          <figcaption>Hazırlık · Sessizlik</figcaption>
-        </figure>
-        <figure class="showreel__frame" data-showreel-frame>
-          <picture>
-            <source srcset="assets/images/scene-ceremony.avif" type="image/avif">
-            <img src="assets/images/scene-ceremony.webp" alt="Açık hava nikâhındaki çift" loading="lazy">
-          </picture>
-          <figcaption>Nikâh · Nefes</figcaption>
-        </figure>
-        <figure class="showreel__frame" data-showreel-frame>
-          <picture>
-            <source srcset="assets/images/scene-forest.avif" type="image/avif">
-            <img src="assets/images/scene-forest.webp" alt="Orman yolunda yürüyen çift" loading="lazy">
-          </picture>
-          <figcaption>Altın saat · Yürüyüş</figcaption>
-        </figure>
-        <figure class="showreel__frame" data-showreel-frame>
-          <picture>
-            <source srcset="assets/images/scene-first-dance.avif" type="image/avif">
-            <img src="assets/images/scene-first-dance.webp" alt="İlk dansını yapan çift" loading="lazy">
-          </picture>
-          <figcaption>İlk dans · Gece</figcaption>
-        </figure>
+      <div class="showreel__grid" data-reveal>
+        <article class="showreel-card">
+          <div class="showreel-card__video-wrapper">
+            <video
+              class="showreel-card__video"
+              src="assets/videos/video2.mp4"
+              poster="assets/images/scene-ceremony.webp"
+              autoplay
+              muted
+              loop
+              playsinline
+              aria-label="Sinematik Düğün Hikayesi"
+            ></video>
+            <div class="showreel-card__overlay">
+              <span class="showreel-card__tag">4K Sinematik Film</span>
+              <button class="showreel-card__mute-btn glass-badge" type="button" data-video-mute-toggle aria-label="Sesi aç/kapat">
+                <span class="sound-icon" aria-hidden="true">🔇</span>
+                <span class="sound-label">Sesi Aç</span>
+              </button>
+            </div>
+          </div>
+          <div class="showreel-card__body">
+            <div class="showreel-card__meta">
+              <span class="showreel-card__category">Açık Hava &amp; Kır Düğünü</span>
+              <span class="showreel-card__duration">03:45</span>
+            </div>
+            <h3 class="showreel-card__title">Günün Ritmi &amp; Doğal Anlar</h3>
+            <p class="showreel-card__desc">Hazırlık heyecanından ilk dansa kadar günün tüm duygu dolu anlarını içeren sinematik kurgumuz.</p>
+          </div>
+        </article>
 
-        <button class="showreel__toggle" type="button" data-showreel-toggle aria-pressed="false">
-          <span data-play-icon aria-hidden="true">Ⅱ</span>
-          <span data-play-label>Sekansı durdur</span>
-        </button>
-        <div class="showreel__progress" aria-hidden="true">
-          <span class="is-active"></span><span></span><span></span><span></span>
-        </div>
+        <article class="showreel-card">
+          <div class="showreel-card__video-wrapper">
+            <video
+              class="showreel-card__video"
+              src="assets/videos/video3.mp4"
+              poster="assets/images/scene-forest.webp"
+              autoplay
+              muted
+              loop
+              playsinline
+              aria-label="Özel Çekim ve Altın Saat Filmi"
+            ></video>
+            <div class="showreel-card__overlay">
+              <span class="showreel-card__tag">Özel Çekim &amp; Belgesel</span>
+              <button class="showreel-card__mute-btn glass-badge" type="button" data-video-mute-toggle aria-label="Sesi aç/kapat">
+                <span class="sound-icon" aria-hidden="true">🔇</span>
+                <span class="sound-label">Sesi Aç</span>
+              </button>
+            </div>
+          </div>
+          <div class="showreel-card__body">
+            <div class="showreel-card__meta">
+              <span class="showreel-card__category">Gün Batımı &amp; Portre</span>
+              <span class="showreel-card__duration">04:20</span>
+            </div>
+            <h3 class="showreel-card__title">Altın Saat &amp; Zamansız Portreler</h3>
+            <p class="showreel-card__desc">Işığın en yumuşak anında, çiftimizin arasındaki samimiyeti ve doğallığı öne çıkaran özel filmimiz.</p>
+          </div>
+        </article>
       </div>
     </section>
 
