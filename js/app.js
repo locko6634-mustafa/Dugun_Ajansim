@@ -447,6 +447,36 @@ document.addEventListener('DOMContentLoaded', () => {
       ease: 'power3.out',
       clearProps: 'transform,opacity,visibility',
     });
+    /* Dokunmatik Cihazlarda Esnek Soft Spring Yaylanma */
+    selectAll('.glass-card-neon').forEach((card) => {
+      card.addEventListener('touchstart', () => {
+        card.classList.add('is-touching');
+      }, { passive: true });
+
+      const removeTouch = () => {
+        card.classList.remove('is-touching');
+      };
+
+      card.addEventListener('touchend', removeTouch, { passive: true });
+      card.addEventListener('touchcancel', removeTouch, { passive: true });
+    });
+
+    /* GSAP Paket Kartları Süzülerek Geliş Animasyonu (Mobil & Masaüstü) */
+    if (selectAll('#paketler .package').length) {
+      gsap.from('#paketler .package', {
+        y: 40,
+        autoAlpha: 0,
+        duration: 0.85,
+        stagger: 0.18,
+        ease: 'power3.out',
+        scrollTrigger: {
+          trigger: '#paketler',
+          start: 'top 80%',
+          once: true,
+        },
+      });
+    }
+
     /* 3D Perspective Tilt Kart Etkileşimi (Sadece Masaüstü / Fare Cihazlarında) */
     const isFinePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
     if (isFinePointer) {

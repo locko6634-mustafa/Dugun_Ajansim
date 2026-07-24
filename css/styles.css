@@ -4006,6 +4006,18 @@ button {
   color: var(--champagne-gold) !important;
 }
 
+/* Nefes Alan Şampanya Altın Çerçeve Animasyonu (Ambient Gold Pulse) */
+@keyframes ambientGoldPulse {
+  0%, 100% {
+    border-color: rgba(212, 175, 55, 0.45) !important;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 25px rgba(212, 175, 55, 0.2) !important;
+  }
+  50% {
+    border-color: rgba(212, 175, 55, 0.95) !important;
+    box-shadow: 0 35px 85px rgba(0, 0, 0, 0.85), 0 0 45px rgba(212, 175, 55, 0.45) !important;
+  }
+}
+
 /* 3D Neon Altın Cam Kartlar (Tıklamada Beyazlaşma Engellendi) */
 #paketler .package,
 .glass-card-neon {
@@ -4017,9 +4029,24 @@ button {
   border-radius: 1.5rem;
   padding: 2.2rem;
   color: #ffffff !important;
-  transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.4, 1), box-shadow 0.45s ease, border-color 0.45s ease;
   will-change: transform, box-shadow;
   -webkit-tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none;
+}
+
+/* Öne Çıkan Paket Kartına Nefes Alan Altın Pırıltı Entegrasyonu */
+.glass-card-neon--highlight {
+  animation: ambientGoldPulse 3.5s infinite ease-in-out !important;
+  background: linear-gradient(145deg, rgba(28, 24, 20, 0.95) 0%, rgba(18, 16, 13, 0.98) 100%) !important;
+}
+
+/* Dokunma / Parmağınızla Basma Anı Esnek Yaylanma (Soft Touch Spring) */
+#paketler .package:active,
+.glass-card-neon:active,
+.glass-card-neon.is-touching {
+  transform: scale(0.985) translateY(-2px) !important;
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.4, 1) !important;
 }
 
 /* Mobilde ve Masaüstünde Seçili/Odaklanmış Kart Stili */
