@@ -4018,9 +4018,11 @@ button {
   }
 }
 
-/* 3D Neon Altın Cam Kartlar (Tıklamada Beyazlaşma Engellendi) */
+/* 3D Neon Altın Cam Kartlar (Mobilde %100 Görünürlük Garantili) */
 #paketler .package,
 .glass-card-neon {
+  opacity: 1 !important;
+  visibility: visible !important;
   background: rgba(18, 16, 13, 0.85) !important;
   backdrop-filter: var(--backdrop-blur);
   -webkit-backdrop-filter: var(--backdrop-blur);

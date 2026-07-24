@@ -461,17 +461,17 @@ document.addEventListener('DOMContentLoaded', () => {
       card.addEventListener('touchcancel', removeTouch, { passive: true });
     });
 
-    /* GSAP Paket Kartları Süzülerek Geliş Animasyonu (Mobil & Masaüstü) */
-    if (selectAll('#paketler .package').length) {
+    /* GSAP Paket Kartları Süzülerek Geliş Animasyonu (Görünürlük Kilidi Kaldırıldı) */
+    if (selectAll('#paketler .package').length && !hasReducedMotion()) {
       gsap.from('#paketler .package', {
-        y: 40,
-        autoAlpha: 0,
-        duration: 0.85,
-        stagger: 0.18,
-        ease: 'power3.out',
+        y: 30,
+        duration: 0.7,
+        stagger: 0.12,
+        ease: 'power2.out',
+        clearProps: 'transform',
         scrollTrigger: {
           trigger: '#paketler',
-          start: 'top 80%',
+          start: 'top 90%',
           once: true,
         },
       });
