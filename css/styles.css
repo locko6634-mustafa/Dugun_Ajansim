@@ -2840,8 +2840,8 @@ main {
   position: relative;
   cursor: default;
   outline: none;
+  padding-inline: 1.25rem;
   transition:
-    padding var(--motion-scene) var(--ease),
     background var(--motion-scene) var(--ease),
     color var(--motion-scene) var(--ease);
 }
@@ -3155,6 +3155,10 @@ main {
     border-bottom-color: hsl(36 30% 90% / 0.14);
   }
 
+  .service-line {
+    padding-inline: 0.8rem;
+  }
+
   .service-line.is-active {
     padding-inline: 0.8rem;
   }
@@ -3231,7 +3235,7 @@ main {
   }
 
   .service-line {
-    padding-inline: 0;
+    padding-inline: 0.7rem;
   }
 
   .service-line.is-active {

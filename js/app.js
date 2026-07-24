@@ -349,8 +349,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  const isHoverable = window.matchMedia('(hover: hover)').matches;
+
   serviceLines.forEach((line) => {
-    line.addEventListener('pointerenter', () => setActiveService(line));
+    if (isHoverable) {
+      line.addEventListener('pointerenter', () => setActiveService(line));
+    }
     line.addEventListener('focus', () => setActiveService(line));
   });
 
