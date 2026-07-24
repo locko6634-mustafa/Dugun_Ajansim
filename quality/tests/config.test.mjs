@@ -22,7 +22,8 @@ test("Proje temel dosya ve klasör yapısı eksiksizdir", async () => {
     "run_server.bat",
     "sunucu_baslat.ps1",
     "AGENT.md",
-    "package.json"
+    "package.json",
+    "vercel.json"
   ];
 
   for (const file of requiredFiles) {
@@ -47,4 +48,13 @@ test("Sunucu başlatma scriptleri doğru yapılandırılmıştır", async () => 
   const psScript = await read("sunucu_baslat.ps1");
   assert.match(psScript, /8000/, "sunucu_baslat.ps1 8000 portunu hedeflemelidir.");
   assert.match(psScript, /Invoke-CimMethod/, "sunucu_baslat.ps1 WMI ile bağımsız süreç başlatmalıdır.");
+});
+
+test("vercel.json geçerli bir JSON ve Vercel statik yapılandırması içerir", async () => {
+  const vercelContent = await read("vercel.json");
+  const parsed = JSON.parse(vercelContent);
+  assert.strictEqual(parsed.version, 2, "vercel.json version 2 olmalıdır.");
+  assert.strictEqual(parsed.cleanUrls, true, "cleanUrls aktif olmalıdır.");
+  assert.strictEqual(parsed.trailingSlash, false, "trailingSlash false olmalıdır.");
+  assert.ok(Array.isArray(parsed.headers), "headers bir dizi olmalıdır.");
 });
