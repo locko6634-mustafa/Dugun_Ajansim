@@ -31,11 +31,13 @@ test("Proje temel dosya ve klasör yapısı eksiksizdir", async () => {
   }
 });
 
-test("AGENT.md sunucu ve test kurallarını içerir", async () => {
+test("AGENT.md sunucu, test ve git kurallarını içerir", async () => {
   const agentMd = await read("AGENT.md");
   assert.match(agentMd, /run_server\.bat/, "AGENT.md dosyası run_server.bat kullanımını şart koşmalıdır.");
   assert.match(agentMd, /DOĞRUDAN SUNUCU BAŞLATMAK KESİNLİKLE YASAKTIR/, "AGENT.md yasak sunucu başlatma kuralını içermelidir.");
   assert.match(agentMd, /http:\/\/localhost:8000/, "AGENT.md varsayılan port bilgisini içermelidir.");
+  assert.match(agentMd, /Git Versiyon Kontrolü ve Push Kuralları/, "AGENT.md git commit ve push kurallarını içermelidir.");
+  assert.match(agentMd, /ASCII Alfabe/, "AGENT.md İngilizce alfabe (ASCII) kuralını içermelidir.");
 });
 
 test("Sunucu başlatma scriptleri doğru yapılandırılmıştır", async () => {
