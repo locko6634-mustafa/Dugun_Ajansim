@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Düğünajansım; konsept, gelinlik, fotoğraf, video, saç ve makyaj hizmetlerini tek çatı altında sunar."
+    />
+    <title>Düğünajansım | Türkiye'nin En Büyük Düğün Fotoğraf Platosu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Italiana&family=Manrope:wght@400;500;600;700&family=Parisienne&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css" />
+    <script src="js/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header" id="anasayfa">
+      <a class="brand" href="#anasayfa" aria-label="Düğünajansım ana sayfa">
+        <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M11 7h19c16 0 27 10 27 25S46 57 30 57H11V7Z" />
+          <path d="M19 28 31 16l12 12a7 7 0 0 1 0 10L31 50 19 38a7 7 0 0 1 0-10Z" />
+          <path d="m25 30 6-6 7 7a3 3 0 0 1 0 4l-7 7-6-6a4 4 0 0 1 0-6Z" />
+        </svg>
+        <span class="brand__name">Düğünajansım</span>
+        <span class="brand__year">10.Yıl</span>
+      </a>
+
+      <nav class="desktop-nav" aria-label="Ana navigasyon">
+        <a class="is-active" href="#anasayfa">Anasayfa</a>
+        <a href="#hakkimizda">Hakkımızda</a>
+        <a href="#konseptler">Konseptlerimiz</a>
+        <a href="#hizmetler">Hizmetlerimiz</a>
+        <a href="#galeri">Galeri</a>
+        <a href="#iletisim">İletişim</a>
+      </nav>
+
+      <button class="header-cta js-open-booking" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 2v3M17 2v3M3.5 9h17M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+          <path d="M7.5 13h2v2h-2zM11 13h2v2h-2zM14.5 13h2v2h-2z" />
+        </svg>
+        Rezervasyon Oluştur
+      </button>
+
+      <button
+        class="menu-toggle"
+        type="button"
+        aria-label="Menüyü aç"
+        aria-controls="mobile-menu"
+        aria-expanded="false"
+      >
+        <span></span><span></span><span></span>
+      </button>
+    </header>
+
+    <div class="mobile-menu" id="mobile-menu" aria-hidden="true">
+      <nav aria-label="Mobil navigasyon">
+        <a href="#anasayfa">Anasayfa</a>
+        <a href="#hakkimizda">Hakkımızda</a>
+        <a href="#konseptler">Konseptlerimiz</a>
+        <a href="#hizmetler">Hizmetlerimiz</a>
+        <a href="#galeri">Galeri</a>
+        <a href="#iletisim">İletişim</a>
+      </nav>
+      <button class="button button--primary js-open-booking" type="button">
+        Rezervasyon Oluştur
+      </button>
+    </div>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero__inner">
+          <div class="hero__copy">
+            <div class="proof-pill" aria-label="Hizmet özeti">
+              <span class="proof-pill__icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m12 3 7 5-7 13L5 8l7-5Z" />
+                  <path d="m5 8 14 0M9 8l3 13 3-13M8 4l4 4 4-4" />
+                </svg>
+              </span>
+              <span>15+ Konsept</span><i></i><span>200+ Gelinlik</span><i></i><span>Tek Çatı Altında</span>
+            </div>
+
+            <h1 id="hero-title">
+              <span>Türkiye’nin En</span>
+              <span>Büyük Düğün</span>
+              <em>Fotoğraf Platosu</em>
+            </h1>
+
+            <p class="hero__lead">
+              15+ konsept, 200+ gelinlik, fotoğraf &amp; video,<br />
+              saç &amp; makyaj; hepsi tek çatı altında, tek günde.
+            </p>
+
+            <div class="hero__actions">
+              <button class="button button--primary js-open-booking" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 2v3M17 2v3M3.5 9h17M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+                </svg>
+                <span>Rezervasyon Oluştur</span>
+                <svg class="button__arrow" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m14 5 7 7-7 7M3 12h18" />
+                </svg>
+              </button>
+              <a class="button button--outline" href="tel:+905551010101">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8.5 3.5 5.8 4.7c-1.2.5-1.8 1.8-1.5 3 1.4 5.7 6 10.3 11.7 11.7 1.2.3 2.5-.3 3-1.5l1.2-2.7-4.4-2.1-1.3 2.1c-2.4-1-4.3-2.9-5.3-5.3l2.1-1.3-2.1-4.4-.7-.7Z" />
+                </svg>
+                Hemen Ara
+              </a>
+            </div>
+
+            <div class="trust-row" aria-label="Güven unsurları">
+              <div class="trust-item">
+                <svg viewBox="0 0 32 32" aria-hidden="true">
+                  <path d="M16 3 27 7v8c0 7-4.5 11.6-11 14-6.5-2.4-11-7-11-14V7l11-4Z" />
+                  <path d="m10.5 15.5 3.5 3.5 7.5-8" />
+                </svg>
+                <span>Güvenilir<br />Profesyonel Ekip</span>
+              </div>
+              <div class="trust-item">
+                <svg viewBox="0 0 32 32" aria-hidden="true">
+                  <path d="M5 9h6l2-3h6l2 3h6a2 2 0 0 1 2 2v15a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2Z" />
+                  <circle cx="16" cy="18" r="6" />
+                </svg>
+                <span>En Yeni Ekipman<br />Yüksek Kalite</span>
+              </div>
+              <div class="trust-item">
+                <svg viewBox="0 0 32 32" aria-hidden="true">
+                  <path d="m16 3 4 8 9 1.3-6.5 6.3 1.5 9L16 23l-8 4.6 1.5-9L3 12.3 12 11l4-8Z" />
+                </svg>
+                <span>Binlerce Mutlu<br />Çift</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-collage" aria-label="Düğün fotoğraf çekimi örnekleri">
+            <figure class="photo photo--main">
+              <img src="assets/images/hero-couple.png" alt="Çiçeklerle süslü alanda oturan gelin ve damat" />
+            </figure>
+            <figure class="photo photo--bride">
+              <img src="assets/images/bride-portrait.png" alt="Beyaz çiçek buketi taşıyan gelin" />
+            </figure>
+            <figure class="photo photo--venue">
+              <img src="assets/images/venue-pavilion.png" alt="Deniz manzaralı beyaz nikâh çardağı" />
+            </figure>
+            <figure class="photo photo--groom">
+              <img src="assets/images/groom-portrait.png" alt="Siyah smokinli damat" />
+            </figure>
+
+            <div class="anniversary" aria-label="10. yıl">
+              <span class="anniversary__number">10.</span>
+              <span class="anniversary__label">Yıl</span>
+              <svg viewBox="0 0 140 56" aria-hidden="true">
+                <path d="M65 49C40 45 25 33 16 10M75 49c25-4 40-16 49-39" />
+                <path d="m20 18-8-6 1 10M29 29l-8-3 4 8M39 38l-8 0 6 6M120 18l8-6-1 10M111 29l8-3-4 8M101 38l8 0-6 6" />
+              </svg>
+            </div>
+            <span class="spark spark--one">✦</span>
+            <span class="spark spark--two">✦</span>
+            <span class="spark spark--three">·</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="benefits-section" id="hakkimizda" aria-label="Hizmet avantajlarımız">
+        <div class="benefits-grid">
+          <article class="benefit-card">
+            <div class="benefit-icon" aria-hidden="true">
+              <svg class="benefit-icon__desktop" viewBox="0 0 64 64">
+                <path d="M36 5 13 34h17l-4 25 25-34H34l2-20Z" />
+              </svg>
+              <svg class="benefit-icon__mobile" viewBox="0 0 64 64">
+                <path d="M8 20h31v25H8zM39 28h9l8 9v8H39zM5 29h14M3 35h12" />
+                <circle cx="20" cy="47" r="5" />
+                <circle cx="49" cy="47" r="5" />
+              </svg>
+            </div>
+            <div class="benefit-card__content">
+              <h2 class="benefit-title benefit-title--desktop"><span>7 günde</span>dijital teslim</h2>
+              <h2 class="benefit-title benefit-title--mobile"><strong>7 GÜNDE</strong><span>dijital teslim</span></h2>
+              <p>Anılarınızı hızlıca teslim ediyor, zamanınıza değer veriyoruz.</p>
+            </div>
+          </article>
+
+          <article class="benefit-card">
+            <div class="benefit-icon" aria-hidden="true">
+              <svg viewBox="0 0 64 64">
+                <rect x="10" y="15" width="44" height="39" rx="4" />
+                <path d="M10 26h44M21 9v12M43 9v12" />
+                <path d="M20 34h4M30 34h4M40 34h4M20 43h4M30 43h4M40 43h4" />
+              </svg>
+            </div>
+            <div class="benefit-card__content">
+              <h2 class="benefit-title benefit-title--desktop"><span>Ücretsiz tarih</span>değiştirme</h2>
+              <h2 class="benefit-title benefit-title--mobile"><strong>ÜCRETSİZ</strong><span>tarih değiştirme</span></h2>
+              <p>Planlarınız değişirse tarihinizi ücretsiz değiştiriyoruz.</p>
+            </div>
+          </article>
+
+          <article class="benefit-card">
+            <div class="benefit-icon" aria-hidden="true">
+              <svg class="benefit-icon__desktop" viewBox="0 0 64 64">
+                <path d="M10 16a6 6 0 0 1 6-6h30a6 6 0 0 1 6 6v38H16a6 6 0 0 1-6-6V16Z" />
+                <path d="M10 20h36a6 6 0 0 1 6 6v6H42a6 6 0 0 0 0 12h10" />
+              </svg>
+              <svg class="benefit-icon__mobile" viewBox="0 0 64 64">
+                <rect x="7" y="13" width="50" height="36" rx="5" />
+                <path d="M7 23h50M17 35h8M30 35h6" />
+                <circle cx="48" cy="47" r="10" />
+                <path d="m43 47 3 3 6-7" />
+              </svg>
+            </div>
+            <div class="benefit-card__content">
+              <h2 class="benefit-title benefit-title--desktop"><span>₺5.000 kaporayla</span>ödeme</h2>
+              <h2 class="benefit-title benefit-title--mobile"><strong>₺5.000</strong><span>kaporayla ödeme</span></h2>
+              <p>Rezervasyonunuzu kolayca oluşturun, kalan ödemeyi sonra tamamlayın.</p>
+            </div>
+          </article>
+
+          <article class="benefit-card">
+            <div class="benefit-icon" aria-hidden="true">
+              <svg class="benefit-icon__desktop" viewBox="0 0 64 64">
+                <path d="M32 7c5 0 7 5 11 6s9-2 12 2 0 8 2 12 7 6 7 11-5 7-7 11 1 9-2 12-8 0-12 2-6 7-11 7-7-5-11-6-9 2-12-2 0-8-2-12-7-6-7-11 5-7 7-11-1-9 2-12 8 0 12-2c4-1 6-6 11-6Z" />
+                <path d="m23 33 6 6 13-14" />
+              </svg>
+              <svg class="benefit-icon__mobile" viewBox="0 0 64 64">
+                <path d="M32 7c4 0 6 5 9 6 4 1 8-2 11 1s0 7 2 11c1 3 6 5 6 9s-5 6-6 9c-2 4 1 8-2 11s-7 0-11 1c-3 1-5 6-9 6s-6-5-9-6c-4-1-8 2-11-1s0-7-2-11c-1-3-6-5-6-9s5-6 6-9c2-4-1-8 2-11s7 0 11-1c3-1 5-6 9-6Z" />
+                <path d="m32 21 4 8 9 1-7 6 2 9-8-5-8 5 2-9-7-6 9-1 4-8ZM20 54l-4 9 9-5M44 54l4 9-9-5" />
+              </svg>
+            </div>
+            <div class="benefit-card__content">
+              <h2 class="benefit-title benefit-title--desktop"><span>En uygun fiyat</span>garantisi</h2>
+              <h2 class="benefit-title benefit-title--mobile"><strong>EN UYGUN</strong><span>fiyat garantisi</span></h2>
+              <p>Bütçenize en uygun paketi sunuyor, kaliteyi garanti ediyoruz.</p>
+            </div>
+          </article>
+        </div>
+        <div class="benefits-divider" aria-hidden="true"><span>✦</span></div>
+      </section>
+      <span id="konseptler"></span><span id="hizmetler"></span><span id="galeri"></span><span id="iletisim"></span>
+    </main>
+
+    <dialog class="booking-dialog" aria-labelledby="booking-title">
+      <button class="dialog-close" type="button" aria-label="Rezervasyon penceresini kapat">×</button>
+      <span class="dialog-kicker">Hayalinizdeki günü planlayalım</span>
+      <h2 id="booking-title">Rezervasyon talebi</h2>
+      <p>Bilgilerinizi bırakın, ekibimiz en kısa sürede sizi arasın.</p>
+      <form class="booking-form">
+        <label>
+          Adınız Soyadınız
+          <input type="text" name="name" autocomplete="name" required />
+        </label>
+        <label>
+          Telefon Numaranız
+          <input type="tel" name="phone" autocomplete="tel" required />
+        </label>
+        <label>
+          Düğün Tarihiniz
+          <input type="date" name="date" />
+        </label>
+        <button class="button button--primary" type="submit">Talebimi Gönder</button>
+        <p class="form-success" role="status" hidden>Talebiniz alındı. En kısa sürede sizi arayacağız.</p>
+      </form>
+    </dialog>
+  </body>
+</html>
