@@ -1900,6 +1900,125 @@ button {
   }
 }
 
+@media (max-width: 480px) {
+  .legacy-intro__inner {
+    width: calc(100% - 20px);
+    padding: 18px 0 20px;
+  }
+
+  .legacy-collage {
+    width: min(94vw, 420px);
+    height: clamp(190px, 54vw, 230px);
+    margin-bottom: 18px;
+  }
+
+  .legacy-photo {
+    border-width: 5px;
+    border-radius: 9px;
+  }
+
+  .legacy-photo--center {
+    padding-bottom: 28px;
+  }
+
+  .legacy-photo figcaption {
+    right: 7px;
+    bottom: 7px;
+    left: 7px;
+    gap: 5px;
+  }
+
+  .legacy-photo figcaption svg {
+    width: 11px;
+  }
+
+  .legacy-kicker {
+    gap: 8px;
+    margin-bottom: 9px;
+    font-size: clamp(7.5px, 2.2vw, 9.5px);
+    letter-spacing: 0.28em;
+  }
+
+  .legacy-kicker span {
+    width: 16px;
+  }
+
+  .legacy-copy h2 {
+    font-size: clamp(32px, 9.2vw, 40px);
+    line-height: 1;
+  }
+
+  .legacy-copy h2 em {
+    margin-top: 2px;
+  }
+
+  .legacy-flourish {
+    width: min(200px, 58%);
+    margin: 11px auto 13px;
+    gap: 8px;
+  }
+
+  .legacy-flourish svg {
+    width: 17px;
+  }
+
+  .legacy-lead {
+    padding-inline: 8px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .legacy-botanical--right {
+    right: -42px;
+    width: 125px;
+  }
+
+  .legacy-values {
+    padding: 38px 8px 30px;
+  }
+
+  .legacy-values__grid {
+    min-height: 236px;
+    padding: 12px 0;
+    border-radius: 16px;
+  }
+
+  .legacy-value {
+    padding-inline: 5px;
+  }
+
+  .legacy-value__icon {
+    width: 48px;
+    margin-top: -38px;
+  }
+
+  .legacy-value h3 {
+    margin: 15px 0 6px;
+    font-size: clamp(10.5px, 3vw, 13px);
+  }
+
+  .legacy-value__dash {
+    width: 18px;
+    height: 1px;
+    margin-bottom: 7px;
+  }
+
+  .legacy-value p {
+    font-size: clamp(8px, 2.3vw, 10px);
+    line-height: 1.45;
+  }
+
+  .legacy-values__heart {
+    bottom: 18px;
+    width: 95px;
+    height: 34px;
+  }
+
+  .legacy-values__heart svg {
+    width: 16px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
