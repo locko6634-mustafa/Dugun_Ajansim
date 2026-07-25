@@ -30,6 +30,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const hasReducedMotion = () => reduceMotionQuery.matches;
   const gsapAvailable = Boolean(window.gsap && window.ScrollTrigger);
 
+  /* Preloader & Page Load Handler */
+  const preloader = document.querySelector('#preloader');
+  const heroEl = document.querySelector('.hero');
+
+  const hidePreloader = () => {
+    if (!preloader || preloader.classList.contains('is-hidden')) return;
+    preloader.classList.add('is-hidden');
+    body.classList.add('is-page-loaded');
+    if (heroEl) heroEl.classList.add('is-loaded');
+  };
+
+  const startTime = performance.now();
+  const minDisplayTime = 750;
+
+  const triggerHide = () => {
+    const elapsedTime = performance.now() - startTime;
+    const remainingTime = Math.max(0, minDisplayTime - elapsedTime);
+    setTimeout(hidePreloader, remainingTime);
+  };
+
+  if (document.readyState === 'complete') {
+    triggerHide();
+  } else {
+    window.addEventListener('load', triggerHide, { once: true });
+  }
+
+  setTimeout(hidePreloader, 2000);
+
   /* Header and navigation */
   const siteHeader = document.querySelector('#site-header');
   const menuToggle = document.querySelector('#menu-toggle');
@@ -172,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
     !SITE_CONFIG.demoMode && normalizedWhatsAppNumber.length >= 10;
   const whatsappTargets = selectAll('[data-whatsapp]');
   const packageButtons = selectAll('[data-package-select]');
-  const mobileCta = document.querySelector('#mobile-cta');
+  const mobileCta = document.querySelector('#mobile-sticky-cta') || document.querySelector('#mobile-cta');
 
   const buildWhatsAppMessage = (packageName) =>
     [
@@ -250,35 +278,21 @@ document.addEventListener('DOMContentLoaded', () => {
   updateWhatsAppTargets();
 
   /* Context-aware mobile conversion bar */
-  const heroSection = document.querySelector('.hero');
   const packageSection = document.querySelector('#paketler');
   const finalCtaSection = document.querySelector('.final-cta');
   const updateMobileCta = () => {
     if (!mobileCta) return;
-    let nextState = 'hidden';
 
-    if (!mobileCtaQuery.matches) {
-      mobileCta.dataset.ctaState = nextState;
-      return;
-    }
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    const heroBottom = heroEl?.getBoundingClientRect().bottom ?? 0;
 
-    const heroBottom = heroSection?.getBoundingClientRect().bottom ?? 0;
-    const packagesRect = packageSection?.getBoundingClientRect();
-    const finalRect = finalCtaSection?.getBoundingClientRect();
-    const inDecisionScene =
-      Boolean(packagesRect && packagesRect.top < window.innerHeight * 0.72 && packagesRect.bottom > 0) ||
-      Boolean(finalRect && finalRect.top < window.innerHeight * 0.8 && finalRect.bottom > 0);
-
-    if (heroBottom > window.innerHeight * 0.18) {
-      nextState = 'hidden';
-    } else if (inDecisionScene) {
-      nextState = 'expanded';
+    // Kullanıcı henüz aşağı kaydırmamışsa (scrollY < 100) veya Hero bölümü ekrandayken buton gizlidir
+    if (scrollY < 100 || heroBottom > window.innerHeight * 0.2) {
+      mobileCta.classList.remove('is-visible');
+      mobileCta.dataset.ctaState = 'hidden';
     } else {
-      nextState = 'compact';
-    }
-
-    if (mobileCta.dataset.ctaState !== nextState) {
-      mobileCta.dataset.ctaState = nextState;
+      mobileCta.classList.add('is-visible');
+      mobileCta.dataset.ctaState = 'visible';
     }
   };
 
@@ -744,6 +758,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* 1. Örnek Fotoğraflar Sekmeli Filtreleme */
   const galleryTabs = selectAll('.gallery-tab');
   const photoCards = selectAll('.photo-card');
+  const viewAllLink = document.querySelector('.view-all-link');
 
   galleryTabs.forEach((tab) => {
     tab.addEventListener('click', () => {
@@ -763,7 +778,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  /* 2. Fotoğraf Kalp / Beğeni Butonları */
+  if (viewAllLink) {
+    viewAllLink.addEventListener('click', (e) => {
+      const allTab = document.querySelector('.gallery-tab[data-filter="all"]');
+      if (allTab) {
+        allTab.click();
+      }
+    });
+  }
+
+  /* 2. Fotoğraf Kalp / Beğeni Butonları & Kart Görsel Tıklaması */
   const likeButtons = selectAll('.photo-card__like');
   likeButtons.forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -772,31 +796,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  /* 3. Örnek Video Oynat/Durdur Butonları */
+  /* 3. Örnek Video Oynat/Durdur & Ses Kontrolü */
   const videoCards = selectAll('.video-card');
   videoCards.forEach((card) => {
     const video = card.querySelector('video');
-    const playBtn = card.querySelector('.video-card__play-btn');
+    if (!video) return;
 
-    if (!video || !playBtn) return;
+    card.addEventListener('click', (e) => {
+      // Lightbox veya başka buton tıklanmışsa engelleme
+      if (e.target.closest('button:not(.video-card__play-btn)')) return;
 
-    playBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
       if (video.paused) {
-        // Pause all other video card videos
-        selectAll('.video-card video').forEach((v) => {
-          if (v !== video) v.pause();
-        });
         video.play().catch(() => {});
-        playBtn.querySelector('span').textContent = '❚❚';
+      } else if (video.muted) {
+        // Mute all other videos and unmute this one
+        selectAll('video').forEach((v) => { if (v !== video) v.muted = true; });
+        video.muted = false;
       } else {
-        video.pause();
-        playBtn.querySelector('span').textContent = '▶';
+        video.muted = true;
       }
-    });
-
-    video.addEventListener('ended', () => {
-      playBtn.querySelector('span').textContent = '▶';
     });
   });
 
@@ -833,5 +851,264 @@ document.addEventListener('DOMContentLoaded', () => {
     showDemoToast(`Sayın ${name}, rezervasyon talebiniz (${date || 'Tarih seçilmedi'}) başarıyla alındı! Ekibimiz size dönüş yapacaktır.`);
     reservationForm.reset();
   });
+
+  /* ==========================================================================
+     MOBILE-FIRST HOOKING & INTERACTION LOGIC
+     ========================================================================== */
+
+  /* A. BEFORE / AFTER SLIDER LOGIC */
+  const beforeAfterSlider = document.querySelector('#beforeAfterSlider');
+  if (beforeAfterSlider) {
+    const beforeImg = beforeAfterSlider.querySelector('.before-after-card__before');
+    const handle = beforeAfterSlider.querySelector('.before-after-card__handle');
+
+    const updateSliderPosition = (clientX) => {
+      const rect = beforeAfterSlider.getBoundingClientRect();
+      let x = clientX - rect.left;
+      x = Math.max(0, Math.min(x, rect.width));
+      const percentage = (x / rect.width) * 100;
+
+      if (beforeImg) beforeImg.style.width = `${percentage}%`;
+      if (handle) handle.style.left = `${percentage}%`;
+    };
+
+    let isDragging = false;
+
+    const onPointerDown = (e) => {
+      isDragging = true;
+      updateSliderPosition(e.clientX || e.touches[0].clientX);
+    };
+
+    const onPointerMove = (e) => {
+      if (!isDragging) return;
+      updateSliderPosition(e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0));
+    };
+
+    const onPointerUp = () => {
+      isDragging = false;
+    };
+
+    beforeAfterSlider.addEventListener('mousedown', onPointerDown);
+    beforeAfterSlider.addEventListener('touchstart', onPointerDown, { passive: true });
+
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('touchmove', onPointerMove, { passive: true });
+
+    window.addEventListener('mouseup', onPointerUp);
+    window.addEventListener('touchend', onPointerUp);
+  }
+
+  /* B. DOUBLE-TAP HEART ANIMATION & FAVORITES */
+  let favoriteCount = 0;
+  const favCountEl = document.querySelector('#mobile-fav-count');
+
+  photoCards.forEach((card) => {
+    let lastTapTime = 0;
+
+    card.addEventListener('touchend', (e) => {
+      const currentTime = new Date().getTime();
+      const tapLength = currentTime - lastTapTime;
+
+      if (tapLength < 300 && tapLength > 0) {
+        // Double tap triggered
+        e.preventDefault();
+        triggerHeartBurst(card);
+      }
+      lastTapTime = currentTime;
+    });
+
+    // Double click fallback for desktop
+    card.addEventListener('dblclick', () => {
+      triggerHeartBurst(card);
+    });
+  });
+
+  function triggerHeartBurst(container) {
+    favoriteCount++;
+    if (favCountEl) favCountEl.textContent = favoriteCount;
+
+    const heart = document.createElement('div');
+    heart.className = 'heart-burst';
+    heart.innerHTML = '❤️';
+    container.style.position = 'relative';
+    container.appendChild(heart);
+
+    setTimeout(() => {
+      heart.remove();
+    }, 750);
+  }
+
+  /* D. INSTAGRAM STORIES REVIEWS MODAL */
+  const storyData = {
+    'story-1': {
+      title: 'Ece & Kaan',
+      img: 'assets/images/hero-garden-walk.webp',
+      text: '"Fotoğraflarımız tam bir sinematik başyapıt oldu. Çekim günü ekibin güler yüzü bize tüm heyecanımızı unutturdu!"',
+      tag: '📍 Polonezköy Dış Çekim',
+    },
+    'story-2': {
+      title: 'Selin & Mert',
+      img: 'assets/images/scene-forest.webp',
+      text: '"Orman çekimindeki ışık açıları harikaydı. Düğün albümümüzü gören herkes hangi ajans olduğunu soruyor."',
+      tag: '📍 Belgrad Ormanı Çekimi',
+    },
+    'story-3': {
+      title: 'Cansu & Arda',
+      img: 'assets/images/scene-ceremony.webp',
+      text: '"Kır düğünümüzün her anını duygu dolu yakalamışlar. Sinematik klip hala gözlerimizi yaşartıyor."',
+      tag: '📍 Kır Düğün Seremonisi',
+    },
+    'story-4': {
+      title: 'Zeynep & Burak',
+      img: 'assets/images/scene-city-night.webp',
+      text: '"Gece çekimindeki ışık gösterisi ve drone çekimleri muazzamdı. Zamanında teslimat için ayrıca teşekkürler!"',
+      tag: '📍 İstanbul Gece Çekimi',
+    },
+  };
+
+  const storyModal = document.querySelector('#story-modal');
+  const storyModalImg = document.querySelector('#story-modal-img');
+  const storyModalTitle = document.querySelector('#story-modal-title');
+  const storyModalText = document.querySelector('#story-modal-text');
+  const storyModalTag = document.querySelector('#story-modal-tag');
+  const storyModalClose = document.querySelector('#story-modal-close');
+  const storyProgressFill = document.querySelector('#story-modal-progress');
+  const storyButtons = selectAll('.story-avatar-btn');
+
+  let storyTimer = null;
+
+  const openStory = (storyId) => {
+    const data = storyData[storyId];
+    if (!data || !storyModal) return;
+
+    if (storyModalImg) storyModalImg.src = data.img;
+    if (storyModalTitle) storyModalTitle.textContent = data.title;
+    if (storyModalText) storyModalText.textContent = data.text;
+    if (storyModalTag) storyModalTag.textContent = data.tag;
+
+    storyModal.setAttribute('aria-hidden', 'false');
+
+    if (storyProgressFill) {
+      storyProgressFill.style.transition = 'none';
+      storyProgressFill.style.width = '0%';
+      setTimeout(() => {
+        storyProgressFill.style.transition = 'width 4s linear';
+        storyProgressFill.style.width = '100%';
+      }, 50);
+    }
+
+    clearTimeout(storyTimer);
+    storyTimer = setTimeout(() => {
+      closeStory();
+    }, 4000);
+  };
+
+  const closeStory = () => {
+    if (!storyModal) return;
+    storyModal.setAttribute('aria-hidden', 'true');
+    clearTimeout(storyTimer);
+    if (storyProgressFill) {
+      storyProgressFill.style.transition = 'none';
+      storyProgressFill.style.width = '0%';
+    }
+  };
+
+  storyButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const storyId = btn.dataset.storyId;
+      openStory(storyId);
+    });
+  });
+
+  storyModalClose?.addEventListener('click', closeStory);
+  storyModal?.querySelector('.story-modal__overlay')?.addEventListener('click', closeStory);
+
+  /* E. REELS AUTOPLAY VIDEO OBSERVER */
+  const allVideos = selectAll('video');
+  if ('IntersectionObserver' in window && allVideos.length) {
+    const videoObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const video = entry.target;
+          if (entry.isIntersecting) {
+            video.muted = true;
+            video.playsInline = true;
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(() => {});
+            }
+          } else {
+            video.pause();
+          }
+        });
+      },
+      { threshold: 0.2 }
+    );
+
+    allVideos.forEach((v) => videoObserver.observe(v));
+  }
+
+  /* F. MOBİL PAKETLER CAROUSEL CONTROLS & ODAKLAMA LOGIC */
+  const packagesList = document.querySelector('#paketler .packages__list');
+  const packageDots = selectAll('.package-dot');
+
+  if (packagesList && packageDots.length) {
+    const packages = packagesList.querySelectorAll('.package');
+
+    // 2. Pakete (Tam Hikâye) anında (gecikmesiz/animasyonsuz) veya yumuşak odaklanma
+    const centerPopularPackage = (instant = true) => {
+      if (window.innerWidth <= 768 && packages[1]) {
+        const packageWidth = packages[1].offsetWidth;
+        const listWidth = packagesList.offsetWidth;
+        const scrollTarget = packages[1].offsetLeft - (listWidth - packageWidth) / 2;
+        
+        if (instant) {
+          packagesList.scrollLeft = scrollTarget;
+        } else {
+          packagesList.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+        }
+      }
+    };
+
+    // İlk yüklemede anında 2. paketi konumlandır (1. paketten kayma efekti olmaması için)
+    centerPopularPackage(true);
+    requestAnimationFrame(() => centerPopularPackage(true));
+    setTimeout(() => centerPopularPackage(true), 50);
+
+    const updateDots = () => {
+      const scrollLeft = packagesList.scrollLeft;
+      const listWidth = packagesList.offsetWidth;
+      let activeIndex = 0;
+
+      packages.forEach((pkg, index) => {
+        const pkgLeft = pkg.offsetLeft - packagesList.offsetLeft;
+        const pkgCenter = pkgLeft + pkg.offsetWidth / 2;
+        if (Math.abs(scrollLeft + listWidth / 2 - pkgCenter) < pkg.offsetWidth / 2 + 30) {
+          activeIndex = index;
+        }
+      });
+
+      packageDots.forEach((dot, idx) => {
+        dot.classList.toggle('is-active', idx === activeIndex);
+      });
+    };
+
+    packagesList.addEventListener('scroll', updateDots, { passive: true });
+
+    packageDots.forEach((dot) => {
+      dot.addEventListener('click', () => {
+        const index = parseInt(dot.dataset.index, 10);
+        if (packages[index]) {
+          const packageWidth = packages[index].offsetWidth;
+          const listWidth = packagesList.offsetWidth;
+          const scrollLeft = packages[index].offsetLeft - (listWidth - packageWidth) / 2;
+          packagesList.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+        }
+      });
+    });
+
+    window.addEventListener('resize', () => centerPopularPackage(true), { passive: true });
+  }
 });
+
 

@@ -45,6 +45,18 @@
 </head>
 
 <body>
+  <!-- PRELOADER -->
+  <div id="preloader" class="preloader" aria-hidden="true">
+    <div class="preloader__inner">
+      <span class="preloader__brand">DüğünAjansım</span>
+      <div class="preloader__dots">
+        <span class="preloader__dot"></span>
+        <span class="preloader__dot"></span>
+        <span class="preloader__dot"></span>
+      </div>
+    </div>
+  </div>
+
   <a class="skip-link" href="#main-content">Ana içeriğe geç</a>
 
   <!-- SITE HEADER -->
@@ -109,10 +121,10 @@
             <span aria-hidden="true">✦</span>
             İstanbul · Fotoğraf &amp; Sinematik Film
           </p>
-          <h1 id="hero-title" data-reveal>
-            Siz yaşayın.<br>
-            <span class="hero__nowrap">Biz <em>hatırlatalım.</em></span><br>
-            Sahne sahne.
+          <h1 id="hero-title" class="hero__title">
+            <span class="hero__title-line-wrap"><span class="hero__title-line">Siz yaşayın.</span></span>
+            <span class="hero__title-line-wrap"><span class="hero__title-line hero__nowrap">Biz <em>hatırlatalım.</em></span></span>
+            <span class="hero__title-line-wrap"><span class="hero__title-line">Sahne sahne.</span></span>
           </h1>
           <p class="hero__lead" data-reveal>
             Günün telaşını değil; size ait bakışları, sesleri ve küçük anları
@@ -194,7 +206,7 @@
       <div class="section-container">
         <div class="team-section__header" data-reveal>
           <p class="eyebrow"><span aria-hidden="true">✦</span> TÜRKİYE'NİN EN BÜYÜK</p>
-          <h2 id="team-title">DÜĞÜN AJANSI</h2>
+          <h2 id="team-title">DÜĞÜN AJANSIM</h2>
           <p class="team-section__subtitle">65 KİŞİLİK PROFESYONEL EKİBİMİZLE HAYALLERİNİZİ GERÇEĞE DÖNÜŞTÜRÜYORUZ.</p>
         </div>
 
@@ -381,6 +393,37 @@
       </div>
     </section>
 
+    <!-- BEFORE / AFTER INTERACTION SECTION -->
+    <section class="before-after-section section" aria-labelledby="before-after-title" data-scene="light">
+      <div class="section-container">
+        <div class="section-title-row" data-reveal>
+          <div>
+            <p class="eyebrow"><span aria-hidden="true">✦</span> RENK VE EDİTLEME SİHİRİ</p>
+            <h2 id="before-after-title">HAM ÇEKİM VS RENK DÜZENLEME</h2>
+          </div>
+          <span class="swipe-hint-badge">Parmağını Sürükle ↔</span>
+        </div>
+        <div class="before-after-card" data-reveal>
+          <div class="before-after-card__wrapper" id="beforeAfterSlider">
+            <div class="before-after-card__image before-after-card__after">
+              <img src="assets/images/scene-ceremony.webp" alt="Renk Düzenlenmiş Fotoğraf" loading="lazy">
+              <span class="before-after-card__label label-after">İşlenmiş Kare ✨</span>
+            </div>
+            <div class="before-after-card__image before-after-card__before">
+              <img src="assets/images/scene-ceremony.webp" alt="Ham Fotoğraf" loading="lazy" style="filter: grayscale(40%) contrast(85%) brightness(90%);">
+              <span class="before-after-card__label label-before">Ham Çekim 📷</span>
+            </div>
+            <div class="before-after-card__handle">
+              <div class="handle-line"></div>
+              <div class="handle-button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- 4. ÖRNEK VİDEOLAR BÖLÜMÜ -->
     <section id="videolar" class="video-gallery section" aria-labelledby="videos-title" data-scene="light">
       <div class="section-container">
@@ -399,6 +442,7 @@
               <video
                 src="https://qfmoughtxjgyusocywax.supabase.co/storage/v1/object/public/videos/video1.mp4"
                 poster="assets/images/hero-garden-walk.webp"
+                autoplay
                 muted
                 loop
                 playsinline
@@ -423,6 +467,7 @@
               <video
                 src="https://qfmoughtxjgyusocywax.supabase.co/storage/v1/object/public/videos/video2.mp4"
                 poster="assets/images/scene-ceremony.webp"
+                autoplay
                 muted
                 loop
                 playsinline
@@ -447,6 +492,7 @@
               <video
                 src="https://qfmoughtxjgyusocywax.supabase.co/storage/v1/object/public/videos/video3.mp4"
                 poster="assets/images/scene-forest.webp"
+                autoplay
                 muted
                 loop
                 playsinline
@@ -471,62 +517,58 @@
     <!-- 5. HİZMETLERİMİZ BÖLÜMÜ -->
     <section id="hizmetler" class="services-grid-section section" aria-labelledby="services-grid-title" data-scene="light">
       <div class="section-container">
-        <div class="section-title-row" data-reveal>
-          <div>
-            <p class="eyebrow"><span aria-hidden="true">✦</span> KAPSAM</p>
-            <h2 id="services-grid-title">HİZMETLERİMİZ</h2>
-          </div>
-          <a href="#hizmetler" class="view-all-link">TÜMÜNÜ GÖR ↗</a>
+        <div class="services-header" data-reveal>
+          <p class="eyebrow eyebrow--rose"><span aria-hidden="true">✦</span> PROFESYONEL HİZMETLER</p>
+          <h2 id="services-grid-title" class="services-main-title">Gününüz için <em>her şey.</em></h2>
         </div>
 
         <div class="services-grid" data-reveal>
           <a href="#rezervasyon" class="service-box" data-service-type="Fotoğraf Çekimi">
             <div class="service-box__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
             </div>
             <div class="service-box__name">Fotoğraf Çekimi</div>
+            <p class="service-box__desc">Doğal ve belgesel yaklaşımla günününüzün her anını ölümsüzleştiriyoruz.</p>
           </a>
 
           <a href="#rezervasyon" class="service-box" data-service-type="Video Çekimi">
             <div class="service-box__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
             </div>
             <div class="service-box__name">Video Çekimi</div>
+            <p class="service-box__desc">Sinematik düğün filmi ile günününüzün duygusunu zamansız bir hikâyeye dönüştürüyoruz.</p>
           </a>
 
           <a href="#rezervasyon" class="service-box" data-service-type="Drone Çekimi">
             <div class="service-box__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"></path><path d="M4.5 4.5l3.5 3.5"></path><path d="M19.5 4.5l-3.5 3.5"></path><path d="M4.5 19.5l3.5-3.5"></path><path d="M19.5 19.5l-3.5-3.5"></path></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 10v4m-2-2h4"></path><circle cx="12" cy="12" r="6"></circle><circle cx="5" cy="5" r="3"></circle><circle cx="19" cy="5" r="3"></circle><circle cx="5" cy="19" r="3"></circle><circle cx="19" cy="19" r="3"></circle></svg>
             </div>
             <div class="service-box__name">Drone Çekimi</div>
+            <p class="service-box__desc">Havadan çekimlerle mekânınızı ve özel anlarınızı farklı bir perspektiften sunuyoruz.</p>
           </a>
 
           <a href="#rezervasyon" class="service-box" data-service-type="Klip Çekimi">
             <div class="service-box__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"></polygon><circle cx="12" cy="12" r="9"></circle></svg>
             </div>
             <div class="service-box__name">Klip Çekimi</div>
+            <p class="service-box__desc">Müzikli, kısa ve enerjik klip çekimleriyle düğününüzün özetini çıkartıyoruz.</p>
           </a>
 
           <a href="#rezervasyon" class="service-box" data-service-type="360° Video Booth">
             <div class="service-box__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l3 3"></path></svg>
             </div>
             <div class="service-box__name">360° Video Booth</div>
+            <p class="service-box__desc">Davetlilerinizin eğlenerek katıldığı, sosyal medyada paylaşılabilir 360° videolar.</p>
           </a>
 
           <a href="#rezervasyon" class="service-box" data-service-type="Albüm Tasarımı">
             <div class="service-box__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 10h18"></path><path d="M8 15h4"></path></svg>
             </div>
             <div class="service-box__name">Albüm Tasarımı</div>
-          </a>
-
-          <a href="#rezervasyon" class="service-box service-box--more" data-service-type="Daha Fazlası">
-            <div class="service-box__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
-            </div>
-            <div class="service-box__name">Daha Fazlası</div>
+            <p class="service-box__desc">En güçlü karelerinizi özenle tasarlanmış premium albümlere dönüştürüyoruz.</p>
           </a>
         </div>
       </div>
@@ -628,18 +670,19 @@
           </article>
         </div>
 
-        <aside class="custom-offer glass-card-neon" data-reveal style="margin-top: 3rem;">
-          <span class="custom-offer__mark" aria-hidden="true" style="color: var(--champagne-gold);">✦</span>
-          <div>
-            <p class="eyebrow" style="color: var(--champagne-gold);">Size göre şekillensin</p>
-            <h3 style="color: #fff;">İki gün, farklı şehir veya özel bir akış mı?</h3>
-            <p>İhtiyaçlarınıza göre fotoğraf, film ve albümü birlikte planlayalım.</p>
+        <!-- MOBİL CAROUSEL KONTROLLERİ & İPUCU -->
+        <div class="packages__controls mobile-only">
+          <div class="packages__dots" id="packages-dots">
+            <button type="button" class="package-dot" data-index="0" aria-label="Paket 1: İlk Kare"></button>
+            <button type="button" class="package-dot is-active" data-index="1" aria-label="Paket 2: Tam Hikâye"></button>
+            <button type="button" class="package-dot" data-index="2" aria-label="Paket 3: Gün Boyu Sinema"></button>
           </div>
-          <a
-            class="button button--primary magnetic-element"
-            href="#rezervasyon"
-          >Özel teklif iste ↗</a>
-        </aside>
+          <div class="packages__swipe-hint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 16l-4-4m0 0l4-4m-4 4h18"></path></svg>
+            <span>Paketleri incelemek için kaydırın</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -712,51 +755,90 @@
             <p class="eyebrow"><span aria-hidden="true">✦</span> LOKASYONLAR</p>
             <h2 id="venues-title">ÇALIŞTIĞIMIZ MEKANLAR</h2>
           </div>
-          <a href="#mekanlar" class="view-all-link">TÜMÜNÜ GÖR ↗</a>
         </div>
 
         <div class="venues-grid" data-reveal>
           <div class="venue-card">
             <div class="venue-card__avatar">
-              <span class="venue-card__initials">CESS</span>
+              <img src="assets/images/venues/cess-wedding.jpg" alt="Cess Wedding Logo" class="venue-card__img" loading="lazy">
             </div>
             <div class="venue-card__name">Cess Wedding</div>
           </div>
 
           <div class="venue-card">
             <div class="venue-card__avatar">
-              <span class="venue-card__initials">YN</span>
+              <img src="assets/images/venues/yesil-nesil-garden.jpg" alt="Yeşil Nesil Garden Logo" class="venue-card__img" loading="lazy">
             </div>
             <div class="venue-card__name">Yeşil Nesil Garden</div>
           </div>
 
           <div class="venue-card">
             <div class="venue-card__avatar">
-              <span class="venue-card__initials">TL</span>
+              <img src="assets/images/venues/talia-garden.jpg" alt="Talia Garden Logo" class="venue-card__img" loading="lazy">
             </div>
             <div class="venue-card__name">Talia Garden</div>
           </div>
 
           <div class="venue-card">
             <div class="venue-card__avatar">
-              <span class="venue-card__initials">RN</span>
+              <img src="assets/images/venues/rena-garden.jpg" alt="Rena Garden Logo" class="venue-card__img" loading="lazy">
             </div>
             <div class="venue-card__name">Rena Garden</div>
           </div>
 
           <div class="venue-card">
             <div class="venue-card__avatar">
-              <span class="venue-card__initials">BL</span>
+              <img src="assets/images/venues/bella-garden.jpg" alt="Bella Garden Logo" class="venue-card__img" loading="lazy">
             </div>
             <div class="venue-card__name">Bella Garden</div>
           </div>
 
           <div class="venue-card">
             <div class="venue-card__avatar">
-              <span class="venue-card__initials">MF</span>
+              <img src="assets/images/venues/mafsel-omerli.jpg" alt="Mafsel Ömerli Logo" class="venue-card__img" loading="lazy">
             </div>
             <div class="venue-card__name">Mafsel Ömerli</div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INSTAGRAM STORY STYLE REVIEWS SECTION -->
+    <section id="yorumlar" class="stories-reviews-section section" aria-labelledby="stories-title" data-scene="light">
+      <div class="section-container">
+        <div class="section-title-row" data-reveal>
+          <div>
+            <p class="eyebrow"><span aria-hidden="true">✦</span> MÜŞTERİ HİKAYELERİ</p>
+            <h2 id="stories-title">ÇİFTLERİMİZ NE DEDİ?</h2>
+          </div>
+          <span class="swipe-hint-badge">Dokun &amp; İzle 📸</span>
+        </div>
+
+        <div class="stories-row" data-reveal>
+          <button class="story-avatar-btn" type="button" data-story-id="story-1">
+            <div class="story-avatar-ring">
+              <img src="assets/images/hero-garden-walk.webp" alt="Ece &amp; Kaan">
+            </div>
+            <span class="story-avatar-name">Ece &amp; Kaan</span>
+          </button>
+          <button class="story-avatar-btn" type="button" data-story-id="story-2">
+            <div class="story-avatar-ring">
+              <img src="assets/images/scene-forest.webp" alt="Selin &amp; Mert">
+            </div>
+            <span class="story-avatar-name">Selin &amp; Mert</span>
+          </button>
+          <button class="story-avatar-btn" type="button" data-story-id="story-3">
+            <div class="story-avatar-ring">
+              <img src="assets/images/scene-ceremony.webp" alt="Cansu &amp; Arda">
+            </div>
+            <span class="story-avatar-name">Cansu &amp; Arda</span>
+          </button>
+          <button class="story-avatar-btn" type="button" data-story-id="story-4">
+            <div class="story-avatar-ring">
+              <img src="assets/images/scene-city-night.webp" alt="Zeynep &amp; Burak">
+            </div>
+            <span class="story-avatar-name">Zeynep &amp; Burak</span>
+          </button>
         </div>
       </div>
     </section>
@@ -873,5 +955,35 @@
     </div>
     <button type="button" data-toast-close aria-label="Bildirimi kapat">×</button>
   </aside>
+
+  <!-- STORY MODAL -->
+  <div id="story-modal" class="story-modal" aria-hidden="true" role="dialog">
+    <div class="story-modal__overlay"></div>
+    <div class="story-modal__content">
+      <div class="story-modal__progress-bar">
+        <div id="story-modal-progress" class="story-modal__progress-fill"></div>
+      </div>
+      <div class="story-modal__header">
+        <div class="story-modal__user">
+          <img id="story-modal-img" src="assets/images/hero-garden-walk.webp" alt="Çift Fotoğrafı">
+          <strong id="story-modal-title">Ece &amp; Kaan</strong>
+        </div>
+        <button id="story-modal-close" type="button" class="story-modal__close" aria-label="Kapat">&times;</button>
+      </div>
+      <div class="story-modal__body">
+        <p id="story-modal-text">"Fotoğraflarımız tam bir sinematik başyapıt oldu. Çekim günü ekibin güler yüzü bize tüm heyecanımızı unutturdu!"</p>
+        <span id="story-modal-tag" class="story-modal__tag">📍 Polonezköy Dış Çekim</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOBİL HIZLI CTA (STUCK TO BOTTOM ON MOBILE) -->
+  <div class="mobile-sticky-cta" id="mobile-sticky-cta">
+    <a href="#rezervasyon" class="mobile-sticky-cta__btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+      <span>Hemen Rezervasyon Yap</span>
+      <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+    </a>
+  </div>
 </body>
 </html>
