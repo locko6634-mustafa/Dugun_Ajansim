@@ -736,4 +736,102 @@ document.addEventListener('DOMContentLoaded', () => {
   selectAll('[data-current-year]').forEach((item) => {
     item.textContent = String(new Date().getFullYear());
   });
+
+  /* ==========================================================================
+     YENİ SAYFA BİLEŞENLERİ ETKİLEŞİMLERİ (FİLTRE, LİKE, REZERVASYON)
+     ========================================================================== */
+
+  /* 1. Örnek Fotoğraflar Sekmeli Filtreleme */
+  const galleryTabs = selectAll('.gallery-tab');
+  const photoCards = selectAll('.photo-card');
+
+  galleryTabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const filter = tab.dataset.filter;
+
+      galleryTabs.forEach((t) => t.classList.remove('is-active'));
+      tab.classList.add('is-active');
+
+      photoCards.forEach((card) => {
+        const category = card.dataset.category;
+        if (filter === 'all' || category === filter) {
+          card.classList.remove('is-hidden');
+        } else {
+          card.classList.add('is-hidden');
+        }
+      });
+    });
+  });
+
+  /* 2. Fotoğraf Kalp / Beğeni Butonları */
+  const likeButtons = selectAll('.photo-card__like');
+  likeButtons.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      btn.classList.toggle('is-liked');
+    });
+  });
+
+  /* 3. Örnek Video Oynat/Durdur Butonları */
+  const videoCards = selectAll('.video-card');
+  videoCards.forEach((card) => {
+    const video = card.querySelector('video');
+    const playBtn = card.querySelector('.video-card__play-btn');
+
+    if (!video || !playBtn) return;
+
+    playBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (video.paused) {
+        // Pause all other video card videos
+        selectAll('.video-card video').forEach((v) => {
+          if (v !== video) v.pause();
+        });
+        video.play().catch(() => {});
+        playBtn.querySelector('span').textContent = '❚❚';
+      } else {
+        video.pause();
+        playBtn.querySelector('span').textContent = '▶';
+      }
+    });
+
+    video.addEventListener('ended', () => {
+      playBtn.querySelector('span').textContent = '▶';
+    });
+  });
+
+  /* 4. Hizmet Kutularına Tıklayınca Rezervasyona Kaydırma & Paket/Hizmet Seçimi */
+  const serviceBoxes = selectAll('.service-box');
+  const reservationSelect = document.querySelector('#res-service');
+
+  serviceBoxes.forEach((box) => {
+    box.addEventListener('click', (e) => {
+      const serviceName = box.dataset.serviceType;
+      if (serviceName && reservationSelect) {
+        // Option arayalım veya text matches yapalım
+        for (let i = 0; i < reservationSelect.options.length; i++) {
+          if (reservationSelect.options[i].text.includes(serviceName) || reservationSelect.options[i].value.includes(serviceName)) {
+            reservationSelect.selectedIndex = i;
+            break;
+          }
+        }
+      }
+    });
+  });
+
+  /* 5. Rezervasyon Form Gönderimi */
+  const reservationForm = document.querySelector('#reservation-form');
+  reservationForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const name = document.querySelector('#res-name')?.value;
+    const phone = document.querySelector('#res-phone')?.value;
+    const date = document.querySelector('#res-date')?.value;
+    const venue = document.querySelector('#res-venue')?.value;
+    const service = document.querySelector('#res-service')?.value;
+
+    showDemoToast(`Sayın ${name}, rezervasyon talebiniz (${date || 'Tarih seçilmedi'}) başarıyla alındı! Ekibimiz size dönüş yapacaktır.`);
+    reservationForm.reset();
+  });
 });
+
