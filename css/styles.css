@@ -1,6 +1,14 @@
 :root {
   color-scheme: light;
 
+  /* Tanımlı Olmayan Değişken Tespiti İle Eklenen Temel Varlıklar */
+  --font-serif: "Gloock", Georgia, serif;
+  --font-sans: "Instrument Sans", "Segoe UI", sans-serif;
+  --font-heading: "Gloock", Georgia, serif;
+  --bg-base: #FFFFFF;
+  --color-primary: #A67C52;
+  --reveal-order: 0;
+
   /* PALET 1 - KLASİK & ZARİF RENK PALETİ */
   --bg-white: #FFFFFF;         /* Arka Plan: #FFFFFF */
   --bg-secondary: #F7F5F2;     /* İkincil Arka Plan: #F7F5F2 */
@@ -3877,7 +3885,6 @@ main {
   body.is-menu-open .brand__copy small {
     color: rgba(255, 255, 255, 0.7) !important;
   }
-}
 
   .showreel__stage {
     height: min(58svh, 34rem);
@@ -4441,7 +4448,7 @@ button {
   .mobile-cta > div {
     max-width: 52%;
   }
-}
+
 
 /* ==========================================================================
    ENHANCED VIDEO & SHOWREEL STYLES
@@ -5659,7 +5666,7 @@ button {
     width: 100% !important;
     height: auto !important;
     aspect-ratio: 9/16 !important;
-    object-fit: cover !alignment;
+    object-fit: cover !important;
     border-radius: 1.25rem;
     display: block;
   }
@@ -5728,6 +5735,7 @@ button {
     gap: 1.25rem;
   }
 }
+
 
 /* ==========================================================================
    MOBILE-FIRST HOOKING & INTERACTION STYLES
@@ -6359,8 +6367,3 @@ body.is-menu-open .mobile-sticky-cta__btn {
   visibility: hidden !important;
   pointer-events: none !important;
 }
-
-
-
-
-

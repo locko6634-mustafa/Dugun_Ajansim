@@ -27,12 +27,10 @@ test("index.html kritik DOM bileşen ID sözleşmesini korur", async () => {
     "scroll-progress-bar",
     "main-content",
     "hero-title",
-    "hikayeler",
+    "yorumlar",
     "hizmetler",
-    "surec",
     "paketler",
-    "sss",
-    "mobile-cta",
+    "mobile-sticky-cta",
     "lightbox-dialog",
     "demo-toast"
   ];
