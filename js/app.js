@@ -259,7 +259,6 @@ const motionHeadings = [
   document.querySelector("#gallery-title"),
   document.querySelector("#shoots-title"),
   document.querySelector("#services-title"),
-  document.querySelector("#why-title"),
   document.querySelector("#reservation-title"),
   document.querySelector("#faq-title"),
 ].filter(Boolean);
@@ -376,11 +375,6 @@ registerMotionGroup(".service-card", {
   direction: (index) => (index % 2 === 0 ? "left" : "right"),
   stagger: 75,
 });
-registerMotionGroup(".why-heading__eyebrow, .why-heading > p", { stagger: 85 });
-registerMotionGroup(".why-card", {
-  direction: (index) => (index % 2 === 0 ? "left" : "right"),
-  stagger: 80,
-});
 registerMotionGroup(
   ".reservation-heading__eyebrow, .reservation-heading__rule, .reservation-heading > p",
   { stagger: 80 },
@@ -457,7 +451,6 @@ if (reducedMotionQuery.matches || !("IntersectionObserver" in window)) {
 const parallaxImages = [
   document.querySelector(".hero-collage .photo--main img"),
   document.querySelector(".legacy-photo--center img"),
-  document.querySelector(".why-card--world img"),
 ].filter(Boolean);
 let parallaxFrame;
 
