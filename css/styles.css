@@ -2820,10 +2820,6 @@ button {
   scroll-snap-align: start;
 }
 
-.shoot-card:nth-child(even) {
-  transform: translateY(clamp(16px, 2vw, 30px));
-}
-
 .shoot-card__media {
   position: relative;
   aspect-ratio: 9 / 16;
@@ -3026,10 +3022,6 @@ button {
 
   .shoots-gallery__controls {
     display: none;
-  }
-
-  .shoot-card:nth-child(even) {
-    transform: translateY(10px);
   }
 
   .shoot-card__media {
