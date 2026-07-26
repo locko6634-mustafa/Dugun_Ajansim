@@ -243,7 +243,7 @@
         <div class="benefits-divider" aria-hidden="true"><span>✦</span></div>
       </section>
 
-      <section class="legacy-section" id="galeri" aria-labelledby="legacy-title">
+      <section class="legacy-section" aria-labelledby="legacy-title">
         <div class="legacy-intro">
           <svg class="legacy-botanical legacy-botanical--left" viewBox="0 0 240 300" aria-hidden="true">
             <path d="M19 289C72 232 109 165 137 33M45 258c-10-24-27-38-42-44 22-1 42 7 55 25M82 210c-8-28-27-48-44-58 27 2 48 15 58 36M111 150c-4-29-18-50-35-64 26 7 44 22 51 45M137 92c7-24 24-42 43-50-10 22-25 39-43 50ZM151 62c-2-21 5-39 18-55 3 22-2 41-18 55ZM94 187c18-15 39-20 61-16-20 8-40 13-61 16ZM60 239c17-12 38-14 58-7-20 5-39 7-58 7Z" />
@@ -339,6 +339,181 @@
         </div>
       </section>
 
+      <section class="gallery-section" id="galeri" aria-labelledby="gallery-title">
+        <div class="gallery-section__inner">
+          <header class="gallery-heading">
+            <p class="gallery-kicker">Gerçek Hikâyeler</p>
+            <h2 id="gallery-title">Anılarınızın <em>en güzel hâli.</em></h2>
+            <p>
+              Her kare, size ait bir hikâyenin zamansız parçası. Çiftlerimizin en özel
+              anlarından seçtiklerimize göz atın.
+            </p>
+          </header>
+
+          <div class="gallery-track" aria-label="Düğün fotoğrafları galerisi">
+            <button class="gallery-card gallery-card--tall" type="button" data-gallery-index="0">
+              <img
+                src="assets/images/venue-pavilion.png"
+                alt="Beyaz çiçeklerle hazırlanan düğün çekim platosu"
+                loading="lazy"
+              />
+              <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+            </button>
+            <button class="gallery-card gallery-card--medium" type="button" data-gallery-index="1">
+              <img
+                src="assets/images/groom-portrait.png"
+                alt="Zarif bir aynanın yanında smokinli damat"
+                loading="lazy"
+              />
+              <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+            </button>
+            <button class="gallery-card gallery-card--hero" type="button" data-gallery-index="2">
+              <img
+                src="assets/images/hero-couple.png"
+                alt="Çiçeklerle çevrili çekim platosunda gelin ve damat"
+                loading="lazy"
+              />
+              <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+            </button>
+            <button class="gallery-card gallery-card--short" type="button" data-gallery-index="3">
+              <img
+                src="assets/images/services/album-tasarimi.webp"
+                alt="Albüm çekimi için poz veren gelin ve damat"
+                loading="lazy"
+              />
+              <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+            </button>
+            <button class="gallery-card gallery-card--medium" type="button" data-gallery-index="4">
+              <img
+                src="assets/images/bride-portrait.png"
+                alt="Düğün çekiminde zarif gelin portresi"
+                loading="lazy"
+              />
+              <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+            </button>
+            <button class="gallery-card gallery-card--tall" type="button" data-gallery-index="5">
+              <img
+                src="assets/images/services/fotograf-cekimi.webp"
+                alt="Profesyonel düğün fotoğraf çekiminde çift"
+                loading="lazy"
+              />
+              <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+            </button>
+            <button class="gallery-card gallery-card--hero" type="button" data-gallery-index="6">
+              <img
+                src="assets/images/services/klip-cekimi.webp"
+                alt="Sinematik düğün klibi çekiminden bir an"
+                loading="lazy"
+              />
+              <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+            </button>
+            <button class="gallery-card gallery-card--short" type="button" data-gallery-index="7">
+              <img
+                src="assets/images/why-beauty-studio.png"
+                alt="Düğün hazırlıkları için tasarlanan güzellik stüdyosu"
+                loading="lazy"
+              />
+              <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+            </button>
+          </div>
+
+          <div class="gallery-mobile-progress" aria-hidden="true">
+            <span class="is-active"></span><span></span><span></span><span></span>
+          </div>
+
+          <a class="gallery-cta" href="#rezervasyon">
+            Hikâyenizi planlayalım
+            <span aria-hidden="true">→</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="shoots-section" id="cekimler" aria-labelledby="shoots-title">
+        <div class="shoots-section__inner">
+          <header class="shoots-heading">
+            <p class="shoots-kicker">Hareketli Anılar</p>
+            <h2 id="shoots-title">Bir an değil,<br /><em>bütün hikâye.</em></h2>
+            <p>
+              En özel günlerin heyecanını, sesini ve küçük ayrıntılarını sinematik
+              çekimlerle yeniden yaşayın.
+            </p>
+            <span class="shoots-heading__mark" aria-hidden="true">DA · FILMS</span>
+          </header>
+
+          <div class="shoots-grid" aria-label="Düğün ve nişan video çekimleri">
+            <article class="shoot-card">
+              <div class="shoot-card__media">
+                <video
+                  autoplay
+                  muted
+                  loop
+                  playsinline
+                  preload="metadata"
+                  aria-label="Talia akşam düğün çekimi"
+                >
+                  <source
+                    src="https://qfmoughtxjgyusocywax.supabase.co/storage/v1/object/public/videos/video1.mp4"
+                    type="video/mp4"
+                  />
+                </video>
+                <button
+                  class="shoot-card__sound is-muted"
+                  type="button"
+                  aria-label="Talia çekiminin sesini aç"
+                  aria-pressed="false"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
+                    <path class="shoot-card__waves" d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6" />
+                    <path class="shoot-card__slash" d="m5 5 14 14" />
+                  </svg>
+                </button>
+                <span class="shoot-card__index" aria-hidden="true">01</span>
+              </div>
+              <div class="shoot-card__caption">
+                <h3>Talia</h3>
+                <p>Akşam Çekimi · 06.06.2026</p>
+              </div>
+            </article>
+
+            <article class="shoot-card">
+              <div class="shoot-card__media">
+                <video
+                  autoplay
+                  muted
+                  loop
+                  playsinline
+                  preload="metadata"
+                  aria-label="Bella gündüz nişan çekimi"
+                >
+                  <source
+                    src="https://qfmoughtxjgyusocywax.supabase.co/storage/v1/object/public/videos/video3.mp4"
+                    type="video/mp4"
+                  />
+                </video>
+                <button
+                  class="shoot-card__sound is-muted"
+                  type="button"
+                  aria-label="Bella çekiminin sesini aç"
+                  aria-pressed="false"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
+                    <path class="shoot-card__waves" d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6" />
+                    <path class="shoot-card__slash" d="m5 5 14 14" />
+                  </svg>
+                </button>
+                <span class="shoot-card__index" aria-hidden="true">02</span>
+              </div>
+              <div class="shoot-card__caption">
+                <h3>Bella</h3>
+                <p>Gündüz Nişan · 02.05.2026</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
       <section class="services-section" id="hizmetler" aria-labelledby="services-title">
         <div class="services-section__inner">
           <header class="services-heading">
@@ -355,8 +530,8 @@
             <article class="service-card">
               <figure class="service-card__media">
                 <img
-                  src="assets/images/hero-couple.png"
-                  alt="Düğün fotoğraf çekiminde gelin ve damat"
+                  src="assets/images/services/fotograf-cekimi.webp"
+                  alt="Profesyonel düğün fotoğraf çekiminde gelin ve damat"
                   loading="lazy"
                 />
               </figure>
@@ -368,7 +543,7 @@
                   </svg>
                 </span>
                 <h3>Fotoğraf Çekimi</h3>
-                <p>Doğal plato ışığında, fark yaratan retouch dokunuşuyla en iyi kareler.</p>
+                <p>Doğal anlarınızı zarif kadrajlar ve özenli rötuşlarla zamansız fotoğraflara dönüştürüyoruz.</p>
                 <button class="service-card__link js-open-booking" type="button">
                   İncele <span aria-hidden="true">→</span>
                 </button>
@@ -378,8 +553,8 @@
             <article class="service-card">
               <figure class="service-card__media">
                 <img
-                  src="assets/images/venue-pavilion.png"
-                  alt="Düğün videosu için hazırlanan açık hava çekim platosu"
+                  src="assets/images/services/video-cekimi.webp"
+                  alt="Gelin ve damadı sinema kamerasıyla kaydeden video ekibi"
                   loading="lazy"
                 />
               </figure>
@@ -391,7 +566,7 @@
                   </svg>
                 </span>
                 <h3>Video Çekimi</h3>
-                <p>Fotoğrafla aynı anda; anılarınız unutulmaz sinematik bir filme dönüşür.</p>
+                <p>Günün sesini, heyecanını ve en içten anlarını sinematik bir düğün filminde bir araya getiriyoruz.</p>
                 <button class="service-card__link js-open-booking" type="button">
                   İncele <span aria-hidden="true">→</span>
                 </button>
@@ -401,20 +576,21 @@
             <article class="service-card">
               <figure class="service-card__media">
                 <img
-                  src="assets/images/bride-portrait.png"
-                  alt="Profesyonel saç ve makyajı tamamlanmış gelin"
+                  src="assets/images/services/drone-cekimi.webp"
+                  alt="Düğün mekanını ve çifti havadan görüntüleyen drone"
                   loading="lazy"
                 />
               </figure>
               <div class="service-card__body">
                 <span class="service-card__icon" aria-hidden="true">
                   <svg viewBox="0 0 48 48">
-                    <path d="m15 34 15-15M13 28l7 7-5 5a5 5 0 0 1-7-7l5-5ZM27 22l-4-4 6-8c2-3 6-4 9-1s2 7-1 9l-10 4Z" />
-                    <path d="m33 9 6 6" />
+                    <path d="M17 20h14l4 8H13l4-8Z" />
+                    <path d="M18 20 11 12M30 20l7-8M7 12h8M33 12h8M24 28v7" />
+                    <circle cx="24" cy="37" r="3" />
                   </svg>
                 </span>
-                <h3>Saç &amp; Makyaj</h3>
-                <p>Platonun kalbinde; makyajınız hiç bozulmadan çekimi kusursuz tamamlayın.</p>
+                <h3>Drone Çekimi</h3>
+                <p>Mekanınızın ihtişamını ve hikâyenizin ölçeğini etkileyici hava görüntüleriyle ortaya çıkarıyoruz.</p>
                 <button class="service-card__link js-open-booking" type="button">
                   İncele <span aria-hidden="true">→</span>
                 </button>
@@ -424,20 +600,68 @@
             <article class="service-card">
               <figure class="service-card__media">
                 <img
-                  src="assets/images/bride-portrait.png"
-                  alt="Özel tasarım gelinlik giyen gelin"
+                  src="assets/images/services/klip-cekimi.webp"
+                  alt="Sinematik düğün klibi için dans ederken çekilen gelin ve damat"
                   loading="lazy"
                 />
               </figure>
               <div class="service-card__body">
                 <span class="service-card__icon" aria-hidden="true">
                   <svg viewBox="0 0 48 48">
-                    <path d="M17 5h14l-2 10 6 6-5 22H18l-5-22 6-6-2-10Z" />
-                    <path d="M19 15c3 3 7 3 10 0M16 25h16" />
+                    <rect x="6" y="9" width="36" height="30" rx="4" />
+                    <path d="m20 17 12 7-12 7V17ZM10 14h4M34 14h4M10 34h4M34 34h4" />
                   </svg>
                 </span>
-                <h3>Gelinlik Kiralama</h3>
-                <p>200+ özel tasarım model; showroom’da konforlu kabinlerde profesyonel hazırlık.</p>
+                <h3>Klip Çekimi</h3>
+                <p>Hikâyenizi müzik, hareket ve güçlü sahnelerle size özel, enerjik bir düğün klibine dönüştürüyoruz.</p>
+                <button class="service-card__link js-open-booking" type="button">
+                  İncele <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </article>
+
+            <article class="service-card">
+              <figure class="service-card__media">
+                <img
+                  src="assets/images/services/360-video.webp"
+                  alt="Düğün kutlamasını kaydeden profesyonel 360 derece video kamerası"
+                  loading="lazy"
+                />
+              </figure>
+              <div class="service-card__body">
+                <span class="service-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48">
+                    <circle cx="24" cy="24" r="10" />
+                    <path d="M8 20c2-7 8-12 16-12s14 5 16 12M40 28c-2 7-8 12-16 12S10 35 8 28" />
+                    <path d="m7 16 1 4 4-1M41 32l-1-4-4 1" />
+                    <circle cx="24" cy="24" r="3" />
+                  </svg>
+                </span>
+                <h3>360 Video</h3>
+                <p>Kutlamanın her yönünü tek çekimde kaydediyor, o özel atmosferi yeniden yaşayabileceğiniz bir deneyim sunuyoruz.</p>
+                <button class="service-card__link js-open-booking" type="button">
+                  İncele <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </article>
+
+            <article class="service-card">
+              <figure class="service-card__media">
+                <img
+                  src="assets/images/services/album-tasarimi.webp"
+                  alt="Düğün fotoğraflarıyla hazırlanan kişiye özel albüm tasarımı"
+                  loading="lazy"
+                />
+              </figure>
+              <div class="service-card__body">
+                <span class="service-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48">
+                    <path d="M7 9h14c2 0 3 1 3 3v28c0-2-2-3-4-3H7V9ZM41 9H27c-2 0-3 1-3 3v28c0-2 2-3 4-3h13V9Z" />
+                    <path d="M12 16h7M29 16h7M12 22h7M29 22h7" />
+                  </svg>
+                </span>
+                <h3>Albüm Tasarımı</h3>
+                <p>Seçtiğiniz kareleri kaliteli malzemeler ve yalın bir tasarımla nesiller boyu saklanacak bir albümde buluşturuyoruz.</p>
                 <button class="service-card__link js-open-booking" type="button">
                   İncele <span aria-hidden="true">→</span>
                 </button>
@@ -899,6 +1123,16 @@
         </div>
       </div>
     </footer>
+
+    <dialog class="gallery-lightbox" aria-label="Büyütülmüş galeri fotoğrafı">
+      <button class="gallery-lightbox__close" type="button" aria-label="Galeriyi kapat">×</button>
+      <button class="gallery-lightbox__nav gallery-lightbox__nav--prev" type="button" aria-label="Önceki fotoğraf">←</button>
+      <figure>
+        <img src="" alt="" />
+        <figcaption></figcaption>
+      </figure>
+      <button class="gallery-lightbox__nav gallery-lightbox__nav--next" type="button" aria-label="Sonraki fotoğraf">→</button>
+    </dialog>
 
     <dialog class="booking-dialog" aria-labelledby="booking-title">
       <button class="dialog-close" type="button" aria-label="Rezervasyon penceresini kapat">×</button>
