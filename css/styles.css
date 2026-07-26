@@ -38,6 +38,159 @@ body {
   overflow-x: hidden;
 }
 
+html.js body.page-loading {
+  overflow: hidden;
+}
+
+.page-loader {
+  display: none;
+}
+
+html.js .page-loader {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 50% 44%, hsl(38 60% 94% / 0.9), transparent 30%),
+    linear-gradient(145deg, hsl(40 45% 99%), hsl(35 38% 95%));
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 520ms var(--ease),
+    visibility 520ms step-end;
+}
+
+html.js .page-loader::before,
+html.js .page-loader::after {
+  position: absolute;
+  width: min(68vw, 680px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(33 54% 48% / 0.34), transparent);
+  content: "";
+}
+
+html.js .page-loader::before {
+  top: 18%;
+}
+
+html.js .page-loader::after {
+  bottom: 18%;
+}
+
+html.js .page-loader.is-hidden {
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.page-loader__content {
+  display: grid;
+  justify-items: center;
+  width: min(76vw, 320px);
+}
+
+.page-loader__emblem {
+  position: relative;
+  display: grid;
+  width: 104px;
+  height: 104px;
+  place-items: center;
+}
+
+.page-loader__emblem svg {
+  width: 48px;
+  height: 48px;
+  fill: none;
+  stroke: var(--gold-dark);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: loader-emblem 1.8s ease-in-out infinite;
+}
+
+.page-loader__orbit {
+  position: absolute;
+  inset: 0;
+  border: 1px solid hsl(33 54% 48% / 0.2);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: loader-orbit 1.5s linear infinite;
+}
+
+.page-loader__orbit::after {
+  position: absolute;
+  top: 7px;
+  right: 14px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 5px hsl(33 54% 48% / 0.1);
+  content: "";
+}
+
+.page-loader__brand {
+  margin: 22px 0 0;
+  font-family: var(--serif);
+  font-size: clamp(30px, 5vw, 40px);
+  letter-spacing: -0.045em;
+}
+
+.page-loader__message {
+  margin: 9px 0 20px;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.page-loader__progress {
+  position: relative;
+  display: block;
+  width: 136px;
+  height: 1px;
+  overflow: hidden;
+  background: hsl(33 30% 76% / 0.55);
+}
+
+.page-loader__progress i {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  animation: loader-progress 1.35s var(--ease) infinite;
+  transform: translateX(-100%);
+}
+
+@keyframes loader-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loader-emblem {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes loader-progress {
+  55%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 body.menu-open {
   overflow: hidden;
 }
@@ -5574,6 +5727,14 @@ html.motion-ready .motion-heading.is-visible .motion-heading__inner {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html.js .page-loader,
+  .page-loader__emblem svg,
+  .page-loader__orbit,
+  .page-loader__progress i {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
   html.motion-ready .motion-reveal,
   html.motion-ready .motion-heading .motion-heading__inner,
   .motion-parallax {
