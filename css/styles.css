@@ -2181,23 +2181,23 @@ button {
 
 /* Editorial photo gallery */
 .gallery-section {
-  --gallery-bg: hsl(27 18% 8%);
-  --gallery-ink: hsl(39 40% 96%);
-  --gallery-muted: hsl(35 18% 72%);
-  --gallery-gold: hsl(38 58% 63%);
+  --gallery-bg: hsl(38 43% 96%);
+  --gallery-ink: hsl(28 16% 17%);
+  --gallery-muted: hsl(29 12% 39%);
+  --gallery-gold: hsl(33 54% 43%);
   position: relative;
   overflow: hidden;
   padding: clamp(82px, 7vw, 118px) clamp(24px, 4vw, 72px) clamp(76px, 7vw, 112px);
   color: var(--gallery-ink);
   background:
-    radial-gradient(circle at 50% 0%, hsl(35 26% 18% / 0.52), transparent 34%),
+    radial-gradient(circle at 50% 0%, hsl(38 72% 88% / 0.72), transparent 37%),
     var(--gallery-bg);
 }
 
 .gallery-section::before {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(hsl(38 45% 72% / 0.09) 0.6px, transparent 0.6px);
+  background-image: radial-gradient(hsl(33 45% 48% / 0.13) 0.6px, transparent 0.6px);
   background-size: 8px 8px;
   content: "";
   pointer-events: none;
@@ -2420,7 +2420,7 @@ button {
   min-height: 54px;
   margin: clamp(38px, 4vw, 58px) auto 0;
   padding: 0 25px;
-  border: 1px solid hsl(38 30% 65% / 0.36);
+  border: 1px solid hsl(33 38% 48% / 0.35);
   border-radius: 999px;
   color: var(--gallery-ink);
   font-size: 13px;
@@ -2437,7 +2437,7 @@ button {
 .gallery-cta:hover,
 .gallery-cta:focus-visible {
   border-color: var(--gallery-gold);
-  color: hsl(27 18% 8%);
+  color: var(--paper);
   background: var(--gallery-gold);
 }
 
