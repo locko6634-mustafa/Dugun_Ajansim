@@ -551,8 +551,354 @@
         </div>
       </section>
 
-      <span id="konseptler"></span><span id="iletisim"></span>
+      <section class="reservation-section" id="rezervasyon" aria-labelledby="reservation-title">
+        <div class="reservation-decoration reservation-decoration--sparkles" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+
+        <svg class="reservation-decoration reservation-decoration--branch" viewBox="0 0 190 360" aria-hidden="true">
+          <g>
+            <path d="M174 350C149 287 137 226 137 166C137 112 149 67 168 15" />
+            <path d="M139 213C107 192 84 167 70 139" />
+            <path d="M141 244C163 219 178 191 184 160" />
+            <path d="M138 165C112 146 94 124 84 99" />
+            <path d="M143 120C161 98 171 75 174 49" />
+            <path d="M121 195C95 194 74 185 57 168C82 160 104 171 121 195Z" />
+            <path d="M148 228C169 215 180 198 184 176C163 182 151 199 148 228Z" />
+            <path d="M114 143C91 139 73 127 61 107C85 104 103 116 114 143Z" />
+            <path d="M145 104C162 88 169 69 167 48C149 60 142 79 145 104Z" />
+            <path d="M84 157C59 153 40 140 27 119C52 117 72 130 84 157Z" />
+            <path d="M71 140C51 127 38 110 31 89C52 97 66 114 71 140Z" />
+          </g>
+        </svg>
+
+        <div class="reservation-section__inner">
+          <header class="reservation-heading">
+            <p class="reservation-heading__eyebrow">Rezervasyon</p>
+            <div class="reservation-heading__rule" aria-hidden="true"><span>♥</span></div>
+            <h2 id="reservation-title">
+              Tarihinizi ayırtın, <em>anılarınıza birlikte hazırlanalım.</em>
+            </h2>
+            <p>Birkaç bilgiyi paylaşın, ekibimiz sizin için en uygun çekim planını oluştursun.</p>
+          </header>
+
+          <form class="reservation-form" novalidate>
+            <div class="reservation-steps" aria-label="Rezervasyon süreci">
+              <div class="reservation-step">
+                <span class="reservation-step__icon" aria-hidden="true">
+                  <svg viewBox="0 0 32 32"><path d="M8 3v5M24 3v5M4 12h24M6 6h20a2 2 0 0 1 2 2v19H4V8a2 2 0 0 1 2-2Z"/><path d="M9 17h3M15 17h3M21 17h3M9 22h3M15 22h3"/></svg>
+                </span>
+                <span><b>1.</b> Tarih seçin</span>
+              </div>
+              <div class="reservation-step">
+                <span class="reservation-step__icon" aria-hidden="true">
+                  <svg viewBox="0 0 32 32"><circle cx="16" cy="10" r="5"/><path d="M7 28v-4a9 9 0 0 1 18 0v4"/></svg>
+                </span>
+                <span><b>2.</b> Bilgileri girin</span>
+              </div>
+              <div class="reservation-step">
+                <span class="reservation-step__icon" aria-hidden="true">
+                  <svg viewBox="0 0 32 32"><path d="M10 4 6 7c-3 3 1 10 6 15s12 9 15 6l3-4-8-5-3 3c-3-1-8-6-9-9l3-3-3-6Z"/></svg>
+                </span>
+                <span><b>3.</b> Size ulaşalım</span>
+              </div>
+            </div>
+
+            <div class="reservation-fields">
+              <label class="reservation-field reservation-field--date">
+                <span class="sr-only">Düğün tarihiniz</span>
+                <svg aria-hidden="true" viewBox="0 0 32 32"><path d="M8 3v5M24 3v5M4 12h24M6 6h20a2 2 0 0 1 2 2v19H4V8a2 2 0 0 1 2-2Z"/><path d="M9 17h3M15 17h3M21 17h3M9 22h3M15 22h3"/></svg>
+                <input type="text" name="weddingDate" placeholder="Düğün Tarihiniz" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'" required />
+                <svg class="reservation-field__end" aria-hidden="true" viewBox="0 0 32 32"><path d="M8 3v5M24 3v5M4 12h24M6 6h20a2 2 0 0 1 2 2v19H4V8a2 2 0 0 1 2-2Z"/><path d="M9 17h3M15 17h3M21 17h3M9 22h3M15 22h3"/></svg>
+              </label>
+
+              <label class="reservation-field reservation-field--name">
+                <span class="sr-only">Adınız soyadınız</span>
+                <svg aria-hidden="true" viewBox="0 0 32 32"><circle cx="16" cy="10" r="5"/><path d="M7 28v-4a9 9 0 0 1 18 0v4"/></svg>
+                <input type="text" name="fullName" autocomplete="name" placeholder="Adınız Soyadınız" required />
+              </label>
+
+              <label class="reservation-field reservation-field--phone">
+                <span class="sr-only">Telefon numaranız</span>
+                <svg aria-hidden="true" viewBox="0 0 32 32"><path d="M10 4 6 7c-3 3 1 10 6 15s12 9 15 6l3-4-8-5-3 3c-3-1-8-6-9-9l3-3-3-6Z"/></svg>
+                <input type="tel" name="phone" autocomplete="tel" inputmode="tel" placeholder="Telefon Numaranız" required />
+              </label>
+
+              <label class="reservation-field reservation-field--email">
+                <span class="sr-only">E-posta adresiniz</span>
+                <svg aria-hidden="true" viewBox="0 0 32 32"><rect x="3" y="6" width="26" height="20" rx="2"/><path d="m5 9 11 9L27 9"/></svg>
+                <input type="email" name="email" autocomplete="email" placeholder="E-posta Adresiniz" required />
+              </label>
+
+              <label class="reservation-field reservation-field--city">
+                <span class="sr-only">İl seçiniz</span>
+                <svg aria-hidden="true" viewBox="0 0 32 32"><path d="M16 29S6 20 6 12a10 10 0 0 1 20 0c0 8-10 17-10 17Z"/><circle cx="16" cy="12" r="3"/></svg>
+                <select name="city" required>
+                  <option value="" selected disabled>İl Seçiniz</option>
+                  <option>İstanbul</option><option>Ankara</option><option>İzmir</option>
+                  <option>Bursa</option><option>Antalya</option><option>Diğer</option>
+                </select>
+              </label>
+
+              <label class="reservation-field reservation-field--shoot">
+                <span class="sr-only">Çekim türü</span>
+                <svg aria-hidden="true" viewBox="0 0 32 32"><path d="M4 10h6l2-4h8l2 4h6v17H4V10Z"/><circle cx="16" cy="18" r="5"/></svg>
+                <select name="shootType" required>
+                  <option value="" selected disabled>Çekim Türü</option>
+                  <option>Düğün Hikâyesi</option><option>Dış Çekim</option>
+                  <option>Save the Date</option><option>Video Klip</option>
+                </select>
+              </label>
+
+              <label class="reservation-field reservation-field--guests">
+                <span class="sr-only">Tahmini davetli sayısı</span>
+                <svg aria-hidden="true" viewBox="0 0 32 32"><circle cx="11" cy="10" r="4"/><circle cx="22" cy="11" r="3.5"/><path d="M3 27v-4a8 8 0 0 1 16 0v4M19 18a7 7 0 0 1 10 6v3"/></svg>
+                <select name="guestCount">
+                  <option value="" selected disabled>Tahmini Davetli Sayısı</option>
+                  <option>1–100 kişi</option><option>101–250 kişi</option>
+                  <option>251–500 kişi</option><option>500+ kişi</option>
+                </select>
+              </label>
+
+              <label class="reservation-field reservation-field--note">
+                <span class="sr-only">Ek notunuz</span>
+                <svg aria-hidden="true" viewBox="0 0 32 32"><path d="M4 5h24v17H12l-7 6V5Z"/><path d="M10 11h12M10 16h8"/></svg>
+                <textarea name="note" rows="2" placeholder="Ek Notunuz (isteğe bağlı)"></textarea>
+              </label>
+            </div>
+
+            <div class="reservation-assurance">
+              <span class="reservation-assurance__seal" aria-hidden="true">✓</span>
+              <p>Ekibimiz kısa sürede sizinle iletişime geçerek rezervasyon sürecinizi netleştirir.</p>
+              <svg aria-hidden="true" viewBox="0 0 96 58"><path d="M5 56C28 42 50 25 72 3M40 32c-1-12 3-20 13-25 2 12-3 20-13 25ZM54 21c3-10 10-16 20-17-1 10-8 16-20 17ZM27 43c-10-1-17 2-22 10 10 2 17-2 22-10ZM55 31c10-2 18 1 24 9-10 3-18 0-24-9Z"/></svg>
+            </div>
+
+            <button class="reservation-submit" type="submit">
+              <svg aria-hidden="true" viewBox="0 0 32 32"><path d="M8 3v5M24 3v5M4 12h24M6 6h20a2 2 0 0 1 2 2v19H4V8a2 2 0 0 1 2-2Z"/><path d="M9 17h3M15 17h3M21 17h3M9 22h3M15 22h3"/></svg>
+              <span>Rezervasyon Oluştur</span>
+              <span class="reservation-submit__arrow" aria-hidden="true">→</span>
+            </button>
+            <p class="reservation-success" role="status" hidden>
+              Teşekkürler! Talebiniz alındı, en kısa sürede sizi arayacağız.
+            </p>
+          </form>
+        </div>
+      </section>
+
+      <section class="faq-section" id="sss" aria-labelledby="faq-title">
+        <svg class="faq-botanical faq-botanical--left" viewBox="0 0 250 430" aria-hidden="true">
+          <path d="M12 423C55 342 78 270 92 184C102 120 126 62 173 9" />
+          <path d="M77 278C38 258 20 225 18 184C58 196 79 228 77 278Z" />
+          <path d="M91 206C125 184 145 153 151 115C115 125 94 155 91 206Z" />
+          <path d="M104 145C76 125 62 98 64 66C94 78 108 104 104 145Z" />
+          <path d="M132 76C160 66 181 47 194 18C163 21 142 40 132 76Z" />
+        </svg>
+        <svg class="faq-botanical faq-botanical--right" viewBox="0 0 250 430" aria-hidden="true">
+          <path d="M238 423C195 342 172 270 158 184C148 120 124 62 77 9" />
+          <path d="M173 278C212 258 230 225 232 184C192 196 171 228 173 278Z" />
+          <path d="M159 206C125 184 105 153 99 115C135 125 156 155 159 206Z" />
+          <path d="M146 145C174 125 188 98 186 66C156 78 142 104 146 145Z" />
+          <path d="M118 76C90 66 69 47 56 18C87 21 108 40 118 76Z" />
+        </svg>
+
+        <div class="faq-section__inner">
+          <header class="faq-heading">
+            <p class="faq-heading__eyebrow">Sık Sorulan Sorular</p>
+            <div class="faq-heading__rule" aria-hidden="true"><span>♧</span></div>
+            <h2 id="faq-title">Merak ettikleriniz,<br /><em>açık açık.</em></h2>
+            <p>Çekiminizle ilgili en çok merak edilenleri sizin için derledik.</p>
+          </header>
+
+          <div class="faq-list">
+            <article class="faq-item">
+              <h3>
+                <button class="faq-question" type="button" aria-expanded="false" aria-controls="faq-answer-1">
+                  <span class="faq-item__icon" aria-hidden="true">
+                    <svg viewBox="0 0 32 32"><path d="M16 29S6 20 6 12a10 10 0 0 1 20 0c0 8-10 17-10 17Z"/><circle cx="16" cy="12" r="3"/></svg>
+                  </span>
+                  <span>Çekim platonuz nasıl bir yer?</span>
+                  <span class="faq-toggle" aria-hidden="true"></span>
+                </button>
+              </h3>
+              <div class="faq-answer" id="faq-answer-1" hidden>
+                <p>Platomuz; farklı konseptleri, ferah çekim alanlarını ve hazırlık bölümlerini aynı çatı altında buluşturan özel bir çekim alanıdır.</p>
+              </div>
+            </article>
+
+            <article class="faq-item">
+              <h3>
+                <button class="faq-question" type="button" aria-expanded="false" aria-controls="faq-answer-2">
+                  <span class="faq-item__icon" aria-hidden="true">
+                    <svg viewBox="0 0 32 32"><path d="M12 3c1 3 2 4 4 5 2-1 3-2 4-5l2 7-3 3 4 15H9l4-15-3-3 2-7Z"/></svg>
+                  </span>
+                  <span>Platonuzda kabarık ve ağır model gelinlik kullanabilir miyim?</span>
+                  <span class="faq-toggle" aria-hidden="true"></span>
+                </button>
+              </h3>
+              <div class="faq-answer" id="faq-answer-2" hidden>
+                <p>Evet, kullanabilirsiniz. Platomuz geniş, düz ve rahat hareket edilebilecek şekilde tasarlanmıştır. Kabarık ve ağır gelinliklerle rahatça çekim yapabileceğiniz alanlarımız mevcuttur.</p>
+                <svg class="faq-answer__branch" viewBox="0 0 150 95" aria-hidden="true"><path d="M5 91C43 72 78 44 111 5M62 55c-2-17 5-30 20-38 3 17-4 30-20 38ZM84 37c5-14 16-23 31-25-2 15-12 23-31 25ZM43 70c-15-2-27 4-35 17 15 3 27-3 35-17ZM86 55c15-4 28 1 37 13-15 5-28 1-37-13Z"/></svg>
+              </div>
+            </article>
+
+            <article class="faq-item">
+              <h3>
+                <button class="faq-question" type="button" aria-expanded="false" aria-controls="faq-answer-3">
+                  <span class="faq-item__icon" aria-hidden="true">
+                    <svg viewBox="0 0 32 32"><path d="M3 24h26M6 24V11m20 13V11M4 11h24M8 11l2-5h12l2 5M9 14v7m14-7v7M13 14v7m6-7v7"/></svg>
+                  </span>
+                  <span>İstanbul’da hangi mekanlarda çekim yapıyorsunuz?</span>
+                  <span class="faq-toggle" aria-hidden="true"></span>
+                </button>
+              </h3>
+              <div class="faq-answer" id="faq-answer-3" hidden>
+                <p>Çekimlerimizi kendi profesyonel platolarımızda gerçekleştiriyoruz. Böylece hava koşullarından etkilenmeden, tüm ihtiyaçlarınızı tek noktada karşılayabiliyoruz.</p>
+              </div>
+            </article>
+
+            <article class="faq-item">
+              <h3>
+                <button class="faq-question" type="button" aria-expanded="false" aria-controls="faq-answer-4">
+                  <span class="faq-item__icon" aria-hidden="true">
+                    <svg viewBox="0 0 32 32"><path d="M5 27V12l6-6 5 5 5-6 6 7v15H5Z"/><path d="M10 27v-7h5v7M9 14h2m5 0h2m5 0h1m-8 5h2m5 0h1"/></svg>
+                  </span>
+                  <span>Neden farklı dış mekanlarda ve lokasyonlarda çekim gerçekleştirmiyorsunuz?</span>
+                  <span class="faq-toggle" aria-hidden="true"></span>
+                </button>
+              </h3>
+              <div class="faq-answer" id="faq-answer-4" hidden>
+                <p>Kontrollü ışık, mahremiyet, konfor ve planlanan çekim kalitesini her mevsim aynı standartta koruyabilmek için kendi platolarımızda çalışıyoruz.</p>
+              </div>
+            </article>
+
+            <article class="faq-item">
+              <h3>
+                <button class="faq-question" type="button" aria-expanded="false" aria-controls="faq-answer-5">
+                  <span class="faq-item__icon" aria-hidden="true">
+                    <svg viewBox="0 0 32 32"><path d="M8 3v5M24 3v5M4 12h24M6 6h20a2 2 0 0 1 2 2v19H4V8a2 2 0 0 1 2-2Z"/><path d="M9 17h3M15 17h3M21 17h3M9 22h3M15 22h3"/></svg>
+                  </span>
+                  <span>Online rezervasyonumu gerçekleştirdim şimdi ne olacak?</span>
+                  <span class="faq-toggle" aria-hidden="true"></span>
+                </button>
+              </h3>
+              <div class="faq-answer" id="faq-answer-5" hidden>
+                <p>Ekibimiz rezervasyon bilgilerinizi kontrol ederek kısa süre içinde sizi arar; çekim planınız, hazırlık saatiniz ve diğer detaylar birlikte netleştirilir.</p>
+              </div>
+            </article>
+
+            <article class="faq-item">
+              <h3>
+                <button class="faq-question" type="button" aria-expanded="false" aria-controls="faq-answer-6">
+                  <span class="faq-item__icon" aria-hidden="true">
+                    <svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="12"/><path d="M16 8v9l6 4"/></svg>
+                  </span>
+                  <span>Düğün çekimime 1 hafta kaldı ne yapmalıyım?</span>
+                  <span class="faq-toggle" aria-hidden="true"></span>
+                </button>
+              </h3>
+              <div class="faq-answer" id="faq-answer-6" hidden>
+                <p>Kıyafet ve aksesuarlarınızı hazırlamanız, bakım işlemlerinizi planlamanız ve ekibimizin ilettiği çekim saati ile hazırlık notlarını kontrol etmeniz yeterlidir.</p>
+              </div>
+            </article>
+
+            <article class="faq-item">
+              <h3>
+                <button class="faq-question" type="button" aria-expanded="false" aria-controls="faq-answer-7">
+                  <span class="faq-item__icon" aria-hidden="true">
+                    <svg viewBox="0 0 32 32"><path d="M4 10h6l2-4h8l2 4h6v17H4V10Z"/><circle cx="16" cy="18" r="5"/></svg>
+                  </span>
+                  <span>Çekim günü neler yapmalıyım?</span>
+                  <span class="faq-toggle" aria-hidden="true"></span>
+                </button>
+              </h3>
+              <div class="faq-answer" id="faq-answer-7" hidden>
+                <p>Belirlenen saatte kıyafet ve aksesuarlarınızla gelmeniz yeterli. Ekibimiz hazırlıktan son kareye kadar tüm çekim akışında size eşlik eder.</p>
+              </div>
+            </article>
+          </div>
+
+          <div class="faq-actions">
+            <div class="faq-actions__rule" aria-hidden="true"><span>♥</span></div>
+            <div class="faq-actions__buttons">
+              <button class="faq-cta faq-cta--primary js-open-all-faq" type="button">
+                <span>Tüm soruları gör</span><span aria-hidden="true">→</span>
+              </button>
+              <a class="faq-cta faq-cta--outline" href="#rezervasyon">İletişime geç</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <span id="konseptler"></span>
     </main>
+
+    <footer class="site-footer" id="iletisim">
+      <div class="site-footer__glow" aria-hidden="true"></div>
+      <div class="site-footer__inner">
+        <div class="site-footer__top">
+          <div class="site-footer__brand">
+            <a class="footer-brand" href="#anasayfa" aria-label="Düğünajansım ana sayfa">
+              <svg class="footer-brand__mark" viewBox="0 0 64 64" aria-hidden="true">
+                <path d="M11 7h19c16 0 27 10 27 25S46 57 30 57H11V7Z" />
+                <path d="M19 28 31 16l12 12a7 7 0 0 1 0 10L31 50 19 38a7 7 0 0 1 0-10Z" />
+                <path d="m25 30 6-6 7 7a3 3 0 0 1 0 4l-7 7-6-6a4 4 0 0 1 0-6Z" />
+              </svg>
+              <span>
+                <strong>Düğünajansım</strong>
+                <small>10 yıldır en güzel “evet”lere şahidiz.</small>
+              </span>
+            </a>
+            <p>
+              Fotoğraf, video, gelinlik ve hazırlık sürecini tek çatı altında
+              buluşturuyor; gününüzü size özel bir hikâyeye dönüştürüyoruz.
+            </p>
+          </div>
+
+          <div class="site-footer__nav">
+            <div class="footer-links">
+              <p class="footer-links__title">Keşfedin</p>
+              <a href="#hakkimizda">Hakkımızda</a>
+              <a href="#galeri">Galeri</a>
+              <a href="#neden-biz">Neden Biz?</a>
+              <a href="#sss">Sıkça Sorulanlar</a>
+            </div>
+            <div class="footer-links">
+              <p class="footer-links__title">Planlayın</p>
+              <a href="#hizmetler">Hizmetlerimiz</a>
+              <a href="#rezervasyon">Rezervasyon</a>
+              <button class="footer-links__button js-open-booking" type="button">
+                Hızlı talep oluştur
+              </button>
+            </div>
+          </div>
+
+          <div class="site-footer__cta">
+            <span class="site-footer__eyebrow">Hayalinizdeki güne ilk adım</span>
+            <p>Hikâyenizi birlikte planlayalım.</p>
+            <a class="site-footer__action" href="#rezervasyon">
+              <span>Rezervasyon Oluştur</span>
+              <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="site-footer__signature" aria-hidden="true">
+          <span></span>
+          <svg viewBox="0 0 32 32">
+            <path d="M16 27S5 20.2 5 11.7C5 7.8 8 5 11.7 5c2.1 0 3.8 1 4.3 2.2C16.5 6 18.2 5 20.3 5 24 5 27 7.8 27 11.7 27 20.2 16 27 16 27Z" />
+          </svg>
+          <span></span>
+        </div>
+
+        <div class="site-footer__bottom">
+          <p>© 2026 Düğünajansım. Tüm hakları saklıdır.</p>
+          <a href="#anasayfa">
+            Başa dön
+            <span aria-hidden="true">↑</span>
+          </a>
+        </div>
+      </div>
+    </footer>
 
     <dialog class="booking-dialog" aria-labelledby="booking-title">
       <button class="dialog-close" type="button" aria-label="Rezervasyon penceresini kapat">×</button>
