@@ -2690,7 +2690,7 @@ button {
 .shoots-section__inner {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(250px, 0.78fr) repeat(2, minmax(240px, 1fr));
+  grid-template-columns: minmax(250px, 0.75fr) minmax(0, 2fr);
   align-items: center;
   gap: clamp(28px, 4vw, 68px);
   width: min(1260px, 100%);
@@ -2753,17 +2753,75 @@ button {
   transform-origin: left top;
 }
 
+.shoots-gallery {
+  position: relative;
+  min-width: 0;
+}
+
 .shoots-grid {
-  display: contents;
+  display: grid;
+  grid-auto-columns: clamp(214px, 22vw, 284px);
+  grid-auto-flow: column;
+  gap: clamp(14px, 1.8vw, 24px);
+  overflow-x: auto;
+  padding: 9px 4px 25px;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  scrollbar-color: hsl(33 35% 56% / 0.7) transparent;
+  scrollbar-width: thin;
+}
+
+.shoots-grid::-webkit-scrollbar {
+  height: 5px;
+}
+
+.shoots-grid::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: hsl(33 35% 56% / 0.7);
+}
+
+.shoots-gallery__controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.shoots-gallery__arrow {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid hsl(34 34% 73%);
+  border-radius: 50%;
+  color: var(--shoots-ink);
+  background: hsl(40 45% 98% / 0.64);
+  cursor: pointer;
+  font-size: 18px;
+  place-items: center;
+  transition: color 180ms ease, background 180ms ease, transform 180ms var(--ease);
+}
+
+.shoots-gallery__arrow:hover,
+.shoots-gallery__arrow:focus-visible {
+  color: hsl(40 45% 98%);
+  background: var(--gold-dark);
+  transform: translateY(-2px);
+}
+
+.shoots-gallery__arrow:focus-visible {
+  outline: 2px solid var(--gold-light);
+  outline-offset: 3px;
 }
 
 .shoot-card {
   min-width: 0;
   margin: 0;
+  scroll-snap-align: start;
 }
 
-.shoot-card:nth-child(2) {
-  transform: translateY(clamp(24px, 3vw, 46px));
+.shoot-card:nth-child(even) {
+  transform: translateY(clamp(16px, 2vw, 30px));
 }
 
 .shoot-card__media {
@@ -2896,7 +2954,7 @@ button {
 
 @media (max-width: 960px) {
   .shoots-section__inner {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     align-items: start;
   }
 
@@ -2922,15 +2980,12 @@ button {
     display: none;
   }
 
-  .shoots-grid {
-    display: grid;
+  .shoots-gallery {
     grid-column: 1 / -1;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: clamp(14px, 3vw, 28px);
   }
 
-  .shoot-card:nth-child(2) {
-    transform: translateY(24px);
+  .shoots-grid {
+    grid-auto-columns: clamp(220px, 35vw, 290px);
   }
 }
 
@@ -2964,11 +3019,17 @@ button {
   }
 
   .shoots-grid {
-    gap: 10px;
+    grid-auto-columns: minmax(210px, 78vw);
+    gap: 12px;
+    padding-bottom: 18px;
   }
 
-  .shoot-card:nth-child(2) {
-    transform: translateY(14px);
+  .shoots-gallery__controls {
+    display: none;
+  }
+
+  .shoot-card:nth-child(even) {
+    transform: translateY(10px);
   }
 
   .shoot-card__media {

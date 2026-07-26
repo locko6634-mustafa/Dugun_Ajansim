@@ -213,6 +213,19 @@ const shootsObserver = new IntersectionObserver(
 
 shootCards.forEach((card) => shootsObserver.observe(card));
 
+const shootsTrack = document.querySelector(".shoots-grid");
+const shootsPrevious = document.querySelector(".shoots-gallery__arrow--previous");
+const shootsNext = document.querySelector(".shoots-gallery__arrow--next");
+
+function scrollShoots(direction) {
+  const firstCard = shootsTrack.querySelector(".shoot-card");
+  const gap = Number.parseFloat(getComputedStyle(shootsTrack).gap) || 0;
+  shootsTrack.scrollBy({ left: direction * (firstCard.offsetWidth + gap), behavior: "smooth" });
+}
+
+shootsPrevious.addEventListener("click", () => scrollShoots(-1));
+shootsNext.addEventListener("click", () => scrollShoots(1));
+
 let galleryScrollFrame;
 
 galleryTrack.addEventListener(
