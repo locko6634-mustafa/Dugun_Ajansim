@@ -2828,6 +2828,7 @@ button {
   border-radius: clamp(18px, 1.5vw, 24px);
   background: hsl(27 16% 11%);
   box-shadow: 0 28px 70px hsl(28 25% 22% / 0.2);
+  cursor: pointer;
   isolation: isolate;
 }
 
