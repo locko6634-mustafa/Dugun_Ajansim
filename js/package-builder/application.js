@@ -3,6 +3,16 @@ import { basePackages, services } from "./catalog.js";
 const moneyFormatter = new Intl.NumberFormat("tr-TR");
 const formatPrice = (value) => `${moneyFormatter.format(value)} TL`;
 
+// Gerçek hesap bilgileri hazır olduğunda yalnızca bu yapılandırmayı güncelleyin.
+const transferAccount = {
+  bankName: "Örnek Banka",
+  accountHolder: "Düğünajansım Örnek Hesap",
+  iban: "TR00 0000 0000 0000 0000 0000 00",
+};
+
+const createTransferReference = () =>
+  `DA-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
 const state = {
   step: 1,
   base: "mini",
@@ -11,6 +21,7 @@ const state = {
   activeService: null,
   payment: "cash",
   customer: {},
+  transferReference: createTransferReference(),
 };
 
 const stepPanels = [...document.querySelectorAll(".builder-step")];
@@ -32,14 +43,8 @@ const paymentInputs = [...document.querySelectorAll('input[name="payment-method"
 const checkoutForm = document.querySelector("#checkout-form");
 const orderItemsContainer = document.querySelector(".js-order-items");
 const bookingCompletion = document.querySelector(".js-booking-completion");
-const completionSuccess = document.querySelector(".js-completion-success");
-const completionShowcase = document.querySelector(".js-completion-showcase");
-const completionInfoDialog = document.querySelector(".js-booking-info");
-const showcaseImageButtons = [...document.querySelectorAll(".js-showcase-image")];
-const showcaseLightbox = document.querySelector(".js-showcase-lightbox");
-const showcaseLightboxImage = document.querySelector(".js-showcase-lightbox-image");
-const showcaseLightboxCaption = document.querySelector(".js-showcase-lightbox-caption");
-let activeShowcaseImage = 0;
+const paymentNotificationForm = document.querySelector("#payment-notification-form");
+const receiptInput = document.querySelector(".js-receipt-input");
 
 const paymentMethods = {
   cash: {
@@ -51,8 +56,8 @@ const paymentMethods = {
     copy: "İlk taksiti şimdi, ikinci taksiti ekibimizle planladığınız tarihte ödeyin.",
   },
   deposit: {
-    title: "5.000 TL ile tarihinizi ayırın",
-    copy: "Kalan paket tutarını düğün gününde tamamlayabilirsiniz.",
+    title: "5.000 TL kapora ödemesi",
+    copy: "Kalan paket tutarını ekibimizle planlayacağınız tarihte tamamlayabilirsiniz.",
   },
 };
 
@@ -71,7 +76,7 @@ function getPaymentDetails() {
       payable: subtotal - discount,
       adjustment: -discount,
       adjustmentLabel: "Peşin ödeme indirimi",
-      payableLabel: "Ödenecek tutar",
+      payableLabel: "Bugün havale edilecek",
       benefit: `Peşin ödeme seçeneğiyle ${formatPrice(discount)} avantaj kazandınız.`,
     };
   }
@@ -83,7 +88,7 @@ function getPaymentDetails() {
       payable: firstInstallment,
       adjustment: 0,
       adjustmentLabel: "",
-      payableLabel: "Bugün ödenecek ilk taksit",
+      payableLabel: "Bugün havale edilecek ilk taksit",
       benefit: `Toplam ${formatPrice(subtotal)} tutarını vade farksız iki eşit ödemeyle tamamlayabilirsiniz.`,
     };
   }
@@ -93,8 +98,8 @@ function getPaymentDetails() {
     payable: Math.min(5000, subtotal),
     adjustment: 0,
     adjustmentLabel: "",
-    payableLabel: "Bugün ödenecek kapora",
-    benefit: `${formatPrice(Math.min(5000, subtotal))} kapora ile tarihinizi ayırın, kalan tutarı düğün günü ödeyin.`,
+    payableLabel: "Bugün havale edilecek kapora",
+    benefit: `${formatPrice(Math.min(5000, subtotal))} kapora ödemesinin ardından kalan tutarı ekibimizle planlayabilirsiniz.`,
   };
 }
 
@@ -177,6 +182,40 @@ function updatePaymentUI() {
   paymentInputs.forEach((input) => {
     input.closest(".payment-option").classList.toggle("is-selected", input.checked);
   });
+
+  updateTransferUI();
+}
+
+function getTransferDescription() {
+  const payerName = state.customer.fullName?.trim() || "Müşteri";
+  return `${state.transferReference} - ${payerName}`;
+}
+
+function updateTransferUI() {
+  const payment = getPaymentDetails();
+  const transferDescription = getTransferDescription();
+
+  document.querySelectorAll(".js-transfer-payable").forEach((element) => {
+    element.textContent = formatPrice(payment.payable);
+  });
+  document.querySelectorAll(".js-transfer-payable-label").forEach((element) => {
+    element.textContent = payment.payableLabel;
+  });
+  document.querySelectorAll(".js-transfer-bank").forEach((element) => {
+    element.textContent = transferAccount.bankName;
+  });
+  document.querySelectorAll(".js-transfer-account-holder").forEach((element) => {
+    element.textContent = transferAccount.accountHolder;
+  });
+  document.querySelectorAll(".js-transfer-iban").forEach((element) => {
+    element.textContent = transferAccount.iban;
+  });
+  document.querySelectorAll(".js-transfer-reference").forEach((element) => {
+    element.textContent = transferDescription;
+  });
+  document.querySelectorAll(".js-notification-amount").forEach((element) => {
+    element.value = formatPrice(payment.payable);
+  });
 }
 
 function formatWeddingDate(value) {
@@ -242,6 +281,7 @@ function renderOrderReview() {
   document.querySelector(".js-review-phone").textContent = state.customer.phone || "—";
   document.querySelector(".js-review-date").textContent = formatWeddingDate(state.customer.weddingDate);
   document.querySelector(".js-review-venue").textContent = state.customer.venue || "—";
+  updateTransferUI();
 }
 
 function renderServices() {
@@ -423,25 +463,67 @@ orderItemsContainer.addEventListener("click", (event) => {
   updateSummary();
 });
 
-document.querySelector(".js-terms").addEventListener("change", (event) => {
-  if (event.target.checked) document.querySelector(".js-terms-error").hidden = true;
+function setCopyFeedback(message) {
+  document.querySelector(".js-copy-feedback").textContent = message;
+}
+
+async function copyTransferValue(value, label) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      const fallback = document.createElement("textarea");
+      fallback.value = value;
+      fallback.setAttribute("readonly", "");
+      fallback.style.position = "fixed";
+      fallback.style.opacity = "0";
+      document.body.append(fallback);
+      fallback.select();
+      const copied = document.execCommand("copy");
+      fallback.remove();
+      if (!copied) throw new Error("copy-failed");
+    }
+    setCopyFeedback(`${label} panoya kopyalandı.`);
+  } catch {
+    setCopyFeedback(`${label} kopyalanamadı. Lütfen elle kopyalayın.`);
+  }
+}
+
+document.querySelectorAll(".js-copy-transfer").forEach((button) => {
+  button.addEventListener("click", () => {
+    const isIban = button.dataset.copy === "iban";
+    copyTransferValue(isIban ? transferAccount.iban : getTransferDescription(), isIban ? "IBAN" : "Açıklama kodu");
+  });
 });
 
-document.querySelector(".js-submit-booking").addEventListener("click", () => {
-  const terms = document.querySelector(".js-terms");
-  const error = document.querySelector(".js-terms-error");
+function validatePaymentNotificationForm() {
+  const requiredFields = [...paymentNotificationForm.querySelectorAll("[required]")];
+  requiredFields.forEach((input) => {
+    input.closest(".form-field").classList.toggle("is-invalid", !input.validity.valid);
+  });
+  return requiredFields.find((input) => !input.validity.valid);
+}
 
-  if (!terms.checked) {
-    error.hidden = false;
-    terms.focus();
+paymentNotificationForm.addEventListener("input", (event) => {
+  const field = event.target.closest(".form-field");
+  if (field && event.target.validity.valid) field.classList.remove("is-invalid");
+});
+
+receiptInput.addEventListener("change", () => {
+  const receiptName = receiptInput.files[0]?.name || "Dekont seçilmedi.";
+  document.querySelector(".js-receipt-name").textContent = receiptName;
+  if (receiptInput.validity.valid) receiptInput.closest(".form-field").classList.remove("is-invalid");
+});
+
+paymentNotificationForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const firstInvalid = validatePaymentNotificationForm();
+  if (firstInvalid) {
+    firstInvalid.focus();
     return;
   }
 
-  const reference = `DA-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-  document.querySelector(".js-booking-reference").textContent = reference;
-  error.hidden = true;
-  completionSuccess.hidden = false;
-  completionShowcase.hidden = true;
+  document.querySelector(".js-booking-reference").textContent = state.transferReference;
   bookingCompletion.hidden = false;
   document.body.classList.add("is-completion-open");
   document.querySelectorAll(".builder-header, .builder-progress, .builder-layout").forEach((element) => {
@@ -449,63 +531,6 @@ document.querySelector(".js-submit-booking").addEventListener("click", () => {
     element.setAttribute("aria-hidden", "true");
   });
   document.querySelector(".js-completion-title").focus({ preventScroll: true });
-});
-
-function closeCompletionInfo() {
-  if (completionInfoDialog.open) completionInfoDialog.close();
-}
-
-document.querySelector(".js-show-completion-showcase").addEventListener("click", () => {
-  completionSuccess.hidden = true;
-  completionShowcase.hidden = false;
-  completionShowcase.scrollTop = 0;
-  completionInfoDialog.showModal();
-});
-
-document.querySelectorAll(".js-booking-info-open").forEach((button) => {
-  button.addEventListener("click", () => completionInfoDialog.showModal());
-});
-
-document.querySelectorAll(".js-booking-info-close").forEach((button) => {
-  button.addEventListener("click", closeCompletionInfo);
-});
-
-completionInfoDialog.addEventListener("click", (event) => {
-  if (event.target === completionInfoDialog) closeCompletionInfo();
-});
-
-function showShowcaseImage(index) {
-  activeShowcaseImage = (index + showcaseImageButtons.length) % showcaseImageButtons.length;
-  const selectedImage = showcaseImageButtons[activeShowcaseImage].querySelector("img");
-  showcaseLightboxImage.src = selectedImage.currentSrc || selectedImage.src;
-  showcaseLightboxImage.alt = selectedImage.alt;
-  showcaseLightboxCaption.textContent = selectedImage.alt;
-  if (!showcaseLightbox.open) showcaseLightbox.showModal();
-}
-
-showcaseImageButtons.forEach((button, index) => {
-  button.addEventListener("click", () => showShowcaseImage(index));
-});
-
-document.querySelector(".js-showcase-lightbox-close").addEventListener("click", () => {
-  showcaseLightbox.close();
-});
-
-document.querySelector(".js-showcase-lightbox-prev").addEventListener("click", () => {
-  showShowcaseImage(activeShowcaseImage - 1);
-});
-
-document.querySelector(".js-showcase-lightbox-next").addEventListener("click", () => {
-  showShowcaseImage(activeShowcaseImage + 1);
-});
-
-showcaseLightbox.addEventListener("click", (event) => {
-  if (event.target === showcaseLightbox) showcaseLightbox.close();
-});
-
-showcaseLightbox.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowLeft") showShowcaseImage(activeShowcaseImage - 1);
-  if (event.key === "ArrowRight") showShowcaseImage(activeShowcaseImage + 1);
 });
 
 filterButtons.forEach((button) => {

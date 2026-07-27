@@ -2354,7 +2354,7 @@ button {
   }
 }
 
-/* Rezervasyon sonrası üç aşamalı kapanış deneyimi */
+/* Ödeme bildirimi sonrası durum ekranı */
 body.is-completion-open {
   overflow: hidden;
 }
@@ -3414,6 +3414,266 @@ body.is-completion-open {
 
   .showcase-values strong {
     font-size: 6px;
+  }
+}
+
+/* Havale / EFT son adımı */
+.transfer-layout {
+  display: grid;
+  align-items: start;
+  gap: clamp(20px, 3vw, 38px);
+  grid-template-columns: minmax(0, 0.92fr) minmax(380px, 1.08fr);
+}
+
+.transfer-layout .order-review {
+  grid-template-columns: 1fr;
+}
+
+.transfer-panel {
+  overflow: hidden;
+  border: 1px solid hsl(35 31% 78%);
+  background: var(--surface);
+  box-shadow: 0 20px 50px hsl(30 18% 30% / 0.09);
+}
+
+.transfer-panel__heading {
+  position: relative;
+  padding: clamp(26px, 4vw, 38px);
+  color: hsl(39 39% 96%);
+  background:
+    radial-gradient(circle at 88% 15%, hsl(39 58% 62% / 0.28), transparent 28%),
+    linear-gradient(135deg, hsl(28 22% 19%), hsl(30 26% 28%));
+}
+
+.transfer-panel__heading::after {
+  position: absolute;
+  right: -46px;
+  bottom: -58px;
+  width: 155px;
+  height: 155px;
+  border: 1px solid hsl(42 45% 80% / 0.4);
+  border-radius: 50%;
+  content: "";
+}
+
+.transfer-panel__heading p {
+  margin: 0 0 9px;
+  color: hsl(43 48% 73%);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.transfer-panel__heading h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(29px, 3vw, 39px);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+}
+
+.transfer-panel__amount {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: fit-content;
+  margin-top: 30px;
+  gap: 4px;
+}
+
+.transfer-panel__amount small {
+  color: hsl(43 30% 76%);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.transfer-panel__amount strong {
+  color: hsl(43 64% 78%);
+  font-family: var(--serif);
+  font-size: clamp(32px, 4vw, 44px);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+}
+
+.transfer-details {
+  display: grid;
+  margin: 0;
+  padding: 12px clamp(24px, 4vw, 38px) 2px;
+}
+
+.transfer-details > div {
+  display: grid;
+  align-items: center;
+  padding: 17px 0;
+  border-bottom: 1px solid hsl(34 26% 90%);
+  gap: 12px;
+  grid-template-columns: minmax(86px, 0.35fr) minmax(0, 1fr);
+}
+
+.transfer-details dt,
+.transfer-details dd {
+  margin: 0;
+}
+
+.transfer-details dt {
+  color: var(--ink-soft);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.transfer-details dd {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.transfer-details__copy dd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.transfer-details__copy strong {
+  color: var(--gold-dark);
+  font-size: 10px;
+  letter-spacing: 0.035em;
+}
+
+.transfer-copy {
+  padding: 7px 8px;
+  border: 1px solid hsl(35 31% 78%);
+  color: var(--gold-dark);
+  background: hsl(40 42% 97%);
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.transfer-copy:hover,
+.transfer-copy:focus-visible {
+  color: white;
+  background: var(--gold-dark);
+  outline: none;
+}
+
+.transfer-copy-feedback {
+  min-height: 18px;
+  margin: 0;
+  padding: 9px clamp(24px, 4vw, 38px) 0;
+  color: hsl(139 27% 27%);
+  font-size: 9px;
+}
+
+.transfer-panel__note {
+  margin: 14px clamp(24px, 4vw, 38px) 0;
+  padding: 13px 15px;
+  color: hsl(138 17% 40%);
+  background: hsl(135 35% 96%);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.payment-notification-form {
+  margin-top: 26px;
+  padding: clamp(24px, 4vw, 38px);
+  border-top: 1px solid var(--line);
+  background: hsl(40 31% 98%);
+}
+
+.payment-notification-form__heading {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 12px;
+}
+
+.payment-notification-form__heading > span {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  border: 1px solid var(--gold);
+  border-radius: 50%;
+  color: var(--gold-dark);
+  font-size: 9px;
+  font-weight: 700;
+  place-items: center;
+}
+
+.payment-notification-form__heading div {
+  display: grid;
+  gap: 3px;
+}
+
+.payment-notification-form__heading strong {
+  font-family: var(--serif);
+  font-size: 23px;
+  font-weight: 400;
+}
+
+.payment-notification-form__heading small,
+.js-receipt-name {
+  color: var(--ink-soft);
+  font-size: 9px;
+}
+
+.payment-notification-form__grid {
+  display: grid;
+  gap: 17px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-field--file input {
+  padding: 13px;
+  font-size: 10px;
+}
+
+.form-field--file input::file-selector-button {
+  margin-right: 12px;
+  padding: 7px 9px;
+  border: 0;
+  color: white;
+  background: var(--gold-dark);
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1080px) {
+  .transfer-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .transfer-layout .order-review {
+    grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.65fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .transfer-layout .order-review,
+  .payment-notification-form__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .transfer-details > div {
+    align-items: start;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .transfer-details__copy dd {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

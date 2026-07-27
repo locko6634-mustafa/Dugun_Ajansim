@@ -164,8 +164,8 @@
             <p class="builder-intro__index">04 / Ödeme seçenekleri</p>
             <h1 id="payment-title">Size uygun <em>ödemeyi seçin.</em></h1>
             <p>
-              Rezervasyonunuzu peşin ödeme avantajıyla, iki taksitle veya yalnızca
-              kaporanızı ödeyerek güvenceye alın.
+              Size uygun ödeme planını seçin; seçtiğiniz tutar için bir sonraki
+              adımda havale/EFT bilgilerini paylaşacağız.
             </p>
           </header>
 
@@ -217,7 +217,7 @@
               <span class="payment-option__copy">
                 <span class="payment-option__headline">
                   <span>
-                    <strong>Kapora ile Rezervasyon</strong>
+                    <strong>Kapora Ödemesi</strong>
                     <small>Kalan tutarı düğün günü ödeyin</small>
                   </span>
                 </span>
@@ -256,7 +256,7 @@
             <p class="builder-intro__index">03 / İletişim ve etkinlik</p>
             <h1 id="details-title">Sizi biraz <em>tanıyalım.</em></h1>
             <p>
-              Ekibimizin tarih ve mekân uygunluğunu kontrol edebilmesi için iletişim
+              Paketiniz ile ödeme bildiriminizi eşleştirebilmemiz için iletişim
               ve düğün bilgilerinizi paylaşın.
             </p>
           </header>
@@ -301,7 +301,7 @@
 
             <div class="privacy-note">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M5 10h14v11H5V10Z"/></svg>
-              <p>Bilgileriniz yalnızca rezervasyon süreciniz için kullanılır ve üçüncü kişilerle paylaşılmaz.</p>
+              <p>Bilgileriniz paketiniz ile ödeme bildiriminizi eşleştirmek için kullanılır ve üçüncü kişilerle paylaşılmaz.</p>
             </div>
 
             <div class="builder-step__actions builder-step__actions--split">
@@ -317,88 +317,75 @@
           </form>
         </section>
 
-        <section class="builder-step checkout-step" data-step="5" aria-labelledby="order-summary-title" hidden>
+        <section class="builder-step checkout-step" data-step="5" aria-labelledby="transfer-title" hidden>
           <header class="builder-intro builder-intro--compact">
-            <p class="builder-intro__index">05 / Son kontrol</p>
-            <h1 id="order-summary-title">Her şey <em>tam istediğiniz gibi.</em></h1>
-            <p>
-              Rezervasyon talebinizi oluşturmadan önce paket ve iletişim bilgilerinizi son kez kontrol edin.
-            </p>
+            <p class="builder-intro__index">05 / Havale ve özet</p>
+            <h1 id="transfer-title">Ödemenizi <em>havale ile tamamlayın.</em></h1>
+            <p>Paketinizi kontrol edin, aşağıdaki açıklama koduyla havalenizi yapın ve ardından ödeme bildiriminizi iletin.</p>
           </header>
 
-          <div class="order-review js-order-review">
-            <section class="order-review__panel">
-              <div class="order-review__heading">
-                <span>Sipariş özeti</span>
-                <button class="js-edit-package" type="button">Paketi düzenle</button>
+          <div class="transfer-layout">
+            <div class="transfer-layout__review">
+              <div class="order-review js-order-review">
+                <section class="order-review__panel">
+                  <div class="order-review__heading">
+                    <span>Paket özeti</span>
+                    <button class="js-edit-package" type="button">Paketi düzenle</button>
+                  </div>
+                  <div class="order-review__items js-order-items" aria-live="polite"></div>
+                  <dl class="order-review__totals">
+                    <div><dt>Ara toplam</dt><dd class="js-order-subtotal">20.000 TL</dd></div>
+                    <div class="js-order-adjustment-row"><dt class="js-order-adjustment-label">Peşin ödeme indirimi</dt><dd class="js-order-adjustment">-2.000 TL</dd></div>
+                    <div class="order-review__grand-total"><dt class="js-order-payable-label">Bugün havale edilecek</dt><dd class="js-order-payable">18.000 TL</dd></div>
+                  </dl>
+                  <div class="order-review__benefit js-order-benefit">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9"/><circle cx="12" cy="12" r="9"/></svg>
+                    <span>Peşin ödeme seçeneğiyle %10 avantaj kazandınız.</span>
+                  </div>
+                </section>
+                <aside class="customer-review">
+                  <div class="order-review__heading"><span>Bilgileriniz</span><button class="js-edit-details" type="button">Düzenle</button></div>
+                  <dl>
+                    <div><dt>Ad Soyad</dt><dd class="js-review-name">—</dd></div>
+                    <div><dt>Telefon</dt><dd class="js-review-phone">—</dd></div>
+                    <div><dt>Düğün Tarihi</dt><dd class="js-review-date">—</dd></div>
+                    <div><dt>Salon / Mekân</dt><dd class="js-review-venue">—</dd></div>
+                  </dl>
+                </aside>
               </div>
-              <div class="order-review__items js-order-items" aria-live="polite"></div>
-              <dl class="order-review__totals">
-                <div>
-                  <dt>Ara toplam</dt>
-                  <dd class="js-order-subtotal">20.000 TL</dd>
-                </div>
-                <div class="js-order-adjustment-row">
-                  <dt class="js-order-adjustment-label">Peşin ödeme indirimi</dt>
-                  <dd class="js-order-adjustment">-2.000 TL</dd>
-                </div>
-                <div class="order-review__grand-total">
-                  <dt class="js-order-payable-label">Ödenecek tutar</dt>
-                  <dd class="js-order-payable">18.000 TL</dd>
-                </div>
+            </div>
+
+            <section class="transfer-panel" aria-labelledby="transfer-panel-title">
+              <div class="transfer-panel__heading">
+                <p>Havale / EFT bilgileri</p>
+                <h2 id="transfer-panel-title">Ödeme belgeniz</h2>
+                <span class="transfer-panel__amount"><small class="js-transfer-payable-label">Bugün havale edilecek</small><strong class="js-transfer-payable">18.000 TL</strong></span>
+              </div>
+              <dl class="transfer-details">
+                <div><dt>Banka</dt><dd class="js-transfer-bank">Örnek Banka</dd></div>
+                <div><dt>Alıcı ünvanı</dt><dd class="js-transfer-account-holder">Düğünajansım Örnek Hesap</dd></div>
+                <div class="transfer-details__copy"><dt>IBAN</dt><dd><strong class="js-transfer-iban">TR00 0000 0000 0000 0000 0000 00</strong><button type="button" class="transfer-copy js-copy-transfer" data-copy="iban">Kopyala</button></dd></div>
+                <div class="transfer-details__copy"><dt>Açıklama</dt><dd><strong class="js-transfer-reference">DA-2026-000000</strong><button type="button" class="transfer-copy js-copy-transfer" data-copy="reference">Kopyala</button></dd></div>
               </dl>
-              <div class="order-review__benefit js-order-benefit">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9"/><circle cx="12" cy="12" r="9"/></svg>
-                <span>Peşin ödeme seçeneğiyle %10 avantaj kazandınız.</span>
-              </div>
+              <p class="transfer-copy-feedback js-copy-feedback" role="status" aria-live="polite"></p>
+              <p class="transfer-panel__note">Havale açıklamasına bu kodu eksiksiz yazın. Banka bilgileri bu ön yüz sürümünde örnek olarak gösterilmektedir.</p>
+
+              <form class="payment-notification-form" id="payment-notification-form" novalidate>
+                <div class="payment-notification-form__heading"><span>02</span><div><strong>Ödeme bildirimi</strong><small>Havalenizden sonra bilgileri paylaşın.</small></div></div>
+                <div class="payment-notification-form__grid">
+                  <label class="form-field"><span>Gönderen ad soyad</span><input type="text" name="senderName" autocomplete="name" required /><small class="form-field__error">Gönderen adını yazın.</small></label>
+                  <label class="form-field"><span>Gönderilen banka</span><input type="text" name="senderBank" placeholder="Banka adınız" required /><small class="form-field__error">Banka adını yazın.</small></label>
+                  <label class="form-field"><span>İşlem tarihi</span><input type="date" name="transferDate" required /><small class="form-field__error">İşlem tarihini seçin.</small></label>
+                  <label class="form-field"><span>Havale tutarı</span><input class="js-notification-amount" type="text" name="transferAmount" value="18.000 TL" readonly required /></label>
+                  <label class="form-field form-field--wide form-field--file"><span>Dekont <em>PDF, JPG veya PNG</em></span><input class="js-receipt-input" type="file" name="receipt" accept=".pdf,image/png,image/jpeg" required /><small class="js-receipt-name">Dekont seçilmedi.</small><small class="form-field__error">Dekontunuzu seçin.</small></label>
+                </div>
+                <div class="builder-step__actions builder-step__actions--split">
+                  <button class="builder-secondary js-step-back" type="button" data-target-step="4"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7M8 12h12" /></svg><span>Geri</span></button>
+                  <button class="builder-primary" type="submit"><span>Ödeme Bildirimini Tamamla</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>
+                </div>
+              </form>
             </section>
-
-            <aside class="customer-review">
-              <div class="order-review__heading">
-                <span>Bilgileriniz</span>
-                <button class="js-edit-details" type="button">Düzenle</button>
-              </div>
-              <dl>
-                <div>
-                  <dt>Ad Soyad</dt>
-                  <dd class="js-review-name">—</dd>
-                </div>
-                <div>
-                  <dt>Telefon</dt>
-                  <dd class="js-review-phone">—</dd>
-                </div>
-                <div>
-                  <dt>Düğün Tarihi</dt>
-                  <dd class="js-review-date">—</dd>
-                </div>
-                <div>
-                  <dt>Salon / Mekân</dt>
-                  <dd class="js-review-venue">—</dd>
-                </div>
-              </dl>
-            </aside>
           </div>
-
-          <label class="terms-check">
-            <input class="js-terms" type="checkbox" />
-            <span aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg>
-            </span>
-            <small>Rezervasyon koşullarını ve kişisel verilerin işlenmesine ilişkin bilgilendirmeyi okudum, kabul ediyorum.</small>
-          </label>
-          <p class="terms-error js-terms-error" role="alert" hidden>Devam etmek için rezervasyon koşullarını kabul edin.</p>
-
-          <div class="builder-step__actions builder-step__actions--split">
-            <button class="builder-secondary js-step-back" type="button" data-target-step="4">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7M8 12h12" /></svg>
-              <span>Geri</span>
-            </button>
-            <button class="builder-primary js-submit-booking" type="button">
-              <span>Rezervasyon Talebi Oluştur</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5V11Z"/></svg>
-            </button>
-          </div>
-
         </section>
       </div>
 
@@ -439,13 +426,13 @@
         </div>
 
         <p class="package-summary__notice">
-          Seçimleriniz kesin rezervasyon oluşturmaz. Tarih ve ekip müsaitliği görüşme sırasında netleştirilir.
+          Paketiniz ve iletişim bilgileriniz, ödeme bildiriminizi doğru eşleştirmek için kullanılır.
         </p>
       </aside>
       <div class="summary-backdrop js-summary-toggle" aria-hidden="true"></div>
     </main>
 
-    <section class="booking-completion js-booking-completion" aria-label="Rezervasyon tamamlandı" hidden>
+    <section class="booking-completion js-booking-completion" aria-label="Ödeme bildirimi durumu" hidden>
       <div class="completion-view completion-success js-completion-success">
         <header class="completion-bar">
           <a class="completion-bar__back" href="index.html" aria-label="Ana sayfaya dön">
@@ -463,8 +450,8 @@
 
         <div class="completion-success__body">
           <div class="completion-success__heading">
-            <p>Rezervasyon onaylandı</p>
-            <h1 class="js-completion-title" tabindex="-1">En güzel gününüze<br/><em>bir adım daha yakınsınız.</em></h1>
+            <p>Ödeme kontrol bekliyor</p>
+            <h1 class="js-completion-title" tabindex="-1">Bildirimizi <em>aldık.</em></h1>
           </div>
 
           <span class="completion-check" aria-hidden="true">
@@ -472,8 +459,8 @@
           </span>
 
           <div class="completion-success__message" role="status">
-            <strong>Rezervasyon talebiniz başarıyla oluşturuldu.</strong>
-            <p>Ekibimiz tarih uygunluğunu kontrol edecek ve tüm detaylar için sizinle kısa süre içinde iletişime geçecek.</p>
+            <strong>Ödeme bildiriminiz oluşturuldu.</strong>
+            <p>Ekibimiz havalenizi ve dekontunuzu kontrol ettikten sonra sizinle iletişime geçecek. Bu ekran ödeme onayı anlamına gelmez.</p>
           </div>
 
           <div class="booking-reference">
@@ -481,15 +468,15 @@
               <svg viewBox="0 0 24 24"><path d="M7 7V5M17 7V5M5 9h14M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2Z"/><path d="m9 14 2 2 4-5"/></svg>
             </span>
             <span>
-              <small>Rezervasyon No</small>
+              <small>Ödeme bildirimi no</small>
               <strong class="js-booking-reference"></strong>
             </span>
           </div>
 
-          <button class="completion-primary js-show-completion-showcase" type="button">
+          <a class="completion-primary" href="index.html">
             <span>Ana Sayfaya Dön</span>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          </button>
+          </a>
 
           <div class="completion-contact">
             <p>Sorularınız için bizimle iletişime geçebilirsiniz.</p>
