@@ -1,4 +1,27 @@
 const shootCards = [...document.querySelectorAll(".shoot-card")];
+const videoLightbox = document.querySelector(".video-lightbox");
+const videoLightboxVideo = videoLightbox.querySelector("video");
+const videoLightboxCaption = videoLightbox.querySelector("figcaption");
+const videoLightboxClose = videoLightbox.querySelector(".video-lightbox__close");
+
+function openVideoLightbox(video) {
+  const source = video.querySelector("source");
+
+  if (!source) return;
+
+  videoLightboxVideo.src = source.src;
+  videoLightboxVideo.setAttribute("aria-label", video.getAttribute("aria-label") || "Video çekimi");
+  videoLightboxCaption.textContent = video.getAttribute("aria-label") || "Video çekimi";
+  videoLightbox.showModal();
+  videoLightboxVideo.play().catch(() => {});
+}
+
+function closeVideoLightbox() {
+  videoLightboxVideo.pause();
+  videoLightboxVideo.removeAttribute("src");
+  videoLightboxVideo.load();
+  videoLightbox.close();
+}
 shootCards.forEach((card) => {
   const video = card.querySelector("video");
   const button = card.querySelector(".shoot-card__sound");
@@ -49,12 +72,19 @@ shootCards.forEach((card) => {
     button.setAttribute("aria-label", `${video.getAttribute("aria-label")} sesini kapat`);
     video.play().catch(() => {});
 
-    if (video.requestFullscreen) {
-      video.requestFullscreen().catch(() => {});
-    } else if (video.webkitEnterFullscreen) {
-      video.webkitEnterFullscreen();
-    }
+    openVideoLightbox(video);
   });
+});
+
+videoLightboxClose.addEventListener("click", closeVideoLightbox);
+
+videoLightbox.addEventListener("click", (event) => {
+  if (event.target === videoLightbox) closeVideoLightbox();
+});
+
+videoLightbox.addEventListener("close", () => {
+  videoLightboxVideo.pause();
+  videoLightboxVideo.removeAttribute("src");
 });
 
 const shootsObserver = new IntersectionObserver(

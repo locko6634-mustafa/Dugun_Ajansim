@@ -1,3 +1,6 @@
+const faqQuestions = document.querySelectorAll(".faq-question");
+const openAllFaqButton = document.querySelector(".js-open-all-faq");
+
 function setFaqItem(question, open) {
   const item = question.closest(".faq-item");
   const answer = document.getElementById(question.getAttribute("aria-controls"));
