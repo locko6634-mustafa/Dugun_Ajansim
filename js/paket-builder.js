@@ -175,6 +175,7 @@ const detailThumbs = document.querySelector(".js-detail-thumbs");
 const detailAddButton = document.querySelector(".js-detail-add");
 const paymentInputs = [...document.querySelectorAll('input[name="payment-method"]')];
 const checkoutForm = document.querySelector("#checkout-form");
+const orderItemsContainer = document.querySelector(".js-order-items");
 const bookingCompletion = document.querySelector(".js-booking-completion");
 const completionSuccess = document.querySelector(".js-completion-success");
 const completionShowcase = document.querySelector(".js-completion-showcase");
@@ -338,7 +339,7 @@ function renderOrderReview() {
     ...extras.map((service) => ({ ...service, type: "Ek hizmet" })),
   ];
 
-  document.querySelector(".js-order-items").innerHTML = items
+  orderItemsContainer.innerHTML = items
     .map(
       (item) => `
         <div class="order-review__item">
@@ -347,7 +348,26 @@ function renderOrderReview() {
             <small>${item.type}</small>
             <strong>${item.name}</strong>
           </span>
-          <b>${formatPrice(item.price)}</b>
+          <div class="order-review__item-actions">
+            <b>${formatPrice(item.price)}</b>
+            ${
+              item.type === "Ek hizmet"
+                ? `
+                  <button
+                    class="order-review__remove"
+                    type="button"
+                    aria-label="${item.name} hizmetini paketten çıkar"
+                    title="Paketten çıkar"
+                    data-remove-service="${item.id}"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6 6 18" />
+                    </svg>
+                  </button>
+                `
+                : ""
+            }
+          </div>
         </div>
       `,
     )
@@ -535,6 +555,18 @@ checkoutForm.addEventListener("submit", (event) => {
 
 document.querySelector(".js-edit-package").addEventListener("click", () => goToStep(2));
 document.querySelector(".js-edit-details").addEventListener("click", () => goToStep(4));
+
+orderItemsContainer.addEventListener("click", (event) => {
+  const removeButton = event.target.closest("[data-remove-service]");
+  if (!removeButton) return;
+
+  const serviceId = removeButton.dataset.removeService;
+  if (!state.extras.has(serviceId)) return;
+
+  state.extras.delete(serviceId);
+  renderServices();
+  updateSummary();
+});
 
 document.querySelector(".js-terms").addEventListener("change", (event) => {
   if (event.target.checked) document.querySelector(".js-terms-error").hidden = true;

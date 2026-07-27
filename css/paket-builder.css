@@ -1006,6 +1006,49 @@ button {
   white-space: nowrap;
 }
 
+.order-review__item-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.order-review__remove {
+  display: grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink-soft);
+  background: transparent;
+  cursor: pointer;
+  place-items: center;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    background 180ms ease,
+    transform 180ms var(--ease);
+}
+
+.order-review__remove:hover,
+.order-review__remove:focus-visible {
+  border-color: hsl(2 42% 60%);
+  color: hsl(2 51% 43%);
+  background: hsl(2 48% 96%);
+  outline: none;
+  transform: scale(1.06);
+}
+
+.order-review__remove svg {
+  width: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+
 .order-review__totals,
 .customer-review dl {
   margin: 0;
