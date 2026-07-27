@@ -22,3 +22,24 @@ Ajan, geliştirmelerini veya hata düzeltmelerini tamamlayıp testlerden geçird
    - ❌ *Hatalı Örnek:* `git commit -m "geliştirme yapıldı"` (Anlamsız ve Türkçe karakter içeriyor)
 2. **Otomatik Push:** Commit oluşturulduktan sonra değişiklikler `git push` komutu ile GitHub üzerindeki aktif dala (branch) gönderilmelidir.
 
+
+## 3. Moduler Frontend Mimarisi
+
+### JavaScript yapisi
+
+- Her HTML sayfasi sadece kendi giris modulunu `type="module"` ile yukler. Giris dosyalari yalnizca ilgili modulleri bir araya getirir.
+- Sayfaya ozgu JavaScript dosyalari `js/` altinda bulunur. Kucuk sayfalar tek dosya kullanabilir (`js/login.js`); buyuyen alanlar ozellik bazli klasorlerde ayrilir (`js/home/`, `js/package-builder/`, ileride `js/dashboard/`).
+- Yeni dashboard kodlari `js/dashboard/` altinda, kendi `main.js` giris dosyasi ve ozellik bazli modullerle eklenmelidir. Dashboarda ait kodlari ana sayfa veya paket olusturucu modullerine eklemeyin.
+- Birden fazla sayfanin kullandigi, DOM'a dogrudan bagli olmayan yardimcilar `js/shared/` altinda konumlanir. Sayfaya ozgu selectorler ve event listener'lar ortak alana tasinmaz.
+- Veri kataloglari, durum/is kurallari ve arayuz davranislari ayri modullerde tutulur. Moduller acik `export`/`import` kullansin; global degisken ve klasik script bagimliligi olusturmayin.
+
+### CSS yapisi
+
+- `css/styles.css` ana stil giris noktasi olarak kalir; bolum stilleri `css/styles/` altindaki dosyalarda tutulur.
+- Yeni ekranlar kendi stil giris dosyalarini `css/` altinda kullanir. Ornek: giris ekrani `css/login.css`; ana sayfa bolumleri `css/styles/` altindadir. Ortak token ve temel kurallar sadece gercekten paylasiliyorsa ortak bir modulde tutulur.
+
+### Dosya yerlesimi
+
+- Sayfa HTML dosyalari proje kokunde tutulur (`index.html`, `login.html`, `paketini-olustur.html`).
+- Sayfaya ait stil ve betikler sirasiyla `css/<sayfa>.css` ve `js/<sayfa>.js` konumunda bulunur; kod buyudugunde yalnizca ilgili alan icin `js/<sayfa>/` klasoru acilir.
+- Bir dosya tasindiginda tum HTML kaynak yollari, sayfa baglantilari ve goreli varlik yollari ayni degisiklikte guncellenir.

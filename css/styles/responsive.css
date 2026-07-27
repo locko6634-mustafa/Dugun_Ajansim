@@ -1,0 +1,211 @@
+﻿/* Compact mobile scale */
+@media (max-width: 640px) {
+  :root {
+    --header-height: 74px;
+  }
+
+  .site-header {
+    min-height: var(--header-height);
+    padding-inline: clamp(14px, 4.5vw, 18px);
+  }
+
+  .brand__mark {
+    width: 34px;
+    height: 34px;
+  }
+
+  .brand__name {
+    font-size: clamp(22px, 6.7vw, 28px);
+  }
+
+  .brand__year {
+    font-size: clamp(18px, 5.3vw, 23px);
+  }
+
+  .menu-toggle {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+
+  .mobile-menu {
+    top: var(--header-height);
+  }
+
+  .hero__inner {
+    width: calc(100% - 22px);
+    gap: clamp(4px, 0.8dvh, 7px);
+  }
+
+  .hero-collage {
+    height: clamp(210px, 65vw, 254px);
+  }
+
+  .anniversary {
+    width: clamp(76px, 21vw, 94px);
+    height: clamp(76px, 21vw, 94px);
+  }
+
+  .anniversary__number {
+    font-size: clamp(28px, 8vw, 35px);
+  }
+
+  .anniversary__label {
+    font-size: clamp(15px, 4.4vw, 19px);
+  }
+
+  .proof-pill {
+    min-height: 34px;
+    font-size: clamp(9.5px, 2.7vw, 12px);
+  }
+
+  .proof-pill__icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .hero h1 {
+    font-size: clamp(34px, 11vw, 43px);
+  }
+
+  .hero__lead {
+    font-size: clamp(11.5px, 3.25vw, 13px);
+  }
+
+  .hero__actions {
+    gap: 6px;
+  }
+
+  .button {
+    min-height: 43px;
+  }
+
+  .trust-item {
+    font-size: clamp(7.5px, 2.1vw, 9.5px);
+  }
+
+  .trust-item svg {
+    width: clamp(24px, 7vw, 29px);
+    flex-basis: clamp(24px, 7vw, 29px);
+  }
+
+  .benefits-section {
+    padding-top: 22px;
+  }
+
+  .legacy-intro__inner {
+    padding-top: 16px;
+  }
+
+  .services-section {
+    padding: clamp(48px, 12vw, 60px) clamp(9px, 2.7vw, 14px) clamp(54px, 13vw, 68px);
+  }
+
+  .services-heading {
+    margin-bottom: clamp(26px, 7vw, 34px);
+  }
+
+  .services-heading h2 {
+    font-size: clamp(36px, 10.5vw, 47px);
+  }
+
+  .services-heading > p:not(.services-kicker) {
+    margin-top: 16px;
+    font-size: clamp(11.5px, 3.2vw, 14px);
+    line-height: 1.58;
+  }
+
+  .services-divider {
+    margin-top: 18px;
+  }
+
+  .service-card__media {
+    height: clamp(138px, 39vw, 176px);
+  }
+
+  .service-card__body {
+    min-height: clamp(184px, 49vw, 220px);
+    padding: clamp(29px, 8vw, 38px) clamp(12px, 3.4vw, 18px) clamp(15px, 4vw, 21px);
+  }
+
+  .service-card__icon {
+    left: clamp(12px, 3.4vw, 18px);
+    width: clamp(46px, 12.5vw, 56px);
+    height: clamp(46px, 12.5vw, 56px);
+  }
+
+  .service-card h3 {
+    font-size: clamp(18px, 5.25vw, 23px);
+  }
+
+  .service-card p {
+    font-size: clamp(10px, 2.75vw, 12px);
+    line-height: 1.48;
+  }
+
+  .service-card__link {
+    font-size: clamp(9px, 2.45vw, 10.5px);
+  }
+
+
+
+  .faq-section {
+    padding: clamp(56px, 14vw, 70px) 10px clamp(38px, 9vw, 48px);
+  }
+
+  .faq-heading {
+    margin-bottom: 24px;
+  }
+
+  .faq-heading h2 {
+    font-size: clamp(40px, 11.5vw, 50px);
+  }
+
+  .faq-heading > p:last-child {
+    margin-top: 18px;
+    font-size: clamp(12px, 3.3vw, 14px);
+  }
+
+  .faq-question {
+    grid-template-columns: 44px minmax(0, 1fr) 32px;
+    gap: 9px;
+    min-height: clamp(68px, 18vw, 78px);
+    padding: 9px 10px;
+  }
+
+  .faq-question > span:nth-child(2) {
+    font-size: clamp(15px, 4.5vw, 19px);
+  }
+
+  .faq-item__icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .faq-toggle {
+    width: 30px;
+    height: 30px;
+  }
+
+  .faq-answer {
+    margin-left: 63px;
+  }
+}
+
+@media (max-width: 480px) {
+  .service-card__body {
+    min-height: 178px;
+    padding-inline: 11px;
+  }
+
+  .service-card h3 {
+    font-size: clamp(17px, 4.8vw, 20px);
+  }
+
+  .service-card p {
+    font-size: clamp(9.5px, 2.55vw, 11px);
+    line-height: 1.42;
+  }
+
+}
+

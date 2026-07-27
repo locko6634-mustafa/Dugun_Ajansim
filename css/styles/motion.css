@@ -1,0 +1,131 @@
+﻿/* Mobil Ã¶ncelikli, ilerlemeli animasyon sistemi */
+:root {
+  --motion-distance: 26px;
+  --motion-side-distance: 34px;
+  --motion-duration: 620ms;
+  --motion-heading-duration: 650ms;
+  --motion-stagger: 90ms;
+}
+
+.motion-heading__line {
+  display: inline-block;
+  overflow: hidden;
+  padding-bottom: 0.08em;
+  margin-bottom: -0.08em;
+  vertical-align: bottom;
+}
+
+.motion-heading--forced-lines .motion-heading__line {
+  display: block;
+}
+
+.motion-heading__inner {
+  display: block;
+  will-change: opacity, transform;
+}
+
+html.motion-ready .motion-reveal,
+html.motion-ready .motion-heading .motion-heading__inner {
+  opacity: 0;
+}
+
+html.motion-ready .motion-reveal {
+  --motion-x: 0px;
+  --motion-y: var(--motion-distance);
+  --motion-scale: 1;
+  translate: var(--motion-x) var(--motion-y);
+  scale: var(--motion-scale);
+  transition:
+    opacity var(--motion-duration) var(--ease),
+    translate var(--motion-duration) var(--ease),
+    scale var(--motion-duration) var(--ease);
+  transition-delay: var(--motion-delay, 0ms);
+  will-change: opacity, translate, scale;
+}
+
+html.motion-ready .motion-reveal--left {
+  --motion-x: calc(var(--motion-side-distance) * -1);
+  --motion-y: 0px;
+}
+
+html.motion-ready .motion-reveal--right {
+  --motion-x: var(--motion-side-distance);
+  --motion-y: 0px;
+}
+
+html.motion-ready .motion-reveal--hero {
+  --motion-y: 16px;
+  --motion-scale: 0.985;
+}
+
+.hero .motion-reveal {
+  --motion-duration: 500ms;
+}
+
+.hero .motion-heading {
+  --motion-heading-duration: 540ms;
+}
+
+html.motion-ready .motion-reveal.is-visible {
+  opacity: 1;
+  translate: 0 0;
+  scale: 1;
+  will-change: auto;
+}
+
+html.motion-ready .motion-heading .motion-heading__inner {
+  transform: translate3d(0, 112%, 0);
+  transition:
+    opacity var(--motion-heading-duration) var(--ease),
+    transform var(--motion-heading-duration) var(--ease);
+  transition-delay: calc(
+    var(--motion-delay, 0ms) + var(--motion-line-index, 0) * var(--motion-stagger)
+  );
+}
+
+html.motion-ready .motion-heading.is-visible .motion-heading__inner {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  will-change: auto;
+}
+
+.motion-parallax {
+  translate: 0 var(--motion-parallax-y, 0px);
+  transition: translate 120ms linear;
+  will-change: translate;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --motion-distance: 22px;
+    --motion-side-distance: 24px;
+    --motion-duration: 560ms;
+    --motion-heading-duration: 590ms;
+    --motion-stagger: 85ms;
+  }
+
+  .hero .motion-reveal {
+    --motion-duration: 480ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.js .page-loader,
+  .page-loader__emblem svg,
+  .page-loader__orbit,
+  .page-loader__progress i {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  html.motion-ready .motion-reveal,
+  html.motion-ready .motion-heading .motion-heading__inner,
+  .motion-parallax {
+    opacity: 1 !important;
+    transform: none !important;
+    translate: none !important;
+    scale: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
