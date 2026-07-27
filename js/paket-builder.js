@@ -154,6 +154,8 @@ const state = {
   extras: new Set(),
   filter: "all",
   activeService: null,
+  payment: "cash",
+  customer: {},
 };
 
 const stepPanels = [...document.querySelectorAll(".builder-step")];
@@ -171,6 +173,65 @@ const detailPrice = document.querySelector(".js-detail-price");
 const detailNumber = document.querySelector(".js-detail-number");
 const detailThumbs = document.querySelector(".js-detail-thumbs");
 const detailAddButton = document.querySelector(".js-detail-add");
+const paymentInputs = [...document.querySelectorAll('input[name="payment-method"]')];
+const checkoutForm = document.querySelector("#checkout-form");
+
+const paymentMethods = {
+  cash: {
+    title: "Peşin ödeme avantajı",
+    copy: "Toplam paket tutarınıza %10 indirim uygulanır.",
+  },
+  installment: {
+    title: "Vade farksız iki taksit",
+    copy: "İlk taksiti şimdi, ikinci taksiti ekibimizle planladığınız tarihte ödeyin.",
+  },
+  deposit: {
+    title: "5.000 TL ile tarihinizi ayırın",
+    copy: "Kalan paket tutarını düğün gününde tamamlayabilirsiniz.",
+  },
+};
+
+function getOrderSubtotal() {
+  const base = basePackages[state.base];
+  return getSelectedExtras().reduce((sum, service) => sum + service.price, base.price);
+}
+
+function getPaymentDetails() {
+  const subtotal = getOrderSubtotal();
+
+  if (state.payment === "cash") {
+    const discount = Math.round(subtotal * 0.1);
+    return {
+      subtotal,
+      payable: subtotal - discount,
+      adjustment: -discount,
+      adjustmentLabel: "Peşin ödeme indirimi",
+      payableLabel: "Ödenecek tutar",
+      benefit: `Peşin ödeme seçeneğiyle ${formatPrice(discount)} avantaj kazandınız.`,
+    };
+  }
+
+  if (state.payment === "installment") {
+    const firstInstallment = Math.ceil(subtotal / 2);
+    return {
+      subtotal,
+      payable: firstInstallment,
+      adjustment: 0,
+      adjustmentLabel: "",
+      payableLabel: "Bugün ödenecek ilk taksit",
+      benefit: `Toplam ${formatPrice(subtotal)} tutarını vade farksız iki eşit ödemeyle tamamlayabilirsiniz.`,
+    };
+  }
+
+  return {
+    subtotal,
+    payable: Math.min(5000, subtotal),
+    adjustment: 0,
+    adjustmentLabel: "",
+    payableLabel: "Bugün ödenecek kapora",
+    benefit: `${formatPrice(Math.min(5000, subtotal))} kapora ile tarihinizi ayırın, kalan tutarı düğün günü ödeyin.`,
+  };
+}
 
 function updateProgress() {
   progressItems.forEach((item) => {
@@ -188,6 +249,8 @@ function goToStep(step) {
     panel.classList.toggle("is-active", isActive);
   });
   updateProgress();
+  document.body.classList.remove("is-summary-open");
+  if (step === 5) renderOrderReview();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -205,7 +268,7 @@ function getSelectedExtras() {
 function updateSummary() {
   const base = basePackages[state.base];
   const extras = getSelectedExtras();
-  const total = extras.reduce((sum, service) => sum + service.price, base.price);
+  const total = getOrderSubtotal();
 
   document.querySelector(".js-summary-base-name").textContent = base.name;
   document.querySelector(".js-summary-base-price").textContent = formatPrice(base.price);
@@ -227,6 +290,74 @@ function updateSummary() {
       `,
     )
     .join("");
+
+  updatePaymentUI();
+  if (state.step === 5) renderOrderReview();
+}
+
+function updatePaymentUI() {
+  const subtotal = getOrderSubtotal();
+  const cashTotal = Math.round(subtotal * 0.9);
+  const installment = Math.ceil(subtotal / 2);
+  const method = paymentMethods[state.payment];
+
+  document.querySelector(".js-cash-original").textContent = formatPrice(subtotal);
+  document.querySelector(".js-cash-total").textContent = formatPrice(cashTotal);
+  document.querySelector(".js-installment-copy").textContent = `2 × ${formatPrice(installment)}`;
+  document.querySelector(".js-installment-total").textContent = formatPrice(subtotal);
+  document.querySelector(".js-deposit-total").textContent = formatPrice(Math.min(5000, subtotal));
+  document.querySelector(".js-payment-assurance-title").textContent = method.title;
+  document.querySelector(".js-payment-assurance-copy").textContent = method.copy;
+
+  paymentInputs.forEach((input) => {
+    input.closest(".payment-option").classList.toggle("is-selected", input.checked);
+  });
+}
+
+function formatWeddingDate(value) {
+  if (!value) return "—";
+  const [year, month, day] = value.split("-");
+  return `${day}.${month}.${year}`;
+}
+
+function renderOrderReview() {
+  const base = basePackages[state.base];
+  const extras = getSelectedExtras();
+  const payment = getPaymentDetails();
+  const items = [
+    { ...base, type: "Temel paket" },
+    ...extras.map((service) => ({ ...service, type: "Ek hizmet" })),
+  ];
+
+  document.querySelector(".js-order-items").innerHTML = items
+    .map(
+      (item) => `
+        <div class="order-review__item">
+          <img src="${item.image}" alt="" />
+          <span>
+            <small>${item.type}</small>
+            <strong>${item.name}</strong>
+          </span>
+          <b>${formatPrice(item.price)}</b>
+        </div>
+      `,
+    )
+    .join("");
+
+  document.querySelector(".js-order-subtotal").textContent = formatPrice(payment.subtotal);
+  document.querySelector(".js-order-payable-label").textContent = payment.payableLabel;
+  document.querySelector(".js-order-payable").textContent = formatPrice(payment.payable);
+  document.querySelector(".js-order-benefit span").textContent = payment.benefit;
+
+  const adjustmentRow = document.querySelector(".js-order-adjustment-row");
+  adjustmentRow.hidden = payment.adjustment === 0;
+  document.querySelector(".js-order-adjustment-label").textContent = payment.adjustmentLabel;
+  document.querySelector(".js-order-adjustment").textContent = formatPrice(payment.adjustment);
+
+  document.querySelector(".js-review-name").textContent = state.customer.fullName || "—";
+  document.querySelector(".js-review-phone").textContent = state.customer.phone || "—";
+  document.querySelector(".js-review-date").textContent = formatWeddingDate(state.customer.weddingDate);
+  document.querySelector(".js-review-venue").textContent = state.customer.venue || "—";
 }
 
 function renderServices() {
@@ -356,6 +487,69 @@ baseInputs.forEach((input) => {
 
 document.querySelector(".js-next-step").addEventListener("click", () => goToStep(2));
 document.querySelector(".js-prev-step").addEventListener("click", () => goToStep(1));
+document.querySelector(".js-payment-step").addEventListener("click", () => goToStep(3));
+document.querySelector(".js-details-step").addEventListener("click", () => goToStep(4));
+
+document.querySelectorAll(".js-step-back").forEach((button) => {
+  button.addEventListener("click", () => goToStep(Number(button.dataset.targetStep)));
+});
+
+paymentInputs.forEach((input) => {
+  input.addEventListener("change", () => {
+    state.payment = input.value;
+    updatePaymentUI();
+  });
+});
+
+checkoutForm.addEventListener("input", (event) => {
+  const field = event.target.closest(".form-field");
+  if (field && event.target.validity.valid) field.classList.remove("is-invalid");
+});
+
+checkoutForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const requiredFields = [...checkoutForm.querySelectorAll("[required]")];
+
+  requiredFields.forEach((input) => {
+    input.closest(".form-field").classList.toggle("is-invalid", !input.validity.valid);
+  });
+
+  const firstInvalid = requiredFields.find((input) => !input.validity.valid);
+  if (firstInvalid) {
+    firstInvalid.focus();
+    return;
+  }
+
+  state.customer = Object.fromEntries(new FormData(checkoutForm).entries());
+  goToStep(5);
+});
+
+document.querySelector(".js-edit-package").addEventListener("click", () => goToStep(2));
+document.querySelector(".js-edit-details").addEventListener("click", () => goToStep(4));
+
+document.querySelector(".js-terms").addEventListener("change", (event) => {
+  if (event.target.checked) document.querySelector(".js-terms-error").hidden = true;
+});
+
+document.querySelector(".js-submit-booking").addEventListener("click", () => {
+  const terms = document.querySelector(".js-terms");
+  const error = document.querySelector(".js-terms-error");
+
+  if (!terms.checked) {
+    error.hidden = false;
+    terms.focus();
+    return;
+  }
+
+  const reference = `DA-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+  document.querySelector(".js-booking-reference").textContent = reference;
+  document.querySelector(".js-order-review").hidden = true;
+  document.querySelector(".terms-check").hidden = true;
+  error.hidden = true;
+  document.querySelector('[data-step="5"] > .builder-step__actions').hidden = true;
+  document.querySelector(".js-booking-success").hidden = false;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
 
 filterButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -394,6 +588,15 @@ window.addEventListener("keydown", (event) => {
 renderServices();
 updateSummary();
 updateProgress();
+
+const weddingDateInput = document.querySelector(".js-wedding-date");
+const today = new Date();
+const localToday = [
+  today.getFullYear(),
+  String(today.getMonth() + 1).padStart(2, "0"),
+  String(today.getDate()).padStart(2, "0"),
+].join("-");
+weddingDateInput.min = localToday;
 
 const requestedService = new URL(window.location.href).searchParams.get("hizmet");
 if (requestedService && services.some((service) => service.id === requestedService)) {
