@@ -175,6 +175,10 @@ const detailThumbs = document.querySelector(".js-detail-thumbs");
 const detailAddButton = document.querySelector(".js-detail-add");
 const paymentInputs = [...document.querySelectorAll('input[name="payment-method"]')];
 const checkoutForm = document.querySelector("#checkout-form");
+const bookingCompletion = document.querySelector(".js-booking-completion");
+const completionSuccess = document.querySelector(".js-completion-success");
+const completionShowcase = document.querySelector(".js-completion-showcase");
+const completionInfoDialog = document.querySelector(".js-booking-info");
 
 const paymentMethods = {
   cash: {
@@ -543,12 +547,39 @@ document.querySelector(".js-submit-booking").addEventListener("click", () => {
 
   const reference = `DA-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
   document.querySelector(".js-booking-reference").textContent = reference;
-  document.querySelector(".js-order-review").hidden = true;
-  document.querySelector(".terms-check").hidden = true;
   error.hidden = true;
-  document.querySelector('[data-step="5"] > .builder-step__actions').hidden = true;
-  document.querySelector(".js-booking-success").hidden = false;
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  completionSuccess.hidden = false;
+  completionShowcase.hidden = true;
+  bookingCompletion.hidden = false;
+  document.body.classList.add("is-completion-open");
+  document.querySelectorAll(".builder-header, .builder-progress, .builder-layout").forEach((element) => {
+    element.inert = true;
+    element.setAttribute("aria-hidden", "true");
+  });
+  document.querySelector(".js-completion-title").focus({ preventScroll: true });
+});
+
+function closeCompletionInfo() {
+  if (completionInfoDialog.open) completionInfoDialog.close();
+}
+
+document.querySelector(".js-show-completion-showcase").addEventListener("click", () => {
+  completionSuccess.hidden = true;
+  completionShowcase.hidden = false;
+  completionShowcase.scrollTop = 0;
+  completionInfoDialog.showModal();
+});
+
+document.querySelectorAll(".js-booking-info-open").forEach((button) => {
+  button.addEventListener("click", () => completionInfoDialog.showModal());
+});
+
+document.querySelectorAll(".js-booking-info-close").forEach((button) => {
+  button.addEventListener("click", closeCompletionInfo);
+});
+
+completionInfoDialog.addEventListener("click", (event) => {
+  if (event.target === completionInfoDialog) closeCompletionInfo();
 });
 
 filterButtons.forEach((button) => {
