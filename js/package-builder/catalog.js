@@ -4,16 +4,6 @@ export const basePackages = {
     price: 20000,
     image: "assets/images/hero-couple.webp",
   },
-  signature: {
-    name: "İmza Paket",
-    price: 28000,
-    image: "assets/images/services/fotograf-cekimi.webp",
-  },
-  timeless: {
-    name: "Zamansız Paket",
-    price: 36000,
-    image: "assets/images/venue-pavilion.webp",
-  },
 };
 
 export const services = [
