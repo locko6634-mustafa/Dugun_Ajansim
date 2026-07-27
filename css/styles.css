@@ -179,6 +179,7 @@ html.js .page-loader.is-hidden {
   overflow: hidden;
   padding: clamp(72px, 8vw, 132px) clamp(20px, 5vw, 80px);
   background: hsl(40 40% 98%);
+  scroll-margin-top: var(--header-height);
 }
 
 .package-invitation::before {
