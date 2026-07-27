@@ -371,8 +371,8 @@ baseInputs.forEach((input) => {
 
 document.querySelector(".js-next-step").addEventListener("click", () => goToStep(2));
 document.querySelector(".js-prev-step").addEventListener("click", () => goToStep(1));
-document.querySelector(".js-payment-step").addEventListener("click", () => goToStep(3));
-document.querySelector(".js-details-step").addEventListener("click", () => goToStep(4));
+document.querySelector(".js-details-step").addEventListener("click", () => goToStep(3));
+document.querySelector(".js-summary-step").addEventListener("click", () => goToStep(5));
 
 document.querySelectorAll(".js-step-back").forEach((button) => {
   button.addEventListener("click", () => goToStep(Number(button.dataset.targetStep)));
@@ -405,11 +405,11 @@ checkoutForm.addEventListener("submit", (event) => {
   }
 
   state.customer = Object.fromEntries(new FormData(checkoutForm).entries());
-  goToStep(5);
+  goToStep(4);
 });
 
 document.querySelector(".js-edit-package").addEventListener("click", () => goToStep(2));
-document.querySelector(".js-edit-details").addEventListener("click", () => goToStep(4));
+document.querySelector(".js-edit-details").addEventListener("click", () => goToStep(3));
 
 orderItemsContainer.addEventListener("click", (event) => {
   const removeButton = event.target.closest("[data-remove-service]");
