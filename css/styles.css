@@ -703,11 +703,45 @@ button {
     box-shadow 220ms ease;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 10px;
+}
+
+.header-login {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 54px;
+  padding: 0 17px;
+  border: 1px solid hsl(33 45% 79%);
+  border-radius: 13px;
+  color: var(--gold-dark);
+  background: hsl(0 0% 100% / 0.52);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    border-color 220ms ease,
+    background 220ms ease,
+    transform 220ms var(--ease);
+}
+
+.header-login svg,
 .header-cta svg {
   width: 20px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
+}
+
+.header-login:hover,
+.header-login:focus-visible {
+  border-color: var(--gold);
+  background: var(--white);
+  transform: translateY(-2px);
 }
 
 .header-cta:hover {
@@ -1644,6 +1678,11 @@ button {
     font-size: 13px;
   }
 
+  .header-actions {
+    gap: 7px;
+  }
+
+  .header-login,
   .header-cta {
     padding-inline: 16px;
     font-size: 13px;
@@ -1711,7 +1750,7 @@ button {
   }
 
   .desktop-nav,
-  .header-cta {
+  .header-actions {
     display: none;
   }
 
@@ -1793,6 +1832,18 @@ button {
 
   .mobile-menu .button {
     width: 100%;
+  }
+
+  .mobile-menu__actions {
+    display: grid;
+    grid-template-columns: 0.85fr 1.15fr;
+    gap: 10px;
+  }
+
+  .mobile-login-button {
+    border: 1px solid hsl(33 45% 79%);
+    color: var(--gold-dark);
+    background: var(--white);
   }
 
   .hero {
