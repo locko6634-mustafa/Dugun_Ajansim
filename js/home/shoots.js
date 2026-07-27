@@ -1,26 +1,48 @@
 const shootCards = [...document.querySelectorAll(".shoot-card")];
 const videoLightbox = document.querySelector(".video-lightbox");
-const videoLightboxVideo = videoLightbox.querySelector("video");
 const videoLightboxCaption = videoLightbox.querySelector("figcaption");
 const videoLightboxClose = videoLightbox.querySelector(".video-lightbox__close");
+let activeVideo = null;
+let activeVideoPlaceholder = null;
 
 function openVideoLightbox(video) {
-  const source = video.querySelector("source");
+  shootCards.forEach((card) => {
+    const previewVideo = card.querySelector("video");
+    const soundButton = card.querySelector(".shoot-card__sound");
 
-  if (!source) return;
+    previewVideo.pause();
+    previewVideo.muted = true;
+    soundButton.classList.add("is-muted");
+    soundButton.setAttribute("aria-pressed", "false");
+    soundButton.setAttribute("aria-label", `${previewVideo.getAttribute("aria-label")} sesini aç`);
+  });
 
-  videoLightboxVideo.src = source.src;
-  videoLightboxVideo.setAttribute("aria-label", video.getAttribute("aria-label") || "Video çekimi");
+  activeVideo = video;
+  activeVideoPlaceholder = document.createComment("video-preview");
+  video.after(activeVideoPlaceholder);
+  video.controls = true;
+  video.currentTime = 0;
+  video.muted = false;
+  videoLightbox.querySelector("figure").prepend(video);
   videoLightboxCaption.textContent = video.getAttribute("aria-label") || "Video çekimi";
   videoLightbox.showModal();
-  videoLightboxVideo.play().catch(() => {});
+  video.play().catch(() => {});
 }
 
 function closeVideoLightbox() {
-  videoLightboxVideo.pause();
-  videoLightboxVideo.removeAttribute("src");
-  videoLightboxVideo.load();
   videoLightbox.close();
+}
+
+function restoreVideoPreview() {
+  if (!activeVideo || !activeVideoPlaceholder) return;
+
+  activeVideo.pause();
+  activeVideo.muted = true;
+  activeVideo.controls = false;
+  activeVideoPlaceholder.replaceWith(activeVideo);
+  activeVideo.play().catch(() => {});
+  activeVideo = null;
+  activeVideoPlaceholder = null;
 }
 shootCards.forEach((card) => {
   const video = card.querySelector("video");
@@ -55,23 +77,6 @@ shootCards.forEach((card) => {
   media.addEventListener("click", (event) => {
     if (event.target.closest(".shoot-card__sound")) return;
 
-    shootCards.forEach((otherCard) => {
-      const otherVideo = otherCard.querySelector("video");
-      const otherButton = otherCard.querySelector(".shoot-card__sound");
-
-      if (otherVideo === video) return;
-      otherVideo.muted = true;
-      otherButton.classList.add("is-muted");
-      otherButton.setAttribute("aria-pressed", "false");
-      otherButton.setAttribute("aria-label", `${otherVideo.getAttribute("aria-label")} sesini aç`);
-    });
-
-    video.muted = false;
-    button.classList.remove("is-muted");
-    button.setAttribute("aria-pressed", "true");
-    button.setAttribute("aria-label", `${video.getAttribute("aria-label")} sesini kapat`);
-    video.play().catch(() => {});
-
     openVideoLightbox(video);
   });
 });
@@ -83,8 +88,7 @@ videoLightbox.addEventListener("click", (event) => {
 });
 
 videoLightbox.addEventListener("close", () => {
-  videoLightboxVideo.pause();
-  videoLightboxVideo.removeAttribute("src");
+  restoreVideoPreview();
 });
 
 const shootsObserver = new IntersectionObserver(
