@@ -9,8 +9,7 @@
   padding: clamp(82px, 7vw, 118px) clamp(24px, 4vw, 72px) clamp(76px, 7vw, 112px);
   color: var(--gallery-ink);
   background:
-    radial-gradient(circle at 50% 0%, hsl(38 72% 88% / 0.72), transparent 37%),
-    var(--gallery-bg);
+    radial-gradient(circle at 50% 0%, hsl(38 72% 88% / 0.72), transparent 37%), var(--gallery-bg);
 }
 
 .gallery-section::before {
@@ -154,7 +153,9 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 700ms var(--ease), filter 450ms var(--ease);
+  transition:
+    transform 700ms var(--ease),
+    filter 450ms var(--ease);
 }
 
 .gallery-card:nth-child(1) img {
@@ -192,7 +193,9 @@
   opacity: 0;
   text-transform: uppercase;
   transform: translateY(8px);
-  transition: opacity 260ms var(--ease), transform 260ms var(--ease);
+  transition:
+    opacity 260ms var(--ease),
+    transform 260ms var(--ease);
 }
 
 .gallery-card__hint::before {
@@ -244,7 +247,10 @@
   color: var(--gallery-ink);
   font-size: 13px;
   font-weight: 650;
-  transition: color 220ms ease, background 220ms ease, border-color 220ms ease;
+  transition:
+    color 220ms ease,
+    background 220ms ease,
+    border-color 220ms ease;
 }
 
 .gallery-cta span {
@@ -328,7 +334,11 @@
   backdrop-filter: blur(12px);
   cursor: pointer;
   place-items: center;
-  transition: color 180ms ease, border-color 180ms ease, background 180ms ease, transform 180ms var(--ease);
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 180ms var(--ease);
 }
 
 .gallery-lightbox__close:hover,
@@ -464,7 +474,9 @@
     height: 6px;
     border-radius: 50%;
     background: hsl(38 25% 66% / 0.34);
-    transition: width 260ms var(--ease), background 260ms ease;
+    transition:
+      width 260ms var(--ease),
+      background 260ms ease;
   }
 
   .gallery-mobile-progress span.is-active {
@@ -517,4 +529,3 @@
     height: 44px;
   }
 }
-

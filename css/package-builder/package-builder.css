@@ -30,8 +30,7 @@ body {
   min-width: 280px;
   margin: 0;
   background:
-    radial-gradient(circle at 78% 6%, hsl(37 58% 92% / 0.65), transparent 25%),
-    var(--paper);
+    radial-gradient(circle at 78% 6%, hsl(37 58% 92% / 0.65), transparent 25%), var(--paper);
 }
 
 body.is-summary-open,
@@ -2686,7 +2685,13 @@ body.is-completion-open {
 .completion-showcase__veil {
   z-index: -1;
   background:
-    linear-gradient(180deg, hsl(25 21% 5% / 0.82) 0%, hsl(25 20% 5% / 0.35) 31%, hsl(25 20% 4% / 0.77) 78%, hsl(25 20% 3% / 0.96) 100%),
+    linear-gradient(
+      180deg,
+      hsl(25 21% 5% / 0.82) 0%,
+      hsl(25 20% 5% / 0.35) 31%,
+      hsl(25 20% 4% / 0.77) 78%,
+      hsl(25 20% 3% / 0.96) 100%
+    ),
     radial-gradient(circle at 50% 35%, transparent 0 18%, hsl(25 24% 5% / 0.48) 68%);
 }
 
@@ -3558,7 +3563,9 @@ body.is-completion-open {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  transition: background 180ms ease, color 180ms ease;
+  transition:
+    background 180ms ease,
+    color 180ms ease;
 }
 
 .transfer-copy:hover,
@@ -3628,7 +3635,7 @@ body.is-completion-open {
   color: var(--ink-soft);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 

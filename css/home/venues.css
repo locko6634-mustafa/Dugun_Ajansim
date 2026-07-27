@@ -193,7 +193,9 @@
   height: 100%;
   object-fit: contain;
   filter: saturate(0.76) contrast(0.94);
-  transition: filter 260ms var(--ease), transform 260ms var(--ease);
+  transition:
+    filter 260ms var(--ease),
+    transform 260ms var(--ease);
 }
 
 .venue-card:hover .venue-card__emblem img,

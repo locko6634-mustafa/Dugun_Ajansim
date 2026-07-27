@@ -147,8 +147,6 @@
     font-size: clamp(9px, 2.45vw, 10.5px);
   }
 
-
-
   .faq-section {
     padding: clamp(56px, 14vw, 70px) 10px clamp(38px, 9vw, 48px);
   }
@@ -206,6 +204,4 @@
     font-size: clamp(9.5px, 2.55vw, 11px);
     line-height: 1.42;
   }
-
 }
-

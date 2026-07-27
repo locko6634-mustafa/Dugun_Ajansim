@@ -620,9 +620,7 @@ button {
   aspect-ratio: 1;
   border-radius: 50%;
   color: var(--gold-dark);
-  background:
-    radial-gradient(circle at 38% 30%, hsl(40 58% 99%), transparent 45%),
-    hsl(34 38% 96%);
+  background: radial-gradient(circle at 38% 30%, hsl(40 58% 99%), transparent 45%), hsl(34 38% 96%);
   place-items: center;
 }
 
@@ -894,9 +892,7 @@ button {
   position: relative;
   z-index: 4;
   padding: 50px 38px 58px;
-  background:
-    linear-gradient(hsl(0 0% 100% / 0.72), hsl(0 0% 100% / 0.72)),
-    var(--legacy-paper);
+  background: linear-gradient(hsl(0 0% 100% / 0.72), hsl(0 0% 100% / 0.72)), var(--legacy-paper);
 }
 
 .legacy-values__grid {
@@ -932,9 +928,7 @@ button {
   border: 1px solid hsl(32 43% 87%);
   border-radius: 50%;
   color: var(--legacy-accent);
-  background:
-    radial-gradient(circle at 35% 25%, hsl(0 0% 100%), transparent 40%),
-    hsl(34 45% 96%);
+  background: radial-gradient(circle at 35% 25%, hsl(0 0% 100%), transparent 40%), hsl(34 45% 96%);
   box-shadow: 0 10px 20px hsl(31 27% 40% / 0.11);
   place-items: center;
 }
@@ -988,8 +982,6 @@ button {
   width: 21px;
   fill: currentColor;
 }
-
-
 
 @media (max-width: 1280px) {
   .site-header {
@@ -1609,10 +1601,6 @@ button {
     content: "";
     flex: 1;
   }
-
-
-
-
 }
 
 @media (max-width: 640px) and (max-height: 680px) {
@@ -1929,4 +1917,3 @@ button {
     width: 16px;
   }
 }
-

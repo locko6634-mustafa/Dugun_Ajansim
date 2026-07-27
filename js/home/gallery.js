@@ -60,7 +60,7 @@ galleryTrack.addEventListener(
       });
 
       const progressIndex = Math.round(
-        (nearestIndex / Math.max(galleryCards.length - 1, 1)) * (galleryProgress.length - 1),
+        (nearestIndex / Math.max(galleryCards.length - 1, 1)) * (galleryProgress.length - 1)
       );
 
       galleryProgress.forEach((dot, index) => {
@@ -68,5 +68,5 @@ galleryTrack.addEventListener(
       });
     });
   },
-  { passive: true },
+  { passive: true }
 );

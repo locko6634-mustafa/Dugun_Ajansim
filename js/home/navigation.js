@@ -4,7 +4,7 @@ const mobileLinks = mobileMenu.querySelectorAll("a");
 
 const getFocusableElements = () =>
   [...mobileMenu.querySelectorAll("a, button, input, select, textarea, [tabindex]")].filter(
-    (element) => !element.hasAttribute("disabled") && element.tabIndex >= 0,
+    (element) => !element.hasAttribute("disabled") && element.tabIndex >= 0
   );
 
 function setMenu(open, { restoreFocus = true } = {}) {

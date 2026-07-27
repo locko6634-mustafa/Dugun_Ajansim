@@ -2,8 +2,8 @@ export const basePackages = {
   mini: {
     name: "Mini Paket",
     price: 20000,
-    image: "assets/images/hero-couple.webp",
-  },
+    image: "assets/images/hero-couple.webp"
+  }
 };
 
 export const services = [
@@ -16,7 +16,7 @@ export const services = [
     gallery: [
       "assets/images/services/fotograf-cekimi.webp",
       "assets/images/hero-couple.webp",
-      "assets/images/bride-portrait.webp",
+      "assets/images/bride-portrait.webp"
     ],
     description:
       "Günün en doğal anlarını yönlendirmesi güçlü, zarif ve zamansız karelere dönüştürüyoruz. Çekim planı düğün akışınıza göre önceden hazırlanır.",
@@ -24,9 +24,9 @@ export const services = [
       "Profesyonel fotoğraf ekibi",
       "Çift ve aile portreleri",
       "Özenli renk ve ışık düzenleme",
-      "Yüksek çözünürlüklü dijital teslim",
+      "Yüksek çözünürlüklü dijital teslim"
     ],
-    delivery: "7–14 iş günü",
+    delivery: "7–14 iş günü"
   },
   {
     id: "video",
@@ -37,7 +37,7 @@ export const services = [
     gallery: [
       "assets/images/services/video-cekimi.webp",
       "assets/images/services/klip-cekimi.webp",
-      "assets/images/hero-couple.webp",
+      "assets/images/hero-couple.webp"
     ],
     description:
       "Hazırlıktan kutlamaya uzanan günün sesini, hareketini ve duygusunu sinematik bir anlatıyla kaydediyoruz.",
@@ -45,9 +45,9 @@ export const services = [
       "4K profesyonel video kaydı",
       "Hazırlık ve tören anları",
       "Temel kurgu ve renk düzenleme",
-      "Dijital bağlantı ile teslim",
+      "Dijital bağlantı ile teslim"
     ],
-    delivery: "14–21 iş günü",
+    delivery: "14–21 iş günü"
   },
   {
     id: "drone",
@@ -58,7 +58,7 @@ export const services = [
     gallery: [
       "assets/images/services/drone-cekimi.webp",
       "assets/images/venue-pavilion.webp",
-      "assets/images/hero-couple.webp",
+      "assets/images/hero-couple.webp"
     ],
     description:
       "Profesyonel drone ile düğününüzün en özel anlarını havadan yakalıyoruz. Mekânın ölçeğini ve atmosferini sinematik görüntülerle unutulmaz hale getiriyoruz.",
@@ -66,9 +66,9 @@ export const services = [
       "4K kalitede hava görüntüsü",
       "Özel rota planlaması",
       "Düğün mekânına uygun çekim",
-      "Ortalama 3–5 dakikalık klip içeriği",
+      "Ortalama 3–5 dakikalık klip içeriği"
     ],
-    delivery: "7–14 iş günü",
+    delivery: "7–14 iş günü"
   },
   {
     id: "klip",
@@ -79,7 +79,7 @@ export const services = [
     gallery: [
       "assets/images/services/klip-cekimi.webp",
       "assets/images/services/video-cekimi.webp",
-      "assets/images/groom-portrait.webp",
+      "assets/images/groom-portrait.webp"
     ],
     description:
       "Hikâyenizi seçtiğiniz müzik, güçlü sahneler ve dinamik bir kurgu ile size özel kısa bir düğün filmine dönüştürüyoruz.",
@@ -87,9 +87,9 @@ export const services = [
       "Size özel hikâye akışı",
       "Sinematik çekim ve kurgu",
       "Lisanslı müzik seçeneği",
-      "Sosyal medya için kısa versiyon",
+      "Sosyal medya için kısa versiyon"
     ],
-    delivery: "14–21 iş günü",
+    delivery: "14–21 iş günü"
   },
   {
     id: "album",
@@ -100,7 +100,7 @@ export const services = [
     gallery: [
       "assets/images/services/album-tasarimi.webp",
       "assets/images/bride-portrait.webp",
-      "assets/images/hero-couple.webp",
+      "assets/images/hero-couple.webp"
     ],
     description:
       "Seçtiğiniz kareleri kaliteli malzeme, dengeli sayfa tasarımı ve size özel kapak seçenekleriyle kalıcı bir hatıraya dönüştürüyoruz.",
@@ -108,9 +108,9 @@ export const services = [
       "Kişiye özel sayfa tasarımı",
       "Premium baskı ve ciltleme",
       "Kapak malzemesi seçenekleri",
-      "Baskı öncesi dijital onay",
+      "Baskı öncesi dijital onay"
     ],
-    delivery: "21–30 iş günü",
+    delivery: "21–30 iş günü"
   },
   {
     id: "video360",
@@ -121,7 +121,7 @@ export const services = [
     gallery: [
       "assets/images/services/360-video.webp",
       "assets/images/services/klip-cekimi.webp",
-      "assets/images/hero-couple.webp",
+      "assets/images/hero-couple.webp"
     ],
     description:
       "Misafirlerinizin eğlenceli anlarını hareketli kamera platformuyla kaydediyor, anında paylaşılabilir kısa videolara dönüştürüyoruz.",
@@ -129,8 +129,8 @@ export const services = [
       "Profesyonel 360° platform",
       "Etkinlik boyunca operatör",
       "Kişiselleştirilmiş video çerçevesi",
-      "Anında dijital paylaşım",
+      "Anında dijital paylaşım"
     ],
-    delivery: "Etkinlik günü",
-  },
+    delivery: "Etkinlik günü"
+  }
 ];

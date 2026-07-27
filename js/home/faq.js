@@ -25,7 +25,7 @@ faqQuestions.forEach((question) => {
 
 openAllFaqButton.addEventListener("click", () => {
   const shouldOpenAll = [...faqQuestions].some(
-    (question) => question.getAttribute("aria-expanded") !== "true",
+    (question) => question.getAttribute("aria-expanded") !== "true"
   );
 
   faqQuestions.forEach((question) => setFaqItem(question, shouldOpenAll));

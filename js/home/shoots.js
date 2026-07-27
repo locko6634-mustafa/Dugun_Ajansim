@@ -61,7 +61,10 @@ shootCards.forEach((card) => {
         otherVideo.muted = true;
         otherButton.classList.add("is-muted");
         otherButton.setAttribute("aria-pressed", "false");
-        otherButton.setAttribute("aria-label", `${otherVideo.getAttribute("aria-label")} sesini aç`);
+        otherButton.setAttribute(
+          "aria-label",
+          `${otherVideo.getAttribute("aria-label")} sesini aç`
+        );
       });
     }
 
@@ -70,7 +73,7 @@ shootCards.forEach((card) => {
     button.setAttribute("aria-pressed", String(!willMute));
     button.setAttribute(
       "aria-label",
-      `${video.getAttribute("aria-label")} sesini ${willMute ? "aç" : "kapat"}`,
+      `${video.getAttribute("aria-label")} sesini ${willMute ? "aç" : "kapat"}`
     );
   });
 
@@ -103,7 +106,7 @@ const shootsObserver = new IntersectionObserver(
       }
     });
   },
-  { threshold: 0.2 },
+  { threshold: 0.2 }
 );
 
 shootCards.forEach((card) => shootsObserver.observe(card));

@@ -21,7 +21,9 @@
   background-image:
     radial-gradient(hsl(30 31% 47% / 0.075) 0.6px, transparent 0.7px),
     linear-gradient(115deg, transparent 0 46%, hsl(38 45% 98% / 0.7) 51%, transparent 56%);
-  background-size: 6px 6px, 100% 100%;
+  background-size:
+    6px 6px,
+    100% 100%;
   content: "";
 }
 
@@ -487,4 +489,3 @@
     transition: none;
   }
 }
-
