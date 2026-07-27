@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Dugun Ajansim frontend kalite ve regresyon testleri",
   "scripts": {
-    "format": "prettier --write \"**/*.{html,css,js,json,md}\"",
+    "format": "prettier --write \"**/*.{html,css,js,json,md,mjs}\"",
     "format:check": "prettier --check package.json \"*.config.js\" \"tests/**/*.js\" \"tools/**/*.mjs\"",
     "lint:js": "eslint .",
     "lint:css": "stylelint \"css/**/*.css\"",
