@@ -2081,7 +2081,8 @@ button {
   }
 
   .service-filter {
-    margin: 0 -12px 20px;
+    gap: 6px;
+    margin: 0 -12px 14px;
     padding: 0 12px;
     overflow-x: auto;
     scrollbar-width: none;
@@ -2093,34 +2094,48 @@ button {
 
   .service-filter button {
     flex: 0 0 auto;
+    min-height: 32px;
+    padding-inline: 13px;
+    font-size: 9px;
   }
 
   .builder-services {
-    gap: 10px;
+    gap: 8px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .builder-service__media {
-    height: clamp(140px, 45vw, 210px);
+    height: clamp(92px, 28vw, 118px);
   }
 
   .builder-service__details {
-    padding: 14px 45px 15px 13px;
+    min-height: 70px;
+    padding: 10px 39px 11px 11px;
+  }
+
+  .builder-service__details small {
+    margin-bottom: 3px;
+    font-size: 7px;
   }
 
   .builder-service__details strong {
-    font-size: clamp(18px, 5.6vw, 24px);
+    font-size: clamp(15px, 4.5vw, 18px);
   }
 
   .builder-service__details b {
-    font-size: 10px;
+    margin-top: 5px;
+    font-size: 9px;
   }
 
   .builder-service__add {
-    right: 11px;
-    bottom: 14px;
-    width: 30px;
-    height: 30px;
+    right: 8px;
+    bottom: 10px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .builder-service__add svg {
+    width: 14px;
   }
 
   .service-detail {
