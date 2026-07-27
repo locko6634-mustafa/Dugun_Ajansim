@@ -267,7 +267,6 @@
 }
 
 .gallery-lightbox {
-  position: relative;
   width: min(1180px, calc(100% - 48px));
   max-width: none;
   height: min(88dvh, 860px);
@@ -286,6 +285,7 @@
 .gallery-lightbox[open] {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   align-items: center;
   animation: dialog-in 320ms var(--ease) both;
 }
@@ -293,6 +293,7 @@
 .gallery-lightbox figure {
   display: flex;
   min-width: 0;
+  min-height: 0;
   height: 100%;
   margin: 0;
   flex-direction: column;
@@ -350,8 +351,8 @@
 }
 
 .gallery-lightbox__nav {
-  position: absolute;
-  top: calc(50% - 21px);
+  position: fixed;
+  top: calc(50% - 26px);
   z-index: 1;
   width: 52px;
   height: 52px;
@@ -492,7 +493,7 @@
   }
 
   .gallery-lightbox__nav {
-    top: calc(50% - 19px);
+    top: calc(50% - 21px);
     width: 42px;
     height: 42px;
   }
