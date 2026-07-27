@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Düğünajansım çekim paketinizi temel paket ve ek hizmetlerle kendiniz oluşturun."
+    />
+    <title>Paketini Oluştur | Düğünajansım</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Italiana&family=Manrope:wght@400;500;600;700&family=Parisienne&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/paket-builder.css?v=20260727-1" />
+    <script src="js/paket-builder.js?v=20260727-1" defer></script>
+  </head>
+  <body>
+    <header class="builder-header">
+      <a class="builder-header__back" href="index.html" aria-label="Ana sayfaya dön">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m15 5-7 7 7 7M8 12h12" />
+        </svg>
+      </a>
+
+      <a class="builder-brand" href="index.html" aria-label="Düğünajansım ana sayfa">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M11 7h19c16 0 27 10 27 25S46 57 30 57H11V7Z" />
+          <path d="M19 28 31 16l12 12a7 7 0 0 1 0 10L31 50 19 38a7 7 0 0 1 0-10Z" />
+          <path d="m25 30 6-6 7 7a3 3 0 0 1 0 4l-7 7-6-6a4 4 0 0 1 0-6Z" />
+        </svg>
+        <span>
+          <strong>Düğünajansım</strong>
+          <small>Paketini oluştur</small>
+        </span>
+      </a>
+
+      <button class="builder-bag js-summary-toggle" type="button" aria-label="Paket özetini aç">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 8h14l-1 13H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3" />
+        </svg>
+        <span class="builder-bag__count" aria-live="polite">1</span>
+      </button>
+    </header>
+
+    <div class="builder-progress" aria-label="Paket oluşturma ilerlemesi">
+      <div class="builder-progress__item is-active" data-progress="1">
+        <span>1</span>
+        <strong>Paket Seçimi</strong>
+      </div>
+      <i aria-hidden="true"></i>
+      <div class="builder-progress__item" data-progress="2">
+        <span>2</span>
+        <strong>Ek Hizmetler</strong>
+      </div>
+      <i aria-hidden="true"></i>
+      <div class="builder-progress__item" data-progress="3">
+        <span>3</span>
+        <strong>Bilgileriniz</strong>
+      </div>
+    </div>
+
+    <main class="builder-layout">
+      <div class="builder-content">
+        <section class="builder-step is-active" data-step="1" aria-labelledby="base-package-title">
+          <header class="builder-intro">
+            <p class="builder-intro__index">01 / Temel paket</p>
+            <h1 id="base-package-title">Hikâyenizin <em>temelini seçin.</em></h1>
+            <p>
+              Her paket profesyonel ekibimizi ve dijital teslimi içerir.
+              Sonraki adımda dilediğiniz çekim hizmetini ekleyebilirsiniz.
+            </p>
+          </header>
+
+          <div class="base-packages" role="radiogroup" aria-label="Temel paketler">
+            <label class="base-package is-selected">
+              <input type="radio" name="base-package" value="mini" checked />
+              <span class="base-package__media">
+                <img
+                  src="assets/images/hero-couple.webp"
+                  alt="Mini paket düğün çekimi örneği"
+                />
+                <span class="base-package__check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" /></svg>
+                </span>
+              </span>
+              <span class="base-package__body">
+                <span class="base-package__topline">
+                  <span>
+                    <small>Sade ve eksiksiz</small>
+                    <strong>Mini Paket</strong>
+                  </span>
+                  <b>20.000 TL</b>
+                </span>
+                <span class="base-package__features">
+                  <span>Aktüel kamera çekimi</span>
+                  <span>Gelin &amp; damat çekimi</span>
+                  <span>Aile fotoğrafları</span>
+                  <span>7 günde dijital teslim</span>
+                </span>
+              </span>
+            </label>
+
+            <label class="base-package">
+              <input type="radio" name="base-package" value="signature" />
+              <span class="base-package__media">
+                <img
+                  src="assets/images/services/fotograf-cekimi.webp"
+                  alt="İmza paket düğün çekimi örneği"
+                />
+                <span class="base-package__badge">En çok seçilen</span>
+                <span class="base-package__check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" /></svg>
+                </span>
+              </span>
+              <span class="base-package__body">
+                <span class="base-package__topline">
+                  <span>
+                    <small>Günün tüm hikâyesi</small>
+                    <strong>İmza Paket</strong>
+                  </span>
+                  <b>28.000 TL</b>
+                </span>
+                <span class="base-package__features">
+                  <span>Mini Paket kapsamı</span>
+                  <span>Hazırlık anları çekimi</span>
+                  <span>2 farklı konsept</span>
+                  <span>Özel renk düzenleme</span>
+                </span>
+              </span>
+            </label>
+
+            <label class="base-package">
+              <input type="radio" name="base-package" value="timeless" />
+              <span class="base-package__media">
+                <img
+                  src="assets/images/venue-pavilion.webp"
+                  alt="Zamansız paket düğün çekimi örneği"
+                />
+                <span class="base-package__check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" /></svg>
+                </span>
+              </span>
+              <span class="base-package__body">
+                <span class="base-package__topline">
+                  <span>
+                    <small>Baştan sona prodüksiyon</small>
+                    <strong>Zamansız Paket</strong>
+                  </span>
+                  <b>36.000 TL</b>
+                </span>
+                <span class="base-package__features">
+                  <span>İmza Paket kapsamı</span>
+                  <span>Gün boyu ikinci ekip</span>
+                  <span>3 farklı konsept</span>
+                  <span>Öncelikli dijital teslim</span>
+                </span>
+              </span>
+            </label>
+          </div>
+
+          <div class="builder-tip">
+            <span aria-hidden="true">✦</span>
+            <p>Temel paketinizi seçtikten sonra ek hizmetlerle deneyiminizi kişiselleştirebilirsiniz.</p>
+          </div>
+
+          <div class="builder-step__actions">
+            <button class="builder-primary js-next-step" type="button">
+              <span>Devam Et</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </button>
+          </div>
+        </section>
+
+        <section class="builder-step" data-step="2" aria-labelledby="extra-services-title" hidden>
+          <header class="builder-intro builder-intro--compact">
+            <p class="builder-intro__index">02 / Ek hizmetler</p>
+            <h1 id="extra-services-title">Deneyiminizi <em>tamamlayın.</em></h1>
+            <p>
+              İstediğiniz hizmetleri paketinize ekleyin. Bir hizmetin üzerine dokunarak
+              kapsamı ve çekim örneklerini inceleyebilirsiniz.
+            </p>
+          </header>
+
+          <div class="service-filter" aria-label="Hizmet filtreleri">
+            <button class="is-active" type="button" data-filter="all">Tümü</button>
+            <button type="button" data-filter="video">Video</button>
+            <button type="button" data-filter="photo">Fotoğraf</button>
+            <button type="button" data-filter="keepsake">Hatıra</button>
+          </div>
+
+          <div class="builder-services" aria-live="polite"></div>
+
+          <div class="builder-step__actions builder-step__actions--split">
+            <button class="builder-secondary js-prev-step" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7M8 12h12" /></svg>
+              <span>Geri</span>
+            </button>
+            <p>Sonraki adım yakında</p>
+          </div>
+        </section>
+      </div>
+
+      <aside class="package-summary" aria-labelledby="package-summary-title">
+        <button class="package-summary__close js-summary-toggle" type="button" aria-label="Paket özetini kapat">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+        </button>
+        <p class="package-summary__eyebrow">Canlı paket özeti</p>
+        <h2 id="package-summary-title">Sizin seçiminiz</h2>
+
+        <div class="package-summary__base">
+          <img src="assets/images/hero-couple.webp" alt="" />
+          <span>
+            <small>Temel paket</small>
+            <strong class="js-summary-base-name">Mini Paket</strong>
+          </span>
+          <b class="js-summary-base-price">20.000 TL</b>
+        </div>
+
+        <div class="package-summary__extras">
+          <div class="package-summary__extras-head">
+            <span>Ek hizmetler</span>
+            <small class="js-extra-count">0 seçim</small>
+          </div>
+          <div class="package-summary__empty js-summary-empty">
+            <span>+</span>
+            <p>Eklediğiniz hizmetler burada görünecek.</p>
+          </div>
+          <ul class="js-summary-list"></ul>
+        </div>
+
+        <div class="package-summary__total">
+          <span>
+            <small>Tahmini toplam</small>
+            <strong class="js-summary-total">20.000 TL</strong>
+          </span>
+          <small>Fiyatlara KDV dahildir</small>
+        </div>
+
+        <p class="package-summary__notice">
+          Seçimleriniz kesin rezervasyon oluşturmaz. Tarih ve ekip müsaitliği görüşme sırasında netleştirilir.
+        </p>
+      </aside>
+      <div class="summary-backdrop js-summary-toggle" aria-hidden="true"></div>
+    </main>
+
+    <dialog class="service-detail" aria-labelledby="service-detail-title">
+      <button class="service-detail__close js-detail-close" type="button" aria-label="Hizmet detayını kapat">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+      </button>
+
+      <div class="service-detail__media">
+        <figure class="service-detail__hero">
+          <img class="js-detail-main-image" src="" alt="" />
+          <span class="service-detail__number js-detail-number">01</span>
+        </figure>
+        <div class="service-detail__thumbs js-detail-thumbs" aria-label="Çekim örnekleri"></div>
+      </div>
+
+      <div class="service-detail__content">
+        <p class="service-detail__eyebrow">Hizmet detayı</p>
+        <h2 id="service-detail-title" class="js-detail-title"></h2>
+        <p class="service-detail__description js-detail-description"></p>
+        <ul class="service-detail__features js-detail-features"></ul>
+        <div class="service-detail__delivery">
+          <span>Teslim süresi</span>
+          <strong class="js-detail-delivery"></strong>
+        </div>
+        <div class="service-detail__footer">
+          <strong class="js-detail-price"></strong>
+          <button class="builder-primary js-detail-add" type="button">
+            <span>Pakete Ekle</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          </button>
+        </div>
+      </div>
+    </dialog>
+  </body>
+</html>
