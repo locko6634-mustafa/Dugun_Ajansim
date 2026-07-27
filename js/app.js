@@ -27,13 +27,6 @@ window.setTimeout(hidePageLoader, 8000);
 const menuButton = document.querySelector(".menu-toggle");
 const mobileMenu = document.querySelector(".mobile-menu");
 const mobileLinks = mobileMenu.querySelectorAll("a");
-const bookingDialog = document.querySelector(".booking-dialog");
-const bookingButtons = document.querySelectorAll(".js-open-booking");
-const closeDialogButton = bookingDialog.querySelector(".dialog-close");
-const bookingForm = bookingDialog.querySelector(".booking-form");
-const formSuccess = bookingDialog.querySelector(".form-success");
-const reservationForm = document.querySelector(".reservation-form");
-const reservationSuccess = document.querySelector(".reservation-success");
 const faqQuestions = document.querySelectorAll(".faq-question");
 const openAllFaqButton = document.querySelector(".js-open-all-faq");
 const galleryTrack = document.querySelector(".gallery-track");
@@ -62,46 +55,6 @@ menuButton.addEventListener("click", () => {
 
 mobileLinks.forEach((link) => {
   link.addEventListener("click", () => setMenu(false));
-});
-
-bookingButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    setMenu(false);
-    formSuccess.hidden = true;
-    bookingDialog.showModal();
-  });
-});
-
-closeDialogButton.addEventListener("click", () => bookingDialog.close());
-
-bookingDialog.addEventListener("click", (event) => {
-  const rect = bookingDialog.getBoundingClientRect();
-  const outside =
-    event.clientX < rect.left ||
-    event.clientX > rect.right ||
-    event.clientY < rect.top ||
-    event.clientY > rect.bottom;
-
-  if (outside) bookingDialog.close();
-});
-
-bookingForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  formSuccess.hidden = false;
-  bookingForm.reset();
-});
-
-reservationForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-
-  if (!reservationForm.checkValidity()) {
-    reservationForm.reportValidity();
-    return;
-  }
-
-  reservationSuccess.hidden = false;
-  reservationForm.reset();
-  reservationSuccess.scrollIntoView({ behavior: "smooth", block: "nearest" });
 });
 
 function setFaqItem(question, open) {
@@ -300,7 +253,6 @@ const motionHeadings = [
   document.querySelector("#gallery-title"),
   document.querySelector("#shoots-title"),
   document.querySelector("#services-title"),
-  document.querySelector("#reservation-title"),
   document.querySelector("#faq-title"),
 ].filter(Boolean);
 
@@ -416,15 +368,6 @@ registerMotionGroup(".service-card", {
   direction: (index) => (index % 2 === 0 ? "left" : "right"),
   stagger: 75,
 });
-registerMotionGroup(
-  ".reservation-heading__eyebrow, .reservation-heading__rule, .reservation-heading > p",
-  { stagger: 80 },
-);
-registerMotionGroup(".reservation-step", { stagger: 80 });
-registerMotionGroup(
-  ".reservation-fields, .reservation-assurance, .reservation-submit",
-  { stagger: 90 },
-);
 registerMotionGroup(".faq-heading__eyebrow, .faq-heading__rule, .faq-heading > p", {
   stagger: 80,
 });
