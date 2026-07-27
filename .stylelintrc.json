@@ -1,0 +1,18 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "ignoreFiles": ["node_modules/**/*.css", "playwright-report/**/*.css"],
+  "rules": {
+    "at-rule-no-unknown": null,
+    "color-function-notation": null,
+    "declaration-block-no-redundant-longhand-properties": null,
+    "declaration-empty-line-before": null,
+    "hue-degree-notation": null,
+    "alpha-value-notation": null,
+    "length-zero-no-unit": null,
+    "media-feature-range-notation": null,
+    "no-descending-specificity": null,
+    "selector-class-pattern": null,
+    "value-keyword-case": null,
+    "rule-empty-line-before": null
+  }
+}

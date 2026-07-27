@@ -3,12 +3,33 @@ import { basePackages, services } from "./catalog.js";
 const moneyFormatter = new Intl.NumberFormat("tr-TR");
 const formatPrice = (value) => `${moneyFormatter.format(value)} TL`;
 
-// Gerçek hesap bilgileri hazır olduğunda yalnızca bu yapılandırmayı güncelleyin.
-const transferAccount = {
-  bankName: "Örnek Banka",
-  accountHolder: "Düğünajansım Örnek Hesap",
-  iban: "TR00 0000 0000 0000 0000 0000 00",
+const createSvg = (paths) => {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  paths.forEach(({ d, className }) => {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    if (className) path.classList.add(className);
+    svg.append(path);
+  });
+  return svg;
 };
+
+const createImage = (src, alt, loading) => {
+  const image = document.createElement("img");
+  image.src = src;
+  image.alt = alt;
+  if (loading) image.loading = loading;
+  return image;
+};
+
+// Backend endpoint'i tanımlanmadan ödeme bildirimi başarıyla tamamlanamaz.
+// Gerçek endpoint hazır olduğunda yalnızca bu değeri yapılandırın.
+const paymentNotificationEndpoint = "";
+
+// Gerçek hesap bilgileri hazır olduğunda yalnızca bu yapılandırmayı güncelleyin.
+const transferAccount = null;
 
 const createTransferReference = () =>
   `DA-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
@@ -21,7 +42,7 @@ const state = {
   activeService: null,
   payment: "cash",
   customer: {},
-  transferReference: createTransferReference(),
+  transferReference: createTransferReference()
 };
 
 const stepPanels = [...document.querySelectorAll(".builder-step")];
@@ -45,20 +66,27 @@ const orderItemsContainer = document.querySelector(".js-order-items");
 const bookingCompletion = document.querySelector(".js-booking-completion");
 const paymentNotificationForm = document.querySelector("#payment-notification-form");
 const receiptInput = document.querySelector(".js-receipt-input");
+const paymentNotificationStatus = document.querySelector(".js-payment-notification-status");
+const summaryPanel = document.querySelector(".package-summary");
+const summaryToggles = [...document.querySelectorAll(".js-summary-toggle")];
+const summaryBackground = document.querySelector(".summary-backdrop");
+const summaryFocusSelector =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+let summaryReturnFocus = null;
 
 const paymentMethods = {
   cash: {
     title: "Peşin ödeme avantajı",
-    copy: "Toplam paket tutarınıza %10 indirim uygulanır.",
+    copy: "Toplam paket tutarınıza %10 indirim uygulanır."
   },
   installment: {
     title: "Vade farksız iki taksit",
-    copy: "İlk taksiti şimdi, ikinci taksiti ekibimizle planladığınız tarihte ödeyin.",
+    copy: "İlk taksiti şimdi, ikinci taksiti ekibimizle planladığınız tarihte ödeyin."
   },
   deposit: {
     title: "5.000 TL kapora ödemesi",
-    copy: "Kalan paket tutarını ekibimizle planlayacağınız tarihte tamamlayabilirsiniz.",
-  },
+    copy: "Kalan paket tutarını ekibimizle planlayacağınız tarihte tamamlayabilirsiniz."
+  }
 };
 
 function getOrderSubtotal() {
@@ -77,7 +105,7 @@ function getPaymentDetails() {
       adjustment: -discount,
       adjustmentLabel: "Peşin ödeme indirimi",
       payableLabel: "Bugün havale edilecek",
-      benefit: `Peşin ödeme seçeneğiyle ${formatPrice(discount)} avantaj kazandınız.`,
+      benefit: `Peşin ödeme seçeneğiyle ${formatPrice(discount)} avantaj kazandınız.`
     };
   }
 
@@ -89,7 +117,7 @@ function getPaymentDetails() {
       adjustment: 0,
       adjustmentLabel: "",
       payableLabel: "Bugün havale edilecek ilk taksit",
-      benefit: `Toplam ${formatPrice(subtotal)} tutarını vade farksız iki eşit ödemeyle tamamlayabilirsiniz.`,
+      benefit: `Toplam ${formatPrice(subtotal)} tutarını vade farksız iki eşit ödemeyle tamamlayabilirsiniz.`
     };
   }
 
@@ -99,7 +127,7 @@ function getPaymentDetails() {
     adjustment: 0,
     adjustmentLabel: "",
     payableLabel: "Bugün havale edilecek kapora",
-    benefit: `${formatPrice(Math.min(5000, subtotal))} kapora ödemesinin ardından kalan tutarı ekibimizle planlayabilirsiniz.`,
+    benefit: `${formatPrice(Math.min(5000, subtotal))} kapora ödemesinin ardından kalan tutarı ekibimizle planlayabilirsiniz.`
   };
 }
 
@@ -108,7 +136,45 @@ function updateProgress() {
     const itemStep = Number(item.dataset.progress);
     item.classList.toggle("is-active", itemStep === state.step);
     item.classList.toggle("is-complete", itemStep < state.step);
+    if (itemStep === state.step) {
+      item.setAttribute("aria-current", "step");
+    } else {
+      item.removeAttribute("aria-current");
+    }
   });
+}
+
+function setSummaryOpen(isOpen, { returnFocus = true } = {}) {
+  const isMobile = window.matchMedia("(max-width: 960px)").matches;
+  const shouldOpen = Boolean(isOpen && isMobile);
+
+  document.body.classList.toggle("is-summary-open", shouldOpen);
+  summaryToggles.forEach((toggle) => {
+    if (toggle === summaryBackground) return;
+    toggle.setAttribute("aria-expanded", String(shouldOpen));
+  });
+
+  if (!isMobile) {
+    summaryPanel.removeAttribute("aria-hidden");
+    return;
+  }
+
+  summaryPanel.setAttribute("aria-hidden", String(!shouldOpen));
+  document
+    .querySelectorAll(".builder-header, .builder-progress, .builder-content")
+    .forEach((element) => {
+      element.inert = shouldOpen;
+    });
+
+  if (shouldOpen) {
+    if (returnFocus) summaryReturnFocus = document.activeElement;
+    window.requestAnimationFrame(() =>
+      summaryPanel.querySelector(".package-summary__close")?.focus()
+    );
+  } else if (returnFocus && summaryReturnFocus instanceof HTMLElement) {
+    summaryReturnFocus.focus();
+    summaryReturnFocus = null;
+  }
 }
 
 function goToStep(step) {
@@ -119,7 +185,7 @@ function goToStep(step) {
     panel.classList.toggle("is-active", isActive);
   });
   updateProgress();
-  document.body.classList.remove("is-summary-open");
+  setSummaryOpen(false, { returnFocus: false });
   if (step === 5) renderOrderReview();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -150,16 +216,17 @@ function updateSummary() {
   const emptyState = document.querySelector(".js-summary-empty");
   const summaryList = document.querySelector(".js-summary-list");
   emptyState.hidden = extras.length > 0;
-  summaryList.innerHTML = extras
-    .map(
-      (service) => `
-        <li>
-          <span>${service.name}</span>
-          <b>${formatPrice(service.price)}</b>
-        </li>
-      `,
-    )
-    .join("");
+  summaryList.replaceChildren(
+    ...extras.map((service) => {
+      const item = document.createElement("li");
+      const name = document.createElement("span");
+      const price = document.createElement("b");
+      name.textContent = service.name;
+      price.textContent = formatPrice(service.price);
+      item.append(name, price);
+      return item;
+    })
+  );
 
   updatePaymentUI();
   if (state.step === 5) renderOrderReview();
@@ -193,7 +260,9 @@ function getTransferDescription() {
 
 function updateTransferUI() {
   const payment = getPaymentDetails();
-  const transferDescription = getTransferDescription();
+  const transferDescription = paymentNotificationEndpoint
+    ? getTransferDescription()
+    : "Sunucu bağlantısı sonrası oluşturulacak";
 
   document.querySelectorAll(".js-transfer-payable").forEach((element) => {
     element.textContent = formatPrice(payment.payable);
@@ -202,13 +271,13 @@ function updateTransferUI() {
     element.textContent = payment.payableLabel;
   });
   document.querySelectorAll(".js-transfer-bank").forEach((element) => {
-    element.textContent = transferAccount.bankName;
+    element.textContent = transferAccount?.bankName || "Henüz tanımlanmadı";
   });
   document.querySelectorAll(".js-transfer-account-holder").forEach((element) => {
-    element.textContent = transferAccount.accountHolder;
+    element.textContent = transferAccount?.accountHolder || "Henüz tanımlanmadı";
   });
   document.querySelectorAll(".js-transfer-iban").forEach((element) => {
-    element.textContent = transferAccount.iban;
+    element.textContent = transferAccount?.iban || "Henüz tanımlanmadı";
   });
   document.querySelectorAll(".js-transfer-reference").forEach((element) => {
     element.textContent = transferDescription;
@@ -222,117 +291,6 @@ function formatWeddingDate(value) {
   if (!value) return "—";
   const [year, month, day] = value.split("-");
   return `${day}.${month}.${year}`;
-}
-
-function renderOrderReview() {
-  const base = basePackages[state.base];
-  const extras = getSelectedExtras();
-  const payment = getPaymentDetails();
-  const items = [
-    { ...base, type: "Temel paket" },
-    ...extras.map((service) => ({ ...service, type: "Ek hizmet" })),
-  ];
-
-  orderItemsContainer.innerHTML = items
-    .map(
-      (item) => `
-        <div class="order-review__item">
-          <img src="${item.image}" alt="" />
-          <span>
-            <small>${item.type}</small>
-            <strong>${item.name}</strong>
-          </span>
-          <div class="order-review__item-actions">
-            <b>${formatPrice(item.price)}</b>
-            ${
-              item.type === "Ek hizmet"
-                ? `
-                  <button
-                    class="order-review__remove"
-                    type="button"
-                    aria-label="${item.name} hizmetini paketten çıkar"
-                    title="Paketten çıkar"
-                    data-remove-service="${item.id}"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M6 6l12 12M18 6 6 18" />
-                    </svg>
-                  </button>
-                `
-                : ""
-            }
-          </div>
-        </div>
-      `,
-    )
-    .join("");
-
-  document.querySelector(".js-order-subtotal").textContent = formatPrice(payment.subtotal);
-  document.querySelector(".js-order-payable-label").textContent = payment.payableLabel;
-  document.querySelector(".js-order-payable").textContent = formatPrice(payment.payable);
-  document.querySelector(".js-order-benefit span").textContent = payment.benefit;
-
-  const adjustmentRow = document.querySelector(".js-order-adjustment-row");
-  adjustmentRow.hidden = payment.adjustment === 0;
-  document.querySelector(".js-order-adjustment-label").textContent = payment.adjustmentLabel;
-  document.querySelector(".js-order-adjustment").textContent = formatPrice(payment.adjustment);
-
-  document.querySelector(".js-review-name").textContent = state.customer.fullName || "—";
-  document.querySelector(".js-review-phone").textContent = state.customer.phone || "—";
-  document.querySelector(".js-review-date").textContent = formatWeddingDate(state.customer.weddingDate);
-  document.querySelector(".js-review-venue").textContent = state.customer.venue || "—";
-  updateTransferUI();
-}
-
-function renderServices() {
-  const visibleServices = services.filter(
-    (service) => state.filter === "all" || service.category === state.filter,
-  );
-
-  servicesGrid.innerHTML = visibleServices
-    .map((service, index) => {
-      const isAdded = state.extras.has(service.id);
-      return `
-        <article class="builder-service${isAdded ? " is-added" : ""}" data-service="${service.id}">
-          <button
-            class="builder-service__open"
-            type="button"
-            aria-label="${service.name} hizmetini incele"
-            data-open-service="${service.id}"
-          >
-            <span class="builder-service__media">
-              <img src="${service.image}" alt="${service.name} çekim örneği" loading="lazy" />
-            </span>
-            <span class="builder-service__details">
-              <small>0${index + 1} / İncele</small>
-              <strong>${service.name}</strong>
-              <b>${formatPrice(service.price)}</b>
-            </span>
-          </button>
-          <button
-            class="builder-service__add"
-            type="button"
-            aria-label="${service.name} hizmetini ${isAdded ? "paketten çıkar" : "pakete ekle"}"
-            aria-pressed="${isAdded}"
-            data-toggle-service="${service.id}"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 12h14" />
-              <path class="line-vertical" d="M12 5v14" />
-            </svg>
-          </button>
-        </article>
-      `;
-    })
-    .join("");
-
-  document.querySelectorAll("[data-open-service]").forEach((button) => {
-    button.addEventListener("click", () => openServiceDetail(button.dataset.openService));
-  });
-
-  document.querySelectorAll("[data-toggle-service]").forEach((button) => {
-    button.addEventListener("click", () => toggleService(button.dataset.toggleService));
-  });
 }
 
 function toggleService(serviceId) {
@@ -363,35 +321,6 @@ function setDetailImage(service, image, index) {
   [...detailThumbs.querySelectorAll("button")].forEach((button, buttonIndex) => {
     button.classList.toggle("is-active", buttonIndex === index);
   });
-}
-
-function openServiceDetail(serviceId) {
-  const service = services.find((item) => item.id === serviceId);
-  if (!service) return;
-
-  state.activeService = serviceId;
-  detailTitle.textContent = service.name;
-  detailDescription.textContent = service.description;
-  detailFeatures.innerHTML = service.features.map((feature) => `<li>${feature}</li>`).join("");
-  detailDelivery.textContent = service.delivery;
-  detailPrice.textContent = formatPrice(service.price);
-  detailThumbs.innerHTML = service.gallery
-    .map(
-      (image, index) => `
-        <button type="button" aria-label="${index + 1}. çekim örneğini göster">
-          <img src="${image}" alt="" />
-        </button>
-      `,
-    )
-    .join("");
-
-  [...detailThumbs.querySelectorAll("button")].forEach((button, index) => {
-    button.addEventListener("click", () => setDetailImage(service, service.gallery[index], index));
-  });
-
-  setDetailImage(service, service.gallery[0], 0);
-  updateDetailButton(serviceId);
-  detailDialog.showModal();
 }
 
 function closeServiceDetail() {
@@ -425,17 +354,73 @@ paymentInputs.forEach((input) => {
   });
 });
 
+const phoneInput = checkoutForm.querySelector('input[name="phone"]');
+const transferDateInput = paymentNotificationForm.querySelector('input[name="transferDate"]');
+const MAX_RECEIPT_SIZE = 10 * 1024 * 1024;
+const ALLOWED_RECEIPT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
+const ALLOWED_RECEIPT_EXTENSIONS = new Set(["pdf", "jpg", "jpeg", "png"]);
+
+function setFieldValidity(input, isValid, message) {
+  const field = input.closest(".form-field, .consent-field");
+  if (!field) return;
+
+  field.classList.toggle("is-invalid", !isValid);
+  input.setAttribute("aria-invalid", String(!isValid));
+  const error = field.querySelector(".form-field__error");
+  if (error && message) error.textContent = message;
+}
+
+function validatePhone() {
+  const digits = phoneInput.value.replace(/\D/g, "");
+  const normalized = digits.startsWith("90")
+    ? digits.slice(2)
+    : digits.startsWith("0")
+      ? digits.slice(1)
+      : digits;
+  const isValid = /^[2-5]\d{9}$/.test(normalized);
+  phoneInput.setCustomValidity(
+    isValid || !phoneInput.value.trim() ? "" : "Geçerli bir telefon numarası yazın."
+  );
+  return isValid;
+}
+
+function validateReceipt() {
+  const file = receiptInput.files[0];
+  if (!file) {
+    receiptInput.setCustomValidity("");
+    return true;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  const hasAllowedType =
+    ALLOWED_RECEIPT_TYPES.has(file.type) ||
+    (!file.type && ALLOWED_RECEIPT_EXTENSIONS.has(extension));
+  const isValid = hasAllowedType && file.size <= MAX_RECEIPT_SIZE;
+  const message = !hasAllowedType
+    ? "Dekont PDF, JPG veya PNG formatında olmalıdır."
+    : "Dekont dosyası 10 MB'dan küçük olmalıdır.";
+  receiptInput.setCustomValidity(isValid ? "" : message);
+  return isValid;
+}
+
 checkoutForm.addEventListener("input", (event) => {
+  if (event.target === phoneInput) validatePhone();
   const field = event.target.closest(".form-field");
-  if (field && event.target.validity.valid) field.classList.remove("is-invalid");
+  if (field && event.target.validity.valid) setFieldValidity(event.target, true);
+});
+
+checkoutForm.addEventListener("change", (event) => {
+  const field = event.target.closest(".consent-field");
+  if (field && event.target.validity.valid) setFieldValidity(event.target, true);
 });
 
 checkoutForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  validatePhone();
   const requiredFields = [...checkoutForm.querySelectorAll("[required]")];
 
   requiredFields.forEach((input) => {
-    input.closest(".form-field").classList.toggle("is-invalid", !input.validity.valid);
+    setFieldValidity(input, input.validity.valid);
   });
 
   const firstInvalid = requiredFields.find((input) => !input.validity.valid);
@@ -492,30 +477,41 @@ async function copyTransferValue(value, label) {
 document.querySelectorAll(".js-copy-transfer").forEach((button) => {
   button.addEventListener("click", () => {
     const isIban = button.dataset.copy === "iban";
-    copyTransferValue(isIban ? transferAccount.iban : getTransferDescription(), isIban ? "IBAN" : "Açıklama kodu");
+    copyTransferValue(
+      isIban ? transferAccount.iban : getTransferDescription(),
+      isIban ? "IBAN" : "Açıklama kodu"
+    );
   });
 });
 
 function validatePaymentNotificationForm() {
+  validateReceipt();
   const requiredFields = [...paymentNotificationForm.querySelectorAll("[required]")];
   requiredFields.forEach((input) => {
-    input.closest(".form-field").classList.toggle("is-invalid", !input.validity.valid);
+    setFieldValidity(input, input.validity.valid);
   });
   return requiredFields.find((input) => !input.validity.valid);
 }
 
+function setPaymentNotificationStatus(message, type = "error") {
+  paymentNotificationStatus.textContent = message;
+  paymentNotificationStatus.dataset.status = type;
+  paymentNotificationStatus.hidden = !message;
+}
+
 paymentNotificationForm.addEventListener("input", (event) => {
   const field = event.target.closest(".form-field");
-  if (field && event.target.validity.valid) field.classList.remove("is-invalid");
+  if (field && event.target.validity.valid) setFieldValidity(event.target, true);
 });
 
 receiptInput.addEventListener("change", () => {
   const receiptName = receiptInput.files[0]?.name || "Dekont seçilmedi.";
   document.querySelector(".js-receipt-name").textContent = receiptName;
-  if (receiptInput.validity.valid) receiptInput.closest(".form-field").classList.remove("is-invalid");
+  validateReceipt();
+  if (receiptInput.validity.valid) setFieldValidity(receiptInput, true);
 });
 
-paymentNotificationForm.addEventListener("submit", (event) => {
+paymentNotificationForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const firstInvalid = validatePaymentNotificationForm();
   if (firstInvalid) {
@@ -523,27 +519,75 @@ paymentNotificationForm.addEventListener("submit", (event) => {
     return;
   }
 
-  document.querySelector(".js-booking-reference").textContent = state.transferReference;
-  bookingCompletion.hidden = false;
-  document.body.classList.add("is-completion-open");
-  document.querySelectorAll(".builder-header, .builder-progress, .builder-layout").forEach((element) => {
-    element.inert = true;
-    element.setAttribute("aria-hidden", "true");
-  });
-  document.querySelector(".js-completion-title").focus({ preventScroll: true });
+  if (!paymentNotificationEndpoint) {
+    setPaymentNotificationStatus(
+      "Ödeme bildirimi şu anda yalnızca önizleme modunda. Backend bağlantısı kurulmadan bildirim gönderilemez ve başarı ekranı açılamaz."
+    );
+    paymentNotificationStatus.focus({ preventScroll: true });
+    return;
+  }
+
+  const submitButton = paymentNotificationForm.querySelector('button[type="submit"]');
+  const formData = new FormData(paymentNotificationForm);
+  formData.append("transferReference", state.transferReference);
+  formData.append("paymentMethod", state.payment);
+  formData.append("customer", JSON.stringify(state.customer));
+  formData.append("basePackage", state.base);
+  formData.append("services", JSON.stringify([...state.extras]));
+
+  submitButton.disabled = true;
+  submitButton.setAttribute("aria-busy", "true");
+  setPaymentNotificationStatus("Ödeme bildirimi gönderiliyor…", "pending");
+
+  try {
+    const response = await fetch(paymentNotificationEndpoint, {
+      method: "POST",
+      body: formData,
+      headers: { Accept: "application/json" }
+    });
+
+    if (!response.ok) throw new Error(`payment-notification-${response.status}`);
+
+    const result = await response.json();
+    if (!result?.success || !result.reference) throw new Error("invalid-payment-response");
+
+    document.querySelector(".js-booking-reference").textContent = result.reference;
+    setPaymentNotificationStatus("");
+    bookingCompletion.hidden = false;
+    document.body.classList.add("is-completion-open");
+    document
+      .querySelectorAll(".builder-header, .builder-progress, .builder-layout")
+      .forEach((element) => {
+        element.inert = true;
+        element.setAttribute("aria-hidden", "true");
+      });
+    document.querySelector(".js-completion-title").focus({ preventScroll: true });
+  } catch {
+    setPaymentNotificationStatus(
+      "Ödeme bildirimi gönderilemedi. Bilgileriniz gönderilmedi; lütfen daha sonra tekrar deneyin."
+    );
+    paymentNotificationStatus.focus({ preventScroll: true });
+  } finally {
+    submitButton.disabled = false;
+    submitButton.removeAttribute("aria-busy");
+  }
 });
 
 filterButtons.forEach((button) => {
   button.addEventListener("click", () => {
     state.filter = button.dataset.filter;
-    filterButtons.forEach((item) => item.classList.toggle("is-active", item === button));
+    filterButtons.forEach((item) => {
+      const isActive = item === button;
+      item.classList.toggle("is-active", isActive);
+      item.setAttribute("aria-pressed", String(isActive));
+    });
     renderServices();
   });
 });
 
-document.querySelectorAll(".js-summary-toggle").forEach((button) => {
+summaryToggles.forEach((button) => {
   button.addEventListener("click", () => {
-    document.body.classList.toggle("is-summary-open");
+    setSummaryOpen(!document.body.classList.contains("is-summary-open"));
   });
 });
 
@@ -563,24 +607,192 @@ detailDialog.addEventListener("cancel", (event) => {
 
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && document.body.classList.contains("is-summary-open")) {
-    document.body.classList.remove("is-summary-open");
+    event.preventDefault();
+    setSummaryOpen(false);
+    return;
+  }
+
+  if (event.key === "Tab" && document.body.classList.contains("is-summary-open")) {
+    const focusable = [...summaryPanel.querySelectorAll(summaryFocusSelector)];
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 });
 
 renderServices();
 updateSummary();
 updateProgress();
+setSummaryOpen(false, { returnFocus: false });
 
 const weddingDateInput = document.querySelector(".js-wedding-date");
 const today = new Date();
 const localToday = [
   today.getFullYear(),
   String(today.getMonth() + 1).padStart(2, "0"),
-  String(today.getDate()).padStart(2, "0"),
+  String(today.getDate()).padStart(2, "0")
 ].join("-");
 weddingDateInput.min = localToday;
+transferDateInput.max = localToday;
 
 const requestedService = new URL(window.location.href).searchParams.get("hizmet");
 if (requestedService && services.some((service) => service.id === requestedService)) {
   openServiceDetail(requestedService);
+}
+
+function renderOrderReview() {
+  const base = basePackages[state.base];
+  const extras = getSelectedExtras();
+  const payment = getPaymentDetails();
+  const items = [
+    { ...base, type: "Temel paket" },
+    ...extras.map((service) => ({ ...service, type: "Ek hizmet" }))
+  ];
+
+  orderItemsContainer.replaceChildren(
+    ...items.map((item) => {
+      const row = document.createElement("div");
+      row.className = "order-review__item";
+      row.append(createImage(item.image, ""));
+
+      const nameGroup = document.createElement("span");
+      const type = document.createElement("small");
+      const name = document.createElement("strong");
+      type.textContent = item.type;
+      name.textContent = item.name;
+      nameGroup.append(type, name);
+
+      const actions = document.createElement("div");
+      actions.className = "order-review__item-actions";
+      const price = document.createElement("b");
+      price.textContent = formatPrice(item.price);
+      actions.append(price);
+
+      if (item.type === "Ek hizmet") {
+        const removeButton = document.createElement("button");
+        removeButton.className = "order-review__remove";
+        removeButton.type = "button";
+        removeButton.setAttribute("aria-label", `${item.name} hizmetini paketten çıkar`);
+        removeButton.title = "Paketten çıkar";
+        removeButton.dataset.removeService = item.id;
+        removeButton.append(createSvg([{ d: "M6 6l12 12M18 6 6 18" }]));
+        actions.append(removeButton);
+      }
+
+      row.append(nameGroup, actions);
+      return row;
+    })
+  );
+
+  document.querySelector(".js-order-subtotal").textContent = formatPrice(payment.subtotal);
+  document.querySelector(".js-order-payable-label").textContent = payment.payableLabel;
+  document.querySelector(".js-order-payable").textContent = formatPrice(payment.payable);
+  document.querySelector(".js-order-benefit span").textContent = payment.benefit;
+  const adjustmentRow = document.querySelector(".js-order-adjustment-row");
+  adjustmentRow.hidden = payment.adjustment === 0;
+  document.querySelector(".js-order-adjustment-label").textContent = payment.adjustmentLabel;
+  document.querySelector(".js-order-adjustment").textContent = formatPrice(payment.adjustment);
+  document.querySelector(".js-review-name").textContent = state.customer.fullName || "—";
+  document.querySelector(".js-review-phone").textContent = state.customer.phone || "—";
+  document.querySelector(".js-review-date").textContent = formatWeddingDate(
+    state.customer.weddingDate
+  );
+  document.querySelector(".js-review-venue").textContent = state.customer.venue || "—";
+  updateTransferUI();
+}
+
+function renderServices() {
+  const visibleServices = services.filter(
+    (service) => state.filter === "all" || service.category === state.filter
+  );
+
+  servicesGrid.replaceChildren(
+    ...visibleServices.map((service, index) => {
+      const isAdded = state.extras.has(service.id);
+      const article = document.createElement("article");
+      article.className = `builder-service${isAdded ? " is-added" : ""}`;
+      article.dataset.service = service.id;
+
+      const openButton = document.createElement("button");
+      openButton.className = "builder-service__open";
+      openButton.type = "button";
+      openButton.setAttribute("aria-label", `${service.name} hizmetini incele`);
+      openButton.dataset.openService = service.id;
+      const media = document.createElement("span");
+      media.className = "builder-service__media";
+      media.append(createImage(service.image, `${service.name} çekim örneği`, "lazy"));
+      const details = document.createElement("span");
+      details.className = "builder-service__details";
+      const indexLabel = document.createElement("small");
+      const name = document.createElement("strong");
+      const price = document.createElement("b");
+      indexLabel.textContent = `0${index + 1} / İncele`;
+      name.textContent = service.name;
+      price.textContent = formatPrice(service.price);
+      details.append(indexLabel, name, price);
+      openButton.append(media, details);
+
+      const addButton = document.createElement("button");
+      addButton.className = "builder-service__add";
+      addButton.type = "button";
+      addButton.setAttribute(
+        "aria-label",
+        `${service.name} hizmetini ${isAdded ? "paketten çıkar" : "pakete ekle"}`
+      );
+      addButton.setAttribute("aria-pressed", String(isAdded));
+      addButton.dataset.toggleService = service.id;
+      addButton.append(
+        createSvg([{ d: "M5 12h14" }, { d: "M12 5v14", className: "line-vertical" }])
+      );
+
+      article.append(openButton, addButton);
+      return article;
+    })
+  );
+
+  document.querySelectorAll("[data-open-service]").forEach((button) => {
+    button.addEventListener("click", () => openServiceDetail(button.dataset.openService));
+  });
+  document.querySelectorAll("[data-toggle-service]").forEach((button) => {
+    button.addEventListener("click", () => toggleService(button.dataset.toggleService));
+  });
+}
+
+function openServiceDetail(serviceId) {
+  const service = services.find((item) => item.id === serviceId);
+  if (!service) return;
+
+  state.activeService = serviceId;
+  detailTitle.textContent = service.name;
+  detailDescription.textContent = service.description;
+  detailFeatures.replaceChildren(
+    ...service.features.map((feature) => {
+      const item = document.createElement("li");
+      item.textContent = feature;
+      return item;
+    })
+  );
+  detailDelivery.textContent = service.delivery;
+  detailPrice.textContent = formatPrice(service.price);
+  detailThumbs.replaceChildren(
+    ...service.gallery.map((image, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("aria-label", `${index + 1}. çekim örneğini göster`);
+      button.append(createImage(image, ""));
+      button.addEventListener("click", () => setDetailImage(service, image, index));
+      return button;
+    })
+  );
+
+  setDetailImage(service, service.gallery[0], 0);
+  updateDetailButton(serviceId);
+  detailDialog.showModal();
 }

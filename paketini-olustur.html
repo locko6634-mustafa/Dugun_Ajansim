@@ -8,6 +8,21 @@
       content="Düğünajansım çekim paketinizi temel paket ve ek hizmetlerle kendiniz oluşturun."
     />
     <title>Paketini Oluştur | Düğünajansım</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#f7f3ed" />
+    <link rel="canonical" href="./paketini-olustur.html" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="tr_TR" />
+    <meta property="og:site_name" content="Düğünajansım" />
+    <meta property="og:title" content="Paketini Oluştur | Düğünajansım" />
+    <meta property="og:description" content="Düğün çekim paketinizi temel paket ve ek hizmetlerle kendi hikâyenize göre oluşturun." />
+    <meta property="og:url" content="./paketini-olustur.html" />
+    <meta property="og:image" content="assets/images/hero-couple.webp" />
+    <meta property="og:image:alt" content="Düğünajansım düğün çekimi" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Paketini Oluştur | Düğünajansım" />
+    <meta name="twitter:description" content="Düğün çekim paketinizi temel paket ve ek hizmetlerle kendi hikâyenize göre oluşturun." />
+    <meta name="twitter:image" content="assets/images/hero-couple.webp" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -37,7 +52,7 @@
         </span>
       </a>
 
-      <button class="builder-bag js-summary-toggle" type="button" aria-label="Paket özetini aç">
+      <button class="builder-bag js-summary-toggle" type="button" aria-label="Paket özetini aç" aria-expanded="false" aria-controls="package-summary">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M5 8h14l-1 13H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3" />
         </svg>
@@ -45,28 +60,28 @@
       </button>
     </header>
 
-    <div class="builder-progress" aria-label="Paket oluşturma ilerlemesi">
-      <div class="builder-progress__item is-active" data-progress="1">
+    <div class="builder-progress" role="list" aria-label="Paket oluşturma ilerlemesi">
+      <div class="builder-progress__item is-active" data-progress="1" role="listitem" aria-current="step">
         <span>1</span>
         <strong>Paket Seçimi</strong>
       </div>
       <i aria-hidden="true"></i>
-      <div class="builder-progress__item" data-progress="2">
+      <div class="builder-progress__item" data-progress="2" role="listitem">
         <span>2</span>
         <strong>Ek Hizmetler</strong>
       </div>
       <i aria-hidden="true"></i>
-      <div class="builder-progress__item" data-progress="3">
+      <div class="builder-progress__item" data-progress="3" role="listitem">
         <span>3</span>
         <strong>Bilgiler</strong>
       </div>
       <i aria-hidden="true"></i>
-      <div class="builder-progress__item" data-progress="4">
+      <div class="builder-progress__item" data-progress="4" role="listitem">
         <span>4</span>
         <strong>Ödeme</strong>
       </div>
       <i aria-hidden="true"></i>
-      <div class="builder-progress__item" data-progress="5">
+      <div class="builder-progress__item" data-progress="5" role="listitem">
         <span>5</span>
         <strong>Özet</strong>
       </div>
@@ -138,17 +153,17 @@
             </p>
           </header>
 
-          <div class="service-filter" aria-label="Hizmet filtreleri">
-            <button class="is-active" type="button" data-filter="all">Tümü</button>
-            <button type="button" data-filter="video">Video</button>
-            <button type="button" data-filter="photo">Fotoğraf</button>
-            <button type="button" data-filter="keepsake">Hatıra</button>
+          <div class="service-filter" role="group" aria-label="Hizmet filtreleri">
+            <button class="is-active" type="button" data-filter="all" aria-pressed="true">Tümü</button>
+            <button type="button" data-filter="video" aria-pressed="false">Video</button>
+            <button type="button" data-filter="photo" aria-pressed="false">Fotoğraf</button>
+            <button type="button" data-filter="keepsake" aria-pressed="false">Hatıra</button>
           </div>
 
           <div class="builder-services" aria-live="polite"></div>
 
           <div class="builder-step__actions builder-step__actions--split">
-            <button class="builder-secondary js-prev-step" type="button">
+            <button class="builder-secondary js-prev-step" type="button" aria-label="Önceki adıma dön">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7M8 12h12" /></svg>
               <span>Geri</span>
             </button>
@@ -240,7 +255,7 @@
           </div>
 
           <div class="builder-step__actions builder-step__actions--split">
-            <button class="builder-secondary js-step-back" type="button" data-target-step="3">
+              <button class="builder-secondary js-step-back" type="button" data-target-step="3" aria-label="Önceki adıma dön">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7M8 12h12" /></svg>
               <span>Geri</span>
             </button>
@@ -265,32 +280,32 @@
             <div class="checkout-form__grid">
               <label class="form-field form-field--wide">
                 <span>Ad Soyad</span>
-                <input type="text" name="fullName" autocomplete="name" placeholder="Adınız ve soyadınız" required />
-                <small class="form-field__error">Lütfen adınızı ve soyadınızı yazın.</small>
+                <input type="text" name="fullName" autocomplete="name" placeholder="Adınız ve soyadınız" required aria-describedby="full-name-error" />
+                <small class="form-field__error" id="full-name-error">Lütfen adınızı ve soyadınızı yazın.</small>
               </label>
 
               <label class="form-field">
                 <span>Telefon</span>
-                <input type="tel" name="phone" autocomplete="tel" inputmode="tel" placeholder="05xx xxx xx xx" pattern="[0-9+\s()\-]{10,}" required />
-                <small class="form-field__error">Geçerli bir telefon numarası yazın.</small>
+                <input type="tel" name="phone" autocomplete="tel" inputmode="tel" placeholder="05xx xxx xx xx" required aria-describedby="phone-error" />
+                <small class="form-field__error" id="phone-error">Geçerli bir telefon numarası yazın.</small>
               </label>
 
               <label class="form-field">
                 <span>E-posta</span>
-                <input type="email" name="email" autocomplete="email" placeholder="ornek@email.com" required />
-                <small class="form-field__error">Geçerli bir e-posta adresi yazın.</small>
+                <input type="email" name="email" autocomplete="email" placeholder="ornek@email.com" required aria-describedby="email-error" />
+                <small class="form-field__error" id="email-error">Geçerli bir e-posta adresi yazın.</small>
               </label>
 
               <label class="form-field">
                 <span>Düğün Tarihi</span>
-                <input class="js-wedding-date" type="date" name="weddingDate" required />
-                <small class="form-field__error">Lütfen düğün tarihinizi seçin.</small>
+                <input class="js-wedding-date" type="date" name="weddingDate" required aria-describedby="wedding-date-error" />
+                <small class="form-field__error" id="wedding-date-error">Lütfen düğün tarihinizi seçin.</small>
               </label>
 
               <label class="form-field">
                 <span>Salon / Mekân</span>
-                <input type="text" name="venue" autocomplete="off" placeholder="Mekân adı veya ilçe" required />
-                <small class="form-field__error">Lütfen düğün mekânınızı yazın.</small>
+                <input type="text" name="venue" autocomplete="off" placeholder="Mekân adı veya ilçe" required aria-describedby="venue-error" />
+                <small class="form-field__error" id="venue-error">Lütfen düğün mekânınızı yazın.</small>
               </label>
 
               <label class="form-field form-field--wide">
@@ -304,8 +319,22 @@
               <p>Bilgileriniz paketiniz ile ödeme bildiriminizi eşleştirmek için kullanılır ve üçüncü kişilerle paylaşılmaz.</p>
             </div>
 
+            <fieldset class="consent-fields">
+              <legend>Veri işleme izinleri</legend>
+              <label class="consent-field">
+                <input type="checkbox" name="privacyConsent" required aria-describedby="privacy-consent-error" />
+                <span><a href="kvkk-aydinlatma.html" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a>'ni okudum; kişisel verilerimin paket ve ödeme bildirimi sürecini yürütmek amacıyla işlenmesini kabul ediyorum.</span>
+                <small class="form-field__error" id="privacy-consent-error">Devam etmek için KVKK onayını vermelisiniz.</small>
+              </label>
+              <label class="consent-field">
+                <input type="checkbox" name="marketingConsent" />
+                <span>Düğünajansım kampanya ve hizmet duyurularını e-posta veya telefonla almak istiyorum. (Opsiyonel)</span>
+              </label>
+              <p class="consent-fields__hint">Detaylar için <a href="gizlilik-politikasi.html" target="_blank" rel="noopener">Gizlilik Politikası</a> ve <a href="kullanim-sartlari.html" target="_blank" rel="noopener">Kullanım Şartları</a>'nı inceleyebilirsiniz.</p>
+            </fieldset>
+
             <div class="builder-step__actions builder-step__actions--split">
-              <button class="builder-secondary js-step-back" type="button" data-target-step="2">
+              <button class="builder-secondary js-step-back" type="button" data-target-step="2" aria-label="Önceki adıma dön">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7M8 12h12" /></svg>
                 <span>Geri</span>
               </button>
@@ -343,7 +372,7 @@
                     <span>Peşin ödeme seçeneğiyle %10 avantaj kazandınız.</span>
                   </div>
                 </section>
-                <aside class="customer-review">
+                <aside class="customer-review" aria-label="Müşteri bilgileri">
                   <div class="order-review__heading"><span>Bilgileriniz</span><button class="js-edit-details" type="button">Düzenle</button></div>
                   <dl>
                     <div><dt>Ad Soyad</dt><dd class="js-review-name">—</dd></div>
@@ -361,26 +390,25 @@
                 <h2 id="transfer-panel-title">Ödeme belgeniz</h2>
                 <span class="transfer-panel__amount"><small class="js-transfer-payable-label">Bugün havale edilecek</small><strong class="js-transfer-payable">18.000 TL</strong></span>
               </div>
-              <dl class="transfer-details">
-                <div><dt>Banka</dt><dd class="js-transfer-bank">Örnek Banka</dd></div>
-                <div><dt>Alıcı ünvanı</dt><dd class="js-transfer-account-holder">Düğünajansım Örnek Hesap</dd></div>
-                <div class="transfer-details__copy"><dt>IBAN</dt><dd><strong class="js-transfer-iban">TR00 0000 0000 0000 0000 0000 00</strong><button type="button" class="transfer-copy js-copy-transfer" data-copy="iban">Kopyala</button></dd></div>
-                <div class="transfer-details__copy"><dt>Açıklama</dt><dd><strong class="js-transfer-reference">DA-2026-000000</strong><button type="button" class="transfer-copy js-copy-transfer" data-copy="reference">Kopyala</button></dd></div>
-              </dl>
+              <div class="transfer-preview-notice" role="status">
+                <strong>Ödeme bilgileri henüz tanımlanmadı.</strong>
+                <p>Bu önizlemede banka, IBAN ve ödeme bildirimi alanları güvenliğiniz için devre dışıdır. Lütfen bu ekrandaki herhangi bir hesaba ödeme göndermeyin.</p>
+              </div>
               <p class="transfer-copy-feedback js-copy-feedback" role="status" aria-live="polite"></p>
-              <p class="transfer-panel__note">Havale açıklamasına bu kodu eksiksiz yazın. Banka bilgileri bu ön yüz sürümünde örnek olarak gösterilmektedir.</p>
+              <p class="transfer-panel__note">Ödeme altyapısı hazır olduğunda bu alanda güvenli ödeme talimatları gösterilecektir.</p>
 
               <form class="payment-notification-form" id="payment-notification-form" novalidate>
                 <div class="payment-notification-form__heading"><span>02</span><div><strong>Ödeme bildirimi</strong><small>Havalenizden sonra bilgileri paylaşın.</small></div></div>
                 <div class="payment-notification-form__grid">
-                  <label class="form-field"><span>Gönderen ad soyad</span><input type="text" name="senderName" autocomplete="name" required /><small class="form-field__error">Gönderen adını yazın.</small></label>
-                  <label class="form-field"><span>Gönderilen banka</span><input type="text" name="senderBank" placeholder="Banka adınız" required /><small class="form-field__error">Banka adını yazın.</small></label>
-                  <label class="form-field"><span>İşlem tarihi</span><input type="date" name="transferDate" required /><small class="form-field__error">İşlem tarihini seçin.</small></label>
+                  <label class="form-field"><span>Gönderen ad soyad</span><input type="text" name="senderName" autocomplete="name" required aria-describedby="sender-name-error" /><small class="form-field__error" id="sender-name-error">Gönderen adını yazın.</small></label>
+                  <label class="form-field"><span>Gönderilen banka</span><input type="text" name="senderBank" placeholder="Banka adınız" required aria-describedby="sender-bank-error" /><small class="form-field__error" id="sender-bank-error">Banka adını yazın.</small></label>
+                  <label class="form-field"><span>İşlem tarihi</span><input class="js-transfer-date" type="date" name="transferDate" required aria-describedby="transfer-date-error" /><small class="form-field__error" id="transfer-date-error">İşlem tarihini seçin.</small></label>
                   <label class="form-field"><span>Havale tutarı</span><input class="js-notification-amount" type="text" name="transferAmount" value="18.000 TL" readonly required /></label>
-                  <label class="form-field form-field--wide form-field--file"><span>Dekont <em>PDF, JPG veya PNG</em></span><input class="js-receipt-input" type="file" name="receipt" accept=".pdf,image/png,image/jpeg" required /><small class="js-receipt-name">Dekont seçilmedi.</small><small class="form-field__error">Dekontunuzu seçin.</small></label>
+                  <label class="form-field form-field--wide form-field--file"><span>Dekont <em>PDF, JPG veya PNG</em></span><input class="js-receipt-input" type="file" name="receipt" accept=".pdf,image/png,image/jpeg" required aria-describedby="receipt-error" /><small class="js-receipt-name">Dekont seçilmedi.</small><small class="form-field__error" id="receipt-error">Dekontunuzu seçin.</small></label>
                 </div>
+                <p class="payment-notification-status js-payment-notification-status" role="alert" tabindex="-1" hidden></p>
                 <div class="builder-step__actions builder-step__actions--split">
-                  <button class="builder-secondary js-step-back" type="button" data-target-step="4"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7M8 12h12" /></svg><span>Geri</span></button>
+                  <button class="builder-secondary js-step-back" type="button" data-target-step="4" aria-label="Önceki adıma dön"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7M8 12h12" /></svg><span>Geri</span></button>
                   <button class="builder-primary" type="submit"><span>Ödeme Bildirimini Tamamla</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>
                 </div>
               </form>
@@ -389,8 +417,8 @@
         </section>
       </div>
 
-      <aside class="package-summary" aria-labelledby="package-summary-title">
-        <button class="package-summary__close js-summary-toggle" type="button" aria-label="Paket özetini kapat">
+      <aside class="package-summary" id="package-summary" aria-labelledby="package-summary-title" aria-hidden="true">
+        <button class="package-summary__close js-summary-toggle" type="button" aria-label="Paket özetini kapat" aria-expanded="true" aria-controls="package-summary">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
         </button>
         <p class="package-summary__eyebrow">Canlı paket özeti</p>
@@ -429,7 +457,7 @@
           Paketiniz ve iletişim bilgileriniz, ödeme bildiriminizi doğru eşleştirmek için kullanılır.
         </p>
       </aside>
-      <div class="summary-backdrop js-summary-toggle" aria-hidden="true"></div>
+      <button class="summary-backdrop js-summary-toggle" type="button" aria-label="Paket özetini kapat" tabindex="-1"></button>
     </main>
 
     <section class="booking-completion js-booking-completion" aria-label="Ödeme bildirimi durumu" hidden>
@@ -479,11 +507,7 @@
           </a>
 
           <div class="completion-contact">
-            <p>Sorularınız için bizimle iletişime geçebilirsiniz.</p>
-            <a href="tel:+905551234567">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3H4a1 1 0 0 0-1 1c0 9.4 7.6 17 17 17a1 1 0 0 0 1-1v-3l-5-2-1.4 2.1a14.5 14.5 0 0 1-7.7-7.7L9 8 7 3Z"/></svg>
-              +90 555 123 45 67
-            </a>
+            <p>İletişim kanallarımız ödeme altyapısıyla birlikte yayınlanacaktır.</p>
           </div>
         </div>
       </div>
@@ -561,9 +585,9 @@
         <footer class="showcase-footer">
           <span>© 2026 Düğünajansım. Tüm hakları saklıdır.</span>
           <nav aria-label="Yasal bağlantılar">
-            <a href="index.html#iletisim">Gizlilik Politikası</a>
+            <a href="gizlilik-politikasi.html">Gizlilik Politikası</a>
             <i aria-hidden="true"></i>
-            <a href="index.html#iletisim">Kullanım Şartları</a>
+            <a href="kullanim-sartlari.html">Kullanım Şartları</a>
           </nav>
         </footer>
       </div>
@@ -609,7 +633,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>
         </button>
         <figure>
-          <img class="js-showcase-lightbox-image" src="" alt=""/>
+          <img class="js-showcase-lightbox-image" src="assets/images/hero-couple.webp" alt=""/>
           <figcaption class="js-showcase-lightbox-caption"></figcaption>
         </figure>
         <button class="showcase-lightbox__nav showcase-lightbox__nav--next js-showcase-lightbox-next" type="button" aria-label="Sonraki görsel">
@@ -625,7 +649,7 @@
 
       <div class="service-detail__media">
         <figure class="service-detail__hero">
-          <img class="js-detail-main-image" src="" alt="" />
+          <img class="js-detail-main-image" src="assets/images/hero-couple.webp" alt="" />
           <span class="service-detail__number js-detail-number">01</span>
         </figure>
         <div class="service-detail__thumbs js-detail-thumbs" aria-label="Çekim örnekleri"></div>
@@ -633,7 +657,7 @@
 
       <div class="service-detail__content">
         <p class="service-detail__eyebrow">Hizmet detayı</p>
-        <h2 id="service-detail-title" class="js-detail-title"></h2>
+        <h2 id="service-detail-title" class="js-detail-title">Hizmet detayı</h2>
         <p class="service-detail__description js-detail-description"></p>
         <ul class="service-detail__features js-detail-features"></ul>
         <div class="service-detail__delivery">

@@ -283,7 +283,7 @@ button {
 .hero h1::after {
   position: absolute;
   color: var(--gold-light);
-  content: "âœ¦";
+  content: "\2726";
   font-family: serif;
   font-size: 24px;
 }
@@ -635,8 +635,7 @@ button {
   stroke-width: 2.8;
 }
 
-.benefit-icon__mobile,
-.benefit-title--mobile {
+.benefit-icon__mobile {
   display: none;
 }
 
@@ -651,6 +650,10 @@ button {
 
 .benefit-title span {
   display: block;
+}
+
+.benefit-title__lead {
+  font-weight: inherit;
 }
 
 .benefit-card p {
@@ -1506,7 +1509,7 @@ button {
     min-width: 0;
     gap: 6px;
     padding: 0 clamp(8px, 3vw, 15px);
-    font-size: clamp(8px, 2.4vw, 11px);
+    font-size: clamp(12px, 2.8vw, 14px);
   }
 
   .trust-item:first-child {
@@ -1518,8 +1521,9 @@ button {
   }
 
   .trust-item svg {
-    width: clamp(27px, 8vw, 34px);
-    flex-basis: clamp(27px, 8vw, 34px);
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
   }
 
   .benefits-section {
@@ -1547,7 +1551,8 @@ button {
   }
 
   .benefit-icon {
-    width: clamp(38px, 11vw, 48px);
+    width: 44px;
+    height: 44px;
     border: 1px solid hsl(33 46% 57%);
     background: hsl(40 30% 99% / 0.7);
   }
@@ -1559,13 +1564,11 @@ button {
     border-left: 1px solid hsl(33 46% 57%);
   }
 
-  .benefit-title--desktop,
   .benefit-icon__desktop,
   .benefit-card p {
     display: none;
   }
 
-  .benefit-title--mobile,
   .benefit-icon__mobile {
     display: block;
   }
@@ -1576,20 +1579,16 @@ button {
     line-height: 1.15;
   }
 
-  .benefit-title strong,
-  .benefit-title span {
-    display: block;
-  }
-
-  .benefit-title strong {
-    font-size: clamp(10px, 3.1vw, 15px);
+  .benefit-title__lead {
+    text-transform: uppercase;
     font-weight: 750;
+    font-size: clamp(12px, 3.1vw, 15px);
     white-space: nowrap;
   }
 
-  .benefit-title span {
+  .benefit-title span:not(.benefit-title__lead) {
     margin-top: 4px;
-    font-size: clamp(8px, 2.3vw, 11px);
+    font-size: clamp(12px, 2.8vw, 14px);
     font-weight: 450;
     white-space: nowrap;
   }
