@@ -179,6 +179,11 @@ const bookingCompletion = document.querySelector(".js-booking-completion");
 const completionSuccess = document.querySelector(".js-completion-success");
 const completionShowcase = document.querySelector(".js-completion-showcase");
 const completionInfoDialog = document.querySelector(".js-booking-info");
+const showcaseImageButtons = [...document.querySelectorAll(".js-showcase-image")];
+const showcaseLightbox = document.querySelector(".js-showcase-lightbox");
+const showcaseLightboxImage = document.querySelector(".js-showcase-lightbox-image");
+const showcaseLightboxCaption = document.querySelector(".js-showcase-lightbox-caption");
+let activeShowcaseImage = 0;
 
 const paymentMethods = {
   cash: {
@@ -580,6 +585,40 @@ document.querySelectorAll(".js-booking-info-close").forEach((button) => {
 
 completionInfoDialog.addEventListener("click", (event) => {
   if (event.target === completionInfoDialog) closeCompletionInfo();
+});
+
+function showShowcaseImage(index) {
+  activeShowcaseImage = (index + showcaseImageButtons.length) % showcaseImageButtons.length;
+  const selectedImage = showcaseImageButtons[activeShowcaseImage].querySelector("img");
+  showcaseLightboxImage.src = selectedImage.currentSrc || selectedImage.src;
+  showcaseLightboxImage.alt = selectedImage.alt;
+  showcaseLightboxCaption.textContent = selectedImage.alt;
+  if (!showcaseLightbox.open) showcaseLightbox.showModal();
+}
+
+showcaseImageButtons.forEach((button, index) => {
+  button.addEventListener("click", () => showShowcaseImage(index));
+});
+
+document.querySelector(".js-showcase-lightbox-close").addEventListener("click", () => {
+  showcaseLightbox.close();
+});
+
+document.querySelector(".js-showcase-lightbox-prev").addEventListener("click", () => {
+  showShowcaseImage(activeShowcaseImage - 1);
+});
+
+document.querySelector(".js-showcase-lightbox-next").addEventListener("click", () => {
+  showShowcaseImage(activeShowcaseImage + 1);
+});
+
+showcaseLightbox.addEventListener("click", (event) => {
+  if (event.target === showcaseLightbox) showcaseLightbox.close();
+});
+
+showcaseLightbox.addEventListener("keydown", (event) => {
+  if (event.key === "ArrowLeft") showShowcaseImage(activeShowcaseImage - 1);
+  if (event.key === "ArrowRight") showShowcaseImage(activeShowcaseImage + 1);
 });
 
 filterButtons.forEach((button) => {

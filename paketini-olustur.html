@@ -14,8 +14,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Italiana&family=Manrope:wght@400;500;600;700&family=Parisienne&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/paket-builder.css?v=20260727-5" />
-    <script src="js/paket-builder.js?v=20260727-5" defer></script>
+    <link rel="stylesheet" href="css/paket-builder.css?v=20260727-6" />
+    <script src="js/paket-builder.js?v=20260727-6" defer></script>
   </head>
   <body>
     <header class="builder-header">
@@ -602,11 +602,29 @@
           </div>
 
           <div class="showcase-gallery" aria-label="Çekim örnekleri">
-            <figure><img src="assets/images/bride-portrait.webp" alt="Gelin portresi"/></figure>
-            <figure><img src="assets/images/services/drone-cekimi.webp" alt="Doğada drone çekimi"/></figure>
-            <figure><img src="assets/images/groom-portrait.webp" alt="Damat portresi"/></figure>
-            <figure><img src="assets/images/venue-pavilion.webp" alt="Düğün mekânı çekimi"/></figure>
+            <button class="showcase-gallery__item js-showcase-image" type="button" aria-label="Gelin portresini büyüt">
+              <img src="assets/images/bride-portrait.webp" alt="Gelin portresi"/>
+              <span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M8 10.5h5M10.5 8v5"/></svg></span>
+            </button>
+            <button class="showcase-gallery__item js-showcase-image" type="button" aria-label="Doğada drone çekimini büyüt">
+              <img src="assets/images/services/drone-cekimi.webp" alt="Doğada drone çekimi"/>
+              <span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M8 10.5h5M10.5 8v5"/></svg></span>
+            </button>
+            <button class="showcase-gallery__item js-showcase-image" type="button" aria-label="Damat portresini büyüt">
+              <img src="assets/images/groom-portrait.webp" alt="Damat portresi"/>
+              <span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M8 10.5h5M10.5 8v5"/></svg></span>
+            </button>
+            <button class="showcase-gallery__item js-showcase-image" type="button" aria-label="Düğün mekânı çekimini büyüt">
+              <img src="assets/images/venue-pavilion.webp" alt="Düğün mekânı çekimi"/>
+              <span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M8 10.5h5M10.5 8v5"/></svg></span>
+            </button>
           </div>
+
+          <a class="showcase-home-button" href="index.html">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8"/><path d="M5 10v11h14V10M9 21v-7h6v7"/></svg>
+            <span>Ana Sayfaya Dön</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
         </div>
 
         <footer class="showcase-footer">
@@ -650,6 +668,22 @@
         </div>
 
         <button class="booking-info__confirm js-booking-info-close" type="button">Anladım</button>
+      </dialog>
+
+      <dialog class="showcase-lightbox js-showcase-lightbox" aria-label="Büyütülmüş çekim görseli">
+        <button class="showcase-lightbox__close js-showcase-lightbox-close" type="button" aria-label="Büyütülmüş görseli kapat">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+        <button class="showcase-lightbox__nav showcase-lightbox__nav--prev js-showcase-lightbox-prev" type="button" aria-label="Önceki görsel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>
+        </button>
+        <figure>
+          <img class="js-showcase-lightbox-image" src="" alt=""/>
+          <figcaption class="js-showcase-lightbox-caption"></figcaption>
+        </figure>
+        <button class="showcase-lightbox__nav showcase-lightbox__nav--next js-showcase-lightbox-next" type="button" aria-label="Sonraki görsel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+        </button>
       </dialog>
     </section>
 
