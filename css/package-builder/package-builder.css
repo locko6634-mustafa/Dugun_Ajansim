@@ -1398,6 +1398,70 @@ button {
   display: none;
 }
 
+.summary-backdrop {
+  position: fixed;
+  z-index: 35;
+  inset: 0;
+  display: none;
+  background: hsl(28 14% 10% / 0.55);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 260ms ease,
+    visibility 260ms step-end;
+}
+
+body.is-summary-open .summary-backdrop {
+  display: block;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 260ms ease,
+    visibility 260ms step-start;
+}
+
+body.is-summary-open .package-summary {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 40;
+  width: min(420px, calc(100% - 32px));
+  height: 100dvh;
+  max-height: none;
+  border-left: 1px solid var(--line);
+  box-shadow: -24px 0 64px hsl(28 16% 12% / 0.25);
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+  transition:
+    opacity 260ms ease,
+    visibility 260ms step-start,
+    transform 360ms var(--ease);
+}
+
+body.is-summary-open .package-summary__close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  place-items: center;
+}
+
+body.is-summary-open .package-summary__close svg {
+  width: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.7;
+}
+
 .package-summary__eyebrow {
   margin-bottom: 12px;
 }

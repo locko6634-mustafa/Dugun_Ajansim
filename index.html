@@ -74,7 +74,7 @@
       </div>
     </div>
 
-    <header class="site-header" id="anasayfa">
+    <header class="site-header">
       <a class="brand" href="#anasayfa" aria-label="Düğünajansım ana sayfa">
         <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true">
           <path d="M11 7h19c16 0 27 10 27 25S46 57 30 57H11V7Z" />
@@ -126,7 +126,7 @@
 
     <div class="mobile-menu" id="mobile-menu" aria-hidden="true">
       <nav aria-label="Mobil navigasyon">
-        <a href="#anasayfa">Anasayfa</a>
+        <a class="is-active" href="#anasayfa">Anasayfa</a>
         <a href="#hakkimizda">Hakkımızda</a>
         <a href="#konseptler">Konseptlerimiz</a>
         <a href="#hizmetler">Hizmetlerimiz</a>
@@ -140,7 +140,7 @@
     </div>
 
     <main>
-      <section class="hero" aria-labelledby="hero-title">
+      <section class="hero" id="anasayfa" aria-labelledby="hero-title">
         <div class="hero__inner">
           <div class="hero__copy">
             <div class="proof-pill" aria-label="Hizmet özeti">
@@ -351,7 +351,7 @@
         <div class="benefits-divider" aria-hidden="true"><span>✦</span></div>
       </section>
 
-      <section class="legacy-section" aria-labelledby="legacy-title">
+      <section class="legacy-section" id="konseptler" aria-labelledby="legacy-title">
         <div class="legacy-intro">
           <svg
             class="legacy-botanical legacy-botanical--left"
@@ -781,9 +781,9 @@
                   Doğal anlarınızı zarif kadrajlar ve özenli rötuşlarla zamansız fotoğraflara
                   dönüştürüyoruz.
                 </p>
-                <a class="service-card__link" href="paketini-olustur.html?hizmet=fotograf">
+                <button class="service-card__link" type="button" data-open-service="fotograf">
                   İncele <span aria-hidden="true">→</span>
-                </a>
+                </button>
               </div>
             </article>
 
@@ -809,9 +809,9 @@
                   Günün sesini, heyecanını ve en içten anlarını sinematik bir düğün filminde bir
                   araya getiriyoruz.
                 </p>
-                <a class="service-card__link" href="paketini-olustur.html?hizmet=video">
+                <button class="service-card__link" type="button" data-open-service="video">
                   İncele <span aria-hidden="true">→</span>
-                </a>
+                </button>
               </div>
             </article>
 
@@ -838,9 +838,9 @@
                   Mekanınızın ihtişamını ve hikâyenizin ölçeğini etkileyici hava görüntüleriyle
                   ortaya çıkarıyoruz.
                 </p>
-                <a class="service-card__link" href="paketini-olustur.html?hizmet=drone">
+                <button class="service-card__link" type="button" data-open-service="drone">
                   İncele <span aria-hidden="true">→</span>
-                </a>
+                </button>
               </div>
             </article>
 
@@ -866,9 +866,9 @@
                   Hikâyenizi müzik, hareket ve güçlü sahnelerle size özel, enerjik bir düğün klibine
                   dönüştürüyoruz.
                 </p>
-                <a class="service-card__link" href="paketini-olustur.html?hizmet=klip">
+                <button class="service-card__link" type="button" data-open-service="klip">
                   İncele <span aria-hidden="true">→</span>
-                </a>
+                </button>
               </div>
             </article>
 
@@ -896,9 +896,9 @@
                   Kutlamanın her yönünü tek çekimde kaydediyor, o özel atmosferi yeniden
                   yaşayabileceğiniz bir deneyim sunuyoruz.
                 </p>
-                <a class="service-card__link" href="paketini-olustur.html?hizmet=video360">
+                <button class="service-card__link" type="button" data-open-service="video360">
                   İncele <span aria-hidden="true">→</span>
-                </a>
+                </button>
               </div>
             </article>
 
@@ -926,9 +926,9 @@
                   Seçtiğiniz kareleri kaliteli malzemeler ve yalın bir tasarımla nesiller boyu
                   saklanacak bir albümde buluşturuyoruz.
                 </p>
-                <a class="service-card__link" href="paketini-olustur.html?hizmet=album">
+                <button class="service-card__link" type="button" data-open-service="album">
                   İncele <span aria-hidden="true">→</span>
-                </a>
+                </button>
               </div>
             </article>
           </div>
@@ -1317,8 +1317,6 @@
           </div>
         </div>
       </section>
-
-      <span id="konseptler"></span>
     </main>
 
     <footer class="site-footer" id="iletisim">
@@ -1420,6 +1418,42 @@
       <figure>
         <figcaption></figcaption>
       </figure>
+    </dialog>
+
+    <dialog class="service-detail" id="home-service-detail" aria-labelledby="home-service-detail-title">
+      <button
+        class="service-detail__close js-detail-close"
+        type="button"
+        aria-label="Hizmet detayını kapat"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+      </button>
+
+      <div class="service-detail__media">
+        <figure class="service-detail__hero">
+          <img class="js-detail-main-image" src="assets/images/hero-couple.webp" alt="" />
+          <span class="service-detail__number js-detail-number">01</span>
+        </figure>
+        <div class="service-detail__thumbs js-detail-thumbs" aria-label="Çekim örnekleri"></div>
+      </div>
+
+      <div class="service-detail__content">
+        <p class="service-detail__eyebrow">Hizmet detayı</p>
+        <h2 id="home-service-detail-title" class="js-detail-title">Hizmet detayı</h2>
+        <p class="service-detail__description js-detail-description"></p>
+        <ul class="service-detail__features js-detail-features"></ul>
+        <div class="service-detail__delivery">
+          <span>Teslim süresi</span>
+          <strong class="js-detail-delivery"></strong>
+        </div>
+        <div class="service-detail__footer">
+          <strong class="js-detail-price"></strong>
+          <a class="builder-primary js-detail-action" href="paketini-olustur.html">
+            <span>Paket Oluştur</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          </a>
+        </div>
+      </div>
     </dialog>
   </body>
 </html>

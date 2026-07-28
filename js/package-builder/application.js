@@ -128,8 +128,7 @@ function updateProgress() {
 }
 
 function setSummaryOpen(isOpen, { returnFocus = true } = {}) {
-  const isMobile = window.matchMedia("(max-width: 960px)").matches;
-  const shouldOpen = Boolean(isOpen && isMobile);
+  const shouldOpen = Boolean(isOpen);
 
   document.body.classList.toggle("is-summary-open", shouldOpen);
   summaryToggles.forEach((toggle) => {
@@ -137,17 +136,17 @@ function setSummaryOpen(isOpen, { returnFocus = true } = {}) {
     toggle.setAttribute("aria-expanded", String(shouldOpen));
   });
 
+  const isMobile = window.matchMedia("(max-width: 960px)").matches;
   if (!isMobile) {
     summaryPanel.removeAttribute("aria-hidden");
-    return;
+  } else {
+    summaryPanel.setAttribute("aria-hidden", String(!shouldOpen));
+    document
+      .querySelectorAll(".builder-header, .builder-progress, .builder-content")
+      .forEach((element) => {
+        element.inert = shouldOpen;
+      });
   }
-
-  summaryPanel.setAttribute("aria-hidden", String(!shouldOpen));
-  document
-    .querySelectorAll(".builder-header, .builder-progress, .builder-content")
-    .forEach((element) => {
-      element.inert = shouldOpen;
-    });
 
   if (shouldOpen) {
     if (returnFocus) summaryReturnFocus = document.activeElement;
@@ -334,8 +333,8 @@ paymentInputs.forEach((input) => {
   });
 });
 
-const phoneInput = checkoutForm.querySelector('input[name="phone"]');
-const transferDateInput = paymentNotificationForm.querySelector('input[name="transferDate"]');
+const phoneInput = checkoutForm?.querySelector('input[name="phone"]');
+const transferDateInput = paymentNotificationForm?.querySelector('input[name="transferDate"]');
 const MAX_RECEIPT_SIZE = 10 * 1024 * 1024;
 const ALLOWED_RECEIPT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const ALLOWED_RECEIPT_EXTENSIONS = new Set(["pdf", "jpg", "jpeg", "png"]);
@@ -632,8 +631,8 @@ const localToday = [
   String(today.getMonth() + 1).padStart(2, "0"),
   String(today.getDate()).padStart(2, "0")
 ].join("-");
-weddingDateInput.min = localToday;
-transferDateInput.max = localToday;
+if (weddingDateInput) weddingDateInput.min = localToday;
+if (transferDateInput) transferDateInput.max = localToday;
 
 const requestedService = new URL(window.location.href).searchParams.get("hizmet");
 if (requestedService && services.some((service) => service.id === requestedService)) {

@@ -1,4 +1,4 @@
-﻿body.menu-open {
+body.menu-open {
   overflow: hidden;
 }
 
@@ -1144,6 +1144,10 @@ button {
     border-bottom: 1px solid var(--line);
     font-family: var(--serif);
     font-size: 24px;
+  }
+
+  .mobile-menu nav a.is-active {
+    color: var(--gold-dark);
   }
 
   .mobile-menu .button {
