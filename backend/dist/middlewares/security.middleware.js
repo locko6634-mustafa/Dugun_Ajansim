@@ -9,10 +9,10 @@ export const configureSecurityMiddleware = (app) => {
         crossOriginEmbedderPolicy: false,
     }));
     // 2. CORS Yapılandırması
-    const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
+    const allowedOrigins = env.CORS_ORIGIN;
     app.use(cors({
         origin: (origin, callback) => {
-            if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+            if (!origin || allowedOrigins.includes(origin)) {
                 callback(null, true);
             }
             else {

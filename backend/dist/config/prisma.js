@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { env } from './env.config.js';
 export const prisma = new PrismaClient({
-    log: env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    log: env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : [],
 });
 export const checkDatabaseConnection = async () => {
     try {
@@ -9,7 +9,12 @@ export const checkDatabaseConnection = async () => {
         return true;
     }
     catch (error) {
-        console.error('❌ Veritabanı bağlantı hatası:', error);
+        if (env.NODE_ENV === 'development') {
+            console.error('❌ Veritabanı bağlantı hatası:', error);
+        }
+        else {
+            console.error('❌ Veritabanı bağlantı kontrolü başarısız oldu.');
+        }
         return false;
     }
 };
