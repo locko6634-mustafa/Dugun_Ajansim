@@ -233,25 +233,6 @@
             </label>
 
             <label class="payment-option">
-              <input type="radio" name="payment-method" value="installment" />
-              <span class="payment-option__marker" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" /></svg>
-              </span>
-              <span class="payment-option__copy">
-                <span class="payment-option__headline">
-                  <span>
-                    <strong>2 Taksit</strong>
-                    <small>Vade farksız iki eşit ödeme</small>
-                  </span>
-                </span>
-                <span class="payment-option__price">
-                  <small class="js-installment-copy">2 × 10.000 TL</small>
-                  <strong class="js-installment-total">20.000 TL</strong>
-                </span>
-              </span>
-            </label>
-
-            <label class="payment-option">
               <input type="radio" name="payment-method" value="deposit" />
               <span class="payment-option__marker" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" /></svg>
@@ -572,79 +553,18 @@
                 <div class="payment-notification-form__heading">
                   <span>02</span>
                   <div>
-                    <strong>Ödeme bildirimi</strong
-                    ><small>Havalenizden sonra bilgileri paylaşın.</small>
+                    <strong>Siparişi Tamamla</strong>
+                    <small>Havalenizi yaptıktan sonra WhatsApp üzerinden dekontunuzu iletebilirsiniz.</small>
                   </div>
                 </div>
-                <div class="payment-notification-form__grid">
-                  <label class="form-field"
-                    ><span>Gönderen ad soyad</span
-                    ><input
-                      type="text"
-                      name="senderName"
-                      autocomplete="name"
-                      required
-                      aria-describedby="sender-name-error"
-                    /><small class="form-field__error" id="sender-name-error"
-                      >Gönderen adını yazın.</small
-                    ></label
-                  >
-                  <label class="form-field"
-                    ><span>Gönderilen banka</span
-                    ><input
-                      type="text"
-                      name="senderBank"
-                      placeholder="Banka adınız"
-                      required
-                      aria-describedby="sender-bank-error"
-                    /><small class="form-field__error" id="sender-bank-error"
-                      >Banka adını yazın.</small
-                    ></label
-                  >
-                  <label class="form-field"
-                    ><span>İşlem tarihi</span
-                    ><input
-                      class="js-transfer-date"
-                      type="date"
-                      name="transferDate"
-                      required
-                      aria-describedby="transfer-date-error"
-                    /><small class="form-field__error" id="transfer-date-error"
-                      >İşlem tarihini seçin.</small
-                    ></label
-                  >
-                  <label class="form-field"
-                    ><span>Havale tutarı</span
-                    ><input
-                      class="js-notification-amount"
-                      type="text"
-                      name="transferAmount"
-                      value="18.000 TL"
-                      readonly
-                      required
-                  /></label>
-                  <label class="form-field form-field--wide form-field--file"
-                    ><span>Dekont <em>PDF, JPG veya PNG</em></span
-                    ><input
-                      class="js-receipt-input"
-                      type="file"
-                      name="receipt"
-                      accept=".pdf,image/png,image/jpeg"
-                      required
-                      aria-describedby="receipt-error"
-                    /><small class="js-receipt-name">Dekont seçilmedi.</small
-                    ><small class="form-field__error" id="receipt-error"
-                      >Dekontunuzu seçin.</small
-                    ></label
-                  >
-                </div>
+                
                 <p
                   class="payment-notification-status js-payment-notification-status"
                   role="alert"
                   tabindex="-1"
                   hidden
                 ></p>
-                <div class="builder-step__actions builder-step__actions--split">
+                <div class="builder-step__actions builder-step__actions--split" style="margin-top: 1.5rem;">
                   <button
                     class="builder-secondary js-step-back"
                     type="button"
@@ -655,9 +575,9 @@
                       <path d="m15 5-7 7 7 7M8 12h12" /></svg
                     ><span>Geri</span>
                   </button>
-                  <button class="builder-primary" type="submit">
-                    <span>Ödeme Bildirimini Tamamla</span
-                    ><svg viewBox="0 0 24 24" aria-hidden="true">
+                  <button class="builder-primary js-complete-with-whatsapp" type="submit">
+                    <span>Siparişi Tamamla & WhatsApp'tan Dekont Gönder</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M5 12h14M13 6l6 6-6 6" />
                     </svg>
                   </button>
@@ -749,8 +669,8 @@
 
         <div class="completion-success__body">
           <div class="completion-success__heading">
-            <p>Ödeme kontrol bekliyor</p>
-            <h1 class="js-completion-title" tabindex="-1">Bildirimizi <em>aldık.</em></h1>
+            <p>Siparişiniz Alındı</p>
+            <h1 class="js-completion-title" tabindex="-1">Tebrikler! Siparişinizi <em>aldık.</em></h1>
           </div>
 
           <span class="completion-check" aria-hidden="true">
@@ -761,10 +681,9 @@
           </span>
 
           <div class="completion-success__message" role="status">
-            <strong>Ödeme bildiriminiz oluşturuldu.</strong>
+            <strong>Siparişiniz başarıyla oluşturuldu.</strong>
             <p>
-              Ekibimiz havalenizi ve dekontunuzu kontrol ettikten sonra sizinle iletişime geçecek.
-              Bu ekran ödeme onayı anlamına gelmez.
+              Ödemenizi tamamladıktan sonra dekontunuzu WhatsApp hattımız üzerinden paylaşabilirsiniz. Ekibimiz en kısa sürede sizinle iletişime geçecektir.
             </p>
           </div>
 
@@ -776,18 +695,24 @@
               </svg>
             </span>
             <span>
-              <small>Ödeme bildirimi no</small>
+              <small>Sipariş Referans No</small>
               <strong class="js-booking-reference"></strong>
             </span>
           </div>
 
-          <a class="completion-primary" href="index.html">
-            <span>Ana Sayfaya Dön</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-          </a>
+          <div style="display: flex; flex-direction: column; gap: 0.75rem; width: 100%; max-width: 320px;">
+            <button class="completion-primary js-showcase-continue" type="button">
+              <span>Devam Et</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </button>
+
+            <a class="builder-secondary" href="index.html" style="justify-content: center;">
+              <span>Ana Sayfaya Dön</span>
+            </a>
+          </div>
 
           <div class="completion-contact">
-            <p>İletişim kanallarımız ödeme altyapısıyla birlikte yayınlanacaktır.</p>
+            <p>Herhangi bir sorunuz için WhatsApp hattımızdan bize ulaşabilirsiniz.</p>
           </div>
         </div>
       </div>

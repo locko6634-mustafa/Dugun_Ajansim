@@ -65,7 +65,6 @@ const checkoutForm = document.querySelector("#checkout-form");
 const orderItemsContainer = document.querySelector(".js-order-items");
 const bookingCompletion = document.querySelector(".js-booking-completion");
 const paymentNotificationForm = document.querySelector("#payment-notification-form");
-const receiptInput = document.querySelector(".js-receipt-input");
 const paymentNotificationStatus = document.querySelector(".js-payment-notification-status");
 const summaryPanel = document.querySelector(".package-summary");
 const summaryToggles = [...document.querySelectorAll(".js-summary-toggle")];
@@ -78,10 +77,6 @@ const paymentMethods = {
   cash: {
     title: "Peşin ödeme avantajı",
     copy: "Toplam paket tutarınıza %10 indirim uygulanır."
-  },
-  installment: {
-    title: "Vade farksız iki taksit",
-    copy: "İlk taksiti şimdi, ikinci taksiti ekibimizle planladığınız tarihte ödeyin."
   },
   deposit: {
     title: "5.000 TL kapora ödemesi",
@@ -106,18 +101,6 @@ function getPaymentDetails() {
       adjustmentLabel: "Peşin ödeme indirimi",
       payableLabel: "Bugün havale edilecek",
       benefit: `Peşin ödeme seçeneğiyle ${formatPrice(discount)} avantaj kazandınız.`
-    };
-  }
-
-  if (state.payment === "installment") {
-    const firstInstallment = Math.ceil(subtotal / 2);
-    return {
-      subtotal,
-      payable: firstInstallment,
-      adjustment: 0,
-      adjustmentLabel: "",
-      payableLabel: "Bugün havale edilecek ilk taksit",
-      benefit: `Toplam ${formatPrice(subtotal)} tutarını vade farksız iki eşit ödemeyle tamamlayabilirsiniz.`
     };
   }
 
@@ -235,13 +218,10 @@ function updateSummary() {
 function updatePaymentUI() {
   const subtotal = getOrderSubtotal();
   const cashTotal = Math.round(subtotal * 0.9);
-  const installment = Math.ceil(subtotal / 2);
   const method = paymentMethods[state.payment];
 
   document.querySelector(".js-cash-original").textContent = formatPrice(subtotal);
   document.querySelector(".js-cash-total").textContent = formatPrice(cashTotal);
-  document.querySelector(".js-installment-copy").textContent = `2 × ${formatPrice(installment)}`;
-  document.querySelector(".js-installment-total").textContent = formatPrice(subtotal);
   document.querySelector(".js-deposit-total").textContent = formatPrice(Math.min(5000, subtotal));
   document.querySelector(".js-payment-assurance-title").textContent = method.title;
   document.querySelector(".js-payment-assurance-copy").textContent = method.copy;
@@ -384,24 +364,7 @@ function validatePhone() {
   return isValid;
 }
 
-function validateReceipt() {
-  const file = receiptInput.files[0];
-  if (!file) {
-    receiptInput.setCustomValidity("");
-    return true;
-  }
 
-  const extension = file.name.split(".").pop()?.toLowerCase();
-  const hasAllowedType =
-    ALLOWED_RECEIPT_TYPES.has(file.type) ||
-    (!file.type && ALLOWED_RECEIPT_EXTENSIONS.has(extension));
-  const isValid = hasAllowedType && file.size <= MAX_RECEIPT_SIZE;
-  const message = !hasAllowedType
-    ? "Dekont PDF, JPG veya PNG formatında olmalıdır."
-    : "Dekont dosyası 10 MB'dan küçük olmalıdır.";
-  receiptInput.setCustomValidity(isValid ? "" : message);
-  return isValid;
-}
 
 checkoutForm.addEventListener("input", (event) => {
   if (event.target === phoneInput) validatePhone();
@@ -484,8 +447,22 @@ document.querySelectorAll(".js-copy-transfer").forEach((button) => {
   });
 });
 
+function generateWhatsAppMessage() {
+  const payment = getPaymentDetails();
+  const base = basePackages[state.base];
+  const extras = getSelectedExtras().map((s) => s.name).join(", ") || "Yok";
+  const refNo = state.transferReference || `DA-${Math.floor(100000 + Math.random() * 900000)}`;
+  state.transferReference = refNo;
+
+  return `Merhaba Düğünajansım Ekibi,\n\nPaket siparişimi oluşturdum. Dekontumu paylaşmak istiyorum.\n\n📋 *Sipariş Kodu:* ${refNo}\n👤 *Ad Soyad:* ${state.customer.fullName || "—"}\n📞 *Telefon:* ${state.customer.phone || "—"}\n📅 *Düğün Tarihi:* ${formatWeddingDate(state.customer.weddingDate)}\n📍 *Mekân:* ${state.customer.venue || "—"}\n\n🎁 *Paket:* ${base?.name || "Mini Paket"}\n➕ *Ek Hizmetler:* ${extras}\n💰 *Ödenecek Tutar:* ${formatPrice(payment.payable)} (${payment.payableLabel})\n\nDekontum ektedir.`;
+}
+
+function getWhatsAppUrl() {
+  const phone = transferAccount?.whatsappPhone || "905510653051";
+  return `https://wa.me/${phone}?text=${encodeURIComponent(generateWhatsAppMessage())}`;
+}
+
 function validatePaymentNotificationForm() {
-  validateReceipt();
   const requiredFields = [...paymentNotificationForm.querySelectorAll("[required]")];
   requiredFields.forEach((input) => {
     setFieldValidity(input, input.validity.valid);
@@ -494,65 +471,34 @@ function validatePaymentNotificationForm() {
 }
 
 function setPaymentNotificationStatus(message, type = "error") {
+  if (!paymentNotificationStatus) return;
   paymentNotificationStatus.textContent = message;
   paymentNotificationStatus.dataset.status = type;
   paymentNotificationStatus.hidden = !message;
 }
 
-paymentNotificationForm.addEventListener("input", (event) => {
-  const field = event.target.closest(".form-field");
-  if (field && event.target.validity.valid) setFieldValidity(event.target, true);
-});
+if (paymentNotificationForm) {
+  paymentNotificationForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const firstInvalid = validatePaymentNotificationForm();
+    if (firstInvalid) {
+      firstInvalid.focus();
+      return;
+    }
 
-receiptInput.addEventListener("change", () => {
-  const receiptName = receiptInput.files[0]?.name || "Dekont seçilmedi.";
-  document.querySelector(".js-receipt-name").textContent = receiptName;
-  validateReceipt();
-  if (receiptInput.validity.valid) setFieldValidity(receiptInput, true);
-});
+    const refNo = state.transferReference || `DA-${Math.floor(100000 + Math.random() * 900000)}`;
+    state.transferReference = refNo;
 
-paymentNotificationForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const firstInvalid = validatePaymentNotificationForm();
-  if (firstInvalid) {
-    firstInvalid.focus();
-    return;
-  }
+    const waUrl = getWhatsAppUrl();
 
-  if (!paymentNotificationEndpoint) {
-    setPaymentNotificationStatus(
-      "Ödeme bildirimi şu anda yalnızca önizleme modunda. Backend bağlantısı kurulmadan bildirim gönderilemez ve başarı ekranı açılamaz."
-    );
-    paymentNotificationStatus.focus({ preventScroll: true });
-    return;
-  }
+    // Başarı ekranındaki referans numarasını güncelle
+    const refElement = document.querySelector(".js-booking-reference");
+    if (refElement) refElement.textContent = refNo;
 
-  const submitButton = paymentNotificationForm.querySelector('button[type="submit"]');
-  const formData = new FormData(paymentNotificationForm);
-  formData.append("transferReference", state.transferReference);
-  formData.append("paymentMethod", state.payment);
-  formData.append("customer", JSON.stringify(state.customer));
-  formData.append("basePackage", state.base);
-  formData.append("services", JSON.stringify([...state.extras]));
+    // Otomatik yeni sekmede WhatsApp aç
+    window.open(waUrl, "_blank");
 
-  submitButton.disabled = true;
-  submitButton.setAttribute("aria-busy", "true");
-  setPaymentNotificationStatus("Ödeme bildirimi gönderiliyor…", "pending");
-
-  try {
-    const response = await fetch(paymentNotificationEndpoint, {
-      method: "POST",
-      body: formData,
-      headers: { Accept: "application/json" }
-    });
-
-    if (!response.ok) throw new Error(`payment-notification-${response.status}`);
-
-    const result = await response.json();
-    if (!result?.success || !result.reference) throw new Error("invalid-payment-response");
-
-    document.querySelector(".js-booking-reference").textContent = result.reference;
-    setPaymentNotificationStatus("");
+    // Başarı modalını göster
     bookingCompletion.hidden = false;
     document.body.classList.add("is-completion-open");
     document
@@ -561,17 +507,64 @@ paymentNotificationForm.addEventListener("submit", async (event) => {
         element.inert = true;
         element.setAttribute("aria-hidden", "true");
       });
-    document.querySelector(".js-completion-title").focus({ preventScroll: true });
-  } catch {
-    setPaymentNotificationStatus(
-      "Ödeme bildirimi gönderilemedi. Bilgileriniz gönderilmedi; lütfen daha sonra tekrar deneyin."
-    );
-    paymentNotificationStatus.focus({ preventScroll: true });
-  } finally {
-    submitButton.disabled = false;
-    submitButton.removeAttribute("aria-busy");
+    
+    const completionTitle = document.querySelector(".js-completion-title");
+    if (completionTitle) completionTitle.focus({ preventScroll: true });
+  });
+}
+
+const bookingInfoDialog = document.querySelector(".js-booking-info");
+const bookingInfoOpenBtn = document.querySelector(".js-booking-info-open");
+const bookingInfoCloseBtns = document.querySelectorAll(".js-booking-info-close");
+
+function openBookingInfo() {
+  if (bookingInfoDialog) {
+    if (typeof bookingInfoDialog.showModal === "function") {
+      bookingInfoDialog.showModal();
+    } else {
+      bookingInfoDialog.setAttribute("open", "");
+    }
   }
+}
+
+function closeBookingInfo() {
+  if (bookingInfoDialog) {
+    if (typeof bookingInfoDialog.close === "function") {
+      bookingInfoDialog.close();
+    } else {
+      bookingInfoDialog.removeAttribute("open");
+    }
+  }
+}
+
+if (bookingInfoOpenBtn) {
+  bookingInfoOpenBtn.addEventListener("click", openBookingInfo);
+}
+
+bookingInfoCloseBtns.forEach((btn) => {
+  btn.addEventListener("click", closeBookingInfo);
 });
+
+if (bookingInfoDialog) {
+  bookingInfoDialog.addEventListener("click", (event) => {
+    if (event.target === bookingInfoDialog) closeBookingInfo();
+  });
+}
+
+const continueBtn = document.querySelector(".js-showcase-continue");
+if (continueBtn) {
+  continueBtn.addEventListener("click", () => {
+    const successView = document.querySelector(".js-completion-success");
+    const showcaseView = document.querySelector(".js-completion-showcase");
+    if (successView && showcaseView) {
+      successView.hidden = true;
+      showcaseView.hidden = false;
+      openBookingInfo();
+    } else {
+      window.location.href = "index.html";
+    }
+  });
+}
 
 filterButtons.forEach((button) => {
   button.addEventListener("click", () => {
