@@ -1,3 +1,6 @@
+import { createUncaughtExceptionHandler } from './utils/processLifecycle.js';
+import type { GracefulShutdown } from './utils/processLifecycle.js';
+
 const logFatalError = (message: string, error: unknown): void => {
   console.error(message);
 
@@ -6,16 +9,21 @@ const logFatalError = (message: string, error: unknown): void => {
   }
 };
 
+let gracefulShutdown: GracefulShutdown | undefined;
+
 // Statik uygulama importlarından önce kurulur; başlangıç hatalarını da kapsar.
-process.on('uncaughtException', (error: unknown) => {
-  logFatalError('💥 UNCAUGHT EXCEPTION! Sunucu kapatılıyor...', error);
-  process.exit(1);
-});
+process.on(
+  'uncaughtException',
+  createUncaughtExceptionHandler({
+    getGracefulShutdown: () => gracefulShutdown,
+    logFatalError,
+  })
+);
 
 const start = async (): Promise<void> => {
   try {
     const { startServer } = await import('./bootstrap.js');
-    startServer();
+    gracefulShutdown = startServer();
   } catch (error) {
     logFatalError('💥 STARTUP ERROR! Sunucu başlatılamadı.', error);
     process.exit(1);

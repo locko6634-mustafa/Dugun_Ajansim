@@ -10,6 +10,8 @@ import { createGlobalErrorHandler } from '../src/middlewares/error.middleware.js
 import { validateCorsOrigin } from '../src/middlewares/security.middleware.js';
 import { validateRequest } from '../src/middlewares/validate.middleware.js';
 import { AppError } from '../src/utils/appError.js';
+import { createUncaughtExceptionHandler } from '../src/utils/processLifecycle.js';
+import type { GracefulShutdown } from '../src/utils/processLifecycle.js';
 
 const validEnvironment: NodeJS.ProcessEnv = {
   PORT: '5000',
@@ -154,6 +156,42 @@ test('operasyonel AppError durum kodunu ve güvenli ayrıntıları korur', () =>
   assert.equal(mock.getStatusCode(), 400);
   assert.equal(mock.getBody().message, 'Girdi doğrulama hatası');
   assert.deepEqual(mock.getBody().errors, details);
+});
+
+test('production ortamında operasyonel 500 hata ayrıntılarını da gizler', () => {
+  const mock = createMockResponse();
+  const handler = createGlobalErrorHandler('production', () => undefined);
+
+  handler(
+    new AppError('gizli veritabanı ayrıntısı', 500, true, [{ secret: 'gizli' }]),
+    {} as Request,
+    mock.response,
+    (() => undefined) as NextFunction
+  );
+
+  assert.equal(mock.getStatusCode(), 500);
+  assert.equal(mock.getBody().message, 'Bir hata oluştu.');
+  assert.equal('errors' in mock.getBody(), false);
+  assert.equal('stack' in mock.getBody(), false);
+  assert.equal(typeof mock.getBody().errorId, 'string');
+});
+
+test('uncaught exception çalışan sunucuda güvenli kapanışı tetikler', () => {
+  const calls: Array<{ signal: string; exitCode: number }> = [];
+  const gracefulShutdown: GracefulShutdown = async (signal, exitCode) => {
+    calls.push({ signal, exitCode });
+  };
+  const handler = createUncaughtExceptionHandler({
+    getGracefulShutdown: () => gracefulShutdown,
+    logFatalError: () => undefined,
+    exit: (() => {
+      throw new Error('process.exit çağrılmamalı');
+    }) as (code: number) => never,
+  });
+
+  handler(new Error('beklenmeyen hata'));
+
+  assert.deepEqual(calls, [{ signal: 'UNCAUGHT_EXCEPTION', exitCode: 1 }]);
 });
 
 test('request validator geçersiz girdiyi AppError olarak iletir', async () => {

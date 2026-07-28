@@ -1,10 +1,11 @@
 import app from './app.js';
 import { env } from './config/env.config.js';
 import { prisma } from './config/prisma.js';
+import type { GracefulShutdown } from './utils/processLifecycle.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
-export const startServer = (): void => {
+export const startServer = (): GracefulShutdown => {
   const server = app.listen(env.PORT, () => {
     console.log(`🚀 Düğün Ajansım Backend Sunucusu Çalışıyor: http://localhost:${env.PORT}`);
     console.log(`🛡️ Ortam: ${env.NODE_ENV}`);
@@ -91,4 +92,6 @@ export const startServer = (): void => {
 
   process.on('SIGTERM', () => void gracefulShutdown('SIGTERM', 0));
   process.on('SIGINT', () => void gracefulShutdown('SIGINT', 0));
+
+  return gracefulShutdown;
 };

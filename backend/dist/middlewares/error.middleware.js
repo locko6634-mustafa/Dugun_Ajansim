@@ -9,6 +9,7 @@ export const createGlobalErrorHandler = (environment = env.NODE_ENV, logError = 
     const message = err.message || 'Sunucu içi bir hata oluştu.';
     const errors = err instanceof AppError ? err.errors : undefined;
     const isOperational = err instanceof AppError && err.isOperational;
+    const canExposeDetails = isOperational && statusCode < 500;
     const errorId = randomUUID();
     if (!isOperational || statusCode >= 500) {
         const logEntry = {
@@ -45,8 +46,8 @@ export const createGlobalErrorHandler = (environment = env.NODE_ENV, logError = 
             success: false,
             status: 'error',
             statusCode,
-            message: isOperational ? message : 'Bir hata oluştu.',
-            ...(isOperational && errors ? { errors } : {}),
+            message: canExposeDetails ? message : 'Bir hata oluştu.',
+            ...(canExposeDetails && errors ? { errors } : {}),
             ...(!isOperational || statusCode >= 500 ? { errorId } : {}),
         });
     }

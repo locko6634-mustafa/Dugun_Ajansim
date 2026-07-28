@@ -77,4 +77,5 @@ export const startServer = () => {
     });
     process.on('SIGTERM', () => void gracefulShutdown('SIGTERM', 0));
     process.on('SIGINT', () => void gracefulShutdown('SIGINT', 0));
+    return gracefulShutdown;
 };
