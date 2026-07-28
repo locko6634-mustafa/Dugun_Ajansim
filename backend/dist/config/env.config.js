@@ -33,6 +33,7 @@ const envSchema = z.object({
     CORS_ORIGIN: corsOriginSchema,
     DATABASE_URL: databaseUrlSchema,
 });
+export const parseEnvironment = (environment) => envSchema.parse(environment);
 const parseEnv = () => {
     const result = envSchema.safeParse(process.env);
     if (!result.success) {

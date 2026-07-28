@@ -44,6 +44,8 @@ const envSchema = z.object({
   DATABASE_URL: databaseUrlSchema,
 });
 
+export const parseEnvironment = (environment: NodeJS.ProcessEnv) => envSchema.parse(environment);
+
 const parseEnv = () => {
   const result = envSchema.safeParse(process.env);
 

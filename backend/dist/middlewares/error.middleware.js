@@ -1,10 +1,10 @@
 import { AppError } from '../utils/appError.js';
 import { env } from '../config/env.config.js';
-export const globalErrorHandler = (err, _req, res, _next) => {
+export const createGlobalErrorHandler = (environment = env.NODE_ENV) => (err, _req, res, _next) => {
     const statusCode = err instanceof AppError ? err.statusCode : 500;
     const message = err.message || 'Sunucu içi bir hata oluştu.';
     const errors = err instanceof AppError ? err.errors : undefined;
-    if (env.NODE_ENV === 'development') {
+    if (environment === 'development') {
         res.status(statusCode).json({
             success: false,
             status: 'error',
@@ -25,3 +25,4 @@ export const globalErrorHandler = (err, _req, res, _next) => {
         });
     }
 };
+export const globalErrorHandler = createGlobalErrorHandler();
