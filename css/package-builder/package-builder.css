@@ -1403,6 +1403,8 @@ button {
   z-index: 35;
   inset: 0;
   display: none;
+  padding: 0;
+  border: 0;
   background: hsl(28 14% 10% / 0.55);
   opacity: 0;
   visibility: hidden;
@@ -1619,12 +1621,6 @@ body.is-summary-open .package-summary__close svg {
   color: hsl(28 6% 49%);
   font-size: 8px;
   line-height: 1.55;
-}
-
-.summary-backdrop {
-  display: none;
-  padding: 0;
-  border: 0;
 }
 
 .service-detail {
@@ -2684,6 +2680,18 @@ body.is-completion-open {
   outline: 2px solid hsl(38 55% 31%);
   outline-offset: 3px;
   transform: translateY(-2px);
+}
+
+.completion-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 320px;
+}
+
+.builder-secondary--centered {
+  justify-content: center;
 }
 
 .completion-contact {

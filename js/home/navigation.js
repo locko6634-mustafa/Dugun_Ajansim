@@ -91,7 +91,7 @@ document.querySelectorAll("a[href^='#']").forEach((link) => {
         if (targetId === "anasayfa") {
           event.preventDefault();
           window.scrollTo({ top: 0, behavior: "smooth" });
-          history.pushState(null, "", "#anasayfa");
+          window.history.pushState(null, "", "#anasayfa");
         }
         setActiveNav(targetId);
         isManualClick = true;

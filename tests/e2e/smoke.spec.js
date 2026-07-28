@@ -79,12 +79,11 @@ test("paketini olustur sayfasinda masaustunde sepet acilip kapanir", async ({ pa
     await page.goto("/paketini-olustur.html");
     const bagButton = page.locator(".builder-bag");
     const closeButton = page.locator(".package-summary__close");
-    
+
     await bagButton.click();
     await expect(page.locator("body")).toHaveClass(/is-summary-open/);
-    
+
     await closeButton.click();
     await expect(page.locator("body")).not.toHaveClass(/is-summary-open/);
   }
 });
-
