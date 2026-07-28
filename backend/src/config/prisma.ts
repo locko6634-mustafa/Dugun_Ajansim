@@ -17,42 +17,50 @@ const defaultDatabaseHealthLogger: DatabaseHealthLogger = (message, error) => {
   console.error(message, error);
 };
 
+export const createPrismaDatabaseHealthQuery =
+  (client: PrismaClient, timeoutMs: number): DatabaseHealthQuery =>
+  () =>
+    client.$transaction(
+      async (transaction) => transaction.$queryRaw`SELECT 1`,
+      {
+        maxWait: timeoutMs,
+        timeout: timeoutMs,
+      }
+    );
+
 export const createDatabaseConnectionChecker =
   (
     query: DatabaseHealthQuery,
-    timeoutMs: number,
     environment: string = env.NODE_ENV,
     logError: DatabaseHealthLogger = defaultDatabaseHealthLogger
-  ) =>
-  async (): Promise<boolean> => {
-    let timeout: NodeJS.Timeout | undefined;
+  ) => {
+    let inFlightCheck: Promise<boolean> | undefined;
 
-    try {
-      await Promise.race([
-        query(),
-        new Promise<never>((_resolve, reject) => {
-          timeout = setTimeout(
-            () => reject(new Error('DATABASE_HEALTHCHECK_TIMEOUT')),
-            timeoutMs
-          );
-        }),
-      ]);
-      return true;
-    } catch (error) {
-      if (environment === 'development') {
-        logError('❌ Veritabanı bağlantı hatası:', error);
-      } else {
-        logError('❌ Veritabanı bağlantı kontrolü başarısız oldu.');
+    const runCheck = async (): Promise<boolean> => {
+      try {
+        await query();
+        return true;
+      } catch (error) {
+        if (environment === 'development') {
+          logError('❌ Veritabanı bağlantı hatası:', error);
+        } else {
+          logError('❌ Veritabanı bağlantı kontrolü başarısız oldu.');
+        }
+        return false;
       }
-      return false;
-    } finally {
-      if (timeout) {
-        clearTimeout(timeout);
+    };
+
+    return (): Promise<boolean> => {
+      if (!inFlightCheck) {
+        inFlightCheck = runCheck().finally(() => {
+          inFlightCheck = undefined;
+        });
       }
-    }
+
+      return inFlightCheck;
+    };
   };
 
 export const checkDatabaseConnection = createDatabaseConnectionChecker(
-  () => prisma.$queryRaw`SELECT 1`,
-  env.HEALTHCHECK_TIMEOUT_MS
+  createPrismaDatabaseHealthQuery(prisma, env.HEALTHCHECK_TIMEOUT_MS)
 );

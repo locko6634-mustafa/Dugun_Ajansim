@@ -4,11 +4,28 @@ import { env } from '../config/env.config.js';
 const defaultErrorLogger = (entry) => {
     console.error(JSON.stringify(entry));
 };
+const resolveStatusCode = (error) => {
+    if (error instanceof AppError) {
+        return error.statusCode;
+    }
+    const errorWithStatus = error;
+    const candidate = errorWithStatus.statusCode ?? errorWithStatus.status;
+    return typeof candidate === 'number' &&
+        Number.isInteger(candidate) &&
+        candidate >= 400 &&
+        candidate <= 599
+        ? candidate
+        : 500;
+};
 export const createGlobalErrorHandler = (environment = env.NODE_ENV, logError = defaultErrorLogger) => (err, req, res, _next) => {
-    const statusCode = err instanceof AppError ? err.statusCode : 500;
+    const statusCode = resolveStatusCode(err);
     const message = err.message || 'Sunucu içi bir hata oluştu.';
     const errors = err instanceof AppError ? err.errors : undefined;
-    const isOperational = err instanceof AppError && err.isOperational;
+    const isOperational = (err instanceof AppError && err.isOperational) ||
+        (!(err instanceof AppError) &&
+            statusCode >= 400 &&
+            statusCode < 500 &&
+            err.expose === true);
     const canExposeDetails = isOperational && statusCode < 500;
     const errorId = randomUUID();
     if (!isOperational || statusCode >= 500) {

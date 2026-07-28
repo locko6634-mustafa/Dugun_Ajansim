@@ -1,13 +1,30 @@
 import { randomUUID } from 'node:crypto';
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/appError.js';
 import { env } from '../config/env.config.js';
 
 type ErrorLogEntry = Record<string, unknown>;
 type ErrorLogger = (entry: ErrorLogEntry) => void;
+type ErrorWithStatus = Error & { expose?: unknown; status?: unknown; statusCode?: unknown };
 
 const defaultErrorLogger: ErrorLogger = (entry) => {
   console.error(JSON.stringify(entry));
+};
+
+const resolveStatusCode = (error: Error | AppError): number => {
+  if (error instanceof AppError) {
+    return error.statusCode;
+  }
+
+  const errorWithStatus = error as ErrorWithStatus;
+  const candidate = errorWithStatus.statusCode ?? errorWithStatus.status;
+
+  return typeof candidate === 'number' &&
+    Number.isInteger(candidate) &&
+    candidate >= 400 &&
+    candidate <= 599
+    ? candidate
+    : 500;
 };
 
 export const createGlobalErrorHandler = (
@@ -20,10 +37,15 @@ export const createGlobalErrorHandler = (
     res: Response,
     _next: NextFunction
   ): void => {
-    const statusCode = err instanceof AppError ? err.statusCode : 500;
+    const statusCode = resolveStatusCode(err);
     const message = err.message || 'Sunucu içi bir hata oluştu.';
     const errors = err instanceof AppError ? err.errors : undefined;
-    const isOperational = err instanceof AppError && err.isOperational;
+    const isOperational =
+      (err instanceof AppError && err.isOperational) ||
+      (!(err instanceof AppError) &&
+        statusCode >= 400 &&
+        statusCode < 500 &&
+        (err as ErrorWithStatus).expose === true);
     const canExposeDetails = isOperational && statusCode < 500;
     const errorId = randomUUID();
 

@@ -1,6 +1,7 @@
 import app from './app.js';
 import { env } from './config/env.config.js';
 import { prisma } from './config/prisma.js';
+import { createGracefulShutdown } from './utils/processLifecycle.js';
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 export const startServer = () => {
     const server = app.listen(env.PORT, () => {
@@ -8,9 +9,8 @@ export const startServer = () => {
         console.log(`🛡️ Ortam: ${env.NODE_ENV}`);
         console.log(`🏥 Healthcheck Endpoint: http://localhost:${env.PORT}/api/v1/health`);
     });
-    let isShuttingDown = false;
     const logShutdownError = (message, error) => {
-        if (env.NODE_ENV === 'development') {
+        if (env.NODE_ENV === 'development' && error !== undefined) {
             console.error(message, error);
         }
         else {
@@ -30,46 +30,14 @@ export const startServer = () => {
             resolve();
         });
     });
-    const gracefulShutdown = async (signal, exitCode) => {
-        if (isShuttingDown) {
-            return;
-        }
-        isShuttingDown = true;
-        console.log(`👋 ${signal} alındı. Sunucu kapatılıyor...`);
-        const forceShutdownTimer = setTimeout(() => {
-            console.error('💥 Güvenli kapanış zaman aşımına uğradı. Açık bağlantılar sonlandırılıyor.');
-            server.closeAllConnections();
-            const hardExitTimer = setTimeout(() => process.exit(1), 1_000);
-            hardExitTimer.unref();
-            void prisma
-                .$disconnect()
-                .catch((error) => logShutdownError('❌ Prisma bağlantısı zorla kapatılamadı.', error))
-                .finally(() => {
-                clearTimeout(hardExitTimer);
-                process.exit(1);
-            });
-        }, SHUTDOWN_TIMEOUT_MS);
-        forceShutdownTimer.unref();
-        try {
-            await closeHttpServer();
-            await prisma.$disconnect();
-            console.log('✅ Sunucu ve veritabanı bağlantıları güvenle kapatıldı.');
-            process.exit(exitCode);
-        }
-        catch (error) {
-            logShutdownError('❌ Güvenli kapanış sırasında hata oluştu.', error);
-            try {
-                await prisma.$disconnect();
-            }
-            catch (disconnectError) {
-                logShutdownError('❌ Prisma bağlantısı kapatılamadı.', disconnectError);
-            }
-            process.exit(1);
-        }
-        finally {
-            clearTimeout(forceShutdownTimer);
-        }
-    };
+    const gracefulShutdown = createGracefulShutdown({
+        closeHttpServer,
+        forceCloseHttpConnections: () => server.closeAllConnections(),
+        disconnectDatabase: () => prisma.$disconnect(),
+        logInfo: console.log,
+        logError: logShutdownError,
+        timeoutMs: SHUTDOWN_TIMEOUT_MS,
+    });
     process.on('unhandledRejection', (error) => {
         console.error('💥 UNHANDLED REJECTION! Sunucu kapatılıyor...');
         logShutdownError('❌ İşlenmeyen asenkron hata oluştu.', error);

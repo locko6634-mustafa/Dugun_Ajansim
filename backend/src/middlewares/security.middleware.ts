@@ -1,7 +1,7 @@
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import { Express } from 'express';
+import type { Express } from 'express';
 import { env } from '../config/env.config.js';
 import { AppError } from '../utils/appError.js';
 
