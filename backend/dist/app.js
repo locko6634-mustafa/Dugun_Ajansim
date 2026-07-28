@@ -1,10 +1,13 @@
 import express from 'express';
 import hpp from 'hpp';
+import { env } from './config/env.config.js';
 import { configureSecurityMiddleware } from './middlewares/security.middleware.js';
 import { globalErrorHandler } from './middlewares/error.middleware.js';
 import healthRoutes from './routes/health.routes.js';
 import { AppError } from './utils/appError.js';
 const app = express();
+// Yalnızca bilinen reverse proxy hop sayısını güvenilir kabul et (0 = doğrudan bağlantı).
+app.set('trust proxy', env.TRUST_PROXY);
 // Güvenlik Katmanı Middleware'leri (Helmet, CORS, Rate Limit)
 configureSecurityMiddleware(app);
 // Body Parser Middleware

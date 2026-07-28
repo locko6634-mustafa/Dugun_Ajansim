@@ -3,11 +3,14 @@ import { AppError } from '../utils/appError.js';
 export const validateRequest = (schema) => {
     return async (req, _res, next) => {
         try {
-            await schema.parseAsync({
+            const validatedRequest = await schema.parseAsync({
                 body: req.body,
                 query: req.query,
                 params: req.params,
             });
+            req.body = validatedRequest.body;
+            req.query = validatedRequest.query;
+            req.params = validatedRequest.params;
             next();
         }
         catch (error) {

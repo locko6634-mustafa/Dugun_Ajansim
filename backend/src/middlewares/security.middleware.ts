@@ -3,6 +3,20 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { Express } from 'express';
 import { env } from '../config/env.config.js';
+import { AppError } from '../utils/appError.js';
+
+export const validateCorsOrigin = (
+  allowedOrigins: readonly string[],
+  origin: string | undefined,
+  callback: (error: Error | null, allowed?: boolean) => void
+): void => {
+  if (!origin || allowedOrigins.includes(origin)) {
+    callback(null, true);
+    return;
+  }
+
+  callback(new AppError('CORS politikası bu origin için erişime izin vermiyor.', 403));
+};
 
 export const configureSecurityMiddleware = (app: Express): void => {
   // 1. Helmet Security Headers
@@ -18,11 +32,7 @@ export const configureSecurityMiddleware = (app: Express): void => {
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error(`CORS politikası engelledi: ${origin}`));
-        }
+        validateCorsOrigin(allowedOrigins, origin, callback);
       },
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

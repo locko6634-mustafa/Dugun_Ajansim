@@ -4,8 +4,10 @@ import test from 'node:test';
 import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import { parseEnvironment } from '../src/config/env.config.js';
+import { createDatabaseConnectionChecker } from '../src/config/prisma.js';
 import { createSystemHealthHandler } from '../src/controllers/health.controller.js';
 import { createGlobalErrorHandler } from '../src/middlewares/error.middleware.js';
+import { validateCorsOrigin } from '../src/middlewares/security.middleware.js';
 import { validateRequest } from '../src/middlewares/validate.middleware.js';
 import { AppError } from '../src/utils/appError.js';
 
@@ -14,6 +16,8 @@ const validEnvironment: NodeJS.ProcessEnv = {
   NODE_ENV: 'test',
   CORS_ORIGIN: 'http://localhost:3000/,https://example.com',
   DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/dugun_ajansim',
+  TRUST_PROXY: '0',
+  HEALTHCHECK_TIMEOUT_MS: '3000',
 };
 
 const createMockResponse = () => {
@@ -43,9 +47,51 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
 
   assert.equal(parsed.PORT, 5000);
   assert.deepEqual(parsed.CORS_ORIGIN, ['http://localhost:3000', 'https://example.com']);
+  assert.equal(parsed.TRUST_PROXY, 0);
+  assert.equal(parsed.HEALTHCHECK_TIMEOUT_MS, 3000);
   assert.throws(() => parseEnvironment({ ...validEnvironment, PORT: '5000abc' }));
   assert.throws(() => parseEnvironment({ ...validEnvironment, CORS_ORIGIN: '*' }));
   assert.throws(() => parseEnvironment({ ...validEnvironment, DATABASE_URL: 'mysql://localhost/test' }));
+  assert.throws(() =>
+    parseEnvironment({
+      ...validEnvironment,
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/dugun_ajansim',
+    })
+  );
+
+  const productionEnvironment = parseEnvironment({
+    ...validEnvironment,
+    NODE_ENV: 'production',
+    DATABASE_URL:
+      'postgresql://app_user:guclu-bir-production-parolasi@db.example.com:5432/dugun_ajansim?sslmode=require',
+  });
+  assert.equal(productionEnvironment.NODE_ENV, 'production');
+});
+
+test('veritabanı healthcheck belirlenen sürede başarısız olur', async () => {
+  const checker = createDatabaseConnectionChecker(
+    () => new Promise(() => undefined),
+    25,
+    'test',
+    () => undefined
+  );
+  const startedAt = Date.now();
+
+  assert.equal(await checker(), false);
+  assert.ok(Date.now() - startedAt < 250);
+});
+
+test('izin verilmeyen CORS origin operasyonel 403 hatası üretir', () => {
+  let corsError: Error | null = null;
+
+  validateCorsOrigin(['https://example.com'], 'https://attacker.example', (error) => {
+    corsError = error;
+  });
+
+  assert.ok(corsError instanceof AppError);
+  assert.equal(corsError.statusCode, 403);
+  assert.equal(corsError.message.includes('attacker.example'), false);
 });
 
 test('production health yanıtı sistem ayrıntılarını dışarı açmaz', async () => {
@@ -74,7 +120,8 @@ test('development health yanıtı tanılama ayrıntılarını korur', async () =
 
 test('production hata yanıtı beklenmeyen hata ayrıntılarını gizler', () => {
   const mock = createMockResponse();
-  const handler = createGlobalErrorHandler('production');
+  const logs: Record<string, unknown>[] = [];
+  const handler = createGlobalErrorHandler('production', (entry) => logs.push(entry));
 
   handler(
     new Error('gizli sistem ayrıntısı'),
@@ -86,6 +133,10 @@ test('production hata yanıtı beklenmeyen hata ayrıntılarını gizler', () =>
   assert.equal(mock.getStatusCode(), 500);
   assert.equal(mock.getBody().message, 'Bir hata oluştu.');
   assert.equal('stack' in mock.getBody(), false);
+  assert.equal(typeof mock.getBody().errorId, 'string');
+  assert.equal(logs.length, 1);
+  assert.equal('message' in logs[0], false);
+  assert.equal('stack' in logs[0], false);
 });
 
 test('operasyonel AppError durum kodunu ve güvenli ayrıntıları korur', () => {
@@ -126,6 +177,34 @@ test('request validator geçersiz girdiyi AppError olarak iletir', async () => {
   assert.equal(forwardedError.statusCode, 400);
 });
 
+test('request validator normalize edilmiş veriyi request üzerine yazar', async () => {
+  const schema = z.object({
+    body: z.object({ name: z.string().trim() }),
+    query: z.object({ page: z.coerce.number().int() }),
+    params: z.object({ id: z.string() }),
+  });
+  const middleware = validateRequest(schema);
+  const request = {
+    body: { name: '  Mustafa  ', ignored: true },
+    query: { page: '2' },
+    params: { id: 'abc' },
+  } as unknown as Request;
+  let nextCalled = false;
+
+  await middleware(
+    request,
+    {} as Response,
+    (() => {
+      nextCalled = true;
+    }) as NextFunction
+  );
+
+  assert.equal(nextCalled, true);
+  assert.deepEqual(request.body, { name: 'Mustafa' });
+  assert.deepEqual(request.query, { page: 2 });
+  assert.deepEqual(request.params, { id: 'abc' });
+});
+
 test('başlangıç yapılandırma hatası port açılmadan kontrollü biçimde sonlanır', () => {
   const result = spawnSync(process.execPath, ['dist/server.js'], {
     cwd: process.cwd(),
@@ -133,6 +212,8 @@ test('başlangıç yapılandırma hatası port açılmadan kontrollü biçimde s
       ...process.env,
       NODE_ENV: 'production',
       PORT: 'geçersiz',
+      DATABASE_URL:
+        'postgresql://app_user:guclu-bir-production-parolasi@db.example.com:5432/dugun_ajansim?sslmode=require',
     },
     encoding: 'utf8',
     timeout: 5_000,

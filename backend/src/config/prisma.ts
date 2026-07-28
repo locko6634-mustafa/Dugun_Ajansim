@@ -5,16 +5,54 @@ export const prisma = new PrismaClient({
   log: env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : [],
 });
 
-export const checkDatabaseConnection = async (): Promise<boolean> => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return true;
-  } catch (error) {
-    if (env.NODE_ENV === 'development') {
-      console.error('❌ Veritabanı bağlantı hatası:', error);
-    } else {
-      console.error('❌ Veritabanı bağlantı kontrolü başarısız oldu.');
-    }
-    return false;
+type DatabaseHealthQuery = () => Promise<unknown>;
+type DatabaseHealthLogger = (message: string, error?: unknown) => void;
+
+const defaultDatabaseHealthLogger: DatabaseHealthLogger = (message, error) => {
+  if (error === undefined) {
+    console.error(message);
+    return;
   }
+
+  console.error(message, error);
 };
+
+export const createDatabaseConnectionChecker =
+  (
+    query: DatabaseHealthQuery,
+    timeoutMs: number,
+    environment: string = env.NODE_ENV,
+    logError: DatabaseHealthLogger = defaultDatabaseHealthLogger
+  ) =>
+  async (): Promise<boolean> => {
+    let timeout: NodeJS.Timeout | undefined;
+
+    try {
+      await Promise.race([
+        query(),
+        new Promise<never>((_resolve, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error('DATABASE_HEALTHCHECK_TIMEOUT')),
+            timeoutMs
+          );
+        }),
+      ]);
+      return true;
+    } catch (error) {
+      if (environment === 'development') {
+        logError('❌ Veritabanı bağlantı hatası:', error);
+      } else {
+        logError('❌ Veritabanı bağlantı kontrolü başarısız oldu.');
+      }
+      return false;
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
+  };
+
+export const checkDatabaseConnection = createDatabaseConnectionChecker(
+  () => prisma.$queryRaw`SELECT 1`,
+  env.HEALTHCHECK_TIMEOUT_MS
+);
