@@ -27,20 +27,7 @@ export const configureSecurityMiddleware = (app: Express): void => {
     })
   );
 
-  // 2. CORS Yapılandırması
-  const allowedOrigins = env.CORS_ORIGIN;
-  app.use(
-    cors({
-      origin: (origin, callback) => {
-        validateCorsOrigin(allowedOrigins, origin, callback);
-      },
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-      credentials: true,
-    })
-  );
-
-  // 3. Rate Limiting (Genel İstek Sınırlayıcı)
+  // 2. Rate Limiting (CORS tarafından reddedilecek API isteklerini de sınırlar)
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 Dakika
     max: 100, // IP başına maks 100 istek
@@ -53,4 +40,17 @@ export const configureSecurityMiddleware = (app: Express): void => {
   });
 
   app.use('/api', globalLimiter);
+
+  // 3. CORS Yapılandırması
+  const allowedOrigins = env.CORS_ORIGIN;
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        validateCorsOrigin(allowedOrigins, origin, callback);
+      },
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      credentials: true,
+    })
+  );
 };

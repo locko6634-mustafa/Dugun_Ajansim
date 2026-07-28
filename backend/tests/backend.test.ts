@@ -34,8 +34,13 @@ const validEnvironment: NodeJS.ProcessEnv = {
 const createMockResponse = () => {
   let statusCode = 0;
   let body: unknown;
+  const headers = new Map<string, string>();
 
   const response = {
+    set(field: string, value: string) {
+      headers.set(field.toLowerCase(), value);
+      return response;
+    },
     status(code: number) {
       statusCode = code;
       return response;
@@ -50,6 +55,7 @@ const createMockResponse = () => {
     response,
     getStatusCode: () => statusCode,
     getBody: () => body as Record<string, unknown>,
+    getHeader: (field: string) => headers.get(field.toLowerCase()),
   };
 };
 
@@ -201,6 +207,7 @@ test('production health yanıtı sistem ayrıntılarını dışarı açmaz', asy
   assert.equal(mock.getBody().database, 'disconnected');
   assert.equal('environment' in mock.getBody(), false);
   assert.equal('uptime' in mock.getBody(), false);
+  assert.equal(mock.getHeader('Cache-Control'), 'no-store');
 });
 
 test('development health yanıtı tanılama ayrıntılarını korur', async () => {
@@ -490,7 +497,7 @@ test('404 yanıtı query string içeriğini yansıtmaz', async () => {
   assert.equal(response.body.message.includes('gizli-deger'), false);
 });
 
-test('genel rate limiter 101. API isteğini engeller', async () => {
+test('genel rate limiter CORS tarafından reddedilen 101. API isteğini de engeller', async () => {
   const integrationApp = createApp((application) => {
     application.get('/api/test', (_req, res) => {
       res.json({ success: true });
@@ -501,7 +508,7 @@ test('genel rate limiter 101. API isteğini engeller', async () => {
   for (let requestIndex = 0; requestIndex < 101; requestIndex += 1) {
     response = await request(integrationApp)
       .get('/api/test')
-      .set('Origin', 'http://localhost:3000');
+      .set('Origin', 'https://attacker.example');
   }
 
   assert.equal(response?.status, 429);

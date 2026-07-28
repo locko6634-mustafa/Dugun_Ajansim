@@ -1,6 +1,7 @@
 import { checkDatabaseConnection } from '../config/prisma.js';
 import { env } from '../config/env.config.js';
 export const createSystemHealthHandler = (databaseHealthCheck = checkDatabaseConnection, environment = env.NODE_ENV, getUptime = process.uptime) => async (_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
     try {
         const isDbConnected = await databaseHealthCheck();
         const diagnostics = environment === 'production'

@@ -5,11 +5,15 @@
   "type": "module",
   "description": "Düğün Ajansım Backend API ve Güvenlik Altyapısı",
   "main": "dist/server.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "typecheck:tests": "tsc --project tsconfig.test.json",
     "test": "npm run build && npm run typecheck:tests && tsx --env-file=tests/test.env --test tests/backend.test.ts",
+    "test:integration": "tsx --test tests/database.integration.test.ts",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"

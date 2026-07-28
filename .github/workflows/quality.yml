@@ -1,4 +1,4 @@
-name: Frontend quality
+name: Project quality
 
 on:
   push:
@@ -18,3 +18,41 @@ jobs:
       - run: npm run audit:performance
       - run: npx playwright install chromium
       - run: npm run test:e2e
+
+  backend-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: dugun_ajansim_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d dugun_ajansim_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      PORT: 5001
+      CORS_ORIGIN: http://localhost:3000
+      DATABASE_URL: postgresql://test_user:test_password@localhost:5432/dugun_ajansim_test
+      TRUST_PROXY: 0
+      HEALTHCHECK_TIMEOUT_MS: 3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npm test
+      - run: npm run test:integration

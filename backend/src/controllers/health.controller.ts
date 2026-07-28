@@ -10,6 +10,8 @@ export const createSystemHealthHandler = (
   getUptime: () => number = process.uptime
 ) =>
   async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    res.set('Cache-Control', 'no-store');
+
     try {
       const isDbConnected = await databaseHealthCheck();
       const diagnostics = environment === 'production'
