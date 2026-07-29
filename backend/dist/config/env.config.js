@@ -53,6 +53,11 @@ const boundedIntegerSchema = (name, minimum, maximum) => z
     .regex(/^\d+$/, `${name} yalnızca rakamlardan oluşmalıdır`)
     .transform(Number)
     .pipe(z.number().int().min(minimum).max(maximum));
+const booleanStringSchema = (name) => z
+    .enum(['true', 'false'], {
+    errorMap: () => ({ message: `${name} true veya false olmalıdır` }),
+})
+    .transform((value) => value === 'true');
 const DEVELOPMENT_ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 // Ortam değişkenlerinin tamamını denetleyen ana Zod şeması
 const envSchema = z
@@ -61,6 +66,7 @@ const envSchema = z
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     CORS_ORIGIN: corsOriginSchema,
     DATABASE_URL: databaseUrlSchema,
+    ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: booleanStringSchema('ALLOW_PRIVATE_DATABASE_WITHOUT_TLS').default('false'),
     TRUST_PROXY: boundedIntegerSchema('TRUST_PROXY', 0, 10).default('0'),
     HEALTHCHECK_TIMEOUT_MS: boundedIntegerSchema('HEALTHCHECK_TIMEOUT_MS', 250, 10_000).default('3000'),
     DATA_ENCRYPTION_KEY: z
@@ -85,6 +91,7 @@ const envSchema = z
     const sslAcceptValues = databaseUrl.searchParams.getAll('sslaccept');
     const sslMode = sslModes[0];
     const sslAccept = sslAcceptValues[0];
+    const databaseHostname = databaseUrl.hostname.toLowerCase();
     const password = decodeDatabaseCredential(databaseUrl.password);
     const username = decodeDatabaseCredential(databaseUrl.username);
     // Kullanıcı adı veya parola decode edilemiyorsa hata ver
@@ -106,15 +113,22 @@ const envSchema = z
         /\d/.test(password),
         /[^A-Za-z0-9]/.test(password),
     ].filter(Boolean).length;
-    // Production veritabanı bağlantısında sslmode=require ve sslaccept=strict kontrolü yap
-    if (sslModes.length !== 1 ||
-        sslAcceptValues.length !== 1 ||
-        sslMode?.toLowerCase() !== 'require' ||
-        sslAccept?.toLowerCase() !== 'strict') {
+    const usesStrictTls = sslModes.length === 1 &&
+        sslAcceptValues.length === 1 &&
+        sslMode?.toLowerCase() === 'require' &&
+        sslAccept?.toLowerCase() === 'strict';
+    const usesExplicitPrivateNetwork = environment.ALLOW_PRIVATE_DATABASE_WITHOUT_TLS &&
+        databaseHostname === 'postgres' &&
+        sslModes.length === 1 &&
+        sslMode?.toLowerCase() === 'disable' &&
+        sslAcceptValues.length === 0;
+    // Harici production veritabanlarında TLS zorunludur. Yalnızca izole Docker ağındaki
+    // "postgres" servisi, açık ortam onayıyla TLS olmadan kullanılabilir.
+    if (!usesStrictTls && !usesExplicitPrivateNetwork) {
         context.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['DATABASE_URL'],
-            message: 'Production DATABASE_URL sslmode=require ve sslaccept=strict içermelidir',
+            message: 'Production DATABASE_URL sslmode=require ve sslaccept=strict içermeli veya yalnızca özel postgres Docker servisi için açık TLS istisnası kullanılmalıdır',
         });
     }
     // Production veritabanı parolasının gücünü denetle (uzunluk, karmaşıklık, zayıf kelime kontrolü)

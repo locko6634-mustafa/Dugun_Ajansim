@@ -1,0 +1,115 @@
+name: dugun-ajansim
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dugun_ajansim}
+      POSTGRES_USER: ${POSTGRES_USER:-dugun_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD zorunludur}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dugun_app} -d ${POSTGRES_DB:-dugun_ajansim}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - internal
+
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dugun_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runtime
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dugun_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
+      ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
+      TRUST_PROXY: 1
+      HEALTHCHECK_TIMEOUT_MS: 3000
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY zorunludur}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-dugunajansim_session}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      REMEMBER_SESSION_TTL_DAYS: ${REMEMBER_SESSION_TTL_DAYS:-30}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5000/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge_proxy
+      - traefik.http.routers.dugun-ajansim-api.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/api/v1`)
+      - traefik.http.routers.dugun-ajansim-api.entrypoints=websecure
+      - traefik.http.routers.dugun-ajansim-api.priority=100
+      - traefik.http.routers.dugun-ajansim-api.tls=true
+      - traefik.http.routers.dugun-ajansim-api.tls.certresolver=mytlschallenge
+      - traefik.http.routers.dugun-ajansim-api.middlewares=dugun-ajansim-compress
+      - traefik.http.services.dugun-ajansim-api.loadbalancer.server.port=5000
+      - traefik.http.middlewares.dugun-ajansim-compress.compress=true
+    networks:
+      - internal
+      - edge_proxy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge_proxy
+      - traefik.http.routers.dugun-ajansim.rule=Host(`${APP_DOMAIN}`)
+      - traefik.http.routers.dugun-ajansim.entrypoints=websecure
+      - traefik.http.routers.dugun-ajansim.priority=10
+      - traefik.http.routers.dugun-ajansim.tls=true
+      - traefik.http.routers.dugun-ajansim.tls.certresolver=mytlschallenge
+      - traefik.http.routers.dugun-ajansim.middlewares=dugun-ajansim-compress
+      - traefik.http.services.dugun-ajansim.loadbalancer.server.port=80
+    networks:
+      - edge_proxy
+
+volumes:
+  postgres_data:
+
+networks:
+  internal:
+    internal: true
+  edge_proxy:
+    external: true

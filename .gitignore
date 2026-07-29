@@ -5,6 +5,7 @@ node_modules/
 # Ortam Değişkenleri ve Gizli Dosyalar
 .env
 .env.local
+.env.production
 .env.*.local
 *.pem
 *.key

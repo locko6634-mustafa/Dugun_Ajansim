@@ -125,6 +125,24 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
       'postgresql://app_user:Guclu-Production-Parolasi-2026%21@db.example.com:5432/dugun_ajansim?sslmode=require&sslaccept=strict',
   });
   assert.equal(productionEnvironment.NODE_ENV, 'production');
+
+  const privateDockerEnvironment = parseEnvironment({
+    ...validEnvironment,
+    NODE_ENV: 'production',
+    ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: 'true',
+    DATABASE_URL:
+      'postgresql://app_user:Guclu-Production-Parolasi-2026%21@postgres:5432/dugun_ajansim?sslmode=disable',
+  });
+  assert.equal(privateDockerEnvironment.ALLOW_PRIVATE_DATABASE_WITHOUT_TLS, true);
+  assert.throws(() =>
+    parseEnvironment({
+      ...validEnvironment,
+      NODE_ENV: 'production',
+      ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: 'true',
+      DATABASE_URL:
+        'postgresql://app_user:Guclu-Production-Parolasi-2026%21@db.example.com:5432/dugun_ajansim?sslmode=disable',
+    })
+  );
 });
 
 test('veritabanı healthcheck Prisma timeout kullanır ve eşzamanlı sorguları tekilleştirir', async () => {
