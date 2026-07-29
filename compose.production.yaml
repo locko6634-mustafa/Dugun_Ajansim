@@ -21,10 +21,25 @@ services:
       - internal
 
   migrate:
+    image: dugun-ajansim-migrate
     build:
       context: .
       dockerfile: backend/Dockerfile
       target: migrate
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dugun_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    restart: "no"
+
+  seed:
+    image: dugun-ajansim-migrate
+    command: ["npm", "run", "seed"]
+    profiles:
+      - bootstrap
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-dugun_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
     depends_on:

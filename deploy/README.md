@@ -13,11 +13,13 @@ cp .env.production.example .env.production
 # .env.production içindeki alan adı ve iki sırrı benzersiz değerlerle değiştirin.
 docker compose --env-file .env.production -f compose.production.yaml config
 docker compose --env-file .env.production -f compose.production.yaml up -d --build
+docker compose --env-file .env.production -f compose.production.yaml --profile bootstrap run --rm seed
 ```
 
 Compose; PostgreSQL'i yalnız izole Docker ağına açar, migration'ları çalıştırır, backend
 healthcheck'i başarılı olduktan sonra frontend'i yayına alır. Traefik HTTPS sertifikasını
-otomatik üretir ve `/api/v1` isteklerini backend'e yönlendirir.
+otomatik üretir ve `/api/v1` isteklerini backend'e yönlendirir. `seed` komutu yalnız ilk
+kurulumda çalıştırılır; başlangıç paketi, hizmetleri ve salonları idempotent olarak hazırlar.
 
 ## Güncelleme
 
