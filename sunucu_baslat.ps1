@@ -1,4 +1,8 @@
 # Bağımsız Sunucu Başlatıcı (Taşınabilir Sürüm)
+param(
+    [switch]$Wait
+)
+
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $scriptPath) { $scriptPath = Get-Location }
 
@@ -30,6 +34,11 @@ if ($result.ReturnValue -eq 0) {
     Write-Host "Sunucu basariyla baslatildi! PID: $($result.ProcessId)" -ForegroundColor Green
     Write-Host "Proje Dizini: $workingDir" -ForegroundColor Green
     Write-Host "Tarayicinizdan http://localhost:$port adresine gidebilirsiniz." -ForegroundColor Green
+    if ($Wait) {
+        Write-Host "Test tamamlanana kadar sunucu sureci izleniyor..." -ForegroundColor Cyan
+        Wait-Process -Id $result.ProcessId
+    }
 } else {
     Write-Host "Sunucu baslatilamadi. Hata Kodu: $($result.ReturnValue)" -ForegroundColor Red
+    exit 1
 }

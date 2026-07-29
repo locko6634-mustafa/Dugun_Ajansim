@@ -1,7 +1,15 @@
 const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-export const API_BASE_URL = isLocal
-  ? `http://${window.location.hostname}:5000/api/v1`
-  : `${window.location.origin}/api/v1`;
+const configuredApiBaseUrl = document
+  .querySelector('meta[name="api-base-url"]')
+  ?.content.trim()
+  .replace(/\/$/, "");
+
+export const API_BASE_URL =
+  configuredApiBaseUrl || (isLocal ? `http://${window.location.hostname}:5000/api/v1` : "");
+
+export function hasApiEndpoint() {
+  return Boolean(API_BASE_URL);
+}
 
 function readCookie(name) {
   const prefix = `${encodeURIComponent(name)}=`;
@@ -10,6 +18,12 @@ function readCookie(name) {
 }
 
 export async function apiRequest(path, options = {}) {
+  if (!hasApiEndpoint()) {
+    const error = new Error("API adresi bu ortam için yapılandırılmamış.");
+    error.status = 503;
+    throw error;
+  }
+
   const method = options.method || "GET";
   const headers = new window.Headers(options.headers || {});
   headers.set("Accept", "application/json");

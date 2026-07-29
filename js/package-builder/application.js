@@ -1,6 +1,6 @@
 // Paket olusturucu sayfasinin uygulama mantigi.
 import { basePackages, services } from "./catalog.js";
-import { apiRequest, createIdempotencyKey } from "../shared/api-client.js";
+import { apiRequest, createIdempotencyKey, hasApiEndpoint } from "../shared/api-client.js";
 const moneyFormatter = new Intl.NumberFormat("tr-TR");
 const formatPrice = (value) => `${moneyFormatter.format(value)} TL`;
 const escapeHtml = (value) =>
@@ -126,6 +126,8 @@ function renderBasePackages(packages) {
 }
 
 async function hydrateRemoteData() {
+  if (!hasApiEndpoint()) return;
+
   try {
     const [catalogResponse, venuesResponse] = await Promise.all([
       apiRequest("/catalog"),
