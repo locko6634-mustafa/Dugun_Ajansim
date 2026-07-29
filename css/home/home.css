@@ -401,42 +401,6 @@ button {
   margin-left: 5px;
 }
 
-.trust-row {
-  display: flex;
-  align-items: center;
-  margin-top: clamp(24px, 6dvh, 72px);
-}
-
-.trust-item {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  min-width: 190px;
-  padding: 0 25px;
-  border-right: 1px solid hsl(30 11% 70%);
-  color: var(--ink-soft);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.trust-item:first-child {
-  padding-left: 8px;
-}
-
-.trust-item:last-child {
-  border-right: 0;
-}
-
-.trust-item svg {
-  width: 39px;
-  flex: 0 0 39px;
-  fill: none;
-  stroke: hsl(30 4% 40%);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.6;
-}
-
 .hero-collage {
   position: relative;
   align-self: center;
@@ -1070,10 +1034,6 @@ button {
     font-size: 48px;
   }
 
-  .trust-item {
-    min-width: 0;
-    padding-inline: 17px;
-  }
 }
 
 @media (max-width: 1060px) {
@@ -1261,12 +1221,6 @@ button {
 
   .hero__actions .button {
     flex: 1 1 50%;
-  }
-
-  .trust-row {
-    order: 6;
-    align-self: center;
-    margin-top: 0;
   }
 
   .photo--main {
@@ -1523,33 +1477,6 @@ button {
     min-width: 0;
   }
 
-  .trust-row {
-    width: 100%;
-    margin-top: 0;
-    justify-content: center;
-  }
-
-  .trust-item {
-    min-width: 0;
-    gap: 6px;
-    padding: 0 clamp(8px, 3vw, 15px);
-    font-size: clamp(12px, 2.8vw, 14px);
-  }
-
-  .trust-item:first-child {
-    padding-left: 2px;
-  }
-
-  .trust-item:last-child {
-    padding-right: 2px;
-  }
-
-  .trust-item svg {
-    width: 44px;
-    height: 44px;
-    flex-basis: 44px;
-  }
-
   .benefits-section {
     padding: 28px 10px 18px;
   }
@@ -1635,12 +1562,6 @@ button {
   }
 }
 
-@media (max-width: 640px) and (max-height: 680px) {
-  .trust-row {
-    display: none;
-  }
-}
-
 @media (min-width: 1061px) and (max-height: 760px) {
   .hero__inner {
     gap: clamp(20px, 2.2vw, 34px);
@@ -1691,21 +1612,6 @@ button {
   .button {
     min-height: 50px;
     padding-inline: 24px;
-  }
-
-  .trust-row {
-    margin-top: clamp(12px, 2.2dvh, 18px);
-  }
-
-  .trust-item {
-    gap: 9px;
-    padding-inline: 14px;
-    font-size: 12px;
-  }
-
-  .trust-item svg {
-    width: 30px;
-    flex-basis: 30px;
   }
 
   .hero-collage {

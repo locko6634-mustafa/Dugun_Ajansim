@@ -103,7 +103,7 @@ registerMotionGroup(".shoot-card", {
   direction: (index) => (index % 2 === 0 ? "left" : "right"),
   stagger: 90
 });
-registerMotionGroup(".services-kicker, .services-heading > p, .services-divider", {
+registerMotionGroup(".services-heading > p, .services-divider", {
   stagger: 75
 });
 registerMotionGroup(".service-card", {
@@ -132,8 +132,7 @@ const heroMotionSequence = [
   [document.querySelector(".proof-pill"), "up", 120],
   [document.querySelector("#hero-title"), "heading", 210],
   [document.querySelector(".hero__lead"), "up", 370],
-  [document.querySelector(".hero__actions"), "up", 470],
-  [document.querySelector(".trust-row"), "up", 560]
+  [document.querySelector(".hero__actions"), "up", 470]
 ];
 
 heroMotionSequence.forEach(([element, direction, delay]) => {
