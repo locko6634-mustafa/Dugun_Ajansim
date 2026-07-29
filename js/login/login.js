@@ -1,92 +1,121 @@
+import { apiRequest } from "../shared/api-client.js";
+
 const loginForm = document.querySelector(".login-form");
-const emailInput = document.querySelector("#email");
+const changeForm = document.querySelector(".password-change-form");
+const usernameInput = document.querySelector("#username");
 const passwordInput = document.querySelector("#password");
 const passwordToggle = document.querySelector(".password-toggle");
 const forgotButton = document.querySelector(".forgot-button");
-const formMessage = document.querySelector(".form-message");
+const formMessage = loginForm.querySelector(".form-message");
+const changeMessage = changeForm.querySelector(".password-change-message");
+let authenticatedRole = "";
 
 function setFieldError(input, message) {
   const field = input.closest(".form-field");
   const error = field.querySelector(".field-error");
-
   field.classList.toggle("has-error", Boolean(message));
   input.setAttribute("aria-invalid", String(Boolean(message)));
-  error.textContent = message;
+  if (error) error.textContent = message;
 }
 
-function validateEmail() {
-  const value = emailInput.value.trim();
-
-  if (!value) {
-    setFieldError(emailInput, "Lütfen e-posta adresinizi girin.");
-    return false;
-  }
-
-  if (!emailInput.validity.valid) {
-    setFieldError(emailInput, "Geçerli bir e-posta adresi girin.");
-    return false;
-  }
-
-  setFieldError(emailInput, "");
-  return true;
+function validateUsername() {
+  const valid = usernameInput.value.trim().length >= 3;
+  setFieldError(usernameInput, valid ? "" : "Kullanıcı adınızı girin.");
+  return valid;
 }
 
 function validatePassword() {
-  if (!passwordInput.value) {
-    setFieldError(passwordInput, "Lütfen şifrenizi girin.");
-    return false;
-  }
+  const valid = passwordInput.value.length >= 6;
+  setFieldError(passwordInput, valid ? "" : "Parolanız en az 6 karakter olmalıdır.");
+  return valid;
+}
 
-  if (passwordInput.value.length < 6) {
-    setFieldError(passwordInput, "Şifreniz en az 6 karakter olmalıdır.");
-    return false;
-  }
+function redirectForRole(role) {
+  const targets = {
+    ADMIN: "admin.html",
+    MUSTERI: "musteri-paneli.html",
+    SALON_YETKILISI: "operasyon-paneli.html"
+  };
+  window.location.href = targets[role] || "index.html";
+}
 
-  setFieldError(passwordInput, "");
-  return true;
+function showPasswordChange(role, currentPassword = "") {
+  authenticatedRole = role;
+  loginForm.hidden = true;
+  changeForm.hidden = false;
+  changeForm.elements.currentPassword.value = currentPassword;
+  changeForm.elements.currentPassword.focus();
 }
 
 passwordToggle.addEventListener("click", () => {
   const willShow = passwordInput.type === "password";
-
   passwordInput.type = willShow ? "text" : "password";
   passwordToggle.setAttribute("aria-pressed", String(willShow));
-  passwordToggle.setAttribute("aria-label", willShow ? "Şifreyi gizle" : "Şifreyi göster");
+  passwordToggle.setAttribute("aria-label", willShow ? "Parolayı gizle" : "Parolayı göster");
   passwordInput.focus();
 });
 
-emailInput.addEventListener("blur", validateEmail);
+usernameInput.addEventListener("blur", validateUsername);
 passwordInput.addEventListener("blur", validatePassword);
-
-[emailInput, passwordInput].forEach((input) => {
-  input.addEventListener("input", () => {
-    if (input.getAttribute("aria-invalid") === "true") {
-      input === emailInput ? validateEmail() : validatePassword();
-    }
-    formMessage.textContent = "";
-  });
-});
 
 forgotButton.addEventListener("click", () => {
   formMessage.classList.add("is-info");
   formMessage.textContent =
-    "Şifre yenileme özelliği yönetim sistemiyle birlikte kullanıma açılacak.";
+    "Parolanızı sıfırlamak için Düğün Ajansım ekibiyle iletişime geçin. Admin size geçici parola oluşturacaktır.";
 });
 
-loginForm.addEventListener("submit", (event) => {
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   formMessage.textContent = "";
+  if (!validateUsername() || !validatePassword()) return;
 
-  const isEmailValid = validateEmail();
-  const isPasswordValid = validatePassword();
+  const submitButton = loginForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  try {
+    const response = await apiRequest("/auth/login", {
+      method: "POST",
+      body: {
+        username: usernameInput.value.trim(),
+        password: passwordInput.value,
+        remember: loginForm.elements.remember.checked
+      }
+    });
+    if (response.data.mustChangePassword) {
+      showPasswordChange(response.data.role, passwordInput.value);
+    } else {
+      redirectForRole(response.data.role);
+    }
+  } catch (error) {
+    formMessage.textContent = error.message;
+    formMessage.classList.remove("is-info");
+  } finally {
+    submitButton.disabled = false;
+  }
+});
 
-  if (!isEmailValid || !isPasswordValid) {
-    const firstInvalid = loginForm.querySelector('[aria-invalid="true"]');
-    firstInvalid?.focus();
+changeForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  changeMessage.textContent = "";
+  const data = new FormData(changeForm);
+  if (data.get("newPassword") !== data.get("confirmPassword")) {
+    changeMessage.textContent = "Yeni parolalar birbiriyle eşleşmiyor.";
     return;
   }
 
-  formMessage.classList.add("is-info");
-  formMessage.textContent =
-    "Giriş altyapısı yakında aktif olacak. Bilgileriniz hiçbir yere gönderilmedi.";
+  const submitButton = changeForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  try {
+    await apiRequest("/auth/password/change", {
+      method: "POST",
+      body: {
+        currentPassword: data.get("currentPassword"),
+        newPassword: data.get("newPassword")
+      }
+    });
+    redirectForRole(authenticatedRole);
+  } catch (error) {
+    changeMessage.textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
+  }
 });

@@ -102,6 +102,7 @@ export const createGlobalErrorHandler = (
         message,
         ...(errors ? { errors } : {}),
         errorId,
+        correlationId: req.correlationId,
         stack: err.stack,
       });
     } else {
@@ -113,10 +114,10 @@ export const createGlobalErrorHandler = (
         message: canExposeDetails ? message : 'Bir hata oluştu.',
         ...(canExposeDetails && errors ? { errors } : {}),
         ...(!isOperational || statusCode >= 500 ? { errorId } : {}),
+        correlationId: req.correlationId,
       });
     }
   };
 
 // Varsayılan bağımlılıklarla oluşturulmuş global hata yakalama middleware fonksiyonunu dışa aktar
 export const globalErrorHandler = createGlobalErrorHandler();
-

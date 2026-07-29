@@ -66,6 +66,8 @@ const boundedIntegerSchema = (name: string, minimum: number, maximum: number) =>
     .transform(Number)
     .pipe(z.number().int().min(minimum).max(maximum));
 
+const DEVELOPMENT_ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
 // Ortam değişkenlerinin tamamını denetleyen ana Zod şeması
 const envSchema = z
   .object({
@@ -75,6 +77,16 @@ const envSchema = z
     DATABASE_URL: databaseUrlSchema,
     TRUST_PROXY: boundedIntegerSchema('TRUST_PROXY', 0, 10).default('0'),
     HEALTHCHECK_TIMEOUT_MS: boundedIntegerSchema('HEALTHCHECK_TIMEOUT_MS', 250, 10_000).default('3000'),
+    DATA_ENCRYPTION_KEY: z
+      .string()
+      .regex(/^[a-fA-F0-9]{64}$/, 'DATA_ENCRYPTION_KEY 32 baytlık hex değer olmalıdır')
+      .default(DEVELOPMENT_ENCRYPTION_KEY),
+    SESSION_COOKIE_NAME: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .default('dugunajansim_session'),
+    SESSION_TTL_HOURS: boundedIntegerSchema('SESSION_TTL_HOURS', 1, 720).default('12'),
+    REMEMBER_SESSION_TTL_DAYS: boundedIntegerSchema('REMEMBER_SESSION_TTL_DAYS', 1, 90).default('30'),
   })
   // Production moduna özel ek güvenlik ve SSL kontrollerini gerçekleştiren geliştirilmiş doğrulama (superRefine)
   .superRefine((environment, context) => {
@@ -139,6 +151,14 @@ const envSchema = z
         message: `Production DATABASE_URL en az ${MIN_PRODUCTION_DATABASE_PASSWORD_LENGTH} karakterlik güçlü bir veritabanı parolası içermelidir`,
       });
     }
+
+    if (environment.DATA_ENCRYPTION_KEY === DEVELOPMENT_ENCRYPTION_KEY) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DATA_ENCRYPTION_KEY'],
+        message: 'Production ortamında benzersiz DATA_ENCRYPTION_KEY zorunludur',
+      });
+    }
   });
 
 // Dışarıdan verilen herhangi bir ortam nesnesini doğrulamak için fonksiyon (Testler için)
@@ -159,4 +179,3 @@ const parseEnv = () => {
 
 // Uygulama genelinde kullanılacak olan doğrulanmış ve tiplendirilmiş env nesnesini dışa aktar
 export const env = parseEnv();
-

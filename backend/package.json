@@ -12,14 +12,19 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "typecheck:tests": "tsc --project tsconfig.test.json",
-    "test": "npm run build && npm run typecheck:tests && tsx --env-file=tests/test.env --test tests/backend.test.ts",
-    "test:integration": "tsx --test tests/database.integration.test.ts",
+    "test": "npm run build && npm run typecheck:tests && tsx --env-file=tests/test.env --test tests/backend.test.ts tests/mvp.test.ts",
+    "test:integration": "tsx --env-file=tests/test.env src/scripts/migrateTestDatabase.ts && tsx --env-file=tests/test.env --test tests/database.integration.test.ts",
+    "test:db:up": "docker compose -f compose.test.yaml up -d --wait",
+    "test:db:down": "docker compose -f compose.test.yaml down",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "seed": "tsx prisma/seed.ts",
+    "admin:bootstrap": "tsx src/scripts/bootstrapAdmin.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.3.0",
+    "argon2": "^0.44.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

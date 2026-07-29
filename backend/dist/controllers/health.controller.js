@@ -11,7 +11,7 @@ environment = env.NODE_ENV,
 // Sunucunun çalışma süresini (uptime) saniye cinsinden veren fonksiyon
 getUptime = process.uptime) => 
 // Express rota isteklerini karşılayan asenkron middleware fonksiyonu
-async (_req, res, next) => {
+async (req, res, next) => {
     // Healthcheck yanıtının hiçbir istemci veya CDN tarafından önbelleğe alınmaması için Cache-Control başlığını ayarla
     res.set('Cache-Control', 'no-store');
     try {
@@ -31,6 +31,7 @@ async (_req, res, next) => {
             timestamp: new Date().toISOString(),
             // Veritabanı durumu ('connected' / 'disconnected')
             database: isDbConnected ? 'connected' : 'disconnected',
+            correlationId: req.correlationId,
             // Geliştirme ortamı ek tanı bilgileri
             ...diagnostics,
         });

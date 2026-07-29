@@ -29,6 +29,7 @@ const validEnvironment: NodeJS.ProcessEnv = {
   DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/dugun_ajansim',
   TRUST_PROXY: '0',
   HEALTHCHECK_TIMEOUT_MS: '3000',
+  DATA_ENCRYPTION_KEY: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
 };
 
 const createMockResponse = () => {

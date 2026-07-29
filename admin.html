@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#171713" />
+    <title>Yönetim Merkezi | Düğünajansım</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Italiana&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/admin/admin.css" />
+    <script type="module" src="js/admin/app.js"></script>
+  </head>
+  <body>
+    <div class="admin-shell">
+      <aside class="admin-sidebar">
+        <a class="admin-brand" href="index.html">
+          <span>DA</span>
+          <strong>Düğünajansım</strong>
+          <small>Yönetim merkezi</small>
+        </a>
+        <nav class="admin-nav" aria-label="Yönetim bölümleri">
+          <button class="is-active" type="button" data-panel="overview">01 Genel Bakış</button>
+          <button type="button" data-panel="applications">02 Başvurular</button>
+          <button type="button" data-panel="deliveries">03 Teslimatlar</button>
+          <button type="button" data-panel="messages">04 Mesaj Masası</button>
+          <button type="button" data-panel="catalog">05 Paket Kataloğu</button>
+          <button type="button" data-panel="audit">06 İşlem Geçmişi</button>
+        </nav>
+        <div class="admin-sidebar__footer">
+          <span class="connection-status"><i></i> Sistem bağlı</span>
+          <button class="text-button js-logout" type="button">Güvenli çıkış</button>
+        </div>
+      </aside>
+
+      <main class="admin-main">
+        <header class="admin-topbar">
+          <div>
+            <p class="kicker js-current-date">İstanbul</p>
+            <h1>Operasyon masası</h1>
+          </div>
+          <button class="primary-button js-open-manual" type="button">Yeni düğün kaydı</button>
+        </header>
+
+        <p class="global-message" role="status" aria-live="polite"></p>
+
+        <section class="admin-panel is-active" data-panel-content="overview">
+          <div class="metric-ribbon" aria-label="Sistem özeti">
+            <article>
+              <span>Onay bekleyen</span><strong data-metric="pendingBookings">—</strong>
+            </article>
+            <article>
+              <span>Aktif düğün</span><strong data-metric="activeWeddings">—</strong>
+            </article>
+            <article>
+              <span>Bekleyen mesaj</span><strong data-metric="pendingMessages">—</strong>
+            </article>
+            <article>
+              <span>Teslime hazır</span><strong data-metric="readyDeliveries">—</strong>
+            </article>
+          </div>
+          <div class="editorial-grid">
+            <article class="focus-card">
+              <p class="section-index">Bugünün odağı</p>
+              <h2>Önce bekleyen kararlar.</h2>
+              <p>
+                Dekontu doğrulanan başvuruları onaylayın, zamanı gelen mesajları gönderin ve hazır
+                teslimatları müşteriye açın.
+              </p>
+              <button type="button" data-jump="applications">Başvurulara git →</button>
+            </article>
+            <article class="date-card">
+              <span>Varsayılan teslim planı</span>
+              <strong>21</strong>
+              <p>takvim günü</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="admin-panel" data-panel-content="applications" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-index">02</p>
+              <h2>Paket başvuruları</h2>
+            </div>
+            <form class="application-search js-application-search">
+              <input
+                class="js-application-reference"
+                type="search"
+                placeholder="DA-... referans kodu"
+                aria-label="Başvuru referans kodu"
+              />
+              <select class="js-application-filter" aria-label="Başvuru durumu">
+                <option value="ONAY_BEKLIYOR">Onay bekleyen</option>
+                <option value="">Tümü</option>
+                <option value="ONAYLANDI">Onaylanan</option>
+                <option value="REDDEDILDI">Reddedilen</option>
+              </select>
+              <button class="mini-button" type="submit">Bul</button>
+            </form>
+          </div>
+          <div class="data-surface js-applications"></div>
+        </section>
+
+        <section class="admin-panel" data-panel-content="deliveries" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-index">03</p>
+              <h2>Teslimat hattı</h2>
+            </div>
+          </div>
+          <div class="data-surface js-deliveries"></div>
+        </section>
+
+        <section class="admin-panel" data-panel-content="messages" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-index">04</p>
+              <h2>Manuel mesaj masası</h2>
+            </div>
+            <p>Parola ve bağlantılar geçmişte düz metin tutulmaz.</p>
+          </div>
+          <div class="data-surface js-messages"></div>
+        </section>
+
+        <section class="admin-panel" data-panel-content="catalog" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-index">05</p>
+              <h2>Paket ve hizmetler</h2>
+            </div>
+          </div>
+          <div class="catalog-layout">
+            <div>
+              <h3>
+                Temel paketler
+                <button class="mini-button" type="button" data-add-catalog="packages">
+                  + Yeni
+                </button>
+              </h3>
+              <div class="js-packages"></div>
+            </div>
+            <div>
+              <h3>
+                Ek hizmetler
+                <button class="mini-button" type="button" data-add-catalog="services">
+                  + Yeni
+                </button>
+              </h3>
+              <div class="js-services"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="admin-panel" data-panel-content="audit" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-index">06</p>
+              <h2>İşlem geçmişi</h2>
+            </div>
+          </div>
+          <div class="data-surface js-audit"></div>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="manual-dialog js-manual-dialog">
+      <form class="manual-form js-manual-form" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <p class="section-index">Yeni kayıt</p>
+            <h2>Manuel düğün başvurusu</h2>
+          </div>
+          <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
+        </div>
+        <div class="manual-form__grid">
+          <label>Gelin adı<input name="brideFirstName" type="text" required /></label>
+          <label>Gelin soyadı<input name="brideLastName" type="text" required /></label>
+          <label>Gelin telefonu<input name="bridePhone" type="tel" required /></label>
+          <label>Damat adı<input name="groomFirstName" type="text" required /></label>
+          <label>Damat soyadı<input name="groomLastName" type="text" required /></label>
+          <label>Damat telefonu<input name="groomPhone" type="tel" required /></label>
+          <label
+            >Birincil kişi<select name="primaryContact">
+              <option value="GELIN">Gelin</option>
+              <option value="DAMAT">Damat</option>
+            </select></label
+          >
+          <label>Birincil e-posta<input name="primaryEmail" type="email" required /></label>
+          <label>Düğün tarihi<input name="weddingDate" type="date" required /></label>
+          <label>Başlangıç<input name="startTime" type="time" required /></label>
+          <label>Bitiş<input name="endTime" type="time" required /></label>
+          <label class="check-label"
+            ><input name="endsNextDay" type="checkbox" /> Bitiş ertesi gün</label
+          >
+          <label>Salon<select class="js-manual-venue" name="venueId" required></select></label>
+          <label
+            >Paket<select class="js-manual-package" name="packageCode" required></select
+          ></label>
+          <label
+            >Ödeme<select name="paymentMethod">
+              <option value="CASH">Peşin</option>
+              <option value="DEPOSIT">Kapora</option>
+            </select></label
+          >
+          <fieldset class="wide service-choices">
+            <legend>Ek hizmetler</legend>
+            <div class="js-manual-services"></div>
+          </fieldset>
+          <label class="wide">Not<textarea name="note" rows="3"></textarea></label>
+        </div>
+        <p class="dialog-message" role="status"></p>
+        <div class="dialog-actions">
+          <button class="secondary-button" type="button" value="cancel">Vazgeç</button>
+          <button class="primary-button" type="submit">Kaydı oluştur</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="manual-dialog js-wedding-dialog">
+      <form class="manual-form js-wedding-form" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <p class="section-index">Düğün kaydı</p>
+            <h2>Bilgileri güncelle</h2>
+          </div>
+          <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
+        </div>
+        <input name="weddingId" type="hidden" />
+        <div class="manual-form__grid">
+          <label>Gelin adı<input name="brideFirstName" type="text" required /></label>
+          <label>Gelin soyadı<input name="brideLastName" type="text" required /></label>
+          <label>Gelin telefonu<input name="bridePhone" type="tel" required /></label>
+          <label>Damat adı<input name="groomFirstName" type="text" required /></label>
+          <label>Damat soyadı<input name="groomLastName" type="text" required /></label>
+          <label>Damat telefonu<input name="groomPhone" type="tel" required /></label>
+          <label
+            >Birincil kişi<select name="primaryContact">
+              <option value="GELIN">Gelin</option>
+              <option value="DAMAT">Damat</option>
+            </select></label
+          >
+          <label>Birincil e-posta<input name="primaryEmail" type="email" required /></label>
+          <label>Düğün tarihi<input name="weddingDate" type="date" required /></label>
+          <label>Başlangıç<input name="startTime" type="time" required /></label>
+          <label>Bitiş<input name="endTime" type="time" required /></label>
+          <label class="check-label"
+            ><input name="endsNextDay" type="checkbox" /> Bitiş ertesi gün</label
+          >
+          <label>Salon<select class="js-wedding-venue" name="venueId" required></select></label>
+          <label class="wide">Not<textarea name="note" rows="3"></textarea></label>
+        </div>
+        <p class="dialog-message" role="status"></p>
+        <p class="dialog-hint">
+          İlk kişisel parola henüz oluşturulmadıysa ad, soyad veya tarih değişikliği müşteri
+          kullanıcı adını ve geçici parolayı yeniler.
+        </p>
+        <div class="dialog-actions">
+          <button class="secondary-button" type="button" value="cancel">Vazgeç</button>
+          <button class="primary-button" type="submit">Değişiklikleri kaydet</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

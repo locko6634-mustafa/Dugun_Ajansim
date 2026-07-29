@@ -7,11 +7,322 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Sistem Sağlık Kontrolü & Audit Log Tablosu
+enum UserRole {
+  ADMIN
+  SALON_YETKILISI
+  MUSTERI
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum BookingStatus {
+  ONAY_BEKLIYOR
+  ONAYLANDI
+  REDDEDILDI
+  IPTAL_EDILDI
+}
+
+enum BookingSource {
+  PUBLIC_FORM
+  ADMIN
+}
+
+enum PrimaryContact {
+  GELIN
+  DAMAT
+}
+
+enum PaymentMethod {
+  CASH
+  DEPOSIT
+}
+
+enum DeliveryStatus {
+  HAZIRLANIYOR
+  MONTAJ
+  KONTROL
+  TESLIME_HAZIR
+  TESLIM_EDILDI
+}
+
+enum MessageKind {
+  ACCOUNT_ACTIVATION
+  PREPARATION_UPDATE
+  DELIVERY_READY
+  PASSWORD_RESET
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  CANCELLED
+}
+
+enum AuditOutcome {
+  SUCCESS
+  FAILURE
+}
+
 model SystemHealth {
   id        String   @id @default(uuid())
   status    String   @default("ok")
   checkedAt DateTime @default(now())
 
   @@map("system_health")
+}
+
+model Venue {
+  id           String               @id @default(uuid())
+  slug         String               @unique
+  name         String               @unique
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  managers     User[]
+  applications BookingApplication[]
+  weddings     Wedding[]
+
+  @@index([isActive, name])
+  @@map("venues")
+}
+
+model User {
+  id                 String                  @id @default(uuid())
+  username           String                  @unique
+  passwordHash       String
+  role               UserRole
+  status             UserStatus              @default(ACTIVE)
+  mustChangePassword Boolean                 @default(true)
+  activeAt           DateTime?
+  passwordChangedAt  DateTime?
+  lastLoginAt        DateTime?
+  venueId            String?
+  venue              Venue?                  @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  sessions           AuthSession[]
+  customerWedding    Wedding?                @relation("CustomerWedding")
+  reviewedBookings   BookingApplication[]    @relation("BookingReviewer")
+  auditLogs          AuditLog[]
+  deliveryHistory    DeliveryStatusHistory[]
+  sentMessages       MessageTask[]           @relation("MessageSender")
+
+  @@index([role, status])
+  @@index([venueId])
+  @@map("users")
+}
+
+model AuthSession {
+  id            String    @id @default(uuid())
+  tokenHash     String    @unique
+  csrfTokenHash String
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt     DateTime
+  lastUsedAt    DateTime  @default(now())
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt, revokedAt])
+  @@map("auth_sessions")
+}
+
+model Package {
+  id           String               @id @default(uuid())
+  code         String               @unique
+  name         String
+  description  String?
+  imagePath    String?
+  priceCents   Int
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  applications BookingApplication[]
+
+  @@index([isActive, name])
+  @@map("packages")
+}
+
+model Service {
+  id          String                      @id @default(uuid())
+  code        String                      @unique
+  category    String
+  name        String
+  eyebrow     String?
+  description String?
+  imagePath   String?
+  priceCents  Int
+  isActive    Boolean                     @default(true)
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+  snapshots   BookingApplicationService[]
+
+  @@index([isActive, category, name])
+  @@map("services")
+}
+
+model BookingApplication {
+  id                  String                      @id @default(uuid())
+  referenceCode       String                      @unique
+  idempotencyKey      String?                     @unique
+  source              BookingSource
+  status              BookingStatus               @default(ONAY_BEKLIYOR)
+  brideFirstName      String
+  brideLastName       String
+  bridePhone          String
+  groomFirstName      String
+  groomLastName       String
+  groomPhone          String
+  primaryContact      PrimaryContact
+  primaryEmail        String
+  weddingStartsAt     DateTime
+  weddingEndsAt       DateTime
+  venueId             String
+  venue               Venue                       @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  packageId           String
+  package             Package                     @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  packageCodeSnapshot String
+  packageNameSnapshot String
+  packagePriceCents   Int
+  totalPriceCents     Int
+  paymentMethod       PaymentMethod
+  payableNowCents     Int
+  note                String?
+  privacyConsentAt    DateTime?
+  marketingConsentAt  DateTime?
+  reviewedAt          DateTime?
+  reviewedById        String?
+  reviewedBy          User?                       @relation("BookingReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  rejectionReason     String?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  services            BookingApplicationService[]
+  wedding             Wedding?
+
+  @@index([status, createdAt])
+  @@index([venueId, weddingStartsAt])
+  @@index([primaryEmail])
+  @@map("booking_applications")
+}
+
+model BookingApplicationService {
+  id            String             @id @default(uuid())
+  applicationId String
+  application   BookingApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  serviceId     String
+  service       Service            @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  codeSnapshot  String
+  nameSnapshot  String
+  priceCents    Int
+  createdAt     DateTime           @default(now())
+
+  @@unique([applicationId, serviceId])
+  @@map("booking_application_services")
+}
+
+model Wedding {
+  id             String             @id @default(uuid())
+  applicationId  String             @unique
+  application    BookingApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  customerUserId String             @unique
+  customerUser   User               @relation("CustomerWedding", fields: [customerUserId], references: [id], onDelete: Restrict)
+  brideFirstName String
+  brideLastName  String
+  bridePhone     String
+  groomFirstName String
+  groomLastName  String
+  groomPhone     String
+  primaryContact PrimaryContact
+  primaryEmail   String
+  startsAt       DateTime
+  endsAt         DateTime
+  venueId        String
+  venue          Venue              @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  packageSummary Json
+  note           String?
+  cancelledAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  delivery       Delivery?
+  messageTasks   MessageTask[]
+
+  @@index([venueId, startsAt])
+  @@index([startsAt, endsAt])
+  @@map("weddings")
+}
+
+model Delivery {
+  id                 String                  @id @default(uuid())
+  weddingId          String                  @unique
+  wedding            Wedding                 @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  status             DeliveryStatus          @default(HAZIRLANIYOR)
+  dueDate            DateTime                @db.Date
+  driveUrlCiphertext String?
+  driveUrlIv         String?
+  driveUrlAuthTag    String?
+  releasedAt         DateTime?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  history            DeliveryStatusHistory[]
+
+  @@index([status, dueDate])
+  @@map("deliveries")
+}
+
+model DeliveryStatusHistory {
+  id          String          @id @default(uuid())
+  deliveryId  String
+  delivery    Delivery        @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  fromStatus  DeliveryStatus?
+  toStatus    DeliveryStatus
+  actorUserId String?
+  actor       User?           @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+
+  @@index([deliveryId, createdAt])
+  @@map("delivery_status_history")
+}
+
+model MessageTask {
+  id               String        @id @default(uuid())
+  weddingId        String
+  wedding          Wedding       @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  kind             MessageKind
+  status           MessageStatus @default(PENDING)
+  dueAt            DateTime
+  recipientPhone   String
+  secretCiphertext String?
+  secretIv         String?
+  secretAuthTag    String?
+  sentAt           DateTime?
+  sentById         String?
+  sentBy           User?         @relation("MessageSender", fields: [sentById], references: [id], onDelete: SetNull)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@unique([weddingId, kind])
+  @@index([status, dueAt])
+  @@map("message_tasks")
+}
+
+model AuditLog {
+  id            String       @id @default(uuid())
+  actorUserId   String?
+  actor         User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  action        String
+  targetType    String
+  targetId      String?
+  outcome       AuditOutcome @default(SUCCESS)
+  correlationId String
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+
+  @@index([createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
 }

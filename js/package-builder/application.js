@@ -1,7 +1,14 @@
 // Paket olusturucu sayfasinin uygulama mantigi.
 import { basePackages, services } from "./catalog.js";
+import { apiRequest, createIdempotencyKey } from "../shared/api-client.js";
 const moneyFormatter = new Intl.NumberFormat("tr-TR");
 const formatPrice = (value) => `${moneyFormatter.format(value)} TL`;
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 
 const createSvg = (paths) => {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -42,12 +49,13 @@ const state = {
   activeService: null,
   payment: "cash",
   customer: {},
-  transferReference: createTransferReference()
+  transferReference: createTransferReference(),
+  idempotencyKey: createIdempotencyKey()
 };
 
 const stepPanels = [...document.querySelectorAll(".builder-step")];
 const progressItems = [...document.querySelectorAll(".builder-progress__item")];
-const baseInputs = [...document.querySelectorAll('input[name="base-package"]')];
+let baseInputs = [...document.querySelectorAll('input[name="base-package"]')];
 const servicesGrid = document.querySelector(".builder-services");
 const filterButtons = [...document.querySelectorAll(".service-filter button")];
 const detailDialog = document.querySelector(".service-detail");
@@ -73,6 +81,111 @@ const summaryBackground = document.querySelector(".summary-backdrop");
 const summaryFocusSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 let summaryReturnFocus = null;
+const venueNames = new Map();
+
+function bindBaseInputs() {
+  baseInputs = [...document.querySelectorAll('input[name="base-package"]')];
+  baseInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      state.base = input.value;
+      updateBaseSelection();
+    });
+  });
+}
+
+function renderBasePackages(packages) {
+  if (!packages.length) return;
+  if (!packages.some((item) => item.code === state.base)) {
+    state.base = packages[0].code;
+  }
+  document.querySelector(".base-packages").innerHTML = packages
+    .map(
+      (item) => `
+        <label class="base-package ${item.code === state.base ? "is-selected" : ""}">
+          <input type="radio" name="base-package" value="${escapeHtml(item.code)}" ${item.code === state.base ? "checked" : ""} />
+          <span class="base-package__media">
+            <img src="${escapeHtml(item.imagePath || "assets/images/hero-couple.webp")}" alt="${escapeHtml(item.name)} düğün çekimi örneği" />
+            <span class="base-package__check" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" /></svg>
+            </span>
+          </span>
+          <span class="base-package__body">
+            <span class="base-package__topline">
+              <span><small>Temel çekim paketi</small><strong>${escapeHtml(item.name)}</strong></span>
+              <b>${formatPrice(item.priceCents / 100)}</b>
+            </span>
+            <span class="base-package__features">
+              <span>${escapeHtml(item.description || "Düğün gününüze özel profesyonel çekim planı")}</span>
+              <span>En geç 21 takvim gününde dijital teslim</span>
+            </span>
+          </span>
+        </label>`
+    )
+    .join("");
+  bindBaseInputs();
+}
+
+async function hydrateRemoteData() {
+  try {
+    const [catalogResponse, venuesResponse] = await Promise.all([
+      apiRequest("/catalog"),
+      apiRequest("/venues")
+    ]);
+
+    catalogResponse.data.packages.forEach((item) => {
+      const current = basePackages[item.code] || {};
+      basePackages[item.code] = {
+        ...current,
+        name: item.name,
+        price: item.priceCents / 100,
+        image: item.imagePath || current.image || "assets/images/hero-couple.webp"
+      };
+    });
+    renderBasePackages(catalogResponse.data.packages);
+
+    catalogResponse.data.services.forEach((item) => {
+      const current = services.find((service) => service.id === item.code);
+      if (current) {
+        Object.assign(current, {
+          category: item.category,
+          name: item.name,
+          price: item.priceCents / 100,
+          image: item.imagePath || current.image,
+          description: item.description || current.description
+        });
+      } else {
+        services.push({
+          id: item.code,
+          category: item.category,
+          name: item.name,
+          eyebrow: item.eyebrow || "Ek Hizmet",
+          price: item.priceCents / 100,
+          image: item.imagePath || "assets/images/hero-couple.webp",
+          gallery: [item.imagePath || "assets/images/hero-couple.webp"],
+          description: item.description || "Düğününüze özel olarak planlanan ek hizmet.",
+          features: [],
+          delivery: "Paket teslim planına göre"
+        });
+      }
+    });
+
+    const venueSelect = document.querySelector(".js-venue-select");
+    venuesResponse.data.forEach((venue) => {
+      venueNames.set(venue.id, venue.name);
+      const option = document.createElement("option");
+      option.value = venue.id;
+      option.textContent = venue.name;
+      venueSelect.append(option);
+    });
+
+    renderServices();
+    updateSummary();
+  } catch {
+    setPaymentNotificationStatus(
+      "Güncel paket ve salon bilgileri alınamadı. Lütfen bağlantınızı kontrol edip sayfayı yenileyin."
+    );
+  }
+}
 
 const paymentMethods = {
   cash: {
@@ -234,7 +347,9 @@ function updatePaymentUI() {
 }
 
 function getTransferDescription() {
-  const payerName = state.customer.fullName?.trim() || "Müşteri";
+  const payerName =
+    `${state.customer.brideFirstName || ""} ${state.customer.groomFirstName || ""}`.trim() ||
+    "Müşteri";
   return `${state.transferReference} - ${payerName}`;
 }
 
@@ -311,13 +426,6 @@ function closeServiceDetail() {
   }
 }
 
-baseInputs.forEach((input) => {
-  input.addEventListener("change", () => {
-    state.base = input.value;
-    updateBaseSelection();
-  });
-});
-
 document.querySelector(".js-next-step").addEventListener("click", () => goToStep(2));
 document.querySelector(".js-prev-step").addEventListener("click", () => goToStep(1));
 document.querySelector(".js-details-step").addEventListener("click", () => goToStep(3));
@@ -334,12 +442,10 @@ paymentInputs.forEach((input) => {
   });
 });
 
-const phoneInput = checkoutForm?.querySelector('input[name="phone"]');
+const phoneInputs = [
+  ...checkoutForm.querySelectorAll('input[name="bridePhone"], input[name="groomPhone"]')
+];
 const transferDateInput = paymentNotificationForm?.querySelector('input[name="transferDate"]');
-const MAX_RECEIPT_SIZE = 10 * 1024 * 1024;
-const ALLOWED_RECEIPT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
-const ALLOWED_RECEIPT_EXTENSIONS = new Set(["pdf", "jpg", "jpeg", "png"]);
-
 function setFieldValidity(input, isValid, message) {
   const field = input.closest(".form-field, .consent-field");
   if (!field) return;
@@ -350,22 +456,22 @@ function setFieldValidity(input, isValid, message) {
   if (error && message) error.textContent = message;
 }
 
-function validatePhone() {
-  const digits = phoneInput.value.replace(/\D/g, "");
+function validatePhone(input) {
+  const digits = input.value.replace(/\D/g, "");
   const normalized = digits.startsWith("90")
     ? digits.slice(2)
     : digits.startsWith("0")
       ? digits.slice(1)
       : digits;
   const isValid = /^[2-5]\d{9}$/.test(normalized);
-  phoneInput.setCustomValidity(
-    isValid || !phoneInput.value.trim() ? "" : "Geçerli bir telefon numarası yazın."
+  input.setCustomValidity(
+    isValid || !input.value.trim() ? "" : "Geçerli bir telefon numarası yazın."
   );
   return isValid;
 }
 
 checkoutForm.addEventListener("input", (event) => {
-  if (event.target === phoneInput) validatePhone();
+  if (phoneInputs.includes(event.target)) validatePhone(event.target);
   const field = event.target.closest(".form-field");
   if (field && event.target.validity.valid) setFieldValidity(event.target, true);
 });
@@ -377,7 +483,7 @@ checkoutForm.addEventListener("change", (event) => {
 
 checkoutForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  validatePhone();
+  phoneInputs.forEach(validatePhone);
   const requiredFields = [...checkoutForm.querySelectorAll("[required]")];
 
   requiredFields.forEach((input) => {
@@ -455,7 +561,14 @@ function generateWhatsAppMessage() {
   const refNo = state.transferReference || `DA-${Math.floor(100000 + Math.random() * 900000)}`;
   state.transferReference = refNo;
 
-  return `Merhaba Düğünajansım Ekibi,\n\nPaket siparişimi oluşturdum. Dekontumu paylaşmak istiyorum.\n\n📋 *Sipariş Kodu:* ${refNo}\n👤 *Ad Soyad:* ${state.customer.fullName || "—"}\n📞 *Telefon:* ${state.customer.phone || "—"}\n📅 *Düğün Tarihi:* ${formatWeddingDate(state.customer.weddingDate)}\n📍 *Mekân:* ${state.customer.venue || "—"}\n\n🎁 *Paket:* ${base?.name || "Mini Paket"}\n➕ *Ek Hizmetler:* ${extras}\n💰 *Ödenecek Tutar:* ${formatPrice(payment.payable)} (${payment.payableLabel})\n\nDekontum ektedir.`;
+  const couple = `${state.customer.brideFirstName || "—"} ${
+    state.customer.brideLastName || ""
+  } & ${state.customer.groomFirstName || "—"} ${state.customer.groomLastName || ""}`.trim();
+  const primaryPhone =
+    state.customer.primaryContact === "DAMAT"
+      ? state.customer.groomPhone
+      : state.customer.bridePhone;
+  return `Merhaba Düğünajansım Ekibi,\n\nPaket başvurumu oluşturdum. Dekontumu paylaşmak istiyorum.\n\n📋 *Başvuru Kodu:* ${refNo}\n💍 *Çift:* ${couple}\n📞 *Birincil Telefon:* ${primaryPhone || "—"}\n📅 *Düğün Tarihi:* ${formatWeddingDate(state.customer.weddingDate)}\n⏰ *Saat:* ${state.customer.startTime || "—"} - ${state.customer.endTime || "—"}${state.customer.endsNextDay ? " (ertesi gün)" : ""}\n📍 *Salon:* ${venueNames.get(state.customer.venueId) || "—"}\n\n🎁 *Paket:* ${base?.name || "Mini Paket"}\n➕ *Ek Hizmetler:* ${extras}\n💰 *Ödenecek Tutar:* ${formatPrice(payment.payable)} (${payment.payableLabel})\n\nDekontumu bu mesaja ekliyorum.`;
 }
 
 function getWhatsAppUrl() {
@@ -487,30 +600,67 @@ if (paymentNotificationForm) {
       return;
     }
 
-    const refNo = state.transferReference || `DA-${Math.floor(100000 + Math.random() * 900000)}`;
-    state.transferReference = refNo;
+    const submitButton = paymentNotificationForm.querySelector('button[type="submit"]');
+    const whatsappWindow = window.open("about:blank", "_blank");
+    if (whatsappWindow) whatsappWindow.opener = null;
+    submitButton.disabled = true;
+    setPaymentNotificationStatus("Başvurunuz güvenli şekilde kaydediliyor...", "pending");
 
-    const waUrl = getWhatsAppUrl();
-
-    // Başarı ekranındaki referans numarasını güncelle
-    const refElement = document.querySelector(".js-booking-reference");
-    if (refElement) refElement.textContent = refNo;
-
-    // Otomatik yeni sekmede WhatsApp aç
-    window.open(waUrl, "_blank");
-
-    // Başarı modalını göster
-    bookingCompletion.hidden = false;
-    document.body.classList.add("is-completion-open");
-    document
-      .querySelectorAll(".builder-header, .builder-progress, .builder-layout")
-      .forEach((element) => {
-        element.inert = true;
-        element.setAttribute("aria-hidden", "true");
+    try {
+      const response = await apiRequest("/booking-applications", {
+        method: "POST",
+        headers: { "Idempotency-Key": state.idempotencyKey },
+        body: {
+          brideFirstName: state.customer.brideFirstName,
+          brideLastName: state.customer.brideLastName,
+          bridePhone: state.customer.bridePhone,
+          groomFirstName: state.customer.groomFirstName,
+          groomLastName: state.customer.groomLastName,
+          groomPhone: state.customer.groomPhone,
+          primaryContact: state.customer.primaryContact,
+          primaryEmail: state.customer.primaryEmail,
+          weddingDate: state.customer.weddingDate,
+          startTime: state.customer.startTime,
+          endTime: state.customer.endTime,
+          endsNextDay: Boolean(state.customer.endsNextDay),
+          venueId: state.customer.venueId,
+          packageCode: state.base,
+          serviceCodes: [...state.extras],
+          paymentMethod: state.payment.toUpperCase(),
+          note: state.customer.note || undefined,
+          privacyConsent: Boolean(state.customer.privacyConsent),
+          marketingConsent: Boolean(state.customer.marketingConsent)
+        }
       });
+      state.transferReference = response.data.referenceCode;
+      const waUrl = getWhatsAppUrl();
 
-    const completionTitle = document.querySelector(".js-completion-title");
-    if (completionTitle) completionTitle.focus({ preventScroll: true });
+      const refElement = document.querySelector(".js-booking-reference");
+      if (refElement) refElement.textContent = state.transferReference;
+
+      if (whatsappWindow) {
+        whatsappWindow.location.href = waUrl;
+      } else {
+        window.location.href = waUrl;
+      }
+
+      bookingCompletion.hidden = false;
+      document.body.classList.add("is-completion-open");
+      document
+        .querySelectorAll(".builder-header, .builder-progress, .builder-layout")
+        .forEach((element) => {
+          element.inert = true;
+          element.setAttribute("aria-hidden", "true");
+        });
+
+      const completionTitle = document.querySelector(".js-completion-title");
+      if (completionTitle) completionTitle.focus({ preventScroll: true });
+    } catch (error) {
+      whatsappWindow?.close();
+      setPaymentNotificationStatus(error.message);
+      submitButton.disabled = false;
+      paymentNotificationStatus.focus();
+    }
   });
 }
 
@@ -622,9 +772,11 @@ window.addEventListener("keydown", (event) => {
 });
 
 renderServices();
+bindBaseInputs();
 updateSummary();
 updateProgress();
 setSummaryOpen(false, { returnFocus: false });
+void hydrateRemoteData();
 
 const weddingDateInput = document.querySelector(".js-wedding-date");
 const today = new Date();
@@ -694,12 +846,19 @@ function renderOrderReview() {
   adjustmentRow.hidden = payment.adjustment === 0;
   document.querySelector(".js-order-adjustment-label").textContent = payment.adjustmentLabel;
   document.querySelector(".js-order-adjustment").textContent = formatPrice(payment.adjustment);
-  document.querySelector(".js-review-name").textContent = state.customer.fullName || "—";
-  document.querySelector(".js-review-phone").textContent = state.customer.phone || "—";
+  document.querySelector(".js-review-couple").textContent =
+    `${state.customer.brideFirstName || ""} ${state.customer.brideLastName || ""} & ${
+      state.customer.groomFirstName || ""
+    } ${state.customer.groomLastName || ""}`.trim() || "—";
+  document.querySelector(".js-review-phone").textContent =
+    state.customer.primaryContact === "DAMAT"
+      ? state.customer.groomPhone || "—"
+      : state.customer.bridePhone || "—";
   document.querySelector(".js-review-date").textContent = formatWeddingDate(
     state.customer.weddingDate
   );
-  document.querySelector(".js-review-venue").textContent = state.customer.venue || "—";
+  document.querySelector(".js-review-venue").textContent =
+    venueNames.get(state.customer.venueId) || "—";
   updateTransferUI();
 }
 

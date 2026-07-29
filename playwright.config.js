@@ -13,7 +13,7 @@ export default defineConfig({
     video: "retain-on-failure"
   },
   webServer: {
-    command: "python -m http.server 8000",
+    command: "powershell -NoProfile -ExecutionPolicy Bypass -File .\\sunucu_baslat.ps1",
     url: "http://127.0.0.1:8000",
     reuseExistingServer: true,
     timeout: 30_000

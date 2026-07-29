@@ -75,6 +75,7 @@ export const createGlobalErrorHandler = (environment = env.NODE_ENV, logError = 
             message,
             ...(errors ? { errors } : {}),
             errorId,
+            correlationId: req.correlationId,
             stack: err.stack,
         });
     }
@@ -87,6 +88,7 @@ export const createGlobalErrorHandler = (environment = env.NODE_ENV, logError = 
             message: canExposeDetails ? message : 'Bir hata oluştu.',
             ...(canExposeDetails && errors ? { errors } : {}),
             ...(!isOperational || statusCode >= 500 ? { errorId } : {}),
+            correlationId: req.correlationId,
         });
     }
 };

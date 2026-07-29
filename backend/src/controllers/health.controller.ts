@@ -18,7 +18,7 @@ export const createSystemHealthHandler = (
   getUptime: () => number = process.uptime
 ) =>
   // Express rota isteklerini karşılayan asenkron middleware fonksiyonu
-  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     // Healthcheck yanıtının hiçbir istemci veya CDN tarafından önbelleğe alınmaması için Cache-Control başlığını ayarla
     res.set('Cache-Control', 'no-store');
 
@@ -41,6 +41,7 @@ export const createSystemHealthHandler = (
         timestamp: new Date().toISOString(),
         // Veritabanı durumu ('connected' / 'disconnected')
         database: isDbConnected ? 'connected' : 'disconnected',
+        correlationId: req.correlationId,
         // Geliştirme ortamı ek tanı bilgileri
         ...diagnostics,
       });
@@ -52,4 +53,3 @@ export const createSystemHealthHandler = (
 
 // Varsayılan bağımlılıklarla oluşturulmuş sağlık kontrolü kontrolcü fonksiyonunu dışa aktar
 export const getSystemHealth = createSystemHealthHandler();
-

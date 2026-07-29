@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#f4efe7" />
+    <title>Teslimat Paneli | Düğünajansım</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Italiana&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/customer-panel/customer-panel.css" />
+    <script type="module" src="js/customer-panel/app.js"></script>
+  </head>
+  <body>
+    <header class="customer-header">
+      <a href="index.html" class="customer-brand"><span>DA</span><strong>Düğünajansım</strong></a>
+      <button class="quiet-button js-logout" type="button">Çıkış</button>
+    </header>
+
+    <main class="customer-main">
+      <p class="page-message" role="status" aria-live="polite">Teslimat bilgileriniz hazırlanıyor…</p>
+      <section class="customer-hero" hidden>
+        <div class="customer-hero__copy">
+          <p class="eyebrow">Sizin hikâyeniz</p>
+          <h1><span class="js-bride">—</span> <em>&amp;</em> <span class="js-groom">—</span></h1>
+          <p class="hero-note">
+            Çalışmalarınız ekibimizin teslim hattında ilerliyor. Her aşamayı burada sakin ve net
+            biçimde takip edebilirsiniz.
+          </p>
+        </div>
+        <aside class="countdown-card">
+          <span>Tahmini teslimata</span>
+          <strong class="js-days">—</strong>
+          <p class="js-days-label">gün kaldı</p>
+          <time class="js-due-date">—</time>
+        </aside>
+      </section>
+
+      <section class="event-strip" hidden>
+        <div><span>Düğün tarihi</span><strong class="js-wedding-date">—</strong></div>
+        <div><span>Salon</span><strong class="js-venue">—</strong></div>
+        <div><span>Güncel durum</span><strong class="status-badge js-current-status">—</strong></div>
+      </section>
+
+      <section class="journey-section" hidden>
+        <header>
+          <p class="eyebrow">Teslimat yolculuğu</p>
+          <h2>Her adım özenle tamamlanıyor.</h2>
+        </header>
+        <ol class="delivery-timeline js-timeline"></ol>
+      </section>
+
+      <section class="delivery-release" hidden>
+        <div>
+          <p class="eyebrow">Teslimatınız hazır</p>
+          <h2>Hikâyeniz artık sizinle.</h2>
+          <p>Fotoğraf ve videolarınıza güvenli müşteri oturumunuz üzerinden ulaşabilirsiniz.</p>
+        </div>
+        <button class="delivery-button js-open-delivery" type="button">Dosyaları görüntüle →</button>
+      </section>
+    </main>
+  </body>
+</html>

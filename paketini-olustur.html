@@ -137,7 +137,7 @@
                   <span>Aktüel kamera çekimi</span>
                   <span>Gelin &amp; damat çekimi</span>
                   <span>Aile fotoğrafları</span>
-                  <span>En geç 21 iş gününde dijital teslim</span>
+                  <span>En geç 21 takvim gününde dijital teslim</span>
                 </span>
               </span>
             </label>
@@ -305,48 +305,117 @@
 
           <form class="checkout-form" id="checkout-form" novalidate>
             <div class="checkout-form__grid">
-              <label class="form-field form-field--wide">
-                <span>Ad Soyad</span>
+              <label class="form-field">
+                <span>Gelin Adı</span>
                 <input
                   type="text"
-                  name="fullName"
-                  autocomplete="name"
-                  placeholder="Adınız ve soyadınız"
+                  name="brideFirstName"
+                  autocomplete="given-name"
+                  placeholder="Gelin adı"
                   required
-                  aria-describedby="full-name-error"
+                  aria-describedby="bride-first-name-error"
                 />
-                <small class="form-field__error" id="full-name-error"
-                  >Lütfen adınızı ve soyadınızı yazın.</small
+                <small class="form-field__error" id="bride-first-name-error"
+                  >Bu alan zorunludur.</small
                 >
               </label>
 
               <label class="form-field">
-                <span>Telefon</span>
+                <span>Gelin Soyadı</span>
+                <input
+                  type="text"
+                  name="brideLastName"
+                  autocomplete="family-name"
+                  placeholder="Gelin soyadı"
+                  required
+                  aria-describedby="bride-last-name-error"
+                />
+                <small class="form-field__error" id="bride-last-name-error"
+                  >Bu alan zorunludur.</small
+                >
+              </label>
+
+              <label class="form-field">
+                <span>Gelin Telefonu</span>
                 <input
                   type="tel"
-                  name="phone"
+                  name="bridePhone"
                   autocomplete="tel"
                   inputmode="tel"
                   placeholder="05xx xxx xx xx"
                   required
-                  aria-describedby="phone-error"
+                  aria-describedby="bride-phone-error"
                 />
-                <small class="form-field__error" id="phone-error"
+                <small class="form-field__error" id="bride-phone-error"
                   >Geçerli bir telefon numarası yazın.</small
                 >
               </label>
 
               <label class="form-field">
-                <span>E-posta</span>
+                <span>Damat Adı</span>
+                <input
+                  type="text"
+                  name="groomFirstName"
+                  autocomplete="off"
+                  placeholder="Damat adı"
+                  required
+                  aria-describedby="groom-first-name-error"
+                />
+                <small class="form-field__error" id="groom-first-name-error"
+                  >Bu alan zorunludur.</small
+                >
+              </label>
+
+              <label class="form-field">
+                <span>Damat Soyadı</span>
+                <input
+                  type="text"
+                  name="groomLastName"
+                  autocomplete="off"
+                  placeholder="Damat soyadı"
+                  required
+                  aria-describedby="groom-last-name-error"
+                />
+                <small class="form-field__error" id="groom-last-name-error"
+                  >Bu alan zorunludur.</small
+                >
+              </label>
+
+              <label class="form-field">
+                <span>Damat Telefonu</span>
+                <input
+                  type="tel"
+                  name="groomPhone"
+                  autocomplete="off"
+                  inputmode="tel"
+                  placeholder="05xx xxx xx xx"
+                  required
+                  aria-describedby="groom-phone-error"
+                />
+                <small class="form-field__error" id="groom-phone-error"
+                  >Geçerli bir telefon numarası yazın.</small
+                >
+              </label>
+
+              <fieldset class="form-field form-field--wide contact-choice">
+                <legend>Birincil iletişim kişisi</legend>
+                <label
+                  ><input type="radio" name="primaryContact" value="GELIN" checked /> Gelin</label
+                >
+                <label><input type="radio" name="primaryContact" value="DAMAT" /> Damat</label>
+              </fieldset>
+
+              <label class="form-field form-field--wide">
+                <span>Birincil E-posta</span>
                 <input
                   type="email"
-                  name="email"
+                  name="primaryEmail"
                   autocomplete="email"
                   placeholder="ornek@email.com"
                   required
-                  aria-describedby="email-error"
+                  aria-describedby="primary-email-error"
                 />
-                <small class="form-field__error" id="email-error"
+                <small class="form-field__error" id="primary-email-error"
                   >Geçerli bir e-posta adresi yazın.</small
                 >
               </label>
@@ -366,17 +435,36 @@
               </label>
 
               <label class="form-field">
-                <span>Salon / Mekân</span>
-                <input
-                  type="text"
-                  name="venue"
-                  autocomplete="off"
-                  placeholder="Mekân adı veya ilçe"
+                <span>Başlangıç Saati</span>
+                <input type="time" name="startTime" required aria-describedby="start-time-error" />
+                <small class="form-field__error" id="start-time-error"
+                  >Başlangıç saatini seçin.</small
+                >
+              </label>
+
+              <label class="form-field">
+                <span>Bitiş Saati</span>
+                <input type="time" name="endTime" required aria-describedby="end-time-error" />
+                <small class="form-field__error" id="end-time-error">Bitiş saatini seçin.</small>
+              </label>
+
+              <label class="consent-field form-field--wide">
+                <input type="checkbox" name="endsNextDay" />
+                <span>Bitiş saati ertesi güne aittir.</span>
+              </label>
+
+              <label class="form-field form-field--wide">
+                <span>Salon</span>
+                <select
+                  class="js-venue-select"
+                  name="venueId"
                   required
                   aria-describedby="venue-error"
-                />
+                >
+                  <option value="">Salon seçin</option>
+                </select>
                 <small class="form-field__error" id="venue-error"
-                  >Lütfen düğün mekânınızı yazın.</small
+                  >Lütfen düğün salonunuzu seçin.</small
                 >
               </label>
 
@@ -508,11 +596,11 @@
                   </div>
                   <dl>
                     <div>
-                      <dt>Ad Soyad</dt>
-                      <dd class="js-review-name">—</dd>
+                      <dt>Çift</dt>
+                      <dd class="js-review-couple">—</dd>
                     </div>
                     <div>
-                      <dt>Telefon</dt>
+                      <dt>Birincil Telefon</dt>
                       <dd class="js-review-phone">—</dd>
                     </div>
                     <div>

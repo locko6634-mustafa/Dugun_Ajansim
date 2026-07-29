@@ -90,24 +90,23 @@
 
           <form class="login-form" novalidate>
             <div class="form-field">
-              <label for="email">E-posta adresi</label>
+              <label for="username">Kullanıcı adı</label>
               <div class="input-shell">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 6.5h18v12H3z" />
-                  <path d="m4 7.5 8 6 8-6" />
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M4 21a8 8 0 0 1 16 0" />
                 </svg>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  inputmode="email"
-                  autocomplete="email"
-                  placeholder="ornek@eposta.com"
-                  aria-describedby="email-error"
+                  id="username"
+                  name="username"
+                  type="text"
+                  autocomplete="username"
+                  placeholder="Kullanıcı adınız"
+                  aria-describedby="username-error"
                   required
                 />
               </div>
-              <span class="field-error" id="email-error" aria-live="polite"></span>
+              <span class="field-error" id="username-error" aria-live="polite"></span>
             </div>
 
             <div class="form-field">
@@ -166,6 +165,59 @@
             </button>
 
             <p class="form-message" role="status" aria-live="polite"></p>
+          </form>
+
+          <form class="password-change-form" novalidate hidden>
+            <div class="login-card__heading login-card__heading--compact">
+              <span class="login-card__number" aria-hidden="true">02</span>
+              <div>
+                <p class="eyebrow">Hesabınızı koruyun</p>
+                <h2>Yeni parola belirleyin</h2>
+              </div>
+            </div>
+            <div class="form-field">
+              <label for="current-password">Geçici / mevcut parola</label>
+              <div class="input-shell">
+                <input
+                  id="current-password"
+                  name="currentPassword"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                />
+              </div>
+            </div>
+            <div class="form-field">
+              <label for="new-password">Yeni parola</label>
+              <div class="input-shell">
+                <input
+                  id="new-password"
+                  name="newPassword"
+                  type="password"
+                  autocomplete="new-password"
+                  minlength="10"
+                  required
+                />
+              </div>
+            </div>
+            <div class="form-field">
+              <label for="confirm-password">Yeni parola tekrar</label>
+              <div class="input-shell">
+                <input
+                  id="confirm-password"
+                  name="confirmPassword"
+                  type="password"
+                  autocomplete="new-password"
+                  minlength="10"
+                  required
+                />
+              </div>
+            </div>
+            <button class="submit-button" type="submit">
+              <span>Parolayı Kaydet</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
+            </button>
+            <p class="form-message password-change-message" role="status" aria-live="polite"></p>
           </form>
 
           <p class="support-note">

@@ -10,17 +10,28 @@ import { configureSecurityMiddleware } from './middlewares/security.middleware.j
 import { globalErrorHandler } from './middlewares/error.middleware.js';
 // Sağlık kontrolü rota modülünü içe aktar
 import healthRoutes from './routes/health.routes.js';
+import publicRoutes from './routes/public.routes.js';
+import authRoutes from './routes/auth.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import customerRoutes from './routes/customer.routes.js';
 // Özel hata sınıfımızı içe aktar
 import { AppError } from './utils/appError.js';
+import { attachRequestContext } from './middlewares/requestContext.middleware.js';
 // Varsayılan API rotalarını uygulamaya bağlayan fonksiyon
 const registerApplicationRoutes = (application) => {
     // /api/v1/health yoluna gelen istekleri healthRoutes modülüne ilet
     application.use('/api/v1/health', healthRoutes);
+    application.use('/api/v1', publicRoutes);
+    application.use('/api/v1/auth', authRoutes);
+    application.use('/api/v1/admin', adminRoutes);
+    application.use('/api/v1/customer', customerRoutes);
 };
 // Express uygulamasını oluşturan ve tüm middleware/rotaları bağlayan ana fabrika fonksiyonu
 export const createApp = (registerRoutes = registerApplicationRoutes) => {
     // Yeni bir Express uygulaması örneği oluştur
     const application = express();
+    // Her isteğe güvenli bir izleme kimliği ekle.
+    application.use(attachRequestContext);
     // Yalnızca konfigürasyondaki güvenilir reverse proxy katman sayısını kabul et (0 = doğrudan bağlantı)
     application.set('trust proxy', env.TRUST_PROXY);
     // Güvenlik Katmanı Middleware'lerini (Helmet, Rate Limiter, CORS) bağla
