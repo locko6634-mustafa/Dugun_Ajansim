@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 const html = await readFile("index.html", "utf8");
+const homeCss = await readFile("css/home/styles.css", "utf8");
 const images = [...html.matchAll(/<img\b[^>]*>/gi)];
 const videos = [...html.matchAll(/<video\b[^>]*>/gi)];
 const missingDimensions = images.filter(
@@ -13,6 +14,17 @@ if (images.length > 40) failures.push(`index.html: ${images.length} img etiketi 
 if (missingDimensions.length > 0)
   failures.push(`${missingDimensions.length} gorselde width/height eksik`);
 if (videos.length > 3) failures.push(`index.html: ${videos.length} video etiketi (butce: 3)`);
+if (/<source\b[^>]*\ssrc=["'][^"']+\.mp4/i.test(html))
+  failures.push("Video kaynaklari ilk HTML yuklemesinde etkin");
+if (videos.some((match) => !/\bpreload=["']none["']/i.test(match[0])))
+  failures.push("Tum videolar preload=none kullanmiyor");
+if (/@import\s+/i.test(homeCss)) failures.push("Ana CSS paketinde render-blocking @import var");
+if (
+  !/<img\b[^>]*\bsrc=["']assets\/images\/hero-couple\.webp["'][^>]*\bfetchpriority=["']high/i.test(
+    html
+  )
+)
+  failures.push("Hero LCP gorselinde yuksek indirme onceligi eksik");
 if (lazyCount < Math.max(0, images.length - 3))
   failures.push(`lazy loading kapsami yetersiz (${lazyCount}/${images.length})`);
 

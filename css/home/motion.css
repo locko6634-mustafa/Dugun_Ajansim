@@ -110,14 +110,6 @@ html.motion-ready .motion-heading.is-visible .motion-heading__inner {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html.js .page-loader,
-  .page-loader__emblem svg,
-  .page-loader__orbit,
-  .page-loader__progress i {
-    animation: none !important;
-    transition-duration: 0.01ms !important;
-  }
-
   html.motion-ready .motion-reveal,
   html.motion-ready .motion-heading .motion-heading__inner,
   .motion-parallax {

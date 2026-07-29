@@ -9,7 +9,7 @@
     />
     <title>Düğünajansım | Türkiye'nin En Kapsamlı Düğün Prodüksiyon Ajansı</title>
     <meta name="theme-color" content="#f7f3ed" />
-    <link rel="canonical" href="./" />
+    <link rel="canonical" href="https://dugun-ajansim.vercel.app/" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="tr_TR" />
     <meta property="og:site_name" content="Düğünajansım" />
@@ -21,8 +21,11 @@
       property="og:description"
       content="Düğününüzün her anını fotoğraftan sinematik filme, drone'dan Jimmy Jib çekimine kadar tek profesyonel ekiple planlayın."
     />
-    <meta property="og:url" content="./" />
-    <meta property="og:image" content="assets/images/hero-couple.webp" />
+    <meta property="og:url" content="https://dugun-ajansim.vercel.app/" />
+    <meta
+      property="og:image"
+      content="https://dugun-ajansim.vercel.app/assets/images/hero-couple.webp"
+    />
     <meta property="og:image:alt" content="Düğünajansım'da romantik düğün çekimi" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta
@@ -33,7 +36,10 @@
       name="twitter:description"
       content="Düğününüzün her anını fotoğraftan sinematik filme, drone'dan Jimmy Jib çekimine kadar tek profesyonel ekiple planlayın."
     />
-    <meta name="twitter:image" content="assets/images/hero-couple.webp" />
+    <meta
+      name="twitter:image"
+      content="https://dugun-ajansim.vercel.app/assets/images/hero-couple.webp"
+    />
     <meta name="twitter:image:alt" content="Düğünajansım'da romantik düğün çekimi" />
     <script type="application/ld+json">
       {
@@ -41,39 +47,34 @@
         "@type": "Organization",
         "name": "Düğünajansım",
         "description": "Fotoğraf, sinematik film, drone, Jimmy Jib ve uçtan uca düğün prodüksiyon hizmetleri.",
-        "logo": "assets/images/hero-couple.webp",
-        "url": "./"
+        "logo": "https://dugun-ajansim.vercel.app/assets/images/hero-couple.webp",
+        "url": "https://dugun-ajansim.vercel.app/"
       }
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Italiana&family=Manrope:wght@400;500;600;700&family=Parisienne&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      href="https://fonts.googleapis.com/css2?family=Italiana&family=Manrope:wght@400;500;600;700&family=Parisienne&display=swap"
+      as="style"
+      onload="
+        this.onload = null;
+        this.rel = 'stylesheet';
+      "
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Italiana&family=Manrope:wght@400;500;600;700&family=Parisienne&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/home/styles.css?v=20260727-venues-1" />
-    <script type="module" src="js/home/app.js?v=20260727-modules-1"></script>
+    <link rel="stylesheet" href="css/home/styles.css?v=20260729-performance-1" />
+    <script type="module" src="js/home/app.js?v=20260729-performance-1"></script>
   </head>
-  <body class="page-loading">
-    <div class="page-loader" role="status" aria-live="polite" aria-label="Sayfa yükleniyor">
-      <div class="page-loader__content">
-        <div class="page-loader__emblem" aria-hidden="true">
-          <span class="page-loader__orbit"></span>
-          <svg viewBox="0 0 64 64">
-            <path d="M11 7h19c16 0 27 10 27 25S46 57 30 57H11V7Z" />
-            <path d="M19 28 31 16l12 12a7 7 0 0 1 0 10L31 50 19 38a7 7 0 0 1 0-10Z" />
-            <path d="m25 30 6-6 7 7a3 3 0 0 1 0 4l-7 7-6-6a4 4 0 0 1 0-6Z" />
-          </svg>
-        </div>
-        <p class="page-loader__brand">Düğünajansım</p>
-        <p class="page-loader__message">Hikâyeniz hazırlanıyor</p>
-        <span class="page-loader__progress" aria-hidden="true"><i></i></span>
-      </div>
-    </div>
-
+  <body>
     <header class="site-header">
       <a class="brand" href="#anasayfa" aria-label="Düğünajansım ana sayfa">
         <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true">
@@ -189,7 +190,6 @@
                 İletişim yakında
               </span>
             </div>
-
           </div>
 
           <div class="hero-collage" aria-label="Düğün fotoğraf çekimi örnekleri">
@@ -199,6 +199,8 @@
                 alt="Çiçeklerle süslü alanda oturan gelin ve damat"
                 width="1200"
                 height="800"
+                fetchpriority="high"
+                decoding="sync"
               />
             </figure>
             <figure class="photo photo--bride">
@@ -629,17 +631,17 @@
             </div>
             <div class="shoots-grid" tabindex="0">
               <article class="shoot-card">
-                <div class="shoot-card__media">
+                <div class="shoot-card__media shoot-card__media--talia">
                   <video
-                    autoplay
                     muted
                     loop
                     playsinline
-                    preload="metadata"
+                    preload="none"
+                    poster="assets/images/venues/talia-garden.webp"
                     aria-label="Talia akşam düğün çekimi"
                   >
                     <source
-                      src="https://qfmoughtxjgyusocywax.supabase.co/storage/v1/object/public/videos/video1.mp4"
+                      data-src="https://qfmoughtxjgyusocywax.supabase.co/storage/v1/object/public/videos/video1.mp4"
                       type="video/mp4"
                     />
                   </video>
@@ -667,17 +669,17 @@
               </article>
 
               <article class="shoot-card">
-                <div class="shoot-card__media">
+                <div class="shoot-card__media shoot-card__media--bella">
                   <video
-                    autoplay
                     muted
                     loop
                     playsinline
-                    preload="metadata"
+                    preload="none"
+                    poster="assets/images/venues/bella-garden.webp"
                     aria-label="Bella gündüz nişan çekimi"
                   >
                     <source
-                      src="https://qfmoughtxjgyusocywax.supabase.co/storage/v1/object/public/videos/video3.mp4"
+                      data-src="https://qfmoughtxjgyusocywax.supabase.co/storage/v1/object/public/videos/video3.mp4"
                       type="video/mp4"
                     />
                   </video>
@@ -705,17 +707,17 @@
               </article>
 
               <article class="shoot-card">
-                <div class="shoot-card__media">
+                <div class="shoot-card__media shoot-card__media--rena">
                   <video
-                    autoplay
                     muted
                     loop
                     playsinline
-                    preload="metadata"
+                    preload="none"
+                    poster="assets/images/venues/rena-garden.webp"
                     aria-label="Rena kır düğünü çekimi"
                   >
                     <source
-                      src="https://qfmoughtxjgyusocywax.supabase.co/storage/v1/object/public/videos/video1.mp4"
+                      data-src="https://qfmoughtxjgyusocywax.supabase.co/storage/v1/object/public/videos/video1.mp4"
                       type="video/mp4"
                     />
                   </video>

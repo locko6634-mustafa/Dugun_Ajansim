@@ -5,6 +5,22 @@ const videoLightboxClose = videoLightbox.querySelector(".video-lightbox__close")
 let activeVideo = null;
 let activeVideoPlaceholder = null;
 
+function loadVideo(video) {
+  if (video.dataset.loaded === "true") return;
+
+  video.querySelectorAll("source[data-src]").forEach((source) => {
+    source.src = source.dataset.src;
+    source.removeAttribute("data-src");
+  });
+  video.dataset.loaded = "true";
+  video.load();
+}
+
+function playVideo(video) {
+  loadVideo(video);
+  video.play().catch(() => {});
+}
+
 function openVideoLightbox(video) {
   shootCards.forEach((card) => {
     const previewVideo = card.querySelector("video");
@@ -26,7 +42,7 @@ function openVideoLightbox(video) {
   videoLightbox.querySelector("figure").prepend(video);
   videoLightboxCaption.textContent = video.getAttribute("aria-label") || "Video çekimi";
   videoLightbox.showModal();
-  video.play().catch(() => {});
+  playVideo(video);
 }
 
 function closeVideoLightbox() {
@@ -40,7 +56,8 @@ function restoreVideoPreview() {
   activeVideo.muted = true;
   activeVideo.controls = false;
   activeVideoPlaceholder.replaceWith(activeVideo);
-  activeVideo.play().catch(() => {});
+  const cardBounds = activeVideo.closest(".shoot-card").getBoundingClientRect();
+  if (cardBounds.bottom > 0 && cardBounds.top < window.innerHeight) playVideo(activeVideo);
   activeVideo = null;
   activeVideoPlaceholder = null;
 }
@@ -49,7 +66,12 @@ shootCards.forEach((card) => {
   const button = card.querySelector(".shoot-card__sound");
   const media = card.querySelector(".shoot-card__media");
 
+  video.addEventListener("loadeddata", () => media.classList.add("is-video-ready"), {
+    once: true
+  });
+
   button.addEventListener("click", () => {
+    playVideo(video);
     const willMute = !video.muted;
 
     if (!willMute) {
@@ -94,13 +116,24 @@ videoLightbox.addEventListener("close", () => {
   restoreVideoPreview();
 });
 
+const videoLoaderObserver = new IntersectionObserver(
+  (entries, observer) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      loadVideo(entry.target.querySelector("video"));
+      observer.unobserve(entry.target);
+    });
+  },
+  { rootMargin: "240px 0px" }
+);
+
 const shootsObserver = new IntersectionObserver(
   (entries) => {
     entries.forEach((entry) => {
       const video = entry.target.querySelector("video");
 
       if (entry.isIntersecting) {
-        video.play().catch(() => {});
+        playVideo(video);
       } else if (!video.paused) {
         video.pause();
       }
@@ -109,7 +142,10 @@ const shootsObserver = new IntersectionObserver(
   { threshold: 0.2 }
 );
 
-shootCards.forEach((card) => shootsObserver.observe(card));
+shootCards.forEach((card) => {
+  videoLoaderObserver.observe(card);
+  shootsObserver.observe(card);
+});
 
 const shootsTrack = document.querySelector(".shoots-grid");
 const shootsPrevious = document.querySelector(".shoots-gallery__arrow--previous");

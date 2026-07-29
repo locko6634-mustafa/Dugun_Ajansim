@@ -170,10 +170,36 @@
   isolation: isolate;
 }
 
-.shoot-card__media::after {
+.shoot-card__media--talia {
+  --shoot-poster: url("../../assets/images/venues/talia-garden.webp");
+}
+
+.shoot-card__media--bella {
+  --shoot-poster: url("../../assets/images/venues/bella-garden.webp");
+}
+
+.shoot-card__media--rena {
+  --shoot-poster: url("../../assets/images/venues/rena-garden.webp");
+}
+
+.shoot-card__media::before {
   position: absolute;
   inset: 0;
   z-index: 1;
+  background: var(--shoot-poster) center / cover no-repeat;
+  content: "";
+  pointer-events: none;
+  transition: opacity 320ms ease;
+}
+
+.shoot-card__media.is-video-ready::before {
+  opacity: 0;
+}
+
+.shoot-card__media::after {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   background:
     linear-gradient(to top, hsl(28 24% 7% / 0.46), transparent 34%),
     linear-gradient(to bottom, hsl(28 20% 6% / 0.18), transparent 24%);
@@ -183,6 +209,8 @@
 }
 
 .shoot-card video {
+  position: relative;
+  z-index: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -291,7 +319,7 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  z-index: 2;
+  z-index: 3;
   display: grid;
   width: 42px;
   height: 42px;
@@ -342,7 +370,7 @@
   position: absolute;
   top: 18px;
   left: 18px;
-  z-index: 2;
+  z-index: 3;
   color: hsl(38 42% 98% / 0.86);
   font-family: var(--serif);
   font-size: 12px;
