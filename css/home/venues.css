@@ -198,6 +198,13 @@
     transform 260ms var(--ease);
 }
 
+.venue-card__monogram {
+  color: var(--venues-accent);
+  font-family: var(--serif);
+  font-size: clamp(24px, 2.6vw, 34px);
+  letter-spacing: -0.04em;
+}
+
 .venue-card:hover .venue-card__emblem img,
 .venue-card:focus-visible .venue-card__emblem img {
   filter: saturate(1) contrast(1);

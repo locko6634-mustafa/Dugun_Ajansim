@@ -335,6 +335,11 @@ button {
   line-height: 1.65;
 }
 
+.hero__lead strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .hero__actions {
   display: flex;
   gap: 20px;
@@ -893,6 +898,28 @@ button {
   z-index: 4;
   padding: 50px 38px 58px;
   background: linear-gradient(hsl(0 0% 100% / 0.72), hsl(0 0% 100% / 0.72)), var(--legacy-paper);
+}
+
+.legacy-values__heading {
+  width: min(880px, 100%);
+  margin: 0 auto 72px;
+  text-align: center;
+}
+
+.legacy-values__heading h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(36px, 4vw, 58px);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 1.04;
+}
+
+.legacy-values__heading p {
+  margin: 18px auto 0;
+  color: hsl(29 6% 32%);
+  font-size: clamp(15px, 1.2vw, 18px);
+  line-height: 1.7;
 }
 
 .legacy-values__grid {

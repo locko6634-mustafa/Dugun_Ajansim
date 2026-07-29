@@ -1,7 +1,7 @@
 const homeServices = [
   {
     id: "fotograf",
-    name: "Fotoğraf Çekimi",
+    name: "Düğün Fotoğrafçılığı",
     price: 7000,
     image: "assets/images/services/fotograf-cekimi.webp",
     gallery: [
@@ -10,7 +10,7 @@ const homeServices = [
       "assets/images/bride-portrait.webp"
     ],
     description:
-      "Günün en doğal anlarını yönlendirmesi güçlü, zarif ve zamansız karelere dönüştürüyoruz. Çekim planı düğün akışınıza göre önceden hazırlanır.",
+      "Hazırlık anından son dansa kadar en özel anlarınızı doğal, estetik ve zamansız karelerle ölümsüzleştiriyoruz.",
     features: [
       "Profesyonel fotoğraf ekibi",
       "Çift ve aile portreleri",
@@ -21,7 +21,7 @@ const homeServices = [
   },
   {
     id: "video",
-    name: "Video Çekimi",
+    name: "Sinematik Düğün Filmi",
     price: 9000,
     image: "assets/images/services/video-cekimi.webp",
     gallery: [
@@ -30,7 +30,7 @@ const homeServices = [
       "assets/images/hero-couple.webp"
     ],
     description:
-      "Hazırlıktan kutlamaya uzanan günün sesini, hareketini ve duygusunu sinematik bir anlatıyla kaydediyoruz.",
+      "Düğününüzü yalnızca kaydetmiyor, en özel anlarınızı sinematik bir anlatımla ömür boyu izlemek isteyeceğiniz bir filme dönüştürüyoruz.",
     features: [
       "4K profesyonel video kaydı",
       "Hazırlık ve tören anları",
@@ -50,7 +50,7 @@ const homeServices = [
       "assets/images/hero-couple.webp"
     ],
     description:
-      "Profesyonel drone ile düğününüzün en özel anlarını havadan yakalıyoruz. Mekânın ölçeğini ve atmosferini sinematik görüntülerle unutulmaz hale getiriyoruz.",
+      "Mekânın atmosferini ve düğününüzün ihtişamını etkileyici hava görüntüleriyle farklı bir bakış açısıyla yansıtıyoruz.",
     features: [
       "4K kalitede hava görüntüsü",
       "Özel rota planlaması",
@@ -60,9 +60,9 @@ const homeServices = [
     delivery: "7–14 iş günü"
   },
   {
-    id: "klip",
-    name: "Düğün Klibi",
-    price: 12000,
+    id: "jimmy-jib",
+    name: "Jimmy Jib Çekimi",
+    price: null,
     image: "assets/images/services/klip-cekimi.webp",
     gallery: [
       "assets/images/services/klip-cekimi.webp",
@@ -70,18 +70,13 @@ const homeServices = [
       "assets/images/groom-portrait.webp"
     ],
     description:
-      "Hikâyenizi seçtiğiniz müzik, güçlü sahneler ve dinamik bir kurgu ile size özel kısa bir düğün filmine dönüştürüyoruz.",
-    features: [
-      "Size özel hikâye akışı",
-      "Sinematik çekim ve kurgu",
-      "Lisanslı müzik seçeneği",
-      "Sosyal medya için kısa versiyon"
-    ],
-    delivery: "14–21 iş günü"
+      "Profesyonel vinç sistemiyle geniş açılı, akıcı ve sinema kalitesinde görüntüler elde ediyoruz.",
+    features: [],
+    delivery: null
   },
   {
     id: "album",
-    name: "Albüm Tasarımı",
+    name: "Premium Albüm Tasarımı",
     price: 7000,
     image: "assets/images/services/album-tasarimi.webp",
     gallery: [
@@ -90,7 +85,7 @@ const homeServices = [
       "assets/images/hero-couple.webp"
     ],
     description:
-      "Seçtiğiniz kareleri kaliteli malzeme, dengeli sayfa tasarımı ve size özel kapak seçenekleriyle kalıcı bir hatıraya dönüştürüyoruz.",
+      "En değerli karelerinizi, yıllarca saklayabileceğiniz özel tasarım premium albümlere dönüştürüyoruz.",
     features: [
       "Kişiye özel sayfa tasarımı",
       "Premium baskı ve ciltleme",
@@ -100,9 +95,9 @@ const homeServices = [
     delivery: "21–30 iş günü"
   },
   {
-    id: "video360",
-    name: "360° Video Booth",
-    price: 5500,
+    id: "organizasyon",
+    name: "Organizasyon Hizmetleri",
+    price: null,
     image: "assets/images/services/360-video.webp",
     gallery: [
       "assets/images/services/360-video.webp",
@@ -110,14 +105,39 @@ const homeServices = [
       "assets/images/hero-couple.webp"
     ],
     description:
-      "Misafirlerinizin eğlenceli anlarını hareketli kamera platformuyla kaydediyor, anında paylaşılabilir kısa videolara dönüştürüyoruz.",
-    features: [
-      "Profesyonel 360° platform",
-      "Etkinlik boyunca operatör",
-      "Kişiselleştirilmiş video çerçevesi",
-      "Anında dijital paylaşım"
+      "360° Video Booth, Instax misafir albümü, QR kodlu dijital anı paylaşımı, karşılama panoları, anı köşeleri ve düğününüze değer katan özel organizasyon çözümlerini tek çatı altında sunuyoruz.",
+    features: [],
+    delivery: null
+  },
+  {
+    id: "dis-cekim",
+    name: "Dış Çekim",
+    price: null,
+    image: "assets/images/hero-couple.webp",
+    gallery: [
+      "assets/images/hero-couple.webp",
+      "assets/images/bride-portrait.webp",
+      "assets/images/groom-portrait.webp"
     ],
-    delivery: "Etkinlik günü"
+    description:
+      "Size özel seçilen konsept mekânlarda, doğal ışık ve profesyonel bakış açısıyla unutulmaz dış çekim deneyimleri sunuyoruz.",
+    features: [],
+    delivery: null
+  },
+  {
+    id: "aninda-baski",
+    name: "Anında Fotoğraf Baskısı",
+    price: null,
+    image: "assets/images/bride-portrait.webp",
+    gallery: [
+      "assets/images/bride-portrait.webp",
+      "assets/images/services/fotograf-cekimi.webp",
+      "assets/images/hero-couple.webp"
+    ],
+    description:
+      "Profesyonel baskı hizmetimizle çekilen fotoğrafları düğün sırasında misafirlerinize anında teslim ediyoruz.",
+    features: [],
+    delivery: null
   }
 ];
 
@@ -167,9 +187,20 @@ document.addEventListener("DOMContentLoaded", () => {
         return item;
       })
     );
+    detailFeatures.hidden = service.features.length === 0;
+    detailFeatures.style.display = service.features.length ? "" : "none";
 
-    detailDelivery.textContent = service.delivery;
-    detailPrice.textContent = formatPrice(service.price);
+    const deliveryBlock = detailDelivery.closest(".service-detail__delivery");
+    detailDelivery.textContent = service.delivery || "";
+    if (deliveryBlock) {
+      deliveryBlock.hidden = !service.delivery;
+      deliveryBlock.style.display = service.delivery ? "" : "none";
+    }
+
+    const hasPrice = Number.isFinite(service.price);
+    detailPrice.textContent = hasPrice ? formatPrice(service.price) : "";
+    detailPrice.hidden = !hasPrice;
+    detailPrice.style.display = hasPrice ? "" : "none";
 
     if (detailAction) {
       detailAction.href = `paketini-olustur.html?hizmet=${service.id}`;
