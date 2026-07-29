@@ -52,6 +52,7 @@ const servicesGrid = document.querySelector(".builder-services");
 const filterButtons = [...document.querySelectorAll(".service-filter button")];
 const detailDialog = document.querySelector(".service-detail");
 const detailMainImage = document.querySelector(".js-detail-main-image");
+const detailEyebrow = document.querySelector(".js-detail-eyebrow");
 const detailTitle = document.querySelector(".js-detail-title");
 const detailDescription = document.querySelector(".js-detail-description");
 const detailFeatures = document.querySelector(".js-detail-features");
@@ -363,8 +364,6 @@ function validatePhone() {
   return isValid;
 }
 
-
-
 checkoutForm.addEventListener("input", (event) => {
   if (event.target === phoneInput) validatePhone();
   const field = event.target.closest(".form-field");
@@ -449,7 +448,10 @@ document.querySelectorAll(".js-copy-transfer").forEach((button) => {
 function generateWhatsAppMessage() {
   const payment = getPaymentDetails();
   const base = basePackages[state.base];
-  const extras = getSelectedExtras().map((s) => s.name).join(", ") || "Yok";
+  const extras =
+    getSelectedExtras()
+      .map((s) => s.name)
+      .join(", ") || "Yok";
   const refNo = state.transferReference || `DA-${Math.floor(100000 + Math.random() * 900000)}`;
   state.transferReference = refNo;
 
@@ -506,7 +508,7 @@ if (paymentNotificationForm) {
         element.inert = true;
         element.setAttribute("aria-hidden", "true");
       });
-    
+
     const completionTitle = document.querySelector(".js-completion-title");
     if (completionTitle) completionTitle.focus({ preventScroll: true });
   });
@@ -636,6 +638,7 @@ if (transferDateInput) transferDateInput.max = localToday;
 
 const requestedService = new URL(window.location.href).searchParams.get("hizmet");
 if (requestedService && services.some((service) => service.id === requestedService)) {
+  goToStep(2);
   openServiceDetail(requestedService);
 }
 
@@ -762,6 +765,7 @@ function openServiceDetail(serviceId) {
   if (!service) return;
 
   state.activeService = serviceId;
+  detailEyebrow.textContent = service.eyebrow;
   detailTitle.textContent = service.name;
   detailDescription.textContent = service.description;
   detailFeatures.replaceChildren(

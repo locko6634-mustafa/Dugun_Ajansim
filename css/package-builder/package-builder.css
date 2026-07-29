@@ -1320,13 +1320,12 @@ button {
 }
 
 .builder-service__details strong {
-  overflow: hidden;
+  min-height: 2.1em;
   font-family: var(--serif);
   font-size: 23px;
   font-weight: 400;
   letter-spacing: -0.03em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.05;
 }
 
 .builder-service__details b {
@@ -2315,7 +2314,7 @@ body.is-summary-open .package-summary__close svg {
   }
 
   .builder-progress__item strong {
-    font-size: 12px;
+    font-size: 7px;
     line-height: 1.2;
   }
 
