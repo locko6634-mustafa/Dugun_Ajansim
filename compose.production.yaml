@@ -100,8 +100,14 @@ services:
       - traefik.http.routers.dugun-ajansim.priority=10
       - traefik.http.routers.dugun-ajansim.tls=true
       - traefik.http.routers.dugun-ajansim.tls.certresolver=mytlschallenge
-      - traefik.http.routers.dugun-ajansim.middlewares=dugun-ajansim-compress
+      - traefik.http.routers.dugun-ajansim.middlewares=dugun-ajansim-compress,dugun-ajansim-security
       - traefik.http.services.dugun-ajansim.loadbalancer.server.port=80
+      - traefik.http.middlewares.dugun-ajansim-security.headers.contenttypenosniff=true
+      - traefik.http.middlewares.dugun-ajansim-security.headers.customframeoptionsvalue=SAMEORIGIN
+      - traefik.http.middlewares.dugun-ajansim-security.headers.permissionspolicy=camera=(), microphone=(), geolocation=()
+      - traefik.http.middlewares.dugun-ajansim-security.headers.referrerpolicy=strict-origin-when-cross-origin
+      - traefik.http.middlewares.dugun-ajansim-security.headers.stsincludesubdomains=true
+      - traefik.http.middlewares.dugun-ajansim-security.headers.stsseconds=31536000
     networks:
       - edge_proxy
 
