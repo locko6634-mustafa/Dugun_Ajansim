@@ -108,6 +108,8 @@ SELECT format('REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM %I',
 SELECT format('GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO %I', :'runtime_user') \gexec
 SELECT format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO %I', :'runtime_user') \gexec
 
+SELECT format('REVOKE UPDATE ON TABLE %I.%I FROM %I', 'public', 'audit_logs', :'runtime_user')
+WHERE to_regclass('public.audit_logs') IS NOT NULL \gexec
 SELECT format('GRANT DELETE ON TABLE %I.%I TO %I', 'public', 'auth_sessions', :'runtime_user')
 WHERE to_regclass('public.auth_sessions') IS NOT NULL \gexec
 SELECT format('REVOKE ALL PRIVILEGES ON TABLE %I.%I FROM %I', 'public', '_prisma_migrations', :'runtime_user')

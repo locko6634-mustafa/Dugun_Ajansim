@@ -242,7 +242,11 @@ export const createBookingApplication = async (
 
           return application;
         },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 5_000,
+          timeout: 10_000,
+        },
       );
     } catch (error) {
       if (

@@ -111,6 +111,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     parseEnvironment({
       ...validEnvironment,
       NODE_ENV: 'production',
+      TRUST_PROXY: '172.30.0.2',
       DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
       DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/dugun_ajansim',
     }),
@@ -119,6 +120,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     parseEnvironment({
       ...validEnvironment,
       NODE_ENV: 'production',
+      TRUST_PROXY: '172.30.0.2',
       DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
       DATABASE_URL:
         'postgresql://app_user:a@db.example.com:5432/dugun_ajansim?sslmode=require&sslaccept=strict',
@@ -128,6 +130,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     parseEnvironment({
       ...validEnvironment,
       NODE_ENV: 'production',
+      TRUST_PROXY: '172.30.0.2',
       DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
       DATABASE_URL:
         'postgresql://app_user:aaaaaaaaaaaaaaaaaaaaaaaa@db.example.com:5432/dugun_ajansim?sslmode=require&sslaccept=strict',
@@ -137,6 +140,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     parseEnvironment({
       ...validEnvironment,
       NODE_ENV: 'production',
+      TRUST_PROXY: '172.30.0.2',
       DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
       DATABASE_URL:
         'postgresql://app_user:Guclu-Production-Parolasi-2026%21@db.example.com:5432/dugun_ajansim?sslmode=require',
@@ -146,6 +150,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     parseEnvironment({
       ...validEnvironment,
       NODE_ENV: 'production',
+      TRUST_PROXY: '172.30.0.2',
       DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
       DATABASE_URL:
         'postgresql://app_user:Guclu-Production-Parolasi-2026%21@db.example.com:5432/dugun_ajansim?sslmode=require&sslaccept=strict&sslmode=disable',
@@ -155,6 +160,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     parseEnvironment({
       ...validEnvironment,
       NODE_ENV: 'production',
+      TRUST_PROXY: '172.30.0.2',
       DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
       DATABASE_URL:
         'postgresql://uzun_production_user_2026:uzun_production_user_2026@db.example.com:5432/dugun_ajansim?sslmode=require&sslaccept=strict',
@@ -164,11 +170,22 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   const productionEnvironment = parseEnvironment({
     ...validEnvironment,
     NODE_ENV: 'production',
+    TRUST_PROXY: '172.30.0.2',
     DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
     DATABASE_URL:
       'postgresql://app_user:Guclu-Production-Parolasi-2026%21@db.example.com:5432/dugun_ajansim?sslmode=require&sslaccept=strict',
   });
   assert.equal(productionEnvironment.NODE_ENV, 'production');
+  assert.throws(() =>
+    parseEnvironment({
+      ...validEnvironment,
+      NODE_ENV: 'production',
+      TRUST_PROXY: '0',
+      DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
+      DATABASE_URL:
+        'postgresql://app_user:Guclu-Production-Parolasi-2026%21@db.example.com:5432/dugun_ajansim?sslmode=require&sslaccept=strict',
+    }),
+  );
   assert.throws(() =>
     parseEnvironment({
       ...validEnvironment,
@@ -192,6 +209,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   const privateDockerEnvironment = parseEnvironment({
     ...validEnvironment,
     NODE_ENV: 'production',
+    TRUST_PROXY: '172.30.0.2',
     DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
     ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: 'true',
     DATABASE_URL:
@@ -202,6 +220,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     parseEnvironment({
       ...validEnvironment,
       NODE_ENV: 'production',
+      TRUST_PROXY: '172.30.0.2',
       DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
       ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: 'true',
       DATABASE_URL:
@@ -212,6 +231,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     parseEnvironment({
       ...validEnvironment,
       NODE_ENV: 'production',
+      TRUST_PROXY: '172.30.0.2',
       DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
       DATABASE_URL:
         'postgresql://app_user:Degistir-Guclu-Production-Parolasi-2026@db.example.com:5432/dugun_ajansim?sslmode=require&sslaccept=strict',
@@ -221,6 +241,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     parseEnvironment({
       ...validEnvironment,
       NODE_ENV: 'production',
+      TRUST_PROXY: '172.30.0.2',
       DATA_ENCRYPTION_KEY: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       DATABASE_URL:
         'postgresql://app_user:Guclu-Production-Parolasi-2026%21@db.example.com:5432/dugun_ajansim?sslmode=require&sslaccept=strict',
@@ -691,6 +712,7 @@ test('başlangıç yapılandırma hatası port açılmadan kontrollü biçimde s
     env: {
       ...process.env,
       NODE_ENV: 'production',
+      TRUST_PROXY: '172.30.0.2',
       PORT: 'geçersiz',
       DATABASE_URL:
         'postgresql://app_user:Guclu-Production-Parolasi-2026%21@db.example.com:5432/dugun_ajansim?sslmode=require&sslaccept=strict',

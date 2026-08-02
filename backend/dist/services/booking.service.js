@@ -152,7 +152,11 @@ export const createBookingApplication = async (input, options) => {
                     metadata: { source: options.source, referenceCode },
                 });
                 return application;
-            }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+            }, {
+                isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+                maxWait: 5_000,
+                timeout: 10_000,
+            });
         }
         catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError &&

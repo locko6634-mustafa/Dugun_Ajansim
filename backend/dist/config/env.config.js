@@ -131,7 +131,7 @@ const envSchema = z
     if (environment.NODE_ENV !== 'production') {
         return;
     }
-    if (typeof environment.TRUST_PROXY === 'number' && environment.TRUST_PROXY > 0) {
+    if (typeof environment.TRUST_PROXY === 'number') {
         context.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['TRUST_PROXY'],

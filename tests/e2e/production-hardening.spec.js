@@ -99,6 +99,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(runtimeRoleScript).toContain("REVOKE ALL PRIVILEGES ON DATABASE");
   expect(runtimeRoleScript).toContain("REVOKE ALL PRIVILEGES ON SCHEMA public");
   expect(runtimeRoleScript).toContain("GRANT SELECT, INSERT, UPDATE ON ALL TABLES");
+  expect(runtimeRoleScript).toContain("REVOKE UPDATE ON TABLE %I.%I FROM %I");
+  expect(runtimeRoleScript).toContain("'public', 'audit_logs'");
   expect(runtimeRoleScript).toContain("GRANT DELETE ON TABLE %I.%I");
   expect(runtimeRoleScript).toContain("ALTER DEFAULT PRIVILEGES FOR ROLE");
   expect(runtimeRoleScript).toContain("_prisma_migrations");

@@ -1,47 +1,100 @@
-## 1. KESİN KURAL: Sunucu Çalıştırma ve Test Prosedürü
+# Düğün Ajansım — Proje Tanımı
 
-> [!CAUTION]
-> **DOĞRUDAN SUNUCU BAŞLATMAK KESİNLİKLE YASAKTIR!**
-> Ajan, terminal üzerinden doğrudan `python -m http.server`, `npx http-server`, `live-server` veya başka bir bağımsız komut **ÇALIŞTIRAMAZ**.
+## Projenin Amacı
 
-### ⚠️ Sunucu Çalıştırma Protokolü:
+Düğün Ajansım; düğün fotoğrafçılığı, video çekimi, drone çekimi, klip hazırlama,
+albüm tasarımı ve benzeri hizmetleri dijital ortamda sunmayı amaçlayan bir web projesidir.
 
-1. **Test ve Görüntüleme:** Sayfayı yerel ortamda test etmek veya sunucuyu açmak için **YALNIZCA VE KESİNLİKLE** `run_server.bat` dosyası çalıştırılmalıdır.
-2. **Komut Kullanımı:**
-   - PowerShell üzerinden: `powershell -ExecutionPolicy Bypass -File .\sunucu_baslat.ps1`
-3. **Çalışma Mantığı:** Bu script, Windows WMI (`Win32_Process`) kullanarak Python HTTP sunucusunu terminal oturumundan bağımsız bir arka plan süreci olarak başlatır. Port 8000 doluysa eski süreci temizler ve `http://localhost:8000` adresinde projeyi yayına alır.
-4. **Ajan Davranışı:** Ajan hiçbir koşulda port açmak için kendi özel komut dizilimini türetmeye çalışmayacak, doğrudan projedeki hazır scripti tetikleyecektir.
+Proje; ziyaretçilerin ajansı ve hizmetleri tanımasını, çekim örneklerini incelemesini,
+kendi hizmet paketini oluşturmasını ve hesaplarına erişmesini sağlar. Yönetim ve operasyon
+ekipleri için ayrı panel deneyimleri, müşteriler için ise rezervasyon ve teslimat süreçlerini
+takip edebilecekleri bir alan geliştirilmektedir.
 
-## 2. Git Versiyon Kontrolü ve Push Kuralları
+## Mevcut Ürün Alanları
 
-Ajan, geliştirmelerini veya hata düzeltmelerini tamamlayıp testlerden geçirdikten sonra değişiklikleri uzak repoya (GitHub) kaydetmelidir.
+- Kurumsal ana sayfa ve hizmet tanıtımları
+- Çekim galerisi ve mekan içerikleri
+- Sıkça sorulan sorular
+- Kişiselleştirilebilir paket oluşturucu
+- Kullanıcı giriş ekranı
+- Müşteri paneli
+- Yönetim paneli
+- Operasyon paneli
+- KVKK aydınlatma, gizlilik politikası ve kullanım şartları sayfaları
+- Rezervasyon, kullanıcı ve müşteri teslimat süreçlerini destekleyen backend API
 
-### 📌 Commit ve Push Kuralları:
+## Teknoloji Yapısı
 
-1. **Anlamlı Türkçe + ASCII Alfabe:** Commit mesajları ne yapıldığını açıkça anlatan **anlamlı Türkçe** cümleler olmalıdır. Ancak karakter bozulmalarını ve terminal uyumsuzluklarını önlemek için **yalnızca İngilizce alfabe (ASCII) karakterleri** kullanılmalıdır (`ç, ğ, ı, ö, ş, ü` yerine `c, g, i, o, s, u`).
-   - ✅ _Doğru Örnek:_ `git commit -m "feat: otomatik test paketi eklendi ve agent.md guncellendi"`
-   - ❌ _Hatalı Örnek:_ `git commit -m "geliştirme yapıldı"` (Anlamsız ve Türkçe karakter içeriyor)
-2. **Otomatik Push:** Commit oluşturulduktan sonra değişiklikler `git push` komutu ile GitHub üzerindeki aktif dala (branch) gönderilmelidir.
+### Frontend
 
-## 3. Moduler Frontend Mimarisi
+Frontend, framework bağımlılığı olmadan Vanilla HTML, CSS ve JavaScript ile geliştirilir.
+JavaScript tarafında ES modules kullanılır. Sayfalar proje kökündeki HTML dosyalarından,
+stiller `css/`, istemci kodları `js/`, görsel varlıklar ise `assets/` klasöründen sunulur.
 
-### JavaScript yapisi
+Ana frontend kalite araçları:
 
-- Her HTML sayfasi sadece kendi giris modulunu `type="module"` ile yukler.
-- Her sayfanin JavaScript betikleri `js/<sayfa-adi>/` klasoru altinda bulunur (`js/home/app.js`, `js/login/login.js`, `js/package-builder/main.js`, `js/yasal/`).
-- Yeni alanlar (ornek: `js/dashboard/`) kendi klasoru altinda `main.js` veya `app.js` giris dosyasiyla eklenmelidir.
-- Birden fazla sayfanin kullandigi, DOM'a dogrudan bagli olmayan yardimcilar `js/shared/` altinda konumlanir.
-- Veri kataloglari, durum/is kurallari ve arayuz davranislari ayri modullerde tutulur. Moduller acik `export`/`import` kullansin; global degisken ve klasik script bagimliligi olusturmayin.
+- ESLint
+- Stylelint
+- Prettier
+- html-validate
+- Playwright
+- Axe erişilebilirlik kontrolleri
 
-### CSS yapisi
+### Backend
 
-- Her sayfanin stil dosyalari `css/<sayfa-adi>/` klasoru altinda bulunur.
-- Ana sayfa stilleri `css/home/styles.css` giris noktasi ile `css/home/` altindaki modulleri bir araya getirir.
-- Giriş ekrani `css/login/login.css`, paket olusturucu `css/package-builder/package-builder.css`, yasal sayfalar `css/yasal/yasal.css` konumundadir.
-- Ortak token ve temel kurallar sadece gercekten paylasiliyorsa `css/shared/` gibi ortak bir modulde tutulur.
+Backend, `backend/` klasöründe yer alan Node.js ve TypeScript tabanlı bir Express API'dir.
+Veri erişiminde Prisma ORM ve PostgreSQL kullanılır. API; kimlik doğrulama, yönetim,
+müşteri, rezervasyon, teslimat ve sistem sağlığı gibi alanları destekleyecek şekilde
+modüler olarak geliştirilmektedir.
 
-### Dosya yerlesimi
+Başlıca backend teknolojileri:
 
-- Sayfa HTML dosyalari proje kokunde tutulur (`index.html`, `login.html`, `paketini-olustur.html`).
-- Sayfaya ait tüm stil ve betikler istisnasiz `css/<sayfa-adi>/` ve `js/<sayfa-adi>/` klasörleri altinda yer alir.
-- Bir dosya tasindiginda tum HTML kaynak yollari, sayfa baglantilari ve goreli varlik yollari ayni degisiklikte guncellenir.
+- Node.js 22+
+- TypeScript
+- Express
+- Prisma
+- PostgreSQL
+- Zod
+- Argon2
+- Supertest
+
+### Dağıtım
+
+Proje Docker ile paketlenebilir. Üretim ortamı için Docker Compose ve Nginx
+yapılandırmaları `compose.production.yaml` ve `deploy/` altında bulunur.
+
+## Klasör Yapısı
+
+```text
+/
+├── assets/                 Görseller ve ortak statik varlıklar
+├── css/                    Sayfa bazlı frontend stilleri
+├── js/                     Sayfa bazlı JavaScript modülleri
+│   └── shared/             Ortak istemci yardımcıları ve servisler
+├── tests/e2e/              Frontend uçtan uca testleri
+├── tools/                  CSS derleme ve performans araçları
+├── backend/
+│   ├── src/                TypeScript API kaynak kodu
+│   ├── prisma/             Prisma şeması, migration ve seed dosyaları
+│   ├── tests/              Backend testleri
+│   └── docs/               Backend teknik dokümantasyonu
+├── deploy/                 Nginx ve dağıtım belgeleri
+└── *.html                  Frontend sayfa girişleri
+```
+
+## Frontend Sayfa Eşleşmeleri
+
+| Alan | HTML | JavaScript | CSS |
+|---|---|---|---|
+| Ana sayfa | `index.html` | `js/home/app.js` | `css/home/` |
+| Giriş | `login.html` | `js/login/login.js` | `css/login/` |
+| Paket oluşturucu | `paketini-olustur.html` | `js/package-builder/main.js` | `css/package-builder/` |
+| Yönetim paneli | `admin.html` | `js/admin/app.js` | `css/admin/` |
+| Müşteri paneli | `musteri-paneli.html` | `js/customer-panel/app.js` | `css/customer-panel/` |
+| Operasyon paneli | `operasyon-paneli.html` | Geliştirme aşamasında | `css/customer-panel/` |
+| Yasal sayfalar | İlgili kök HTML dosyaları | Gerektiğinde eklenir | `css/yasal/` |
+
+## Gelişim Durumu
+
+Proje aktif olarak geliştirilmektedir. Mevcut yapı yeni sayfalar, paneller, API uçları,
+veritabanı modelleri, otomasyonlar ve dağıtım seçenekleriyle genişletilmeye açıktır.
