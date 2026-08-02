@@ -26,7 +26,7 @@ if ($oldProcess) {
 
 Write-Host "Sunucu WMI ile bagimsiz olarak baslatiliyor..." -ForegroundColor Cyan
 $result = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
-    CommandLine = """$pythonPath"" -m http.server $port"
+    CommandLine = """$pythonPath"" -c ""import http.server; http.server.test(http.server.SimpleHTTPRequestHandler, http.server.ThreadingHTTPServer, port=$port)"""
     CurrentDirectory = $workingDir
 }
 
