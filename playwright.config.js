@@ -14,7 +14,7 @@ export default defineConfig({
     video: "retain-on-failure"
   },
   webServer: {
-    command: "powershell -NoProfile -ExecutionPolicy Bypass -File .\\sunucu_baslat.ps1 -Wait",
+    command: "node tools/serve.mjs 8000",
     url: "http://127.0.0.1:8000",
     reuseExistingServer: true,
     timeout: 30_000
