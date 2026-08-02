@@ -15,6 +15,16 @@ export type EncryptedValue = {
 };
 
 const encryptionKey = Buffer.from(env.DATA_ENCRYPTION_KEY, 'hex');
+const GCM_IV_BYTES = 12;
+const GCM_AUTH_TAG_BYTES = 16;
+
+const decodeCanonicalBase64 = (value: string): Buffer => {
+  const decoded = Buffer.from(value, 'base64');
+  if (decoded.toString('base64') !== value) {
+    throw new Error('Şifreli veri biçimi geçersiz.');
+  }
+  return decoded;
+};
 
 export const hashPassword = (password: string): Promise<string> =>
   argon2.hash(password, {
@@ -38,9 +48,12 @@ export const tokenHashesMatch = (plainToken: string, storedHash: string): boolea
   return candidate.length === stored.length && timingSafeEqual(candidate, stored);
 };
 
-export const encryptValue = (value: string): EncryptedValue => {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', encryptionKey, iv);
+export const encryptValue = (value: string, aad?: string): EncryptedValue => {
+  const iv = randomBytes(GCM_IV_BYTES);
+  const cipher = createCipheriv('aes-256-gcm', encryptionKey, iv, {
+    authTagLength: GCM_AUTH_TAG_BYTES,
+  });
+  if (aad !== undefined) cipher.setAAD(Buffer.from(aad, 'utf8'));
   const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
 
   return {
@@ -50,16 +63,19 @@ export const encryptValue = (value: string): EncryptedValue => {
   };
 };
 
-export const decryptValue = (value: EncryptedValue): string => {
-  const decipher = createDecipheriv(
-    'aes-256-gcm',
-    encryptionKey,
-    Buffer.from(value.iv, 'base64')
-  );
-  decipher.setAuthTag(Buffer.from(value.authTag, 'base64'));
+export const decryptValue = (value: EncryptedValue, aad?: string): string => {
+  const iv = decodeCanonicalBase64(value.iv);
+  const authTag = decodeCanonicalBase64(value.authTag);
+  const ciphertext = decodeCanonicalBase64(value.ciphertext);
+  if (iv.length !== GCM_IV_BYTES || authTag.length !== GCM_AUTH_TAG_BYTES) {
+    throw new Error('Şifreli veri biçimi geçersiz.');
+  }
 
-  return Buffer.concat([
-    decipher.update(Buffer.from(value.ciphertext, 'base64')),
-    decipher.final(),
-  ]).toString('utf8');
+  const decipher = createDecipheriv('aes-256-gcm', encryptionKey, iv, {
+    authTagLength: GCM_AUTH_TAG_BYTES,
+  });
+  if (aad !== undefined) decipher.setAAD(Buffer.from(aad, 'utf8'));
+  decipher.setAuthTag(authTag);
+
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
 };

@@ -17,7 +17,21 @@ export const normalizeUsername = (value: string): string =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 48);
+    .slice(0, 64);
+
+export const isStrictGregorianDate = (value: string): boolean => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= daysInMonth[month - 1]!;
+};
 
 export const normalizePhone = (value: string): string => {
   const digits = value.replace(/\D/g, '');
@@ -38,8 +52,11 @@ export const createWeddingRange = (
   weddingDate: string,
   startTime: string,
   endTime: string,
-  endsNextDay: boolean
+  endsNextDay: boolean,
 ): { startsAt: Date; endsAt: Date } => {
+  if (!isStrictGregorianDate(weddingDate)) {
+    throw new AppError('Düğün tarihi geçersiz.', 400);
+  }
   const startsAt = new Date(`${weddingDate}T${startTime}:00${ISTANBUL_OFFSET}`);
   const endDate = endsNextDay ? addCalendarDays(weddingDate, 1) : weddingDate;
   const endsAt = new Date(`${endDate}T${endTime}:00${ISTANBUL_OFFSET}`);
@@ -50,13 +67,19 @@ export const createWeddingRange = (
 
   const durationMs = endsAt.valueOf() - startsAt.valueOf();
   if (durationMs <= 0 || durationMs > 36 * 60 * 60 * 1000) {
-    throw new AppError('Düğün bitişi başlangıçtan sonra ve en fazla 36 saat içinde olmalıdır.', 400);
+    throw new AppError(
+      'Düğün bitişi başlangıçtan sonra ve en fazla 36 saat içinde olmalıdır.',
+      400,
+    );
   }
 
   return { startsAt, endsAt };
 };
 
 export const addCalendarDays = (date: string, days: number): string => {
+  if (!isStrictGregorianDate(date)) {
+    throw new AppError('Tarih bilgisi geçersiz.', 400);
+  }
   const value = new Date(`${date}T12:00:00.000Z`);
   value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
@@ -76,11 +99,6 @@ export const getIstanbulDate = (date: Date): string => {
 export const atIstanbulTime = (date: string, time: string): Date =>
   new Date(`${date}T${time}:00${ISTANBUL_OFFSET}`);
 
-export const temporaryWeddingPassword = (date: string): string => {
-  const [year, month, day] = date.split('-');
-  return `${day}${month}${year}`;
-};
-
 export const randomFourDigitCode = (): string => String(randomInt(1000, 10_000));
 
 export const randomReferenceCode = (): string => {
@@ -88,8 +106,23 @@ export const randomReferenceCode = (): string => {
   return `DA-${date}-${String(randomInt(100_000, 1_000_000))}`;
 };
 
-export const randomTemporaryPassword = (): string =>
-  `${randomFourDigitCode()}-${randomInt(100_000, 1_000_000)}-Da!`;
+const TEMPORARY_PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+
+export const randomTemporaryPassword = (): string => {
+  const randomPart = Array.from(
+    { length: 18 },
+    () => TEMPORARY_PASSWORD_ALPHABET[randomInt(0, TEMPORARY_PASSWORD_ALPHABET.length)],
+  ).join('');
+  return `Da!${randomPart}`;
+};
+
+export const createTemporaryPasswordExpiry = (ttlHours: number, now = new Date()): Date =>
+  new Date(now.valueOf() + ttlHours * 60 * 60 * 1000);
+
+export const deliveryEncryptionAad = (deliveryId: string): string => `delivery-url:${deliveryId}`;
+
+export const messageSecretEncryptionAad = (weddingId: string, kind: string): string =>
+  `message-secret:${weddingId}:${kind}`;
 
 export const assertGoogleDriveUrl = (value: string): string => {
   let url: URL;

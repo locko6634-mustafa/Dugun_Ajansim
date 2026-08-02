@@ -1,15 +1,27 @@
 name: dugun-ajansim
 
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
+    stop_grace_period: 30s
+    pids_limit: 200
+    logging: *default-logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-dugun_ajansim}
       POSTGRES_USER: ${POSTGRES_USER:-dugun_app}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD zorunludur}
+      POSTGRES_RUNTIME_USER: ${POSTGRES_RUNTIME_USER:-dugun_runtime}
+      POSTGRES_RUNTIME_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init-runtime-role.sh:/docker-entrypoint-initdb.d/20-runtime-role.sh:ro
     healthcheck:
       test:
         ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dugun_app} -d ${POSTGRES_DB:-dugun_ajansim}"]
@@ -34,6 +46,13 @@ services:
     networks:
       - internal
     restart: "no"
+    stop_grace_period: 10s
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
 
   seed:
     image: dugun-ajansim-migrate
@@ -41,13 +60,78 @@ services:
     profiles:
       - bootstrap
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-dugun_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-role-bootstrap:
+        condition: service_completed_successfully
     networks:
       - internal
     restart: "no"
+    stop_grace_period: 10s
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+  admin-bootstrap:
+    image: dugun-ajansim-migrate
+    command: ["node", "dist/scripts/bootstrapAdmin.js"]
+    profiles:
+      - admin-bootstrap
+    environment:
+      NODE_ENV: production
+      CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
+      ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY zorunludur}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-dugunajansim_session}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      REMEMBER_SESSION_TTL_DAYS: ${REMEMBER_SESSION_TTL_DAYS:-30}
+      ADMIN_SESSION_IDLE_MINUTES: ${ADMIN_SESSION_IDLE_MINUTES:-30}
+      CUSTOMER_SESSION_IDLE_HOURS: ${CUSTOMER_SESSION_IDLE_HOURS:-12}
+      TEMPORARY_PASSWORD_TTL_HOURS: ${TEMPORARY_PASSWORD_TTL_HOURS:-72}
+    depends_on:
+      db-role-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - internal
+    restart: "no"
+    stop_grace_period: 10s
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+  db-role-bootstrap:
+    image: postgres:17-alpine
+    command: ["sh", "/usr/local/bin/init-runtime-role.sh"]
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD zorunludur}
+      POSTGRES_DB: ${POSTGRES_DB:-dugun_ajansim}
+      POSTGRES_USER: ${POSTGRES_USER:-dugun_app}
+      POSTGRES_RUNTIME_USER: ${POSTGRES_RUNTIME_USER:-dugun_runtime}
+      POSTGRES_RUNTIME_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}
+    volumes:
+      - ./deploy/postgres/init-runtime-role.sh:/usr/local/bin/init-runtime-role.sh:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - internal
+    restart: "no"
+    stop_grace_period: 10s
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
 
   backend:
     build:
@@ -55,20 +139,30 @@ services:
       dockerfile: backend/Dockerfile
       target: runtime
     restart: unless-stopped
+    stop_grace_period: 30s
+    pids_limit: 200
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
     environment:
       NODE_ENV: production
       PORT: 5000
       CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-dugun_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
       ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
-      TRUST_PROXY: 1
+      TRUST_PROXY: ${TRUST_PROXY:?TRUST_PROXY kesin Traefik IP adresi zorunludur}
       HEALTHCHECK_TIMEOUT_MS: 3000
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY zorunludur}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-dugunajansim_session}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
       REMEMBER_SESSION_TTL_DAYS: ${REMEMBER_SESSION_TTL_DAYS:-30}
+      ADMIN_SESSION_IDLE_MINUTES: ${ADMIN_SESSION_IDLE_MINUTES:-30}
+      CUSTOMER_SESSION_IDLE_HOURS: ${CUSTOMER_SESSION_IDLE_HOURS:-12}
+      TEMPORARY_PASSWORD_TTL_HOURS: ${TEMPORARY_PASSWORD_TTL_HOURS:-72}
     depends_on:
-      migrate:
+      db-role-bootstrap:
         condition: service_completed_successfully
     healthcheck:
       test:
@@ -104,6 +198,13 @@ services:
       args:
         APP_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
     restart: unless-stopped
+    stop_grace_period: 10s
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
     depends_on:
       backend:
         condition: service_healthy
@@ -116,7 +217,7 @@ services:
       - traefik.http.routers.dugun-ajansim.tls=true
       - traefik.http.routers.dugun-ajansim.tls.certresolver=mytlschallenge
       - traefik.http.routers.dugun-ajansim.middlewares=dugun-ajansim-compress,dugun-ajansim-security
-      - traefik.http.services.dugun-ajansim.loadbalancer.server.port=80
+      - traefik.http.services.dugun-ajansim.loadbalancer.server.port=8080
       - traefik.http.middlewares.dugun-ajansim-security.headers.contenttypenosniff=true
       - traefik.http.middlewares.dugun-ajansim-security.headers.customframeoptionsvalue=SAMEORIGIN
       - traefik.http.middlewares.dugun-ajansim-security.headers.permissionspolicy=camera=(), microphone=(), geolocation=()

@@ -275,3 +275,149 @@ test("müşteri teslimat paneli linki teslim öncesinde göstermiyor", async ({ 
   await expect(page.locator(".delivery-release")).toBeHidden();
   await expect(page.getByText("Montaj Aşamasında").first()).toBeVisible();
 });
+
+test("paket başvurusu sunucunun kuruş bazlı tutarını özet ve WhatsApp mesajında kullanır", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    window.__whatsappUrls = [];
+    window.open = () => ({
+      opener: null,
+      close() {},
+      location: {
+        set href(value) {
+          window.__whatsappUrls.push(String(value));
+        }
+      }
+    });
+  });
+
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          packages: [
+            {
+              code: "mini",
+              name: "Mini Paket",
+              priceCents: 10_500,
+              imagePath: "assets/images/hero-couple.webp"
+            }
+          ],
+          services: []
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/venues", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: [{ id: "de305d54-75b4-431b-adb2-eb6b9e546014", name: "Cess Wedding" }]
+      })
+    })
+  );
+
+  let bookingRequest;
+  await page.route("**/api/v1/booking-applications", async (route) => {
+    bookingRequest = {
+      body: route.request().postDataJSON(),
+      idempotencyKey: route.request().headers()["idempotency-key"]
+    };
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          id: "4a68ef8c-65df-4899-a560-e4c79b47b455",
+          referenceCode: "DA-2026-654321",
+          status: "ONAY_BEKLIYOR",
+          totalPriceCents: 9_451,
+          payableNowCents: 9_451
+        }
+      })
+    });
+  });
+
+  await page.goto("/paketini-olustur.html");
+  await expect(page.locator('input[name="base-package"]')).toHaveCount(1);
+  await page.locator(".js-next-step").click();
+  await page.locator(".js-details-step").click();
+
+  const form = page.locator("#checkout-form");
+  await form.locator('input[name="brideFirstName"]').fill("Ayşe");
+  await form.locator('input[name="brideLastName"]').fill("Yılmaz");
+  await form.locator('input[name="bridePhone"]').fill("05551234567");
+  await form.locator('input[name="groomFirstName"]').fill("Mehmet");
+  await form.locator('input[name="groomLastName"]').fill("Demir");
+  await form.locator('input[name="groomPhone"]').fill("05559876543");
+  await form.locator('input[name="primaryEmail"]').fill("ayse@example.com");
+  await form.locator('input[name="weddingDate"]').fill("2027-08-10");
+  await form.locator('input[name="startTime"]').fill("18:00");
+  await form.locator('input[name="endTime"]').fill("23:00");
+  await form.locator('select[name="venueId"]').selectOption("de305d54-75b4-431b-adb2-eb6b9e546014");
+  await form.locator('input[name="privacyConsent"]').check();
+  await form.getByRole("button", { name: "Ödemeye Geç" }).click();
+
+  await expect(page.locator(".js-cash-total")).toHaveText("94,5 TL");
+  await page.locator(".js-summary-step").click();
+  await expect(page.locator(".js-order-payable")).toHaveText("94,5 TL");
+  await page.locator(".js-complete-with-whatsapp").click();
+
+  await expect(page.locator(".js-booking-completion")).toBeVisible();
+  await expect(page.locator(".js-order-subtotal")).toHaveText("94,51 TL");
+  await expect(
+    page.locator(".js-order-subtotal").locator("xpath=preceding-sibling::dt")
+  ).toHaveText("Doğrulanmış toplam");
+  await expect(page.locator(".js-order-payable")).toHaveText("94,51 TL");
+  expect(bookingRequest.body.paymentMethod).toBe("CASH");
+  expect(bookingRequest.idempotencyKey).toBeTruthy();
+
+  const whatsappUrl = await page.evaluate(() => window.__whatsappUrls[0]);
+  expect(new URL(whatsappUrl).searchParams.get("text")).toContain(
+    "*Ödenecek Tutar:* 94,51 TL (Bugün havale edilecek)"
+  );
+});
+
+test("zorunlu parola değişim ekranı 15–128 karakter sözleşmesini uygular", async ({ page }) => {
+  let passwordChangeRequestCount = 0;
+  await page.route("**/api/v1/auth/login", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { role: "ADMIN", mustChangePassword: true, username: "admin" }
+      })
+    })
+  );
+  await page.route("**/api/v1/auth/password/change", (route) => {
+    passwordChangeRequestCount += 1;
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { changed: true } })
+    });
+  });
+
+  await page.goto("/login.html");
+  await page.locator("#username").fill("admin");
+  await page.locator("#password").fill("gecici-parola");
+  await page.getByRole("button", { name: "Giriş Yap" }).click();
+
+  const newPassword = page.locator("#new-password");
+  const confirmPassword = page.locator("#confirm-password");
+  await expect(newPassword).toHaveAttribute("minlength", "15");
+  await expect(newPassword).toHaveAttribute("maxlength", "128");
+  await expect(confirmPassword).toHaveAttribute("minlength", "15");
+  await expect(confirmPassword).toHaveAttribute("maxlength", "128");
+
+  await newPassword.fill("12345678901234");
+  await confirmPassword.fill("12345678901234");
+  await page.getByRole("button", { name: "Parolayı Kaydet" }).click();
+  await expect(page.locator(".password-change-message")).toHaveText(
+    "Yeni parolanız 15–128 karakter arasında olmalıdır."
+  );
+  expect(passwordChangeRequestCount).toBe(0);
+});

@@ -18,7 +18,7 @@ COPY backend/tsconfig.json ./
 COPY backend/src ./src
 RUN npm run build
 
-FROM dependencies AS migrate
+FROM build AS migrate
 
 ENV NODE_ENV=production
 USER node
@@ -26,7 +26,7 @@ CMD ["npx", "prisma", "migrate", "deploy"]
 
 FROM dependencies AS production-dependencies
 
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev --omit=peer
 
 FROM node:22-bookworm-slim AS runtime
 
@@ -38,6 +38,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=production-dependencies /app/node_modules ./node_modules
+COPY --from=production-dependencies /app/package.json ./package.json
 COPY --from=build /app/dist ./dist
 
 USER node

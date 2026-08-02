@@ -4,6 +4,25 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../utils/appError.js';
 // Ortam değişkenlerimizi içe aktar
 import { env } from '../config/env.config.js';
+const sanitizeLogText = (value, maximumLength) => value
+    .replace(/((?:password|passwd|token|cookie|authorization|secret|api[_-]?key|encryption[_-]?key|database_url)\s*[=:]\s*)([^\s,;"']+)/gi, '$1[REDACTED]')
+    .replace(/([a-z][a-z0-9+.-]*:\/\/[^:\s/]+:)[^@\s/]+@/gi, '$1[REDACTED]@')
+    .replace(/https?:\/\/[^\s)]+/gi, '[URL_REDACTED]')
+    .replace(/([/\\](?:Users|home)[/\\])[^/\\)]+/gi, '$1[REDACTED]')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+    .slice(0, maximumLength);
+const extractSafeStackFrames = (stack) => {
+    if (!stack)
+        return undefined;
+    const frames = stack
+        .split(/\r?\n/)
+        .slice(1)
+        .filter((line) => /^\s*at\s/.test(line))
+        .slice(0, 12)
+        .map((line) => sanitizeLogText(line.trim(), 512));
+    return frames.length > 0 ? frames : undefined;
+};
+const normalizeCorrelationId = (correlationId) => correlationId && /^[A-Za-z0-9._-]{8,128}$/.test(correlationId) ? correlationId : undefined;
 // Varsayılan hata günlükleyici fonksiyonu (Konsola JSON formatında yazar)
 const defaultErrorLogger = (entry) => {
     console.error(JSON.stringify(entry));
@@ -29,6 +48,7 @@ const resolveStatusCode = (error) => {
 export const createGlobalErrorHandler = (environment = env.NODE_ENV, logError = defaultErrorLogger) => 
 // Express'in 4 parametreli Hata Yakalama Middleware imzası
 (err, req, res, _next) => {
+    res.set('Cache-Control', 'no-store');
     // Hataya karşılık gelen HTTP durum kodunu belirle
     const statusCode = resolveStatusCode(err);
     // Hata mesajını al veya varsayılan Türkçe mesajı ata
@@ -43,17 +63,27 @@ export const createGlobalErrorHandler = (environment = env.NODE_ENV, logError = 
             err.expose === true);
     // Detayların (mesaj ve hataların) kullanıcıya açılıp açılamayacağını belirle (Sadece 4xx operasyonel hatalarda açılır)
     const canExposeDetails = isOperational && statusCode < 500;
+    const safeOperationalMessage = err instanceof AppError
+        ? message
+        : statusCode === 413
+            ? 'İstek gövdesi izin verilen boyutu aşıyor.'
+            : 'İstek biçimi geçersiz.';
     // Hatanın izlenmesi için benzersiz bir UUID üret
     const errorId = randomUUID();
+    const correlationId = normalizeCorrelationId(req.correlationId);
     // Eğer hata operasyonel değilse (yazılım çökmesi) veya 500+ sunucu hatasıysa sistem günlüğüne detaylıca kaydet
     if (!isOperational || statusCode >= 500) {
+        const routePath = typeof req.route?.path === 'string'
+            ? `${req.baseUrl ?? ''}${req.route.path}`
+            : 'UNMATCHED';
         const logEntry = {
             level: 'error',
             event: 'request_error',
             timestamp: new Date().toISOString(),
             errorId,
+            correlationId,
             method: req.method ?? 'UNKNOWN',
-            path: req.path ?? req.originalUrl?.split('?')[0] ?? 'UNKNOWN',
+            path: sanitizeLogText(routePath, 512),
             statusCode,
             errorType: err.name,
             operational: isOperational,
@@ -62,6 +92,19 @@ export const createGlobalErrorHandler = (environment = env.NODE_ENV, logError = 
         if (environment === 'development') {
             logEntry.message = message;
             logEntry.stack = err.stack;
+        }
+        else {
+            logEntry.diagnostic = isOperational ? 'operational_error' : 'unexpected_error';
+            if (isOperational) {
+                logEntry.message = sanitizeLogText(message, 1_000);
+            }
+            const stackFrames = extractSafeStackFrames(err.stack);
+            if (stackFrames)
+                logEntry.stackFrames = stackFrames;
+            const errorCode = err.code;
+            if (typeof errorCode === 'string' && /^[A-Z0-9_-]{1,64}$/i.test(errorCode)) {
+                logEntry.errorCode = errorCode;
+            }
         }
         // Loglayıcıyı tetikle
         logError(logEntry);
@@ -75,7 +118,7 @@ export const createGlobalErrorHandler = (environment = env.NODE_ENV, logError = 
             message,
             ...(errors ? { errors } : {}),
             errorId,
-            correlationId: req.correlationId,
+            correlationId,
             stack: err.stack,
         });
     }
@@ -85,10 +128,10 @@ export const createGlobalErrorHandler = (environment = env.NODE_ENV, logError = 
             success: false,
             status: 'error',
             statusCode,
-            message: canExposeDetails ? message : 'Bir hata oluştu.',
+            message: canExposeDetails ? safeOperationalMessage : 'Bir hata oluştu.',
             ...(canExposeDetails && errors ? { errors } : {}),
             ...(!isOperational || statusCode >= 500 ? { errorId } : {}),
-            correlationId: req.correlationId,
+            correlationId,
         });
     }
 };

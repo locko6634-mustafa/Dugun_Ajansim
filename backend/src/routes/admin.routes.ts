@@ -1,5 +1,7 @@
+import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
+import { env } from '../config/env.config.js';
 import { prisma } from '../config/prisma.js';
 import {
   authenticate,
@@ -24,6 +26,7 @@ import {
   createBookingApplication,
   createUniqueCustomerUsername,
   rejectBookingApplication,
+  retryUsernameConflict,
 } from '../services/booking.service.js';
 import { AppError } from '../utils/appError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -32,19 +35,39 @@ import {
   assertGoogleDriveUrl,
   addCalendarDays,
   atIstanbulTime,
+  createTemporaryPasswordExpiry,
   createWeddingRange,
+  deliveryEncryptionAad,
   getIstanbulDate,
+  messageSecretEncryptionAad,
   normalizePhone,
   randomTemporaryPassword,
-  temporaryWeddingPassword,
 } from '../utils/domain.js';
 
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole('ADMIN'));
 
-const emptyQuery = z.object({});
-const emptyBody = z.object({});
+const emptyQuery = z.object({}).strict();
+const emptyBody = z.object({}).strict();
 const uuidRequest = z.object({ body: emptyBody, query: emptyQuery, params: uuidParamsSchema });
+const markSentRequest = z.object({
+  body: z.object({ expectedUpdatedAt: z.string().datetime({ offset: true }) }).strict(),
+  query: emptyQuery,
+  params: uuidParamsSchema,
+});
+
+const isPrismaError = (error: unknown, code: string): boolean =>
+  error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
+
+const throwCatalogError = (error: unknown): never => {
+  if (isPrismaError(error, 'P2002')) {
+    throw new AppError('Aynı kodu kullanan başka bir katalog kaydı var.', 409);
+  }
+  if (isPrismaError(error, 'P2025')) {
+    throw new AppError('Katalog kaydı bulunamadı.', 404);
+  }
+  throw error;
+};
 
 router.get(
   '/booking-applications',
@@ -70,8 +93,12 @@ router.get(
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
-    res.json({ success: true, data: applications, correlationId: req.correlationId });
-  })
+    const safeApplications = applications.map(
+      ({ idempotencyKey: _key, idempotencyFingerprint: _fingerprint, ...application }) =>
+        application,
+    );
+    res.json({ success: true, data: safeApplications, correlationId: req.correlationId });
+  }),
 );
 
 router.get(
@@ -80,18 +107,40 @@ router.get(
   asyncHandler(async (req, res) => {
     const application = await prisma.bookingApplication.findUnique({
       where: { id: req.params.id },
-      include: { venue: true, services: true, wedding: { include: { delivery: true } } },
+      include: {
+        venue: true,
+        services: true,
+        wedding: {
+          include: {
+            delivery: {
+              select: {
+                id: true,
+                status: true,
+                dueDate: true,
+                releasedAt: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
+          },
+        },
+      },
     });
     if (!application) throw new AppError('Başvuru bulunamadı.', 404);
-    res.json({ success: true, data: application, correlationId: req.correlationId });
-  })
+    const {
+      idempotencyKey: _key,
+      idempotencyFingerprint: _fingerprint,
+      ...safeApplication
+    } = application;
+    res.json({ success: true, data: safeApplication, correlationId: req.correlationId });
+  }),
 );
 
 router.post(
   '/booking-applications',
   verifyCsrf,
   validateRequest(
-    z.object({ body: adminBookingBodySchema, query: emptyQuery, params: z.object({}) })
+    z.object({ body: adminBookingBodySchema, query: emptyQuery, params: z.object({}) }),
   ),
   asyncHandler(async (req, res) => {
     const application = await createBookingApplication(req.body, {
@@ -104,7 +153,7 @@ router.post(
       data: application,
       correlationId: req.correlationId,
     });
-  })
+  }),
 );
 
 router.post(
@@ -115,27 +164,27 @@ router.post(
     const result = await approveBookingApplication(
       req.params.id,
       req.auth!.userId,
-      req.correlationId
+      req.correlationId,
     );
     res.json({ success: true, data: result, correlationId: req.correlationId });
-  })
+  }),
 );
 
 router.post(
   '/booking-applications/:id/reject',
   verifyCsrf,
   validateRequest(
-    z.object({ body: rejectBookingBodySchema, query: emptyQuery, params: uuidParamsSchema })
+    z.object({ body: rejectBookingBodySchema, query: emptyQuery, params: uuidParamsSchema }),
   ),
   asyncHandler(async (req, res) => {
     const result = await rejectBookingApplication(
       req.params.id,
       req.body.reason,
       req.auth!.userId,
-      req.correlationId
+      req.correlationId,
     );
     res.json({ success: true, data: result, correlationId: req.correlationId });
-  })
+  }),
 );
 
 router.get(
@@ -175,7 +224,7 @@ router.get(
         : null,
     }));
     res.json({ success: true, data: safeWeddings, correlationId: req.correlationId });
-  })
+  }),
 );
 
 router.patch(
@@ -186,7 +235,7 @@ router.patch(
       body: weddingUpdateBodySchema,
       query: emptyQuery,
       params: uuidParamsSchema,
-    })
+    }),
   ),
   asyncHandler(async (req, res) => {
     const wedding = await prisma.wedding.findUnique({
@@ -198,9 +247,12 @@ router.patch(
 
     const venue = await prisma.venue.findUnique({
       where: { id: req.body.venueId },
-      select: { id: true },
+      select: { id: true, isActive: true },
     });
     if (!venue) throw new AppError('Salon bulunamadı.', 404);
+    if (venue.id !== wedding.venueId && !venue.isActive) {
+      throw new AppError('Pasif bir salona geçiş yapılamaz.', 409);
+    }
 
     const bridePhone = normalizePhone(req.body.bridePhone);
     const groomPhone = normalizePhone(req.body.groomPhone);
@@ -208,7 +260,7 @@ router.patch(
       req.body.weddingDate,
       req.body.startTime,
       req.body.endTime,
-      req.body.endsNextDay
+      req.body.endsNextDay,
     );
     const oldWeddingDate = getIstanbulDate(wedding.startsAt);
     const dateChanged = oldWeddingDate !== req.body.weddingDate;
@@ -228,132 +280,171 @@ router.patch(
     let nextUsername: string | undefined;
     let nextPasswordHash: string | undefined;
     let encryptedPassword: { ciphertext: string; iv: string; authTag: string } | undefined;
+    const now = new Date();
+    const temporaryPasswordExpiresAt = createTemporaryPasswordExpiry(
+      env.TEMPORARY_PASSWORD_TTL_HOURS,
+      activationAt > now ? activationAt : now,
+    );
     if (regenerateCredentials) {
-      nextUsername = await createUniqueCustomerUsername(
-        req.body.brideLastName,
-        req.body.groomLastName
-      );
-      const temporaryPassword = temporaryWeddingPassword(req.body.weddingDate);
+      const temporaryPassword = randomTemporaryPassword();
       nextPasswordHash = await hashPassword(temporaryPassword);
-      encryptedPassword = encryptValue(temporaryPassword);
+      encryptedPassword = encryptValue(
+        temporaryPassword,
+        messageSecretEncryptionAad(wedding.id, 'ACCOUNT_ACTIVATION'),
+      );
     }
 
-    const now = new Date();
-    const updated = await prisma.$transaction(async (transaction) => {
-      const result = await transaction.wedding.update({
-        where: { id: wedding.id },
-        data: {
-          brideFirstName: req.body.brideFirstName,
-          brideLastName: req.body.brideLastName,
-          bridePhone,
-          groomFirstName: req.body.groomFirstName,
-          groomLastName: req.body.groomLastName,
-          groomPhone,
-          primaryContact: req.body.primaryContact,
-          primaryEmail: req.body.primaryEmail,
-          startsAt,
-          endsAt,
-          venueId: req.body.venueId,
-          note: req.body.note || null,
-        },
-        include: {
-          venue: { select: { name: true } },
-          customerUser: {
-            select: { id: true, username: true, activeAt: true, mustChangePassword: true },
+    const updateWedding = () =>
+      prisma.$transaction(async (transaction) => {
+        const claimedWedding = await transaction.wedding.updateMany({
+          where: { id: wedding.id, updatedAt: wedding.updatedAt, cancelledAt: null },
+          data: {
+            brideFirstName: req.body.brideFirstName,
+            brideLastName: req.body.brideLastName,
+            bridePhone,
+            groomFirstName: req.body.groomFirstName,
+            groomLastName: req.body.groomLastName,
+            groomPhone,
+            primaryContact: req.body.primaryContact,
+            primaryEmail: req.body.primaryEmail,
+            startsAt,
+            endsAt,
+            venueId: req.body.venueId,
+            note: req.body.note || null,
           },
-          delivery: {
-            select: {
-              id: true,
-              status: true,
-              dueDate: true,
-              releasedAt: true,
-              updatedAt: true,
-            },
-          },
-        },
-      });
-
-      await transaction.messageTask.updateMany({
-        where: { weddingId: wedding.id, status: 'PENDING' },
-        data: { recipientPhone },
-      });
-
-      if (dateChanged) {
-        await transaction.messageTask.updateMany({
-          where: {
-            weddingId: wedding.id,
-            kind: 'PREPARATION_UPDATE',
-            status: 'PENDING',
-          },
-          data: { dueAt: preparationAt },
         });
-        if (wedding.delivery && wedding.delivery.status !== 'TESLIM_EDILDI') {
-          await transaction.delivery.update({
-            where: { id: wedding.delivery.id },
-            data: { dueDate },
+        if (claimedWedding.count !== 1) {
+          throw new AppError('Düğün kaydı başka bir işlemde güncellendi.', 409);
+        }
+
+        if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
+          const claimedUser = await transaction.user.updateMany({
+            where: {
+              id: wedding.customerUserId,
+              updatedAt: wedding.customerUser.updatedAt,
+              mustChangePassword: true,
+              passwordChangedAt: null,
+            },
+            data: {
+              username: nextUsername,
+              passwordHash: nextPasswordHash,
+              activeAt: activationAt,
+              mustChangePassword: true,
+              temporaryPasswordExpiresAt,
+              passwordChangedAt: null,
+            },
+          });
+          if (claimedUser.count !== 1) {
+            throw new AppError('Müşteri kimlik bilgileri başka bir işlemde güncellendi.', 409);
+          }
+          await transaction.authSession.updateMany({
+            where: { userId: wedding.customerUserId, revokedAt: null },
+            data: { revokedAt: now },
           });
         }
-      }
 
-      if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
-        await transaction.user.update({
-          where: { id: wedding.customerUserId },
-          data: {
-            username: nextUsername,
-            passwordHash: nextPasswordHash,
-            activeAt: activationAt,
-            mustChangePassword: true,
-            passwordChangedAt: null,
-          },
+        if (dateChanged) {
+          if (wedding.delivery && wedding.delivery.status !== 'TESLIM_EDILDI') {
+            await transaction.delivery.updateMany({
+              where: {
+                id: wedding.delivery.id,
+                status: { not: 'TESLIM_EDILDI' },
+                releasedAt: null,
+              },
+              data: { dueDate },
+            });
+          }
+        }
+
+        await transaction.messageTask.updateMany({
+          where: { weddingId: wedding.id, status: 'PENDING' },
+          data: { recipientPhone },
         });
-        await transaction.authSession.updateMany({
-          where: { userId: wedding.customerUserId, revokedAt: null },
-          data: { revokedAt: now },
-        });
-        await transaction.messageTask.upsert({
-          where: {
-            weddingId_kind: {
+
+        if (dateChanged) {
+          await transaction.messageTask.updateMany({
+            where: {
+              weddingId: wedding.id,
+              kind: 'PREPARATION_UPDATE',
+              status: 'PENDING',
+            },
+            data: { dueAt: preparationAt },
+          });
+        }
+
+        if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
+          await transaction.messageTask.upsert({
+            where: {
+              weddingId_kind: {
+                weddingId: wedding.id,
+                kind: 'ACCOUNT_ACTIVATION',
+              },
+            },
+            create: {
               weddingId: wedding.id,
               kind: 'ACCOUNT_ACTIVATION',
+              dueAt: activationAt,
+              recipientPhone,
+              secretCiphertext: encryptedPassword.ciphertext,
+              secretIv: encryptedPassword.iv,
+              secretAuthTag: encryptedPassword.authTag,
+              encryptionVersion: 2,
             },
-          },
-          create: {
-            weddingId: wedding.id,
-            kind: 'ACCOUNT_ACTIVATION',
-            dueAt: activationAt,
-            recipientPhone,
-            secretCiphertext: encryptedPassword.ciphertext,
-            secretIv: encryptedPassword.iv,
-            secretAuthTag: encryptedPassword.authTag,
-          },
-          update: {
-            status: 'PENDING',
-            dueAt: activationAt,
-            recipientPhone,
-            sentAt: null,
-            sentById: null,
-            secretCiphertext: encryptedPassword.ciphertext,
-            secretIv: encryptedPassword.iv,
-            secretAuthTag: encryptedPassword.authTag,
+            update: {
+              status: 'PENDING',
+              dueAt: activationAt,
+              recipientPhone,
+              sentAt: null,
+              sentById: null,
+              secretCiphertext: encryptedPassword.ciphertext,
+              secretIv: encryptedPassword.iv,
+              secretAuthTag: encryptedPassword.authTag,
+              encryptionVersion: 2,
+            },
+          });
+        }
+
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: 'wedding.updated',
+          targetType: 'Wedding',
+          targetId: wedding.id,
+          correlationId: req.correlationId,
+          metadata: {
+            dateChanged,
+            namesChanged,
+            credentialsRegenerated: regenerateCredentials,
           },
         });
-      }
 
-      await createAudit(transaction, {
-        actorUserId: req.auth!.userId,
-        action: 'wedding.updated',
-        targetType: 'Wedding',
-        targetId: wedding.id,
-        correlationId: req.correlationId,
-        metadata: {
-          dateChanged,
-          namesChanged,
-          credentialsRegenerated: regenerateCredentials,
-        },
+        return transaction.wedding.findUniqueOrThrow({
+          where: { id: wedding.id },
+          include: {
+            venue: { select: { name: true } },
+            customerUser: {
+              select: { id: true, username: true, activeAt: true, mustChangePassword: true },
+            },
+            delivery: {
+              select: {
+                id: true,
+                status: true,
+                dueDate: true,
+                releasedAt: true,
+                updatedAt: true,
+              },
+            },
+          },
+        });
       });
-
-      return result;
-    });
+    const updated = regenerateCredentials
+      ? await retryUsernameConflict(
+          () => createUniqueCustomerUsername(req.body.brideLastName, req.body.groomLastName),
+          async (username) => {
+            nextUsername = username;
+            return updateWedding();
+          },
+        )
+      : await updateWedding();
 
     res.json({
       success: true,
@@ -364,7 +455,7 @@ router.patch(
       },
       correlationId: req.correlationId,
     });
-  })
+  }),
 );
 
 router.patch(
@@ -375,7 +466,7 @@ router.patch(
       body: deliveryUpdateBodySchema,
       query: emptyQuery,
       params: uuidParamsSchema,
-    })
+    }),
   ),
   asyncHandler(async (req, res) => {
     const delivery = await prisma.delivery.findUnique({ where: { id: req.params.id } });
@@ -385,14 +476,19 @@ router.patch(
     }
 
     const encrypted = req.body.driveUrl
-      ? encryptValue(assertGoogleDriveUrl(req.body.driveUrl))
+      ? encryptValue(assertGoogleDriveUrl(req.body.driveUrl), deliveryEncryptionAad(delivery.id))
       : undefined;
     const nextStatus = req.body.status ?? delivery.status;
     const dueDate = req.body.dueDate ? new Date(`${req.body.dueDate}T00:00:00.000Z`) : undefined;
 
     const updated = await prisma.$transaction(async (transaction) => {
-      const result = await transaction.delivery.update({
-        where: { id: delivery.id },
+      const claimed = await transaction.delivery.updateMany({
+        where: {
+          id: delivery.id,
+          status: delivery.status,
+          releasedAt: null,
+          updatedAt: delivery.updatedAt,
+        },
         data: {
           status: nextStatus,
           dueDate,
@@ -401,17 +497,14 @@ router.patch(
                 driveUrlCiphertext: encrypted.ciphertext,
                 driveUrlIv: encrypted.iv,
                 driveUrlAuthTag: encrypted.authTag,
+                encryptionVersion: 2,
               }
             : {}),
         },
-        select: {
-          id: true,
-          status: true,
-          dueDate: true,
-          releasedAt: true,
-          updatedAt: true,
-        },
       });
+      if (claimed.count !== 1) {
+        throw new AppError('Teslimat başka bir işlemde güncellendi.', 409);
+      }
       if (nextStatus !== delivery.status) {
         await transaction.deliveryStatusHistory.create({
           data: {
@@ -434,11 +527,20 @@ router.patch(
           driveUrlChanged: Boolean(encrypted),
         },
       });
-      return result;
+      return transaction.delivery.findUniqueOrThrow({
+        where: { id: delivery.id },
+        select: {
+          id: true,
+          status: true,
+          dueDate: true,
+          releasedAt: true,
+          updatedAt: true,
+        },
+      });
     });
 
     res.json({ success: true, data: updated, correlationId: req.correlationId });
-  })
+  }),
 );
 
 router.post(
@@ -458,23 +560,37 @@ router.post(
       throw new AppError('Teslim etmeden önce Google Drive bağlantısı kaydedilmelidir.', 409);
     }
 
-    const recipientPhone =
-      delivery.wedding.primaryContact === 'GELIN'
-        ? delivery.wedding.bridePhone
-        : delivery.wedding.groomPhone;
     const now = new Date();
     const updated = await prisma.$transaction(async (transaction) => {
-      const result = await transaction.delivery.update({
-        where: { id: delivery.id },
-        data: { status: 'TESLIM_EDILDI', releasedAt: now },
+      await transaction.$queryRaw`
+        SELECT "id" FROM "weddings"
+        WHERE "id" = ${delivery.weddingId}
+        FOR UPDATE
+      `;
+      const currentWedding = await transaction.wedding.findUniqueOrThrow({
+        where: { id: delivery.weddingId },
         select: {
-          id: true,
-          status: true,
-          dueDate: true,
-          releasedAt: true,
-          updatedAt: true,
+          primaryContact: true,
+          bridePhone: true,
+          groomPhone: true,
         },
       });
+      const recipientPhone =
+        currentWedding.primaryContact === 'GELIN'
+          ? currentWedding.bridePhone
+          : currentWedding.groomPhone;
+      const claimed = await transaction.delivery.updateMany({
+        where: {
+          id: delivery.id,
+          status: 'TESLIME_HAZIR',
+          releasedAt: null,
+          updatedAt: delivery.updatedAt,
+        },
+        data: { status: 'TESLIM_EDILDI', releasedAt: now },
+      });
+      if (claimed.count !== 1) {
+        throw new AppError('Teslimat başka bir işlemde güncellendi.', 409);
+      }
       await transaction.deliveryStatusHistory.create({
         data: {
           deliveryId: delivery.id,
@@ -511,17 +627,32 @@ router.post(
         targetId: delivery.id,
         correlationId: req.correlationId,
       });
-      return result;
+      return transaction.delivery.findUniqueOrThrow({
+        where: { id: delivery.id },
+        select: {
+          id: true,
+          status: true,
+          dueDate: true,
+          releasedAt: true,
+          updatedAt: true,
+        },
+      });
     });
 
     res.json({ success: true, data: updated, correlationId: req.correlationId });
-  })
+  }),
 );
 
 const catalogRoutes = (
   path: 'packages' | 'services',
-  schema: typeof packageBodySchema | typeof serviceBodySchema
+  schema: typeof packageBodySchema | typeof serviceBodySchema,
 ) => {
+  const targetType = path === 'packages' ? 'Package' : 'Service';
+  const actionPrefix = path === 'packages' ? 'package' : 'service';
+  const partialSchema = schema
+    .partial()
+    .refine((value) => Object.keys(value).length > 0, 'En az bir alan gönderin.');
+
   router.get(
     `/${path}`,
     asyncHandler(async (req, res) => {
@@ -530,7 +661,7 @@ const catalogRoutes = (
           ? await prisma.package.findMany({ orderBy: { name: 'asc' } })
           : await prisma.service.findMany({ orderBy: [{ category: 'asc' }, { name: 'asc' }] });
       res.json({ success: true, data: rows, correlationId: req.correlationId });
-    })
+    }),
   );
 
   router.post(
@@ -538,27 +669,61 @@ const catalogRoutes = (
     verifyCsrf,
     validateRequest(z.object({ body: schema, query: emptyQuery, params: z.object({}) })),
     asyncHandler(async (req, res) => {
-      const row =
-        path === 'packages'
-          ? await prisma.package.create({ data: req.body })
-          : await prisma.service.create({ data: req.body });
+      let row;
+      try {
+        row = await prisma.$transaction(async (transaction) => {
+          const created =
+            path === 'packages'
+              ? await transaction.package.create({ data: req.body })
+              : await transaction.service.create({ data: req.body });
+          await createAudit(transaction, {
+            actorUserId: req.auth!.userId,
+            action: `${actionPrefix}.created`,
+            targetType,
+            targetId: created.id,
+            correlationId: req.correlationId,
+          });
+          return created;
+        });
+      } catch (error) {
+        throwCatalogError(error);
+      }
       res.status(201).json({ success: true, data: row, correlationId: req.correlationId });
-    })
+    }),
   );
 
   router.patch(
     `/${path}/:id`,
     verifyCsrf,
-    validateRequest(
-      z.object({ body: schema.partial(), query: emptyQuery, params: uuidParamsSchema })
-    ),
+    validateRequest(z.object({ body: partialSchema, query: emptyQuery, params: uuidParamsSchema })),
     asyncHandler(async (req, res) => {
-      const row =
-        path === 'packages'
-          ? await prisma.package.update({ where: { id: req.params.id }, data: req.body })
-          : await prisma.service.update({ where: { id: req.params.id }, data: req.body });
+      let row;
+      try {
+        row = await prisma.$transaction(async (transaction) => {
+          const updated =
+            path === 'packages'
+              ? await transaction.package.update({
+                  where: { id: req.params.id },
+                  data: req.body,
+                })
+              : await transaction.service.update({
+                  where: { id: req.params.id },
+                  data: req.body,
+                });
+          await createAudit(transaction, {
+            actorUserId: req.auth!.userId,
+            action: `${actionPrefix}.updated`,
+            targetType,
+            targetId: updated.id,
+            correlationId: req.correlationId,
+          });
+          return updated;
+        });
+      } catch (error) {
+        throwCatalogError(error);
+      }
       res.json({ success: true, data: row, correlationId: req.correlationId });
-    })
+    }),
   );
 
   router.delete(
@@ -566,18 +731,33 @@ const catalogRoutes = (
     verifyCsrf,
     validateRequest(uuidRequest),
     asyncHandler(async (req, res) => {
-      const row =
-        path === 'packages'
-          ? await prisma.package.update({
-              where: { id: req.params.id },
-              data: { isActive: false },
-            })
-          : await prisma.service.update({
-              where: { id: req.params.id },
-              data: { isActive: false },
-            });
+      let row;
+      try {
+        row = await prisma.$transaction(async (transaction) => {
+          const deactivated =
+            path === 'packages'
+              ? await transaction.package.update({
+                  where: { id: req.params.id },
+                  data: { isActive: false },
+                })
+              : await transaction.service.update({
+                  where: { id: req.params.id },
+                  data: { isActive: false },
+                });
+          await createAudit(transaction, {
+            actorUserId: req.auth!.userId,
+            action: `${actionPrefix}.deactivated`,
+            targetType,
+            targetId: deactivated.id,
+            correlationId: req.correlationId,
+          });
+          return deactivated;
+        });
+      } catch (error) {
+        throwCatalogError(error);
+      }
       res.json({ success: true, data: row, correlationId: req.correlationId });
-    })
+    }),
   );
 };
 
@@ -603,10 +783,10 @@ router.get(
       take: 300,
     });
     const safeTasks = tasks.map(
-      ({ secretCiphertext: _ciphertext, secretIv: _iv, secretAuthTag: _tag, ...task }) => task
+      ({ secretCiphertext: _ciphertext, secretIv: _iv, secretAuthTag: _tag, ...task }) => task,
     );
     res.json({ success: true, data: safeTasks, correlationId: req.correlationId });
-  })
+  }),
 );
 
 const renderMessage = async (taskId: string) => {
@@ -629,21 +809,31 @@ const renderMessage = async (taskId: string) => {
     if (!task.secretCiphertext || !task.secretIv || !task.secretAuthTag) {
       throw new AppError('Aktivasyon mesajı güvenlik bilgisi eksik.', 409);
     }
-    const password = decryptValue({
-      ciphertext: task.secretCiphertext,
-      iv: task.secretIv,
-      authTag: task.secretAuthTag,
-    });
+    const password = decryptValue(
+      {
+        ciphertext: task.secretCiphertext,
+        iv: task.secretIv,
+        authTag: task.secretAuthTag,
+      },
+      task.encryptionVersion >= 2
+        ? messageSecretEncryptionAad(task.weddingId, task.kind)
+        : undefined,
+    );
     message = `Merhaba ${couple}.\n\nDüğün Ajansım teslimat paneliniz hazır.\nKullanıcı adı: ${task.wedding.customerUser.username}\nGeçici parola: ${password}\n\nİlk girişte parolanızı değiştirmeniz istenecektir.`;
   } else if (task.kind === 'PASSWORD_RESET') {
     if (!task.secretCiphertext || !task.secretIv || !task.secretAuthTag) {
       throw new AppError('Parola sıfırlama bilgisi eksik.', 409);
     }
-    const password = decryptValue({
-      ciphertext: task.secretCiphertext,
-      iv: task.secretIv,
-      authTag: task.secretAuthTag,
-    });
+    const password = decryptValue(
+      {
+        ciphertext: task.secretCiphertext,
+        iv: task.secretIv,
+        authTag: task.secretAuthTag,
+      },
+      task.encryptionVersion >= 2
+        ? messageSecretEncryptionAad(task.weddingId, task.kind)
+        : undefined,
+    );
     message = `Merhaba ${couple}.\n\nGeçici parolanız: ${password}\nİlk girişte yeni bir parola belirlemeniz gerekecektir.`;
   } else if (task.kind === 'PREPARATION_UPDATE') {
     const dueDate = task.wedding.delivery?.dueDate.toLocaleDateString('tr-TR', {
@@ -670,31 +860,61 @@ router.get(
     res.set('Cache-Control', 'no-store');
     res.json({
       success: true,
-      data: { message: rendered.message, whatsappUrl: rendered.whatsappUrl },
+      data: {
+        message: rendered.message,
+        whatsappUrl: rendered.whatsappUrl,
+        expectedUpdatedAt: rendered.task.updatedAt.toISOString(),
+      },
       correlationId: req.correlationId,
     });
-  })
+  }),
 );
 
 router.post(
   '/message-tasks/:id/mark-sent',
   verifyCsrf,
-  validateRequest(uuidRequest),
+  validateRequest(markSentRequest),
   asyncHandler(async (req, res) => {
-    const task = await prisma.messageTask.update({
-      where: { id: req.params.id },
-      data: {
-        status: 'SENT',
-        sentAt: new Date(),
-        sentById: req.auth!.userId,
-        secretCiphertext: null,
-        secretIv: null,
-        secretAuthTag: null,
-      },
-      select: { id: true, status: true, sentAt: true },
+    const expectedUpdatedAt = new Date(req.body.expectedUpdatedAt);
+    const now = new Date();
+    const task = await prisma.$transaction(async (transaction) => {
+      const claimed = await transaction.messageTask.updateMany({
+        where: {
+          id: req.params.id,
+          status: 'PENDING',
+          updatedAt: expectedUpdatedAt,
+        },
+        data: {
+          status: 'SENT',
+          sentAt: now,
+          sentById: req.auth!.userId,
+          secretCiphertext: null,
+          secretIv: null,
+          secretAuthTag: null,
+        },
+      });
+      if (claimed.count !== 1) {
+        const exists = await transaction.messageTask.findUnique({
+          where: { id: req.params.id },
+          select: { id: true },
+        });
+        if (!exists) throw new AppError('Mesaj görevi bulunamadı.', 404);
+        throw new AppError('Mesaj görevi başka bir işlemde güncellendi.', 409);
+      }
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: 'message.sent',
+        targetType: 'MessageTask',
+        targetId: req.params.id,
+        correlationId: req.correlationId,
+      });
+      return transaction.messageTask.findUniqueOrThrow({
+        where: { id: req.params.id },
+        select: { id: true, status: true, sentAt: true },
+      });
     });
     res.json({ success: true, data: task, correlationId: req.correlationId });
-  })
+  }),
 );
 
 router.post(
@@ -712,17 +932,50 @@ router.post(
 
     const password = randomTemporaryPassword();
     const passwordHash = await hashPassword(password);
-    const encrypted = encryptValue(password);
-    const recipientPhone =
-      user.customerWedding.primaryContact === 'GELIN'
-        ? user.customerWedding.bridePhone
-        : user.customerWedding.groomPhone;
     const now = new Date();
+    const temporaryPasswordExpiresAt = createTemporaryPasswordExpiry(
+      env.TEMPORARY_PASSWORD_TTL_HOURS,
+      user.activeAt !== null && user.activeAt > now ? user.activeAt : now,
+    );
+    const encrypted = encryptValue(
+      password,
+      messageSecretEncryptionAad(user.customerWedding.id, 'PASSWORD_RESET'),
+    );
     const task = await prisma.$transaction(async (transaction) => {
-      await transaction.user.update({
-        where: { id: user.id },
-        data: { passwordHash, mustChangePassword: true, passwordChangedAt: null },
+      await transaction.$queryRaw`
+        SELECT "id" FROM "weddings"
+        WHERE "id" = ${user.customerWedding!.id}
+        FOR UPDATE
+      `;
+      await transaction.$queryRaw`
+        SELECT "id" FROM "users"
+        WHERE "id" = ${user.id}
+        FOR UPDATE
+      `;
+      const currentWedding = await transaction.wedding.findUniqueOrThrow({
+        where: { id: user.customerWedding!.id },
+        select: {
+          primaryContact: true,
+          bridePhone: true,
+          groomPhone: true,
+        },
       });
+      const recipientPhone =
+        currentWedding.primaryContact === 'GELIN'
+          ? currentWedding.bridePhone
+          : currentWedding.groomPhone;
+      const claimedUser = await transaction.user.updateMany({
+        where: { id: user.id, updatedAt: user.updatedAt, role: 'MUSTERI' },
+        data: {
+          passwordHash,
+          mustChangePassword: true,
+          temporaryPasswordExpiresAt,
+          passwordChangedAt: null,
+        },
+      });
+      if (claimedUser.count !== 1) {
+        throw new AppError('Müşteri hesabı başka bir işlemde güncellendi.', 409);
+      }
       await transaction.authSession.updateMany({
         where: { userId: user.id, revokedAt: null },
         data: { revokedAt: now },
@@ -742,6 +995,7 @@ router.post(
           secretCiphertext: encrypted.ciphertext,
           secretIv: encrypted.iv,
           secretAuthTag: encrypted.authTag,
+          encryptionVersion: 2,
         },
         update: {
           status: 'PENDING',
@@ -752,6 +1006,7 @@ router.post(
           secretCiphertext: encrypted.ciphertext,
           secretIv: encrypted.iv,
           secretAuthTag: encrypted.authTag,
+          encryptionVersion: 2,
         },
       });
       await createAudit(transaction, {
@@ -770,7 +1025,7 @@ router.post(
       data: { taskId: task.id, whatsappUrl: rendered.whatsappUrl },
       correlationId: req.correlationId,
     });
-  })
+  }),
 );
 
 router.get(
@@ -782,7 +1037,7 @@ router.get(
       take: 300,
     });
     res.json({ success: true, data: logs, correlationId: req.correlationId });
-  })
+  }),
 );
 
 router.get(
@@ -799,7 +1054,7 @@ router.get(
       data: { pendingBookings, activeWeddings, pendingMessages, readyDeliveries },
       correlationId: req.correlationId,
     });
-  })
+  }),
 );
 
 export default router;

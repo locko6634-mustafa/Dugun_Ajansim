@@ -14,9 +14,16 @@ COPY js /usr/share/nginx/html/js
 
 RUN grep -RIl '__APP_ORIGIN__' /usr/share/nginx/html \
     | xargs -r sed -i "s|__APP_ORIGIN__|${APP_ORIGIN}|g" \
-    && ! grep -RIl '__APP_ORIGIN__' /usr/share/nginx/html
+    && ! grep -RIl '__APP_ORIGIN__' /usr/share/nginx/html \
+    && chown -R nginx:nginx \
+      /etc/nginx/conf.d \
+      /usr/share/nginx/html \
+      /var/cache/nginx \
+      /run \
+      /var/run
 
-EXPOSE 80
+USER nginx
+EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -q --spider http://127.0.0.1/healthz || exit 1
+  CMD wget -q --spider http://127.0.0.1:8080/healthz || exit 1

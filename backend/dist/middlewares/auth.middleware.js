@@ -14,15 +14,38 @@ const parseCookies = (header) => {
             continue;
         const name = entry.slice(0, separator).trim();
         const value = entry.slice(separator + 1).trim();
-        if (name)
+        if (!name)
+            continue;
+        if (cookies.has(name)) {
+            cookies.set(name, undefined);
+            continue;
+        }
+        try {
             cookies.set(name, decodeURIComponent(value));
+        }
+        catch {
+            cookies.set(name, undefined);
+        }
     }
     return cookies;
 };
 export const getCookie = (req, name) => parseCookies(req.headers.cookie).get(name);
-export const authenticate = asyncHandler(async (req, _res, next) => {
+export const getSessionIdleTimeoutMs = (role) => role === 'MUSTERI'
+    ? env.CUSTOMER_SESSION_IDLE_HOURS * 60 * 60 * 1000
+    : env.ADMIN_SESSION_IDLE_MINUTES * 60 * 1000;
+export const calculateSessionTouchIntervalMs = (idleTimeoutMs) => Math.min(5 * 60 * 1000, Math.floor(idleTimeoutMs / 2));
+export const getSessionTouchIntervalMs = (role) => calculateSessionTouchIntervalMs(getSessionIdleTimeoutMs(role));
+export const getSessionAbsoluteTtlMs = (role, remember) => role === 'MUSTERI' && remember
+    ? env.REMEMBER_SESSION_TTL_DAYS * 24 * 60 * 60 * 1000
+    : env.SESSION_TTL_HOURS * 60 * 60 * 1000;
+export const isTemporaryPasswordExpired = (user, now) => user.mustChangePassword &&
+    (user.temporaryPasswordExpiresAt === null || user.temporaryPasswordExpiresAt <= now);
+export const authenticate = asyncHandler(async (req, res, next) => {
+    res.set('Cache-Control', 'no-store');
     const token = getCookie(req, env.SESSION_COOKIE_NAME);
     if (!token) {
+        if (req.headers.cookie)
+            clearAuthCookies(res);
         throw new AppError('Oturum açmanız gerekiyor.', 401);
     }
     const session = await prisma.authSession.findUnique({
@@ -30,11 +53,23 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
         include: { user: true },
     });
     const now = new Date();
+    const idleTimeoutMs = session === null ? 0 : getSessionIdleTimeoutMs(session.user.role);
+    const idleExpired = session !== null && now.valueOf() - session.lastUsedAt.valueOf() >= idleTimeoutMs;
+    const temporaryPasswordExpired = session !== null && isTemporaryPasswordExpired(session.user, now);
     if (!session ||
         session.revokedAt ||
         session.expiresAt <= now ||
+        idleExpired ||
         session.user.status !== 'ACTIVE' ||
-        (session.user.activeAt && session.user.activeAt > now)) {
+        (session.user.activeAt && session.user.activeAt > now) ||
+        temporaryPasswordExpired) {
+        clearAuthCookies(res);
+        if (session && !session.revokedAt) {
+            await prisma.authSession.updateMany({
+                where: { id: session.id, revokedAt: null },
+                data: { revokedAt: now },
+            });
+        }
         throw new AppError('Oturum geçersiz veya süresi dolmuş.', 401);
     }
     req.auth = {
@@ -44,11 +79,16 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
         sessionId: session.id,
         mustChangePassword: session.user.mustChangePassword,
     };
-    if (now.valueOf() - session.lastUsedAt.valueOf() > 5 * 60 * 1000) {
-        await prisma.authSession.update({
-            where: { id: session.id },
+    if (now.valueOf() - session.lastUsedAt.valueOf() >=
+        getSessionTouchIntervalMs(session.user.role)) {
+        const touched = await prisma.authSession.updateMany({
+            where: { id: session.id, revokedAt: null, expiresAt: { gt: now } },
             data: { lastUsedAt: now },
         });
+        if (touched.count !== 1) {
+            clearAuthCookies(res);
+            throw new AppError('Oturum geçersiz veya süresi dolmuş.', 401);
+        }
     }
     next();
 });
@@ -76,10 +116,13 @@ export const verifyCsrf = (req, _res, next) => {
     void prisma.authSession
         .findUnique({
         where: { id: req.auth.sessionId },
-        select: { csrfTokenHash: true },
+        select: { csrfTokenHash: true, revokedAt: true, expiresAt: true },
     })
         .then((session) => {
-        if (!session || !tokenHashesMatch(headerToken, session.csrfTokenHash)) {
+        if (!session ||
+            session.revokedAt ||
+            session.expiresAt <= new Date() ||
+            !tokenHashesMatch(headerToken, session.csrfTokenHash)) {
             next(new AppError('CSRF doğrulaması başarısız.', 403));
             return;
         }
@@ -102,7 +145,12 @@ export const csrfCookieOptions = (maxAgeMs) => ({
     maxAge: maxAgeMs,
 });
 export const clearAuthCookies = (res) => {
-    res.clearCookie(env.SESSION_COOKIE_NAME, { path: '/' });
-    res.clearCookie(CSRF_COOKIE_NAME, { path: '/' });
+    const options = {
+        secure: env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+    };
+    res.clearCookie(env.SESSION_COOKIE_NAME, options);
+    res.clearCookie(CSRF_COOKIE_NAME, options);
 };
 export { CSRF_COOKIE_NAME };

@@ -3,17 +3,15 @@ import { assertSafeLocalTestDatabase } from './testDatabaseGuard.js';
 assertSafeLocalTestDatabase();
 const isWindows = process.platform === 'win32';
 const command = isWindows ? (process.env.ComSpec ?? 'cmd.exe') : 'npx';
-const args = isWindows
-    ? ['/d', '/s', '/c', 'npx prisma migrate deploy']
-    : ['prisma', 'migrate', 'deploy'];
-const migration = spawn(command, args, {
+const args = isWindows ? ['/d', '/s', '/c', 'npx tsx prisma/seed.ts'] : ['tsx', 'prisma/seed.ts'];
+const seed = spawn(command, args, {
     cwd: process.cwd(),
     env: process.env,
     stdio: 'inherit',
 });
-migration.on('error', (error) => {
+seed.on('error', (error) => {
     throw error;
 });
-migration.on('exit', (code) => {
+seed.on('exit', (code) => {
     process.exitCode = code ?? 1;
 });

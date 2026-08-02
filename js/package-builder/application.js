@@ -1,8 +1,10 @@
 // Paket olusturucu sayfasinin uygulama mantigi.
 import { basePackages, services } from "./catalog.js";
 import { apiRequest, createIdempotencyKey, hasApiEndpoint } from "../shared/api-client.js";
-const moneyFormatter = new Intl.NumberFormat("tr-TR");
+const moneyFormatter = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 });
 const formatPrice = (value) => `${moneyFormatter.format(value)} TL`;
+const toCents = (value) => Math.round(value * 100);
+const fromCents = (value) => value / 100;
 const escapeHtml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -50,7 +52,8 @@ const state = {
   payment: "cash",
   customer: {},
   transferReference: createTransferReference(),
-  idempotencyKey: createIdempotencyKey()
+  idempotencyKey: createIdempotencyKey(),
+  confirmedPayment: null
 };
 
 const stepPanels = [...document.querySelectorAll(".builder-step")];
@@ -206,28 +209,61 @@ function getOrderSubtotal() {
 }
 
 function getPaymentDetails() {
-  const subtotal = getOrderSubtotal();
-
-  if (state.payment === "cash") {
-    const discount = Math.round(subtotal * 0.1);
+  if (state.confirmedPayment) {
     return {
-      subtotal,
-      payable: subtotal - discount,
-      adjustment: -discount,
-      adjustmentLabel: "Peşin ödeme indirimi",
-      payableLabel: "Bugün havale edilecek",
-      benefit: `Peşin ödeme seçeneğiyle ${formatPrice(discount)} avantaj kazandınız.`
+      subtotal: fromCents(state.confirmedPayment.totalPriceCents),
+      subtotalLabel: "Doğrulanmış toplam",
+      payable: fromCents(state.confirmedPayment.payableNowCents),
+      adjustment: 0,
+      adjustmentLabel: "",
+      payableLabel:
+        state.payment === "cash" ? "Bugün havale edilecek" : "Bugün havale edilecek kapora",
+      benefit: "Tutar, güncel katalog fiyatlarıyla sunucu tarafından doğrulandı."
     };
   }
 
+  const subtotalCents = toCents(getOrderSubtotal());
+  if (state.payment === "cash") {
+    const totalPriceCents = Math.round(subtotalCents * 0.9);
+    const discountCents = subtotalCents - totalPriceCents;
+    return {
+      subtotal: fromCents(subtotalCents),
+      subtotalLabel: "Ara toplam",
+      payable: fromCents(totalPriceCents),
+      adjustment: fromCents(-discountCents),
+      adjustmentLabel: "Peşin ödeme indirimi",
+      payableLabel: "Bugün havale edilecek",
+      benefit: `Peşin ödeme seçeneğiyle ${formatPrice(fromCents(discountCents))} avantaj kazandınız.`
+    };
+  }
+
+  const payableNowCents = Math.min(500_000, subtotalCents);
   return {
-    subtotal,
-    payable: Math.min(5000, subtotal),
+    subtotal: fromCents(subtotalCents),
+    subtotalLabel: "Ara toplam",
+    payable: fromCents(payableNowCents),
     adjustment: 0,
     adjustmentLabel: "",
     payableLabel: "Bugün havale edilecek kapora",
-    benefit: `${formatPrice(Math.min(5000, subtotal))} kapora ödemesinin ardından kalan tutarı ekibimizle planlayabilirsiniz.`
+    benefit: `${formatPrice(fromCents(payableNowCents))} kapora ödemesinin ardından kalan tutarı ekibimizle planlayabilirsiniz.`
   };
+}
+
+function setConfirmedPayment(responseData) {
+  const totalPriceCents = responseData?.totalPriceCents;
+  const payableNowCents = responseData?.payableNowCents;
+  const hasValidAmounts =
+    Number.isSafeInteger(totalPriceCents) &&
+    totalPriceCents >= 0 &&
+    Number.isSafeInteger(payableNowCents) &&
+    payableNowCents >= 0 &&
+    payableNowCents <= totalPriceCents;
+
+  if (!hasValidAmounts) {
+    throw new Error("Sunucudan geçerli bir fiyat doğrulaması alınamadı. Lütfen tekrar deneyin.");
+  }
+
+  state.confirmedPayment = { totalPriceCents, payableNowCents };
 }
 
 function updateProgress() {
@@ -332,7 +368,7 @@ function updateSummary() {
 
 function updatePaymentUI() {
   const subtotal = getOrderSubtotal();
-  const cashTotal = Math.round(subtotal * 0.9);
+  const cashTotal = fromCents(Math.round(toCents(subtotal) * 0.9));
   const method = paymentMethods[state.payment];
 
   document.querySelector(".js-cash-original").textContent = formatPrice(subtotal);
@@ -634,7 +670,9 @@ if (paymentNotificationForm) {
           marketingConsent: Boolean(state.customer.marketingConsent)
         }
       });
+      setConfirmedPayment(response.data);
       state.transferReference = response.data.referenceCode;
+      renderOrderReview();
       const waUrl = getWhatsAppUrl();
 
       const refElement = document.querySelector(".js-booking-reference");
@@ -840,7 +878,9 @@ function renderOrderReview() {
     })
   );
 
-  document.querySelector(".js-order-subtotal").textContent = formatPrice(payment.subtotal);
+  const subtotalElement = document.querySelector(".js-order-subtotal");
+  subtotalElement.previousElementSibling.textContent = payment.subtotalLabel;
+  subtotalElement.textContent = formatPrice(payment.subtotal);
   document.querySelector(".js-order-payable-label").textContent = payment.payableLabel;
   document.querySelector(".js-order-payable").textContent = formatPrice(payment.payable);
   document.querySelector(".js-order-benefit span").textContent = payment.benefit;

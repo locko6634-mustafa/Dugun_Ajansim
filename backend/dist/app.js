@@ -32,7 +32,7 @@ export const createApp = (registerRoutes = registerApplicationRoutes) => {
     const application = express();
     // Her isteğe güvenli bir izleme kimliği ekle.
     application.use(attachRequestContext);
-    // Yalnızca konfigürasyondaki güvenilir reverse proxy katman sayısını kabul et (0 = doğrudan bağlantı)
+    // Production'da yalnız açıkça izin verilen reverse proxy IP'lerinden forwarded header kabul et.
     application.set('trust proxy', env.TRUST_PROXY);
     // Güvenlik Katmanı Middleware'lerini (Helmet, Rate Limiter, CORS) bağla
     configureSecurityMiddleware(application);
@@ -45,8 +45,8 @@ export const createApp = (registerRoutes = registerApplicationRoutes) => {
     // Uygulama API Rotalarını kaydet
     registerRoutes(application);
     // Tanımsız tüm HTTP adresleri (404) için özel yakalayıcı middleware
-    application.use('*', (req, _res, next) => {
-        next(new AppError(`Aradığınız ${req.path} adresi bu sunucuda bulunamadı.`, 404));
+    application.use('*', (_req, _res, next) => {
+        next(new AppError('İstenen API adresi bulunamadı.', 404));
     });
     // Uygulama genelindeki en son halka olan Global Hata Yakalama Middleware'ini ekle
     application.use(globalErrorHandler);

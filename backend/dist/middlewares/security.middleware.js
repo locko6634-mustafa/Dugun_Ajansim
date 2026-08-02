@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { env } from '../config/env.config.js';
 // Özel uygulama hatası sınıfımızı içe aktar
 import { AppError } from '../utils/appError.js';
+import { createRateLimitHandler, rateLimitKeyGenerator } from './rateLimit.middleware.js';
 // İsteğin geldiği Origin adresinin izin verilen liste (whitelist) içerisinde olup olmadığını denetleyen fonksiyon
 export const validateCorsOrigin = (allowedOrigins, origin, callback) => {
     // Eğer Origin yoksa (ör. sunucudan sunucuya istek) veya izin verilen listede varsa geçişe izin ver
@@ -33,10 +34,8 @@ export const configureSecurityMiddleware = (app) => {
         max: 100, // Belirtilen sürede tek bir IP adresinden yapılabilecek maksimum istek sayısı (100)
         standardHeaders: true, // `RateLimit-*` standart HTTP başlıklarını yanıta ekle
         legacyHeaders: false, // Eskimiş `X-RateLimit-*` başlıklarını devre dışı bırak
-        message: {
-            success: false,
-            message: 'Çok fazla istek gönderdiniz. Lütfen 15 dakika sonra tekrar deneyin.',
-        },
+        keyGenerator: rateLimitKeyGenerator,
+        handler: createRateLimitHandler('Çok fazla istek gönderdiniz. Lütfen 15 dakika sonra tekrar deneyin.'),
     });
     // Rate Limiter'ı yalnızca /api altındaki rotalar için aktif et
     app.use('/api', globalLimiter);
@@ -48,9 +47,17 @@ export const configureSecurityMiddleware = (app) => {
             validateCorsOrigin(allowedOrigins, origin, callback);
         },
         // İzin verilen HTTP metotları
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        methods: ['GET', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
         // İzin verilen HTTP istek başlıkları
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+        allowedHeaders: [
+            'Content-Type',
+            'Authorization',
+            'X-Requested-With',
+            'X-CSRF-Token',
+            'Idempotency-Key',
+            'X-Correlation-ID',
+        ],
+        exposedHeaders: ['X-Correlation-ID', 'RateLimit', 'RateLimit-Policy', 'Retry-After'],
         // Çerezlerin (Cookies) ve yetki başlıklarının gönderilmesine izin ver
         credentials: true,
     }));

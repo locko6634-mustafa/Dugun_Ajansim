@@ -1,15 +1,38 @@
 import { z } from 'zod';
+import { isStrictGregorianDate } from '../utils/domain.js';
 const nameSchema = z.string().trim().min(2).max(80);
-const phoneSchema = z.string().trim().min(10).max(24);
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const personNameSchema = nameSchema.regex(/^[\p{L}\p{M}][\p{L}\p{M} '’\-]*$/u, 'Ad ve soyad yalnızca harf, boşluk, kesme işareti ve kısa çizgi içerebilir.');
+const phoneSchema = z
+    .string()
+    .trim()
+    .min(10)
+    .max(24)
+    .regex(/^\+?[\d\s()\-]+$/, 'Telefon yalnızca rakam ve telefon ayraçları içerebilir.');
+const dateSchema = z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine(isStrictGregorianDate, 'Geçerli bir takvim tarihi girin.');
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const codeSchema = z.string().trim().min(1).max(80);
+const blockedPasswords = new Set([
+    '123456789012345',
+    'passwordpassword',
+    'qwertyuiopasdfgh',
+    'dugunajansim123',
+    'sifrem123456789',
+]);
+const normalizePasswordForBlocklist = (value) => value.normalize('NFKC').trim().toLowerCase();
+export const strongPasswordSchema = z
+    .string()
+    .min(15, 'Yeni parola en az 15 karakter olmalıdır.')
+    .max(128)
+    .refine((value) => !blockedPasswords.has(normalizePasswordForBlocklist(value)), 'Daha az yaygın bir parola seçin.');
 export const bookingBodySchema = z.object({
-    brideFirstName: nameSchema,
-    brideLastName: nameSchema,
+    brideFirstName: personNameSchema,
+    brideLastName: personNameSchema,
     bridePhone: phoneSchema,
-    groomFirstName: nameSchema,
-    groomLastName: nameSchema,
+    groomFirstName: personNameSchema,
+    groomLastName: personNameSchema,
     groomPhone: phoneSchema,
     primaryContact: z.enum(['GELIN', 'DAMAT']),
     primaryEmail: z.string().trim().toLowerCase().email().max(254),
@@ -24,7 +47,7 @@ export const bookingBodySchema = z.object({
     note: z.string().trim().max(2_000).optional().or(z.literal('')),
     privacyConsent: z.literal(true),
     marketingConsent: z.boolean().default(false),
-});
+}).strict();
 export const adminBookingBodySchema = bookingBodySchema.extend({
     privacyConsent: z.boolean().default(false),
 });
@@ -32,19 +55,14 @@ export const loginBodySchema = z.object({
     username: z.string().trim().min(3).max(64),
     password: z.string().min(6).max(256),
     remember: z.boolean().default(false),
-});
+}).strict();
 export const passwordChangeBodySchema = z.object({
     currentPassword: z.string().min(6).max(256),
-    newPassword: z
-        .string()
-        .min(10, 'Yeni parola en az 10 karakter olmalıdır.')
-        .max(128)
-        .regex(/[a-zçğıöşü]/i, 'Yeni parola harf içermelidir.')
-        .regex(/\d/, 'Yeni parola rakam içermelidir.'),
-});
+    newPassword: strongPasswordSchema,
+}).strict();
 export const rejectBookingBodySchema = z.object({
     reason: z.string().trim().min(3).max(500),
-});
+}).strict();
 export const packageBodySchema = z.object({
     code: codeSchema.regex(/^[a-z0-9-]+$/),
     name: nameSchema,
@@ -52,7 +70,7 @@ export const packageBodySchema = z.object({
     imagePath: z.string().trim().max(500).optional().nullable(),
     priceCents: z.number().int().min(0).max(100_000_000),
     isActive: z.boolean().default(true),
-});
+}).strict();
 export const serviceBodySchema = z.object({
     code: codeSchema.regex(/^[a-z0-9-]+$/),
     category: codeSchema,
@@ -62,18 +80,21 @@ export const serviceBodySchema = z.object({
     imagePath: z.string().trim().max(500).optional().nullable(),
     priceCents: z.number().int().min(0).max(100_000_000),
     isActive: z.boolean().default(true),
-});
-export const deliveryUpdateBodySchema = z.object({
+}).strict();
+export const deliveryUpdateBodySchema = z
+    .object({
     status: z.enum(['HAZIRLANIYOR', 'MONTAJ', 'KONTROL', 'TESLIME_HAZIR']).optional(),
     dueDate: dateSchema.optional(),
     driveUrl: z.string().trim().url().max(2_000).optional(),
-});
+})
+    .strict()
+    .refine((value) => Object.keys(value).length > 0, 'En az bir alan gönderin.');
 export const weddingUpdateBodySchema = z.object({
-    brideFirstName: nameSchema,
-    brideLastName: nameSchema,
+    brideFirstName: personNameSchema,
+    brideLastName: personNameSchema,
     bridePhone: phoneSchema,
-    groomFirstName: nameSchema,
-    groomLastName: nameSchema,
+    groomFirstName: personNameSchema,
+    groomLastName: personNameSchema,
     groomPhone: phoneSchema,
     primaryContact: z.enum(['GELIN', 'DAMAT']),
     primaryEmail: z.string().trim().toLowerCase().email().max(254),
@@ -83,11 +104,11 @@ export const weddingUpdateBodySchema = z.object({
     endsNextDay: z.boolean(),
     venueId: z.string().uuid(),
     note: z.string().trim().max(2_000).optional().or(z.literal('')),
-});
+}).strict();
 export const uuidParamsSchema = z.object({
     id: z.string().uuid(),
-});
+}).strict();
 export const bookingQuerySchema = z.object({
     status: z.enum(['ONAY_BEKLIYOR', 'ONAYLANDI', 'REDDEDILDI', 'IPTAL_EDILDI']).optional(),
     referenceCode: z.string().trim().min(3).max(40).optional(),
-});
+}).strict();

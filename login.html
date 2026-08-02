@@ -189,27 +189,29 @@
               </div>
             </div>
             <div class="form-field">
-              <label for="new-password">Yeni parola</label>
+              <label for="new-password">Yeni parola (15–128 karakter)</label>
               <div class="input-shell">
                 <input
                   id="new-password"
                   name="newPassword"
                   type="password"
                   autocomplete="new-password"
-                  minlength="10"
+                  minlength="15"
+                  maxlength="128"
                   required
                 />
               </div>
             </div>
             <div class="form-field">
-              <label for="confirm-password">Yeni parola tekrar</label>
+              <label for="confirm-password">Yeni parola tekrar (15–128 karakter)</label>
               <div class="input-shell">
                 <input
                   id="confirm-password"
                   name="confirmPassword"
                   type="password"
                   autocomplete="new-password"
-                  minlength="10"
+                  minlength="15"
+                  maxlength="128"
                   required
                 />
               </div>

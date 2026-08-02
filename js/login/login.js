@@ -97,8 +97,16 @@ changeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   changeMessage.textContent = "";
   const data = new FormData(changeForm);
-  if (data.get("newPassword") !== data.get("confirmPassword")) {
+  const newPassword = String(data.get("newPassword") ?? "");
+  const confirmPassword = String(data.get("confirmPassword") ?? "");
+  if (newPassword.length < 15 || newPassword.length > 128) {
+    changeMessage.textContent = "Yeni parolanız 15–128 karakter arasında olmalıdır.";
+    changeForm.elements.newPassword.focus();
+    return;
+  }
+  if (newPassword !== confirmPassword) {
     changeMessage.textContent = "Yeni parolalar birbiriyle eşleşmiyor.";
+    changeForm.elements.confirmPassword.focus();
     return;
   }
 
@@ -109,7 +117,7 @@ changeForm.addEventListener("submit", async (event) => {
       method: "POST",
       body: {
         currentPassword: data.get("currentPassword"),
-        newPassword: data.get("newPassword")
+        newPassword
       }
     });
     redirectForRole(authenticatedRole);

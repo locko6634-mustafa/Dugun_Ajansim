@@ -90,25 +90,26 @@ model Venue {
 }
 
 model User {
-  id                 String                  @id @default(uuid())
-  username           String                  @unique
-  passwordHash       String
-  role               UserRole
-  status             UserStatus              @default(ACTIVE)
-  mustChangePassword Boolean                 @default(true)
-  activeAt           DateTime?
-  passwordChangedAt  DateTime?
-  lastLoginAt        DateTime?
-  venueId            String?
-  venue              Venue?                  @relation(fields: [venueId], references: [id], onDelete: SetNull)
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  sessions           AuthSession[]
-  customerWedding    Wedding?                @relation("CustomerWedding")
-  reviewedBookings   BookingApplication[]    @relation("BookingReviewer")
-  auditLogs          AuditLog[]
-  deliveryHistory    DeliveryStatusHistory[]
-  sentMessages       MessageTask[]           @relation("MessageSender")
+  id                         String                  @id @default(uuid())
+  username                   String                  @unique
+  passwordHash               String
+  role                       UserRole
+  status                     UserStatus              @default(ACTIVE)
+  mustChangePassword         Boolean
+  temporaryPasswordExpiresAt DateTime?
+  activeAt                   DateTime?
+  passwordChangedAt          DateTime?
+  lastLoginAt                DateTime?
+  venueId                    String?
+  venue                      Venue?                  @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  sessions                   AuthSession[]
+  customerWedding            Wedding?                @relation("CustomerWedding")
+  reviewedBookings           BookingApplication[]    @relation("BookingReviewer")
+  auditLogs                  AuditLog[]
+  deliveryHistory            DeliveryStatusHistory[]
+  sentMessages               MessageTask[]           @relation("MessageSender")
 
   @@index([role, status])
   @@index([venueId])
@@ -128,6 +129,7 @@ model AuthSession {
 
   @@index([userId, expiresAt])
   @@index([expiresAt, revokedAt])
+  @@index([revokedAt])
   @@map("auth_sessions")
 }
 
@@ -166,45 +168,48 @@ model Service {
 }
 
 model BookingApplication {
-  id                  String                      @id @default(uuid())
-  referenceCode       String                      @unique
-  idempotencyKey      String?                     @unique
-  source              BookingSource
-  status              BookingStatus               @default(ONAY_BEKLIYOR)
-  brideFirstName      String
-  brideLastName       String
-  bridePhone          String
-  groomFirstName      String
-  groomLastName       String
-  groomPhone          String
-  primaryContact      PrimaryContact
-  primaryEmail        String
-  weddingStartsAt     DateTime
-  weddingEndsAt       DateTime
-  venueId             String
-  venue               Venue                       @relation(fields: [venueId], references: [id], onDelete: Restrict)
-  packageId           String
-  package             Package                     @relation(fields: [packageId], references: [id], onDelete: Restrict)
-  packageCodeSnapshot String
-  packageNameSnapshot String
-  packagePriceCents   Int
-  totalPriceCents     Int
-  paymentMethod       PaymentMethod
-  payableNowCents     Int
-  note                String?
-  privacyConsentAt    DateTime?
-  marketingConsentAt  DateTime?
-  reviewedAt          DateTime?
-  reviewedById        String?
-  reviewedBy          User?                       @relation("BookingReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  rejectionReason     String?
-  createdAt           DateTime                    @default(now())
-  updatedAt           DateTime                    @updatedAt
-  services            BookingApplicationService[]
-  wedding             Wedding?
+  id                     String                      @id @default(uuid())
+  referenceCode          String                      @unique
+  idempotencyKey         String?                     @unique
+  idempotencyFingerprint String?
+  source                 BookingSource
+  status                 BookingStatus               @default(ONAY_BEKLIYOR)
+  brideFirstName         String
+  brideLastName          String
+  bridePhone             String
+  groomFirstName         String
+  groomLastName          String
+  groomPhone             String
+  primaryContact         PrimaryContact
+  primaryEmail           String
+  weddingStartsAt        DateTime
+  weddingEndsAt          DateTime
+  venueId                String
+  venue                  Venue                       @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  packageId              String
+  package                Package                     @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  packageCodeSnapshot    String
+  packageNameSnapshot    String
+  packagePriceCents      Int
+  totalPriceCents        Int
+  paymentMethod          PaymentMethod
+  payableNowCents        Int
+  note                   String?
+  privacyConsentAt       DateTime?
+  marketingConsentAt     DateTime?
+  reviewedAt             DateTime?
+  reviewedById           String?
+  reviewedBy             User?                       @relation("BookingReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  rejectionReason        String?
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  services               BookingApplicationService[]
+  wedding                Wedding?
 
   @@index([status, createdAt])
   @@index([venueId, weddingStartsAt])
+  @@index([packageId])
+  @@index([reviewedById])
   @@index([primaryEmail])
   @@map("booking_applications")
 }
@@ -221,6 +226,7 @@ model BookingApplicationService {
   createdAt     DateTime           @default(now())
 
   @@unique([applicationId, serviceId])
+  @@index([serviceId])
   @@map("booking_application_services")
 }
 
@@ -264,6 +270,7 @@ model Delivery {
   driveUrlCiphertext String?
   driveUrlIv         String?
   driveUrlAuthTag    String?
+  encryptionVersion  Int                     @default(2)
   releasedAt         DateTime?
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
@@ -284,28 +291,31 @@ model DeliveryStatusHistory {
   createdAt   DateTime        @default(now())
 
   @@index([deliveryId, createdAt])
+  @@index([actorUserId])
   @@map("delivery_status_history")
 }
 
 model MessageTask {
-  id               String        @id @default(uuid())
-  weddingId        String
-  wedding          Wedding       @relation(fields: [weddingId], references: [id], onDelete: Cascade)
-  kind             MessageKind
-  status           MessageStatus @default(PENDING)
-  dueAt            DateTime
-  recipientPhone   String
-  secretCiphertext String?
-  secretIv         String?
-  secretAuthTag    String?
-  sentAt           DateTime?
-  sentById         String?
-  sentBy           User?         @relation("MessageSender", fields: [sentById], references: [id], onDelete: SetNull)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id                String        @id @default(uuid())
+  weddingId         String
+  wedding           Wedding       @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  kind              MessageKind
+  status            MessageStatus @default(PENDING)
+  dueAt             DateTime
+  recipientPhone    String
+  secretCiphertext  String?
+  secretIv          String?
+  secretAuthTag     String?
+  encryptionVersion Int           @default(2)
+  sentAt            DateTime?
+  sentById          String?
+  sentBy            User?         @relation("MessageSender", fields: [sentById], references: [id], onDelete: SetNull)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   @@unique([weddingId, kind])
   @@index([status, dueAt])
+  @@index([sentById])
   @@map("message_tasks")
 }
 

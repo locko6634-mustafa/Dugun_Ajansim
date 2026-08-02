@@ -8,6 +8,7 @@ import {
 import { AppError } from '../utils/appError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { decryptValue } from '../utils/crypto.js';
+import { deliveryEncryptionAad } from '../utils/domain.js';
 
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole('MUSTERI'));
@@ -53,7 +54,7 @@ router.get(
       },
       correlationId: req.correlationId,
     });
-  })
+  }),
 );
 
 router.get(
@@ -72,18 +73,21 @@ router.get(
       throw new AppError('Teslimat bağlantınız henüz yayınlanmadı.', 404);
     }
 
-    const driveUrl = decryptValue({
-      ciphertext: delivery.driveUrlCiphertext,
-      iv: delivery.driveUrlIv,
-      authTag: delivery.driveUrlAuthTag,
-    });
+    const driveUrl = decryptValue(
+      {
+        ciphertext: delivery.driveUrlCiphertext,
+        iv: delivery.driveUrlIv,
+        authTag: delivery.driveUrlAuthTag,
+      },
+      delivery.encryptionVersion >= 2 ? deliveryEncryptionAad(delivery.id) : undefined,
+    );
     res.set('Cache-Control', 'no-store');
     res.json({
       success: true,
       data: { driveUrl, releasedAt: delivery.releasedAt },
       correlationId: req.correlationId,
     });
-  })
+  }),
 );
 
 export default router;

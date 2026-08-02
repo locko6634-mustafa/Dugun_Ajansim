@@ -326,7 +326,7 @@ async function loadMessages() {
             <div><small>Planlanan</small><strong>${formatDate(task.dueAt, true)}</strong></div>
             <div><small>Durum</small><strong>${escapeHtml(task.status)}</strong></div>
             <div class="data-row__actions">
-              ${task.status === "PENDING" ? `<button class="mini-button mini-button--primary" data-open-message="${task.id}">WhatsApp</button><button class="mini-button" data-mark-sent="${task.id}">Gönderildi</button>` : `<small>${formatDate(task.sentAt, true)}</small>`}
+              ${task.status === "PENDING" ? `<button class="mini-button mini-button--primary" data-open-message="${task.id}">WhatsApp</button><button class="mini-button" data-mark-sent="${task.id}" data-task-updated-at="${escapeHtml(task.updatedAt)}">Gönderildi</button>` : `<small>${formatDate(task.sentAt, true)}</small>`}
             </div>
           </article>`
       )
@@ -352,13 +352,20 @@ messageContainer.addEventListener("click", async (event) => {
         } else {
           window.location.href = response.data.whatsappUrl;
         }
+        const markSentButton = messageContainer.querySelector(
+          `[data-mark-sent="${openButton.dataset.openMessage}"]`
+        );
+        if (markSentButton) {
+          markSentButton.dataset.taskUpdatedAt = response.data.expectedUpdatedAt;
+        }
       } catch (error) {
         popup?.close();
         throw error;
       }
     } else if (sentButton) {
       await apiRequest(`/admin/message-tasks/${sentButton.dataset.markSent}/mark-sent`, {
-        method: "POST"
+        method: "POST",
+        body: { expectedUpdatedAt: sentButton.dataset.taskUpdatedAt }
       });
       await loadMessages();
     }
