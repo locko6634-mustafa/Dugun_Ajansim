@@ -3,4 +3,6 @@ import "./faq.js";
 import "./gallery.js";
 import "./shoots.js";
 import "./services.js";
+import "./venues.js";
 import "./motion.js";
+
