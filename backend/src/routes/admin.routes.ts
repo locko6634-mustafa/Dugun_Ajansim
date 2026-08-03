@@ -46,6 +46,10 @@ import {
 
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole('ADMIN'));
+router.use((_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 
 const emptyQuery = z.object({}).strict();
 const emptyBody = z.object({}).strict();
