@@ -1,6 +1,10 @@
 # Node & Bağımlılıklar
 node_modules/
 .pnpm-store/
+dist/
+build/
+out/
+.cache/
 
 # Ortam Değişkenleri ve Gizli Dosyalar
 .env
@@ -10,18 +14,35 @@ node_modules/
 *.pem
 *.key
 
-# Test & Rapor Çıktıları (Playwright, Coverage vb.)
+# Test & Rapor Çıktıları (Playwright, Coverage, Lighthouse vb.)
 playwright-report/
 test-results/
 coverage/
 .nyc_output/
+reports/
+report/
+lighthouse-report/
+allure-results/
+allure-report/
+*.report
+*.html-report
 
-# Yapay Zeka & Agent Kalıntıları
+# Rapor ve Doküman Çıktı Dosyaları (PDF, Excel, CSV vb.)
+*.pdf
+*.xlsx
+*.xls
+*.csv
+*.docx
+*.doc
+
+# Yapay Zeka, Agent & Uzaktan Bağlantı Kalıntıları
 .agents/
 .gemini/
 .antigravity/
+.codex-remote-attachments/
+scratch/
 
-# Log ve Geçici Dosyalar
+# Log, Veritabanı ve Geçici Dosyalar
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -29,12 +50,17 @@ yarn-error.log*
 pnpm-debug.log*
 *.tmp
 *.temp
+*.bak
+*.old
+*.swp
+*.swo
+*.sqlite
+*.db
+*.sql
 
 # IDE & Editör Dosyaları
 .vscode/
 .idea/
-*.swp
-*.swo
 *.sublime-project
 *.sublime-workspace
 
@@ -48,8 +74,10 @@ desktop.ini
 
 # Medya / Test Videoları
 *.mp4
+*.avi
+*.mov
 
-# Yedekler
+# Yedekler & Belgeler
 backups/
-
 /backend/docs
+
