@@ -29,7 +29,7 @@ jobs:
           POSTGRES_PASSWORD: test_password
           POSTGRES_DB: dugun_ajansim_test
         ports:
-          - 55432:5432
+          - 55632:5432
         options: >-
           --health-cmd "pg_isready -U test_user -d dugun_ajansim_test"
           --health-interval 10s
@@ -42,7 +42,7 @@ jobs:
       NODE_ENV: test
       PORT: 5001
       CORS_ORIGIN: http://localhost:3000
-      DATABASE_URL: postgresql://test_user:test_password@localhost:55432/dugun_ajansim_test
+      DATABASE_URL: postgresql://test_user:test_password@localhost:55632/dugun_ajansim_test
       TEST_DATABASE_GUARD: dugun_ajansim_local_test_only
       TRUST_PROXY: 0
       HEALTHCHECK_TIMEOUT_MS: 3000
