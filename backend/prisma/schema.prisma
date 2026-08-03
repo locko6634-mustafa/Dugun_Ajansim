@@ -66,6 +66,16 @@ enum AuditOutcome {
   FAILURE
 }
 
+enum StaffSpecialty {
+  PHOTOGRAPHY
+  VIDEO
+  DRONE
+  JIMMY_JIB
+  ASSISTANT
+  EDITING
+  ALBUM
+}
+
 model SystemHealth {
   id        String   @id @default(uuid())
   status    String   @default("ok")
@@ -231,11 +241,11 @@ model BookingApplicationService {
 }
 
 model Wedding {
-  id             String             @id @default(uuid())
-  applicationId  String             @unique
-  application    BookingApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
-  customerUserId String             @unique
-  customerUser   User               @relation("CustomerWedding", fields: [customerUserId], references: [id], onDelete: Restrict)
+  id             String              @id @default(uuid())
+  applicationId  String              @unique
+  application    BookingApplication  @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  customerUserId String              @unique
+  customerUser   User                @relation("CustomerWedding", fields: [customerUserId], references: [id], onDelete: Restrict)
   brideFirstName String
   brideLastName  String
   bridePhone     String
@@ -247,18 +257,50 @@ model Wedding {
   startsAt       DateTime
   endsAt         DateTime
   venueId        String
-  venue          Venue              @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  venue          Venue               @relation(fields: [venueId], references: [id], onDelete: Restrict)
   packageSummary Json
   note           String?
   cancelledAt    DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
   delivery       Delivery?
   messageTasks   MessageTask[]
+  assignments    WeddingAssignment[]
 
   @@index([venueId, startsAt])
   @@index([startsAt, endsAt])
   @@map("weddings")
+}
+
+model Staff {
+  id          String              @id @default(uuid())
+  firstName   String
+  lastName    String
+  phone       String
+  specialties StaffSpecialty[]
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  assignments WeddingAssignment[]
+
+  @@index([isActive, lastName, firstName])
+  @@map("staff")
+}
+
+model WeddingAssignment {
+  id        String         @id @default(uuid())
+  weddingId String
+  wedding   Wedding        @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  staffId   String
+  staff     Staff          @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  specialty StaffSpecialty
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([weddingId, staffId])
+  @@index([staffId])
+  @@index([weddingId, specialty])
+  @@map("wedding_assignments")
 }
 
 model Delivery {

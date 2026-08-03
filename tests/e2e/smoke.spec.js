@@ -135,9 +135,7 @@ test("paket formu çift, saat ve salon alanlarını backend kataloğuyla hazırl
   await expect(page.locator(".js-venue-select")).toContainText("Cess Wedding");
 });
 
-test("admin genel bakış ve düğün düzenleme akışı yetkili API verisiyle açılır", async ({
-  page
-}) => {
+test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açılır", async ({ page }) => {
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -147,28 +145,6 @@ test("admin genel bakış ve düğün düzenleme akışı yetkili API verisiyle 
       })
     })
   );
-  await page.route("**/api/v1/admin/overview", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        data: {
-          pendingBookings: 2,
-          activeWeddings: 7,
-          pendingMessages: 3,
-          readyDeliveries: 1
-        }
-      })
-    })
-  );
-  let lastApplicationUrl = "";
-  await page.route("**/api/v1/admin/booking-applications?**", (route) => {
-    lastApplicationUrl = route.request().url();
-    return route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ success: true, data: [] })
-    });
-  });
   const wedding = {
     id: "6ae9f9e6-6217-4b6c-91ea-251be3bb6fc1",
     venueId: "de305d54-75b4-431b-adb2-eb6b9e546014",
@@ -183,7 +159,9 @@ test("admin genel bakış ve düğün düzenleme akışı yetkili API verisiyle 
     startsAt: "2026-08-10T17:00:00.000Z",
     endsAt: "2026-08-10T23:00:00.000Z",
     note: "",
-    venue: { name: "Cess Wedding" },
+    venue: { id: "de305d54-75b4-431b-adb2-eb6b9e546014", name: "Cess Wedding" },
+    packageSummary: { code: "mini", name: "Mini Paket", totalPriceCents: 2000000, services: [] },
+    assignments: [],
     customerUser: {
       id: "40c66ad5-b87a-4f0b-a4fa-1f3562329387",
       username: "yilmaz-demir-4821",
@@ -192,9 +170,68 @@ test("admin genel bakış ve düğün düzenleme akışı yetkili API verisiyle 
     delivery: {
       id: "f82ed2dc-49a8-4c4b-96ef-a23624af6390",
       status: "MONTAJ",
-      dueDate: "2026-08-31T00:00:00.000Z"
+      dueDate: "2026-08-31T00:00:00.000Z",
+      hasDriveUrl: false,
+      driveUrl: null
     }
   };
+  await page.route("**/api/v1/admin/dashboard**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          today: "2026-08-10",
+          weekStart: "2026-08-10",
+          weekEnd: "2026-08-16",
+          metrics: { pendingBookings: 2, pendingMessages: 3, readyDeliveries: 1, todayWeddings: 1 },
+          todayWeddings: [wedding],
+          tomorrowWeddings: [],
+          weekWeddings: [wedding],
+          idleStaff: [],
+          distribution: {},
+          conflicts: [],
+          upcomingDeliveries: []
+        }
+      })
+    })
+  );
+  const secondVenueId = "a430c729-e45a-4ce9-9c98-62a94d2b8581";
+  let lastCalendarUrl = "";
+  await page.route("**/api/v1/admin/calendar**", (route) => {
+    lastCalendarUrl = route.request().url();
+    const url = new URL(lastCalendarUrl);
+    const selectedVenueId = url.searchParams.get("venueId") || wedding.venueId;
+    const month = url.searchParams.get("month") || "2026-08";
+    const selectedVenue =
+      selectedVenueId === wedding.venueId
+        ? { id: wedding.venueId, name: "Cess Wedding", isActive: true }
+        : { id: secondVenueId, name: "Bella Garden", isActive: true };
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          month,
+          today: "2026-08-10",
+          venues: [
+            { id: wedding.venueId, name: "Cess Wedding", isActive: true },
+            { id: secondVenueId, name: "Bella Garden", isActive: true }
+          ],
+          selectedVenue,
+          weddings: selectedVenueId === wedding.venueId && month === "2026-08" ? [wedding] : []
+        }
+      })
+    });
+  });
+  let lastApplicationUrl = "";
+  await page.route("**/api/v1/admin/booking-applications?**", (route) => {
+    lastApplicationUrl = route.request().url();
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] })
+    });
+  });
   await page.route("**/api/v1/admin/weddings", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -211,6 +248,16 @@ test("admin genel bakış ve düğün düzenleme akışı yetkili API verisiyle 
     })
   );
   await page.route(`**/api/v1/admin/weddings/${wedding.id}`, async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: { ...wedding, availableStaff: [], messageTasks: [] }
+        })
+      });
+      return;
+    }
     const body = route.request().postDataJSON();
     expect(body.brideLastName).toBe("Kaya");
     await route.fulfill({
@@ -227,18 +274,34 @@ test("admin genel bakış ve düğün düzenleme akışı yetkili API verisiyle 
     });
   });
   await page.goto("/admin.html");
-  await expect(page.getByRole("heading", { name: "Operasyon masası" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Günün akışı" })).toBeVisible();
   await expect(page.locator('[data-metric="pendingBookings"]')).toHaveText("2");
-  await page.getByRole("button", { name: "03 Teslimatlar" }).click();
-  await page.getByRole("button", { name: "Düzenle" }).click();
+  await page.locator('[data-panel="weddings"]:visible').click();
+  await page.getByRole("button", { name: "Ayrıntılar" }).click();
+  await expect(
+    page.getByRole("dialog").getByRole("heading", { name: "Ayşe Yılmaz & Mehmet Demir" })
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Düğün bilgilerini düzenle" }).click();
   await expect(page.getByRole("heading", { name: "Bilgileri güncelle" })).toBeVisible();
   await page.locator('.js-wedding-form input[name="brideLastName"]').fill("Kaya");
   await page.getByRole("button", { name: "Değişiklikleri kaydet" }).click();
   await expect(page.locator(".global-message")).toContainText("Yeni kullanıcı adı");
-  await page.getByRole("button", { name: "02 Başvurular" }).click();
+  await page.locator(".js-wedding-detail [data-close-dialog]").click();
+  if (await page.locator("[data-mobile-more]:visible").count()) {
+    await page.locator("[data-mobile-more]:visible").click();
+  }
+  await page.locator('[data-panel="applications"]:visible').click();
   await page.getByLabel("Başvuru referans kodu").fill("DA-2026-123456");
   await page.getByRole("button", { name: "Bul" }).click();
   await expect.poll(() => lastApplicationUrl).toContain("referenceCode=DA-2026-123456");
+  await page.locator('[data-panel="calendar"]:visible').click();
+  await expect(page.getByRole("heading", { name: "Ağustos 2026 · Cess Wedding" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Ayşe & Mehmet/ }).first()).toBeVisible();
+  await page.getByRole("tab", { name: "Bella Garden" }).click();
+  await expect.poll(() => lastCalendarUrl).toContain(`venueId=${secondVenueId}`);
+  await expect(page.getByRole("heading", { name: "Ağustos 2026 · Bella Garden" })).toBeVisible();
+  await page.getByRole("button", { name: "Önceki ay" }).click();
+  await expect.poll(() => lastCalendarUrl).toContain("month=2026-07");
 });
 
 test("müşteri teslimat paneli linki teslim öncesinde göstermiyor", async ({ page }) => {

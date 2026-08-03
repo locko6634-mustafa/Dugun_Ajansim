@@ -57,6 +57,7 @@ pnpm-debug.log*
 *.sqlite
 *.db
 *.sql
+!backend/prisma/migrations/**/*.sql
 
 # IDE & Editör Dosyaları
 .vscode/
@@ -80,4 +81,3 @@ desktop.ini
 # Yedekler & Belgeler
 backups/
 /backend/docs
-

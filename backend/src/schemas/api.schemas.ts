@@ -18,6 +18,15 @@ const dateSchema = z
   .refine(isStrictGregorianDate, 'Geçerli bir takvim tarihi girin.');
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const codeSchema = z.string().trim().min(1).max(80);
+export const staffSpecialtySchema = z.enum([
+  'PHOTOGRAPHY',
+  'VIDEO',
+  'DRONE',
+  'JIMMY_JIB',
+  'ASSISTANT',
+  'EDITING',
+  'ALBUM',
+]);
 const blockedPasswords = new Set([
   '123456789012345',
   'passwordpassword',
@@ -123,6 +132,34 @@ export const weddingUpdateBodySchema = z.object({
   endsNextDay: z.boolean(),
   venueId: z.string().uuid(),
   note: z.string().trim().max(2_000).optional().or(z.literal('')),
+}).strict();
+
+export const staffBodySchema = z.object({
+  firstName: personNameSchema,
+  lastName: personNameSchema,
+  phone: phoneSchema,
+  specialties: z.array(staffSpecialtySchema).min(1).max(7),
+  isActive: z.boolean().default(true),
+}).strict();
+
+export const staffUpdateBodySchema = staffBodySchema.partial().refine(
+  (value) => Object.keys(value).length > 0,
+  'En az bir alan gönderin.',
+);
+
+export const assignmentBodySchema = z.object({
+  staffId: z.string().uuid(),
+  specialty: staffSpecialtySchema,
+  allowConflict: z.boolean().default(false),
+}).strict();
+
+export const dashboardQuerySchema = z.object({
+  weekStart: dateSchema.optional(),
+}).strict();
+
+export const calendarQuerySchema = z.object({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
+  venueId: z.string().uuid().optional(),
 }).strict();
 
 export const uuidParamsSchema = z.object({

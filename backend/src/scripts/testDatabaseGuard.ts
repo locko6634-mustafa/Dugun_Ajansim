@@ -1,6 +1,6 @@
 const EXPECTED_TEST_DATABASE_GUARD = 'dugun_ajansim_local_test_only';
 const EXPECTED_TEST_DATABASE_HOST = 'localhost';
-const EXPECTED_TEST_DATABASE_PORT = '55432';
+const EXPECTED_TEST_DATABASE_PORT = '55632';
 const EXPECTED_TEST_DATABASE_NAME = 'dugun_ajansim_test';
 
 export const assertSafeLocalTestDatabase = (environment: NodeJS.ProcessEnv = process.env): URL => {
@@ -30,7 +30,7 @@ export const assertSafeLocalTestDatabase = (environment: NodeJS.ProcessEnv = pro
     !isExpectedTarget
   ) {
     throw new Error(
-      'Test veritabanı işlemi yalnızca açık guard ile localhost:55432/dugun_ajansim_test hedefinde çalıştırılabilir.',
+      'Test veritabanı işlemi yalnızca açık guard ile localhost:55632/dugun_ajansim_test hedefinde çalıştırılabilir.',
     );
   }
 

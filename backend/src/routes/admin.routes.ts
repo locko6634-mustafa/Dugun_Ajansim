@@ -12,11 +12,16 @@ import {
 import { validateRequest } from '../middlewares/validate.middleware.js';
 import {
   adminBookingBodySchema,
+  assignmentBodySchema,
   bookingQuerySchema,
+  calendarQuerySchema,
+  dashboardQuerySchema,
   deliveryUpdateBodySchema,
   packageBodySchema,
   rejectBookingBodySchema,
   serviceBodySchema,
+  staffBodySchema,
+  staffUpdateBodySchema,
   uuidParamsSchema,
   weddingUpdateBodySchema,
 } from '../schemas/api.schemas.js';
@@ -58,6 +63,49 @@ const markSentRequest = z.object({
   body: z.object({ expectedUpdatedAt: z.string().datetime({ offset: true }) }).strict(),
   query: emptyQuery,
   params: uuidParamsSchema,
+});
+
+const assignmentParamsSchema = z
+  .object({
+    id: z.string().uuid(),
+    assignmentId: z.string().uuid(),
+  })
+  .strict();
+
+const dashboardWeddingInclude = {
+  venue: { select: { name: true } },
+  delivery: { select: { id: true, status: true, dueDate: true, releasedAt: true } },
+  assignments: {
+    include: { staff: { select: { id: true, firstName: true, lastName: true, isActive: true } } },
+    orderBy: { createdAt: 'asc' as const },
+  },
+} satisfies Prisma.WeddingInclude;
+
+const mondayOf = (date: string): string => {
+  const day = new Date(`${date}T12:00:00.000Z`).getUTCDay();
+  return addCalendarDays(date, -(day === 0 ? 6 : day - 1));
+};
+
+const nextMonthOf = (month: string): string => {
+  const value = new Date(`${month}-01T12:00:00.000Z`);
+  value.setUTCMonth(value.getUTCMonth() + 1);
+  return value.toISOString().slice(0, 7);
+};
+
+const dashboardWedding = (
+  wedding: Prisma.WeddingGetPayload<{ include: typeof dashboardWeddingInclude }>,
+) => ({
+  id: wedding.id,
+  brideFirstName: wedding.brideFirstName,
+  brideLastName: wedding.brideLastName,
+  groomFirstName: wedding.groomFirstName,
+  groomLastName: wedding.groomLastName,
+  startsAt: wedding.startsAt,
+  endsAt: wedding.endsAt,
+  venue: wedding.venue,
+  packageSummary: wedding.packageSummary,
+  delivery: wedding.delivery,
+  assignments: wedding.assignments,
 });
 
 const isPrismaError = (error: unknown, code: string): boolean =>
@@ -192,6 +240,282 @@ router.post(
 );
 
 router.get(
+  '/dashboard',
+  validateRequest(z.object({ body: emptyBody, query: dashboardQuerySchema, params: z.object({}) })),
+  asyncHandler(async (req, res) => {
+    const today = getIstanbulDate(new Date());
+    const tomorrow = addCalendarDays(today, 1);
+    const dayAfterTomorrow = addCalendarDays(today, 2);
+    const weekStart = mondayOf(req.query.weekStart ? String(req.query.weekStart) : today);
+    const weekEnd = addCalendarDays(weekStart, 7);
+    const todayStart = atIstanbulTime(today, '00:00');
+    const tomorrowStart = atIstanbulTime(tomorrow, '00:00');
+    const dayAfterTomorrowStart = atIstanbulTime(dayAfterTomorrow, '00:00');
+    const weekStartsAt = atIstanbulTime(weekStart, '00:00');
+    const weekEndsAt = atIstanbulTime(weekEnd, '00:00');
+
+    const [
+      weekWeddings,
+      todayWeddings,
+      tomorrowWeddings,
+      activeStaff,
+      pendingBookings,
+      pendingMessages,
+      readyDeliveries,
+      upcomingDeliveries,
+    ] = await Promise.all([
+      prisma.wedding.findMany({
+        where: { cancelledAt: null, startsAt: { lt: weekEndsAt }, endsAt: { gt: weekStartsAt } },
+        include: dashboardWeddingInclude,
+        orderBy: { startsAt: 'asc' },
+      }),
+      prisma.wedding.findMany({
+        where: { cancelledAt: null, startsAt: { lt: tomorrowStart }, endsAt: { gt: todayStart } },
+        include: dashboardWeddingInclude,
+        orderBy: { startsAt: 'asc' },
+      }),
+      prisma.wedding.findMany({
+        where: {
+          cancelledAt: null,
+          startsAt: { lt: dayAfterTomorrowStart },
+          endsAt: { gt: tomorrowStart },
+        },
+        include: dashboardWeddingInclude,
+        orderBy: { startsAt: 'asc' },
+      }),
+      prisma.staff.findMany({
+        where: { isActive: true },
+        include: {
+          assignments: {
+            where: {
+              wedding: {
+                cancelledAt: null,
+                startsAt: { lt: tomorrowStart },
+                endsAt: { gt: todayStart },
+              },
+            },
+            select: { id: true },
+          },
+        },
+        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      }),
+      prisma.bookingApplication.count({ where: { status: 'ONAY_BEKLIYOR' } }),
+      prisma.messageTask.count({ where: { status: 'PENDING' } }),
+      prisma.delivery.count({ where: { status: 'TESLIME_HAZIR' } }),
+      prisma.delivery.findMany({
+        where: {
+          status: { not: 'TESLIM_EDILDI' },
+          dueDate: {
+            gte: new Date(`${today}T00:00:00.000Z`),
+            lt: new Date(`${addCalendarDays(today, 8)}T00:00:00.000Z`),
+          },
+        },
+        select: {
+          id: true,
+          status: true,
+          dueDate: true,
+          wedding: { select: { id: true, brideFirstName: true, groomFirstName: true } },
+        },
+        orderBy: { dueDate: 'asc' },
+      }),
+    ]);
+
+    const assignments = weekWeddings.flatMap((wedding) =>
+      wedding.assignments.map((assignment) => ({ assignment, wedding })),
+    );
+    const conflicts: Array<Record<string, unknown>> = [];
+    for (let leftIndex = 0; leftIndex < assignments.length; leftIndex += 1) {
+      const left = assignments[leftIndex]!;
+      for (let rightIndex = leftIndex + 1; rightIndex < assignments.length; rightIndex += 1) {
+        const right = assignments[rightIndex]!;
+        if (
+          left.assignment.staffId === right.assignment.staffId &&
+          left.wedding.startsAt < right.wedding.endsAt &&
+          left.wedding.endsAt > right.wedding.startsAt
+        ) {
+          conflicts.push({
+            staff: left.assignment.staff,
+            firstWedding: dashboardWedding(left.wedding),
+            secondWedding: dashboardWedding(right.wedding),
+          });
+        }
+      }
+    }
+
+    const distribution = Object.fromEntries(
+      ['PHOTOGRAPHY', 'VIDEO', 'DRONE', 'JIMMY_JIB', 'ASSISTANT', 'EDITING', 'ALBUM'].map(
+        (specialty) => [
+          specialty,
+          assignments.filter(({ assignment }) => assignment.specialty === specialty).length,
+        ],
+      ),
+    );
+
+    res.json({
+      success: true,
+      data: {
+        today,
+        weekStart,
+        weekEnd: addCalendarDays(weekEnd, -1),
+        metrics: {
+          pendingBookings,
+          pendingMessages,
+          readyDeliveries,
+          todayWeddings: todayWeddings.length,
+        },
+        todayWeddings: todayWeddings.map(dashboardWedding),
+        tomorrowWeddings: tomorrowWeddings.map(dashboardWedding),
+        weekWeddings: weekWeddings.map(dashboardWedding),
+        idleStaff: activeStaff
+          .filter((staff) => staff.assignments.length === 0)
+          .map(({ assignments: _a, ...staff }) => staff),
+        distribution,
+        conflicts,
+        upcomingDeliveries,
+      },
+      correlationId: req.correlationId,
+    });
+  }),
+);
+
+router.get(
+  '/calendar',
+  validateRequest(z.object({ body: emptyBody, query: calendarQuerySchema, params: z.object({}) })),
+  asyncHandler(async (req, res) => {
+    const today = getIstanbulDate(new Date());
+    const month = req.query.month ? String(req.query.month) : today.slice(0, 7);
+    const monthStart = atIstanbulTime(`${month}-01`, '00:00');
+    const nextMonth = nextMonthOf(month);
+    const monthEnd = atIstanbulTime(`${nextMonth}-01`, '00:00');
+    const venues = await prisma.venue.findMany({
+      select: { id: true, name: true, isActive: true },
+      orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
+    });
+    const selectedVenue = req.query.venueId
+      ? venues.find((venue) => venue.id === String(req.query.venueId))
+      : venues.find((venue) => venue.isActive) ?? venues[0];
+    if (req.query.venueId && !selectedVenue) throw new AppError('Salon bulunamadı.', 404);
+
+    const weddings = selectedVenue
+      ? await prisma.wedding.findMany({
+          where: {
+            venueId: selectedVenue.id,
+            cancelledAt: null,
+            startsAt: { lt: monthEnd },
+            endsAt: { gt: monthStart },
+          },
+          include: dashboardWeddingInclude,
+          orderBy: { startsAt: 'asc' },
+        })
+      : [];
+
+    res.json({
+      success: true,
+      data: {
+        month,
+        today,
+        venues,
+        selectedVenue: selectedVenue ?? null,
+        weddings: weddings.map(dashboardWedding),
+      },
+      correlationId: req.correlationId,
+    });
+  }),
+);
+
+router.get(
+  '/staff',
+  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
+  asyncHandler(async (req, res) => {
+    const staff = await prisma.staff.findMany({
+      include: {
+        assignments: {
+          where: { wedding: { cancelledAt: null, endsAt: { gt: new Date() } } },
+          select: {
+            id: true,
+            specialty: true,
+            wedding: {
+              select: {
+                id: true,
+                brideFirstName: true,
+                groomFirstName: true,
+                startsAt: true,
+                endsAt: true,
+              },
+            },
+          },
+          orderBy: { wedding: { startsAt: 'asc' } },
+          take: 5,
+        },
+      },
+      orderBy: [{ isActive: 'desc' }, { lastName: 'asc' }, { firstName: 'asc' }],
+    });
+    res.json({ success: true, data: staff, correlationId: req.correlationId });
+  }),
+);
+
+router.post(
+  '/staff',
+  verifyCsrf,
+  validateRequest(z.object({ body: staffBodySchema, query: emptyQuery, params: z.object({}) })),
+  asyncHandler(async (req, res) => {
+    const staff = await prisma.$transaction(async (transaction) => {
+      const created = await transaction.staff.create({
+        data: {
+          ...req.body,
+          phone: normalizePhone(req.body.phone),
+          specialties: [...new Set(req.body.specialties)],
+        },
+      });
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: 'staff.created',
+        targetType: 'Staff',
+        targetId: created.id,
+        correlationId: req.correlationId,
+      });
+      return created;
+    });
+    res.status(201).json({ success: true, data: staff, correlationId: req.correlationId });
+  }),
+);
+
+router.patch(
+  '/staff/:id',
+  verifyCsrf,
+  validateRequest(
+    z.object({ body: staffUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema }),
+  ),
+  asyncHandler(async (req, res) => {
+    try {
+      const staff = await prisma.$transaction(async (transaction) => {
+        const updated = await transaction.staff.update({
+          where: { id: req.params.id },
+          data: {
+            ...req.body,
+            ...(req.body.phone ? { phone: normalizePhone(req.body.phone) } : {}),
+            ...(req.body.specialties ? { specialties: [...new Set(req.body.specialties)] } : {}),
+          },
+        });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: 'staff.updated',
+          targetType: 'Staff',
+          targetId: updated.id,
+          correlationId: req.correlationId,
+          metadata: { active: updated.isActive },
+        });
+        return updated;
+      });
+      res.json({ success: true, data: staff, correlationId: req.correlationId });
+    } catch (error) {
+      if (isPrismaError(error, 'P2025')) throw new AppError('Personel bulunamadı.', 404);
+      throw error;
+    }
+  }),
+);
+
+router.get(
   '/weddings',
   validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
@@ -211,6 +535,10 @@ router.get(
             driveUrlCiphertext: true,
           },
         },
+        assignments: {
+          include: { staff: true },
+          orderBy: { createdAt: 'asc' },
+        },
       },
       orderBy: { startsAt: 'desc' },
       take: 200,
@@ -229,6 +557,196 @@ router.get(
         : null,
     }));
     res.json({ success: true, data: safeWeddings, correlationId: req.correlationId });
+  }),
+);
+
+router.get(
+  '/weddings/:id',
+  validateRequest(uuidRequest),
+  asyncHandler(async (req, res) => {
+    const wedding = await prisma.wedding.findUnique({
+      where: { id: req.params.id },
+      include: {
+        venue: { select: { id: true, name: true } },
+        customerUser: {
+          select: { id: true, username: true, activeAt: true, mustChangePassword: true },
+        },
+        delivery: true,
+        assignments: { include: { staff: true }, orderBy: { createdAt: 'asc' } },
+        messageTasks: {
+          select: {
+            id: true,
+            kind: true,
+            status: true,
+            dueAt: true,
+            recipientPhone: true,
+            sentAt: true,
+            createdAt: true,
+            updatedAt: true,
+            sentBy: { select: { username: true } },
+          },
+          orderBy: { dueAt: 'desc' },
+        },
+      },
+    });
+    if (!wedding) throw new AppError('Düğün kaydı bulunamadı.', 404);
+
+    const availableStaff = await prisma.staff.findMany({
+      where: {
+        isActive: true,
+        assignments: {
+          none: {
+            wedding: {
+              id: { not: wedding.id },
+              cancelledAt: null,
+              startsAt: { lt: wedding.endsAt },
+              endsAt: { gt: wedding.startsAt },
+            },
+          },
+        },
+      },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    });
+
+    const { delivery, ...safeWedding } = wedding;
+    let driveUrl: string | null = null;
+    if (delivery?.driveUrlCiphertext && delivery.driveUrlIv && delivery.driveUrlAuthTag) {
+      driveUrl = decryptValue(
+        {
+          ciphertext: delivery.driveUrlCiphertext,
+          iv: delivery.driveUrlIv,
+          authTag: delivery.driveUrlAuthTag,
+        },
+        delivery.encryptionVersion >= 2 ? deliveryEncryptionAad(delivery.id) : undefined,
+      );
+    }
+    res.json({
+      success: true,
+      data: {
+        ...safeWedding,
+        delivery: delivery
+          ? {
+              id: delivery.id,
+              status: delivery.status,
+              dueDate: delivery.dueDate,
+              releasedAt: delivery.releasedAt,
+              updatedAt: delivery.updatedAt,
+              hasDriveUrl: Boolean(driveUrl),
+              driveUrl,
+            }
+          : null,
+        availableStaff,
+      },
+      correlationId: req.correlationId,
+    });
+  }),
+);
+
+router.post(
+  '/weddings/:id/assignments',
+  verifyCsrf,
+  validateRequest(
+    z.object({ body: assignmentBodySchema, query: emptyQuery, params: uuidParamsSchema }),
+  ),
+  asyncHandler(async (req, res) => {
+    const assignment = await prisma.$transaction(
+      async (transaction) => {
+        await transaction.$queryRaw`SELECT "id" FROM "staff" WHERE "id" = ${req.body.staffId} FOR UPDATE`;
+        const [wedding, staff] = await Promise.all([
+          transaction.wedding.findUnique({ where: { id: req.params.id } }),
+          transaction.staff.findUnique({ where: { id: req.body.staffId } }),
+        ]);
+        if (!wedding || wedding.cancelledAt) throw new AppError('Düğün kaydı bulunamadı.', 404);
+        if (!staff || !staff.isActive) throw new AppError('Aktif personel bulunamadı.', 404);
+        if (!staff.specialties.includes(req.body.specialty)) {
+          throw new AppError('Seçilen görev personelin uzmanlıkları arasında değil.', 400);
+        }
+
+        const conflicts = await transaction.weddingAssignment.findMany({
+          where: {
+            staffId: staff.id,
+            wedding: {
+              id: { not: wedding.id },
+              cancelledAt: null,
+              startsAt: { lt: wedding.endsAt },
+              endsAt: { gt: wedding.startsAt },
+            },
+          },
+          select: {
+            id: true,
+            wedding: {
+              select: {
+                id: true,
+                brideFirstName: true,
+                groomFirstName: true,
+                startsAt: true,
+                endsAt: true,
+                venue: { select: { name: true } },
+              },
+            },
+          },
+        });
+        if (conflicts.length > 0 && !req.body.allowConflict) {
+          throw new AppError('Personelin bu saatlerde başka bir görevi var.', 409, true, {
+            code: 'STAFF_CONFLICT',
+            conflicts: conflicts.map(({ wedding: conflictingWedding }) => conflictingWedding),
+          });
+        }
+
+        let created;
+        try {
+          created = await transaction.weddingAssignment.create({
+            data: { weddingId: wedding.id, staffId: staff.id, specialty: req.body.specialty },
+            include: { staff: true },
+          });
+        } catch (error) {
+          if (isPrismaError(error, 'P2002')) {
+            throw new AppError('Bu personel düğüne zaten atanmış.', 409);
+          }
+          throw error;
+        }
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: 'wedding.assignment.created',
+          targetType: 'WeddingAssignment',
+          targetId: created.id,
+          correlationId: req.correlationId,
+          metadata: {
+            weddingId: wedding.id,
+            staffId: staff.id,
+            conflictOverride: conflicts.length > 0,
+          },
+        });
+        return { ...created, hasConflict: conflicts.length > 0 };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+    res.status(201).json({ success: true, data: assignment, correlationId: req.correlationId });
+  }),
+);
+
+router.delete(
+  '/weddings/:id/assignments/:assignmentId',
+  verifyCsrf,
+  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: assignmentParamsSchema })),
+  asyncHandler(async (req, res) => {
+    const deleted = await prisma.$transaction(async (transaction) => {
+      const assignment = await transaction.weddingAssignment.findFirst({
+        where: { id: req.params.assignmentId, weddingId: req.params.id },
+      });
+      if (!assignment) throw new AppError('Personel ataması bulunamadı.', 404);
+      await transaction.weddingAssignment.delete({ where: { id: assignment.id } });
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: 'wedding.assignment.deleted',
+        targetType: 'WeddingAssignment',
+        targetId: assignment.id,
+        correlationId: req.correlationId,
+        metadata: { weddingId: assignment.weddingId, staffId: assignment.staffId },
+      });
+      return assignment;
+    });
+    res.json({ success: true, data: { id: deleted.id }, correlationId: req.correlationId });
   }),
 );
 

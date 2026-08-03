@@ -30,7 +30,7 @@ test('test veritabanı guard yalnızca açık yerel hedefi kabul eder', () => {
     { ...safeEnvironment, TEST_DATABASE_GUARD: undefined },
     {
       ...safeEnvironment,
-      DATABASE_URL: 'postgresql://test_user:test_password@example.com:55432/dugun_ajansim_test',
+      DATABASE_URL: 'postgresql://test_user:test_password@example.com:55632/dugun_ajansim_test',
     },
     {
       ...safeEnvironment,
@@ -38,7 +38,7 @@ test('test veritabanı guard yalnızca açık yerel hedefi kabul eder', () => {
     },
     {
       ...safeEnvironment,
-      DATABASE_URL: 'postgresql://test_user:test_password@localhost:55432/baska_test',
+      DATABASE_URL: 'postgresql://test_user:test_password@localhost:55632/baska_test',
     },
   ];
 
@@ -227,6 +227,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const weddingDate = addCalendarDays(getIstanbulDate(new Date()), 30);
   let venueId: string | undefined;
   let adminId: string | undefined;
+  const staffIds: string[] = [];
 
   context.after(async () => {
     await prisma.auditLog.deleteMany({ where: { correlationId } });
@@ -240,6 +241,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       select: { id: true, customerUserId: true },
     });
     await prisma.wedding.deleteMany({ where: { id: { in: weddings.map((item) => item.id) } } });
+    await prisma.staff.deleteMany({ where: { id: { in: staffIds } } });
     await prisma.user.deleteMany({
       where: { id: { in: weddings.map((item) => item.customerUserId) } },
     });
@@ -628,6 +630,123 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(applicationDetail.status, 200);
   assert.equal('idempotencyKey' in applicationDetail.body.data, false);
   assert.equal('idempotencyFingerprint' in applicationDetail.body.data, false);
+
+  const createdStaff = await request(app)
+    .post('/api/v1/admin/staff')
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({
+      firstName: 'Deniz',
+      lastName: 'Kamera',
+      phone: '05551112233',
+      specialties: ['PHOTOGRAPHY', 'VIDEO'],
+      isActive: true,
+    });
+  assert.equal(createdStaff.status, 201);
+  staffIds.push(createdStaff.body.data.id as string);
+  assert.equal(createdStaff.body.data.phone, '+905551112233');
+
+  const invalidStaff = await request(app)
+    .post('/api/v1/admin/staff')
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({ firstName: 'Eksik', lastName: 'Uzmanlık', phone: '05551112244', specialties: [] });
+  assert.equal(invalidStaff.status, 400);
+
+  const firstAssignment = await request(app)
+    .post(`/api/v1/admin/weddings/${wedding.id}/assignments`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({
+      staffId: createdStaff.body.data.id,
+      specialty: 'PHOTOGRAPHY',
+      allowConflict: false,
+    });
+  assert.equal(firstAssignment.status, 201);
+
+  const rejectedConflict = await request(app)
+    .post(`/api/v1/admin/weddings/${secondApproval.weddingId}/assignments`)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({
+      staffId: createdStaff.body.data.id,
+      specialty: 'VIDEO',
+      allowConflict: false,
+    });
+  assert.equal(rejectedConflict.status, 409);
+  assert.equal(rejectedConflict.body.errors.code, 'STAFF_CONFLICT');
+  assert.equal(rejectedConflict.body.errors.conflicts.length, 1);
+
+  const allowedConflict = await request(app)
+    .post(`/api/v1/admin/weddings/${secondApproval.weddingId}/assignments`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({
+      staffId: createdStaff.body.data.id,
+      specialty: 'VIDEO',
+      allowConflict: true,
+    });
+  assert.equal(allowedConflict.status, 201);
+  assert.equal(allowedConflict.body.data.hasConflict, true);
+
+  const operationsDashboard = await request(app)
+    .get(`/api/v1/admin/dashboard?weekStart=${weddingDate}`)
+    .set('Cookie', adminCookie);
+  assert.equal(operationsDashboard.status, 200);
+  assert.equal(operationsDashboard.body.data.conflicts.length, 1);
+  assert.equal(operationsDashboard.body.data.distribution.PHOTOGRAPHY, 1);
+  assert.equal(operationsDashboard.body.data.distribution.VIDEO, 1);
+
+  const venueCalendar = await request(app)
+    .get(`/api/v1/admin/calendar?month=${weddingDate.slice(0, 7)}&venueId=${venue.id}`)
+    .set('Cookie', adminCookie);
+  assert.equal(venueCalendar.status, 200);
+  assert.equal(venueCalendar.body.data.selectedVenue.id, venue.id);
+  assert.equal(venueCalendar.body.data.month, weddingDate.slice(0, 7));
+  assert.equal(venueCalendar.body.data.weddings.length, 3);
+  assert.equal(
+    venueCalendar.body.data.weddings.every(
+      (calendarWedding: { venue: { name: string } }) => calendarWedding.venue.name === venue.name,
+    ),
+    true,
+  );
+
+  const invalidCalendarMonth = await request(app)
+    .get('/api/v1/admin/calendar?month=2026-13')
+    .set('Cookie', adminCookie);
+  assert.equal(invalidCalendarMonth.status, 400);
+
+  const weddingDetail = await request(app)
+    .get(`/api/v1/admin/weddings/${wedding.id}`)
+    .set('Cookie', adminCookie);
+  assert.equal(weddingDetail.status, 200);
+  assert.equal(weddingDetail.body.data.assignments.length, 1);
+  assert.equal(
+    JSON.stringify(weddingDetail.body.data.messageTasks).includes('secretCiphertext'),
+    false,
+  );
+
+  const removedAssignment = await request(app)
+    .delete(
+      `/api/v1/admin/weddings/${secondApproval.weddingId}/assignments/${allowedConflict.body.data.id}`,
+    )
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({});
+  assert.equal(removedAssignment.status, 200);
+
+  const archivedStaff = await request(app)
+    .patch(`/api/v1/admin/staff/${createdStaff.body.data.id}`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({ isActive: false });
+  assert.equal(archivedStaff.status, 200);
+  assert.equal(archivedStaff.body.data.isActive, false);
 
   const routePackageCode = `route-${marker}`;
   const createdRoutePackage = await request(app)

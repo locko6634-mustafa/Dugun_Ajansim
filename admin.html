@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="theme-color" content="#171713" />
+    <meta name="theme-color" content="#1d201a" />
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <title>Yönetim Merkezi | Düğünajansım</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -18,19 +18,21 @@
   </head>
   <body>
     <div class="admin-shell">
-      <aside class="admin-sidebar">
-        <a class="admin-brand" href="index.html">
-          <span>DA</span>
-          <strong>Düğünajansım</strong>
-          <small>Yönetim merkezi</small>
+      <aside class="admin-sidebar" aria-label="Ana yönetim menüsü">
+        <a class="admin-brand" href="index.html" aria-label="Düğünajansım ana sayfa">
+          <span>DA</span><strong>Düğünajansım</strong><small>Ajans yönetimi</small>
         </a>
         <nav class="admin-nav" aria-label="Yönetim bölümleri">
-          <button class="is-active" type="button" data-panel="overview">01 Genel Bakış</button>
-          <button type="button" data-panel="applications">02 Başvurular</button>
-          <button type="button" data-panel="deliveries">03 Teslimatlar</button>
-          <button type="button" data-panel="messages">04 Mesaj Masası</button>
-          <button type="button" data-panel="catalog">05 Paket Kataloğu</button>
-          <button type="button" data-panel="audit">06 İşlem Geçmişi</button>
+          <button class="is-active" type="button" data-panel="overview">
+            <span>01</span> Genel Bakış
+          </button>
+          <button type="button" data-panel="plan"><span>02</span> Haftalık Plan</button>
+          <button type="button" data-panel="calendar"><span>03</span> Salon Takvimi</button>
+          <button type="button" data-panel="applications"><span>04</span> Başvurular</button>
+          <button type="button" data-panel="weddings"><span>05</span> Düğünler</button>
+          <button type="button" data-panel="staff"><span>06</span> Personeller</button>
+          <button type="button" data-panel="messages"><span>07</span> Mesajlar</button>
+          <button type="button" data-panel="catalog"><span>08</span> Paketler</button>
         </nav>
         <div class="admin-sidebar__footer">
           <span class="connection-status"><i></i> Sistem bağlı</span>
@@ -42,20 +44,19 @@
         <header class="admin-topbar">
           <div>
             <p class="kicker js-current-date">İstanbul</p>
-            <h1>Operasyon masası</h1>
+            <h1>Günün akışı</h1>
           </div>
-          <button class="primary-button js-open-manual" type="button">Yeni düğün kaydı</button>
+          <button class="primary-button js-open-manual" type="button">+ Yeni düğün</button>
         </header>
-
         <p class="global-message" role="status" aria-live="polite"></p>
 
         <section class="admin-panel is-active" data-panel-content="overview">
-          <div class="metric-ribbon" aria-label="Sistem özeti">
+          <div class="metric-ribbon" aria-label="Günlük özet">
             <article>
-              <span>Onay bekleyen</span><strong data-metric="pendingBookings">—</strong>
+              <span>Bugünkü düğün</span><strong data-metric="todayWeddings">—</strong>
             </article>
             <article>
-              <span>Aktif düğün</span><strong data-metric="activeWeddings">—</strong>
+              <span>Onay bekleyen</span><strong data-metric="pendingBookings">—</strong>
             </article>
             <article>
               <span>Bekleyen mesaj</span><strong data-metric="pendingMessages">—</strong>
@@ -64,66 +65,205 @@
               <span>Teslime hazır</span><strong data-metric="readyDeliveries">—</strong>
             </article>
           </div>
-          <div class="editorial-grid">
-            <article class="focus-card">
-              <p class="section-index">Bugünün odağı</p>
-              <h2>Önce bekleyen kararlar.</h2>
-              <p>
-                Dekontu doğrulanan başvuruları onaylayın, zamanı gelen mesajları gönderin ve hazır
-                teslimatları müşteriye açın.
-              </p>
-              <button type="button" data-jump="applications">Başvurulara git →</button>
-            </article>
-            <article class="date-card">
-              <span>Varsayılan teslim planı</span>
-              <strong>21</strong>
-              <p>takvim günü</p>
-            </article>
+          <div class="overview-layout">
+            <section class="today-stage">
+              <div class="section-heading compact">
+                <div>
+                  <p class="section-index">Bugün</p>
+                  <h2>Sahadaki akış</h2>
+                </div>
+                <button class="text-button" type="button" data-jump="plan">Haftayı aç →</button>
+              </div>
+              <div class="js-today-weddings event-stack"></div>
+            </section>
+            <aside class="attention-rail" aria-label="Yaklaşan işler ve uyarılar">
+              <section class="rail-block">
+                <div class="section-heading compact">
+                  <div>
+                    <p class="section-index">Yarın</p>
+                    <h3>Hazır olun</h3>
+                  </div>
+                </div>
+                <div class="js-tomorrow-weddings compact-stack"></div>
+              </section>
+              <section class="rail-block">
+                <div class="section-heading compact">
+                  <div>
+                    <p class="section-index">Ekip</p>
+                    <h3>Bugün boşta</h3>
+                  </div>
+                </div>
+                <div class="js-idle-staff name-cloud"></div>
+              </section>
+              <section class="rail-block alert-block">
+                <div class="section-heading compact">
+                  <div>
+                    <p class="section-index">Dikkat</p>
+                    <h3>Çakışmalar</h3>
+                  </div>
+                </div>
+                <div class="js-conflicts compact-stack"></div>
+              </section>
+            </aside>
+          </div>
+          <section class="delivery-strip">
+            <div class="section-heading compact">
+              <div>
+                <p class="section-index">Önümüzdeki 7 gün</p>
+                <h2>Yaklaşan teslimatlar</h2>
+              </div>
+            </div>
+            <div class="js-upcoming-deliveries delivery-track"></div>
+          </section>
+        </section>
+
+        <section class="admin-panel" data-panel-content="plan" hidden>
+          <div class="section-heading plan-heading">
+            <div>
+              <p class="section-index">Haftalık operasyon</p>
+              <h2 class="js-week-label">Haftalık plan</h2>
+            </div>
+            <div class="plan-controls">
+              <button
+                class="mini-button"
+                type="button"
+                data-week-move="-7"
+                aria-label="Önceki hafta"
+              >
+                ←</button
+              ><button class="mini-button" type="button" data-week-today>Bugün</button
+              ><button
+                class="mini-button"
+                type="button"
+                data-week-move="7"
+                aria-label="Sonraki hafta"
+              >
+                →
+              </button>
+            </div>
+          </div>
+          <div class="week-ribbon js-week-days" aria-live="polite"></div>
+          <div class="distribution-panel">
+            <p class="section-index">Görev dağılımı</p>
+            <div class="js-distribution distribution-grid"></div>
+          </div>
+        </section>
+
+        <section class="admin-panel" data-panel-content="calendar" hidden>
+          <div class="section-heading calendar-heading">
+            <div>
+              <p class="section-index">Salon bazlı plan</p>
+              <h2 class="js-calendar-label">Aylık takvim</h2>
+            </div>
+            <div class="plan-controls">
+              <button class="mini-button" type="button" data-month-move="-1" aria-label="Önceki ay">
+                ←
+              </button>
+              <button class="mini-button" type="button" data-month-today>Bu ay</button>
+              <button class="mini-button" type="button" data-month-move="1" aria-label="Sonraki ay">
+                →
+              </button>
+            </div>
+          </div>
+          <div
+            class="venue-switcher js-calendar-venues"
+            role="tablist"
+            aria-label="Salon takvimleri"
+          ></div>
+          <div class="calendar-shell">
+            <div class="calendar-weekdays" aria-hidden="true">
+              <span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span
+              ><span>Cmt</span><span>Paz</span>
+            </div>
+            <div class="month-calendar js-month-calendar" aria-live="polite"></div>
           </div>
         </section>
 
         <section class="admin-panel" data-panel-content="applications" hidden>
           <div class="section-heading">
             <div>
-              <p class="section-index">02</p>
+              <p class="section-index">Yeni işler</p>
               <h2>Paket başvuruları</h2>
             </div>
-            <form class="application-search js-application-search">
+            <form class="filter-bar js-application-search">
               <input
                 class="js-application-reference"
                 type="search"
                 placeholder="DA-... referans kodu"
                 aria-label="Başvuru referans kodu"
-              />
-              <select class="js-application-filter" aria-label="Başvuru durumu">
+              /><select class="js-application-filter" aria-label="Başvuru durumu">
                 <option value="ONAY_BEKLIYOR">Onay bekleyen</option>
                 <option value="">Tümü</option>
                 <option value="ONAYLANDI">Onaylanan</option>
-                <option value="REDDEDILDI">Reddedilen</option>
-              </select>
-              <button class="mini-button" type="submit">Bul</button>
+                <option value="REDDEDILDI">Reddedilen</option></select
+              ><button class="mini-button" type="submit">Bul</button>
             </form>
           </div>
           <div class="data-surface js-applications"></div>
         </section>
 
-        <section class="admin-panel" data-panel-content="deliveries" hidden>
+        <section class="admin-panel" data-panel-content="weddings" hidden>
           <div class="section-heading">
             <div>
-              <p class="section-index">03</p>
-              <h2>Teslimat hattı</h2>
+              <p class="section-index">Tüm operasyon</p>
+              <h2>Düğünler ve teslimatlar</h2>
+            </div>
+            <div class="filter-bar">
+              <input
+                class="js-wedding-search"
+                type="search"
+                placeholder="Çift, salon veya telefon ara"
+                aria-label="Düğünlerde ara"
+              /><select class="js-wedding-status" aria-label="Teslimat durumuna göre filtrele">
+                <option value="">Tüm durumlar</option>
+                <option value="HAZIRLANIYOR">Hazırlanıyor</option>
+                <option value="MONTAJ">Montaj</option>
+                <option value="KONTROL">Kontrol</option>
+                <option value="TESLIME_HAZIR">Teslime hazır</option>
+                <option value="TESLIM_EDILDI">Teslim edildi</option>
+              </select>
             </div>
           </div>
-          <div class="data-surface js-deliveries"></div>
+          <div class="wedding-list js-weddings"></div>
+        </section>
+
+        <section class="admin-panel" data-panel-content="staff" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-index">Ekip yönetimi</p>
+              <h2>Personeller</h2>
+            </div>
+            <div class="heading-actions">
+              <div class="filter-bar">
+                <input
+                  class="js-staff-search"
+                  type="search"
+                  placeholder="Personel ara"
+                  aria-label="Personel ara"
+                /><select class="js-staff-specialty-filter" aria-label="Uzmanlığa göre filtrele">
+                  <option value="">Tüm uzmanlıklar</option></select
+                ><select
+                  class="js-staff-active-filter"
+                  aria-label="Personel durumuna göre filtrele"
+                >
+                  <option value="active">Aktif</option>
+                  <option value="all">Tümü</option>
+                  <option value="passive">Pasif</option>
+                </select>
+              </div>
+              <button class="primary-button js-add-staff" type="button">+ Personel ekle</button>
+            </div>
+          </div>
+          <div class="staff-grid js-staff"></div>
         </section>
 
         <section class="admin-panel" data-panel-content="messages" hidden>
           <div class="section-heading">
             <div>
-              <p class="section-index">04</p>
-              <h2>Manuel mesaj masası</h2>
+              <p class="section-index">İletişim</p>
+              <h2>Mesaj geçmişi</h2>
             </div>
-            <p>Parola ve bağlantılar geçmişte düz metin tutulmaz.</p>
+            <p>Tür, alıcı ve gönderim zamanı tutulur; hassas içerikler geçmişte saklanmaz.</p>
           </div>
           <div class="data-surface js-messages"></div>
         </section>
@@ -131,12 +271,12 @@
         <section class="admin-panel" data-panel-content="catalog" hidden>
           <div class="section-heading">
             <div>
-              <p class="section-index">05</p>
+              <p class="section-index">Hizmet vitrini</p>
               <h2>Paket ve hizmetler</h2>
             </div>
           </div>
           <div class="catalog-layout">
-            <div>
+            <section>
               <h3>
                 Temel paketler
                 <button class="mini-button" type="button" data-add-catalog="packages">
@@ -144,8 +284,8 @@
                 </button>
               </h3>
               <div class="js-packages"></div>
-            </div>
-            <div>
+            </section>
+            <section>
               <h3>
                 Ek hizmetler
                 <button class="mini-button" type="button" data-add-catalog="services">
@@ -153,62 +293,107 @@
                 </button>
               </h3>
               <div class="js-services"></div>
-            </div>
+            </section>
           </div>
-        </section>
-
-        <section class="admin-panel" data-panel-content="audit" hidden>
-          <div class="section-heading">
-            <div>
-              <p class="section-index">06</p>
-              <h2>İşlem geçmişi</h2>
-            </div>
-          </div>
-          <div class="data-surface js-audit"></div>
         </section>
       </main>
     </div>
 
-    <dialog class="manual-dialog js-manual-dialog">
-      <form class="manual-form js-manual-form" method="dialog">
-        <div class="dialog-heading">
+    <nav class="mobile-nav" aria-label="Mobil yönetim menüsü">
+      <button class="is-active" type="button" data-panel="overview">Bugün</button
+      ><button type="button" data-panel="plan">Plan</button
+      ><button type="button" data-panel="calendar">Takvim</button
+      ><button type="button" data-panel="weddings">Düğünler</button
+      ><button type="button" data-mobile-more>Diğer</button>
+    </nav>
+    <div class="mobile-more" hidden>
+      <button type="button" data-panel="applications">Başvurular</button
+      ><button type="button" data-panel="staff">Personeller</button
+      ><button type="button" data-panel="messages">Mesajlar</button
+      ><button type="button" data-panel="catalog">Paketler</button
+      ><button class="js-logout" type="button">Çıkış</button>
+    </div>
+
+    <dialog class="sheet-dialog js-wedding-detail">
+      <div class="sheet-shell">
+        <div class="sheet-heading">
+          <div>
+            <p class="section-index">Düğün dosyası</p>
+            <h2 class="js-detail-title">Yükleniyor</h2>
+          </div>
+          <button class="dialog-close" type="button" data-close-dialog aria-label="Kapat">×</button>
+        </div>
+        <div class="js-wedding-detail-content"></div>
+      </div>
+    </dialog>
+
+    <dialog class="form-dialog js-staff-dialog">
+      <form class="form-shell js-staff-form" method="dialog">
+        <div class="sheet-heading">
+          <div>
+            <p class="section-index">Ekip</p>
+            <h2 class="js-staff-form-title">Personel ekle</h2>
+          </div>
+          <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
+        </div>
+        <input name="staffId" type="hidden" />
+        <div class="form-grid">
+          <label>Ad<input name="firstName" type="text" required /></label
+          ><label>Soyad<input name="lastName" type="text" required /></label
+          ><label class="wide">Telefon<input name="phone" type="tel" required /></label>
+          <fieldset class="wide specialty-choices">
+            <legend>Uzmanlıklar</legend>
+            <div class="js-staff-specialties"></div>
+          </fieldset>
+          <label class="switch-row wide"
+            ><input name="isActive" type="checkbox" checked /> Aktif personel</label
+          >
+        </div>
+        <p class="dialog-message" role="status"></p>
+        <div class="dialog-actions">
+          <button class="secondary-button" type="button" value="cancel">Vazgeç</button
+          ><button class="primary-button" type="submit">Kaydet</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="form-dialog js-manual-dialog">
+      <form class="form-shell js-manual-form" method="dialog">
+        <div class="sheet-heading">
           <div>
             <p class="section-index">Yeni kayıt</p>
             <h2>Manuel düğün başvurusu</h2>
           </div>
           <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
         </div>
-        <div class="manual-form__grid">
-          <label>Gelin adı<input name="brideFirstName" type="text" required /></label>
-          <label>Gelin soyadı<input name="brideLastName" type="text" required /></label>
-          <label>Gelin telefonu<input name="bridePhone" type="tel" required /></label>
-          <label>Damat adı<input name="groomFirstName" type="text" required /></label>
-          <label>Damat soyadı<input name="groomLastName" type="text" required /></label>
-          <label>Damat telefonu<input name="groomPhone" type="tel" required /></label>
-          <label
+        <div class="form-grid">
+          <label>Gelin adı<input name="brideFirstName" type="text" required /></label
+          ><label>Gelin soyadı<input name="brideLastName" type="text" required /></label
+          ><label>Gelin telefonu<input name="bridePhone" type="tel" required /></label
+          ><label>Damat adı<input name="groomFirstName" type="text" required /></label
+          ><label>Damat soyadı<input name="groomLastName" type="text" required /></label
+          ><label>Damat telefonu<input name="groomPhone" type="tel" required /></label
+          ><label
             >Birincil kişi<select name="primaryContact">
               <option value="GELIN">Gelin</option>
               <option value="DAMAT">Damat</option>
             </select></label
-          >
-          <label>Birincil e-posta<input name="primaryEmail" type="email" required /></label>
-          <label>Düğün tarihi<input name="weddingDate" type="date" required /></label>
-          <label>Başlangıç<input name="startTime" type="time" required /></label>
-          <label>Bitiş<input name="endTime" type="time" required /></label>
-          <label class="check-label"
+          ><label>Birincil e-posta<input name="primaryEmail" type="email" required /></label
+          ><label>Düğün tarihi<input name="weddingDate" type="date" required /></label
+          ><label>Başlangıç<input name="startTime" type="time" required /></label
+          ><label>Bitiş<input name="endTime" type="time" required /></label
+          ><label class="switch-row"
             ><input name="endsNextDay" type="checkbox" /> Bitiş ertesi gün</label
-          >
-          <label>Salon<select class="js-manual-venue" name="venueId" required></select></label>
-          <label
-            >Paket<select class="js-manual-package" name="packageCode" required></select
-          ></label>
-          <label
+          ><label>Salon<select class="js-manual-venue" name="venueId" required></select></label
+          ><label
+            >Paket<select class="js-manual-package" name="packageCode" required></select></label
+          ><label
             >Ödeme<select name="paymentMethod">
               <option value="CASH">Peşin</option>
               <option value="DEPOSIT">Kapora</option>
             </select></label
           >
-          <fieldset class="wide service-choices">
+          <fieldset class="wide specialty-choices">
             <legend>Ek hizmetler</legend>
             <div class="js-manual-services"></div>
           </fieldset>
@@ -216,15 +401,15 @@
         </div>
         <p class="dialog-message" role="status"></p>
         <div class="dialog-actions">
-          <button class="secondary-button" type="button" value="cancel">Vazgeç</button>
-          <button class="primary-button" type="submit">Kaydı oluştur</button>
+          <button class="secondary-button" type="button" value="cancel">Vazgeç</button
+          ><button class="primary-button" type="submit">Kaydı oluştur</button>
         </div>
       </form>
     </dialog>
 
-    <dialog class="manual-dialog js-wedding-dialog">
-      <form class="manual-form js-wedding-form" method="dialog">
-        <div class="dialog-heading">
+    <dialog class="form-dialog js-wedding-dialog">
+      <form class="form-shell js-wedding-form" method="dialog">
+        <div class="sheet-heading">
           <div>
             <p class="section-index">Düğün kaydı</p>
             <h2>Bilgileri güncelle</h2>
@@ -232,37 +417,31 @@
           <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
         </div>
         <input name="weddingId" type="hidden" />
-        <div class="manual-form__grid">
-          <label>Gelin adı<input name="brideFirstName" type="text" required /></label>
-          <label>Gelin soyadı<input name="brideLastName" type="text" required /></label>
-          <label>Gelin telefonu<input name="bridePhone" type="tel" required /></label>
-          <label>Damat adı<input name="groomFirstName" type="text" required /></label>
-          <label>Damat soyadı<input name="groomLastName" type="text" required /></label>
-          <label>Damat telefonu<input name="groomPhone" type="tel" required /></label>
-          <label
+        <div class="form-grid">
+          <label>Gelin adı<input name="brideFirstName" type="text" required /></label
+          ><label>Gelin soyadı<input name="brideLastName" type="text" required /></label
+          ><label>Gelin telefonu<input name="bridePhone" type="tel" required /></label
+          ><label>Damat adı<input name="groomFirstName" type="text" required /></label
+          ><label>Damat soyadı<input name="groomLastName" type="text" required /></label
+          ><label>Damat telefonu<input name="groomPhone" type="tel" required /></label
+          ><label
             >Birincil kişi<select name="primaryContact">
               <option value="GELIN">Gelin</option>
               <option value="DAMAT">Damat</option>
             </select></label
-          >
-          <label>Birincil e-posta<input name="primaryEmail" type="email" required /></label>
-          <label>Düğün tarihi<input name="weddingDate" type="date" required /></label>
-          <label>Başlangıç<input name="startTime" type="time" required /></label>
-          <label>Bitiş<input name="endTime" type="time" required /></label>
-          <label class="check-label"
+          ><label>Birincil e-posta<input name="primaryEmail" type="email" required /></label
+          ><label>Düğün tarihi<input name="weddingDate" type="date" required /></label
+          ><label>Başlangıç<input name="startTime" type="time" required /></label
+          ><label>Bitiş<input name="endTime" type="time" required /></label
+          ><label class="switch-row"
             ><input name="endsNextDay" type="checkbox" /> Bitiş ertesi gün</label
-          >
-          <label>Salon<select class="js-wedding-venue" name="venueId" required></select></label>
-          <label class="wide">Not<textarea name="note" rows="3"></textarea></label>
+          ><label>Salon<select class="js-wedding-venue" name="venueId" required></select></label
+          ><label class="wide">Not<textarea name="note" rows="3"></textarea></label>
         </div>
         <p class="dialog-message" role="status"></p>
-        <p class="dialog-hint">
-          İlk kişisel parola henüz oluşturulmadıysa ad, soyad veya tarih değişikliği müşteri
-          kullanıcı adını ve geçici parolayı yeniler.
-        </p>
         <div class="dialog-actions">
-          <button class="secondary-button" type="button" value="cancel">Vazgeç</button>
-          <button class="primary-button" type="submit">Değişiklikleri kaydet</button>
+          <button class="secondary-button" type="button" value="cancel">Vazgeç</button
+          ><button class="primary-button" type="submit">Değişiklikleri kaydet</button>
         </div>
       </form>
     </dialog>
