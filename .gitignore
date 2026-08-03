@@ -48,3 +48,7 @@ desktop.ini
 
 # Medya / Test Videoları
 *.mp4
+
+# Yedekler
+backups/
+
