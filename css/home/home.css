@@ -169,6 +169,48 @@ button {
   transform: translateY(-2px);
 }
 
+.header-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 54px;
+  padding: 0 14px;
+  border: 1px solid hsl(0 60% 88%);
+  border-radius: 13px;
+  color: hsl(0 65% 42%);
+  background: hsl(0 100% 99% / 0.8);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    border-color 220ms ease,
+    background 220ms ease,
+    transform 220ms var(--ease);
+}
+
+.header-logout:hover,
+.header-logout:focus-visible {
+  border-color: hsl(0 65% 55%);
+  background: hsl(0 100% 96%);
+  transform: translateY(-2px);
+}
+
+.header-logout svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.mobile-logout-button {
+  width: 100%;
+  margin-top: 8px;
+  color: hsl(0 65% 42%);
+  border: 1px solid hsl(0 60% 88%);
+  background: hsl(0 100% 99%);
+}
+
 .header-cta:hover {
   box-shadow: 0 12px 28px hsl(32 54% 42% / 0.24);
   transform: translateY(-2px);
@@ -1033,7 +1075,6 @@ button {
   .anniversary__number {
     font-size: 48px;
   }
-
 }
 
 @media (max-width: 1060px) {

@@ -1,4 +1,5 @@
 import { apiRequest } from "../shared/api-client.js";
+import { fetchSession } from "../shared/auth-session.js";
 
 const loginForm = document.querySelector(".login-form");
 const changeForm = document.querySelector(".password-change-form");
@@ -9,6 +10,18 @@ const forgotButton = document.querySelector(".forgot-button");
 const formMessage = loginForm.querySelector(".form-message");
 const changeMessage = changeForm.querySelector(".password-change-message");
 let authenticatedRole = "";
+
+async function checkExistingSession() {
+  const session = await fetchSession();
+  if (session && session.role) {
+    if (session.mustChangePassword) {
+      showPasswordChange(session.role);
+    } else {
+      redirectForRole(session.role);
+    }
+  }
+}
+checkExistingSession();
 
 function setFieldError(input, message) {
   const field = input.closest(".form-field");

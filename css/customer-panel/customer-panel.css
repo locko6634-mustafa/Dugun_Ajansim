@@ -23,8 +23,7 @@ body {
   margin: 0;
   color: var(--ink);
   background:
-    radial-gradient(circle at 84% 12%, hsl(34 44% 82% / 0.43), transparent 28%),
-    var(--paper);
+    radial-gradient(circle at 84% 12%, hsl(34 44% 82% / 0.43), transparent 28%), var(--paper);
   font-family: var(--sans);
 }
 

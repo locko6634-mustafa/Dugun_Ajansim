@@ -5,8 +5,7 @@ const configuredApiBaseUrl = document
   .replace(/\/$/, "");
 
 export const API_BASE_URL =
-  configuredApiBaseUrl ||
-  (isLocal ? `http://${window.location.hostname}:5000/api/v1` : "/api/v1");
+  configuredApiBaseUrl || (isLocal ? `http://${window.location.hostname}:5000/api/v1` : "/api/v1");
 
 export function hasApiEndpoint() {
   return Boolean(API_BASE_URL);

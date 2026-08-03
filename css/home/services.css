@@ -585,7 +585,10 @@ body:has(.service-detail[open]) {
   font-weight: 650;
   letter-spacing: 0.08em;
   text-decoration: none;
-  transition: transform 220ms ease, box-shadow 220ms ease, background 220ms ease;
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    background 220ms ease;
 }
 
 .service-detail__footer .builder-primary svg {

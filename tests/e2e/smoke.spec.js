@@ -421,3 +421,55 @@ test("zorunlu parola değişim ekranı 15–128 karakter sözleşmesini uygular"
   );
   expect(passwordChangeRequestCount).toBe(0);
 });
+
+test("oturum acilmis kullanici anasayfada role uygun paneli ve cikis butonunu gorur", async ({
+  page,
+  isMobile
+}) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { role: "ADMIN", mustChangePassword: false, username: "admin" }
+      })
+    })
+  );
+
+  await page.goto("/index.html");
+
+  if (isMobile) {
+    const menuButton = page.locator("[aria-controls]").first();
+    await menuButton.click();
+    const mobileLogin = page.locator(".mobile-login-button");
+    await expect(mobileLogin).toContainText("Admin Paneli");
+    await expect(mobileLogin).toHaveAttribute("href", "admin.html");
+    const mobileLogout = page.locator(".mobile-logout-button");
+    await expect(mobileLogout).toBeVisible();
+  } else {
+    const loginLink = page.locator(".header-login");
+    await expect(loginLink).toContainText("Admin Paneli");
+    await expect(loginLink).toHaveAttribute("href", "admin.html");
+
+    const logoutButton = page.locator(".header-logout");
+    await expect(logoutButton).toBeVisible();
+  }
+});
+
+test("oturum acilmis kullanici login.html sayfasina gittiginde otomatik panele yonlendirilir", async ({
+  page
+}) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { role: "MUSTERI", mustChangePassword: false, username: "musteri" }
+      })
+    })
+  );
+
+  await page.goto("/login.html");
+  await page.waitForURL("**/musteri-paneli.html");
+  expect(page.url()).toContain("musteri-paneli.html");
+});
