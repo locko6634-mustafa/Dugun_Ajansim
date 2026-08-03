@@ -1,6 +1,12 @@
 {
   "extends": ["stylelint-config-standard"],
-  "ignoreFiles": ["node_modules/**/*.css", "playwright-report/**/*.css", "css/home/styles.css"],
+  "ignoreFiles": [
+    "node_modules/**",
+    "playwright-report/**",
+    "test-results/**",
+    "coverage/**",
+    "css/home/styles.css"
+  ],
   "rules": {
     "at-rule-no-unknown": null,
     "color-function-notation": null,

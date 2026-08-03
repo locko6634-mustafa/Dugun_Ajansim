@@ -501,7 +501,7 @@ test('production hata yanıtı beklenmeyen hata ayrıntılarını gizler', () =>
       baseUrl: '/api/v1/admin',
       route: { path: '/customers/:id/reset-password' },
       path: `/api/v1/admin/customers/${sensitiveMarker}/reset-password`,
-    } as Request,
+    } as unknown as Request,
     mock.response,
     (() => undefined) as NextFunction,
   );
@@ -667,7 +667,7 @@ test('request validator geçersiz girdiyi AppError olarak iletir', async () => {
   let forwardedError: unknown;
 
   await middleware(
-    { body: { email: 'geçersiz' }, query: {}, params: {} } as Request,
+    { body: { email: 'geçersiz' }, query: {}, params: {} } as unknown as Request,
     {} as Response,
     ((error?: unknown) => {
       forwardedError = error;

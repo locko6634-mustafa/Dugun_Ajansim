@@ -7,8 +7,9 @@
   "scripts": {
     "build": "npm run build:css",
     "build:css": "node tools/build-home-css.mjs",
+    "optimize:images": "node tools/optimize-images.mjs",
     "format": "prettier --write \"**/*.{html,css,js,json,md,mjs}\"",
-    "format:check": "prettier --check package.json \"*.config.js\" \"tests/**/*.js\" \"tools/**/*.mjs\"",
+    "format:check": "prettier --check \"**/*.{html,css,js,json,md,mjs}\"",
     "lint:js": "eslint .",
     "lint:css": "stylelint \"css/**/*.css\"",
     "validate:html": "html-validate \"*.html\"",
@@ -24,6 +25,7 @@
     "eslint": "^9.35.0",
     "html-validate": "^11.5.6",
     "prettier": "^3.6.2",
+    "sharp": "^0.35.3",
     "stylelint": "^17.14.1",
     "stylelint-config-standard": "^40.0.0"
   }

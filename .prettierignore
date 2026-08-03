@@ -1,5 +1,26 @@
-node_modules
-playwright-report
-test-results
-assets
-frontend-uctan-uca-analiz-raporu.md
+# Bağımlılıklar ve Kilit Dosyaları
+node_modules/
+package-lock.json
+
+# Test ve Rapor Çıktıları
+playwright-report/
+test-results/
+coverage/
+
+# Statik Medya, Derleme Çıktıları ve Dokümantasyon Raporları
+assets/
+backend/docs/
+css/home/styles.css
+
+
+
+# Agent, Önbellek ve Geçici Dosyalar
+.agents/
+.gemini/
+.antigravity/
+.codex-remote-attachments/
+scratch/
+backups/
+*.log
+*.tmp
+
