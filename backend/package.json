@@ -19,8 +19,7 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "seed": "tsx --env-file=.env prisma/seed.ts",
-    "seed:demo": "tsx src/scripts/seedDemoData.ts",
+    "seed": "tsx prisma/seed.ts",
     "seed:test": "tsx --env-file=tests/test.env src/scripts/seedTestDatabase.ts",
     "admin:bootstrap": "tsx src/scripts/bootstrapAdmin.ts"
   },
