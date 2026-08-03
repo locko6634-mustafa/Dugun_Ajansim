@@ -1984,3 +1984,13 @@ button {
     width: 16px;
   }
 }
+
+/* Performans: Ekran disi bolumlerin rendering/layout yukunu hafifletme */
+.shoots-section,
+.services-section,
+.venues-section,
+.faq-section,
+.site-footer {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 700px;
+}

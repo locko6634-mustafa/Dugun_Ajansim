@@ -68,8 +68,6 @@ function splitHeadingIntoLines(heading) {
   });
 }
 
-motionHeadings.forEach(splitHeadingIntoLines);
-
 const observedMotionElements = new Set();
 
 function registerMotionGroup(selector, options = {}) {
@@ -89,43 +87,7 @@ function registerMotionGroup(selector, options = {}) {
   });
 }
 
-registerMotionGroup(".benefit-card", { stagger: 80 });
-registerMotionGroup(".legacy-kicker, .legacy-flourish, .legacy-lead", { stagger: 85 });
-registerMotionGroup(".legacy-photo", {
-  direction: (index) => ["left", "right", "up"][index] || "up",
-  stagger: 90
-});
-registerMotionGroup(".legacy-value", { stagger: 85 });
-registerMotionGroup(".gallery-kicker, .gallery-heading > p:last-of-type", { stagger: 85 });
-registerMotionGroup(".gallery-track, .gallery-cta", { stagger: 110 });
-registerMotionGroup(".shoots-kicker, .shoots-heading > p", { stagger: 85 });
-registerMotionGroup(".shoot-card", {
-  direction: (index) => (index % 2 === 0 ? "left" : "right"),
-  stagger: 90
-});
-registerMotionGroup(".services-heading > p, .services-divider", {
-  stagger: 75
-});
-registerMotionGroup(".service-card", {
-  direction: (index) => (index % 2 === 0 ? "left" : "right"),
-  stagger: 75
-});
-registerMotionGroup(".venues-heading__eyebrow, .venues-heading__rule, .venues-heading > p", {
-  stagger: 80
-});
-registerMotionGroup(".venue-card", {
-  direction: (index) => (index % 2 === 0 ? "left" : "right"),
-  stagger: 75
-});
-registerMotionGroup(".faq-heading__eyebrow, .faq-heading__rule, .faq-heading > p", {
-  stagger: 80
-});
-registerMotionGroup(".faq-item", { stagger: 65 });
-registerMotionGroup(".faq-actions", { stagger: 80 });
-registerMotionGroup(
-  ".site-footer__brand, .site-footer__nav, .site-footer__cta, .site-footer__signature, .site-footer__bottom",
-  { stagger: 85 }
-);
+const runIdle = window.requestIdleCallback || ((cb) => setTimeout(cb, 10));
 
 const heroMotionSequence = [
   [document.querySelector(".hero-collage"), "hero", 30],
@@ -145,40 +107,83 @@ heroMotionSequence.forEach(([element, direction, delay]) => {
   element.style.setProperty("--motion-delay", `${delay}ms`);
 });
 
-motionHeadings
-  .filter((heading) => heading.id !== "hero-title")
-  .forEach((heading) => observedMotionElements.add(heading));
-
-function revealAllMotionElements() {
-  observedMotionElements.forEach((element) => element.classList.add("is-visible"));
-  heroMotionSequence.forEach(([element]) => element?.classList.add("is-visible"));
-}
-
 document.documentElement.classList.add("motion-ready");
 
-if (reducedMotionQuery.matches || !("IntersectionObserver" in window)) {
-  revealAllMotionElements();
-} else {
-  const revealObserver = new IntersectionObserver(
-    (entries, observer) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        entry.target.classList.add("is-visible");
-        observer.unobserve(entry.target);
-      });
-    },
-    {
-      threshold: 0.15,
-      rootMargin: "0px 0px -8% 0px"
-    }
+requestAnimationFrame(() => {
+  heroMotionSequence.forEach(([element]) => element?.classList.add("is-visible"));
+});
+
+function initNonHeroMotion() {
+  motionHeadings.forEach(splitHeadingIntoLines);
+
+  registerMotionGroup(".benefit-card", { stagger: 80 });
+  registerMotionGroup(".legacy-kicker, .legacy-flourish, .legacy-lead", { stagger: 85 });
+  registerMotionGroup(".legacy-photo", {
+    direction: (index) => ["left", "right", "up"][index] || "up",
+    stagger: 90
+  });
+  registerMotionGroup(".legacy-value", { stagger: 85 });
+  registerMotionGroup(".gallery-kicker, .gallery-heading > p:last-of-type", { stagger: 85 });
+  registerMotionGroup(".gallery-track, .gallery-cta", { stagger: 110 });
+  registerMotionGroup(".shoots-kicker, .shoots-heading > p", { stagger: 85 });
+  registerMotionGroup(".shoot-card", {
+    direction: (index) => (index % 2 === 0 ? "left" : "right"),
+    stagger: 90
+  });
+  registerMotionGroup(".services-heading > p, .services-divider", {
+    stagger: 75
+  });
+  registerMotionGroup(".service-card", {
+    direction: (index) => (index % 2 === 0 ? "left" : "right"),
+    stagger: 75
+  });
+  registerMotionGroup(".venues-heading__eyebrow, .venues-heading__rule, .venues-heading > p", {
+    stagger: 80
+  });
+  registerMotionGroup(".venue-card", {
+    direction: (index) => (index % 2 === 0 ? "left" : "right"),
+    stagger: 75
+  });
+  registerMotionGroup(".faq-heading__eyebrow, .faq-heading__rule, .faq-heading > p", {
+    stagger: 80
+  });
+  registerMotionGroup(".faq-item", { stagger: 65 });
+  registerMotionGroup(".faq-actions", { stagger: 80 });
+  registerMotionGroup(
+    ".site-footer__brand, .site-footer__nav, .site-footer__cta, .site-footer__signature, .site-footer__bottom",
+    { stagger: 85 }
   );
 
-  observedMotionElements.forEach((element) => revealObserver.observe(element));
+  motionHeadings
+    .filter((heading) => heading.id !== "hero-title")
+    .forEach((heading) => observedMotionElements.add(heading));
 
-  requestAnimationFrame(() => {
-    heroMotionSequence.forEach(([element]) => element?.classList.add("is-visible"));
-  });
+  function revealAllMotionElements() {
+    observedMotionElements.forEach((element) => element.classList.add("is-visible"));
+  }
+
+  if (reducedMotionQuery.matches || !("IntersectionObserver" in window)) {
+    revealAllMotionElements();
+  } else {
+    const revealObserver = new IntersectionObserver(
+      (entries, observer) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        });
+      },
+      {
+        threshold: 0.15,
+        rootMargin: "0px 0px -8% 0px"
+      }
+    );
+
+    observedMotionElements.forEach((element) => revealObserver.observe(element));
+  }
 }
+
+runIdle(initNonHeroMotion);
 
 const parallaxImages = [
   document.querySelector(".hero-collage .photo--main img"),

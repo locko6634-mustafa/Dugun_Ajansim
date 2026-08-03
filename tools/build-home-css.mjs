@@ -23,7 +23,17 @@ const sections = await Promise.all(
   })
 );
 
-const banner = "/* Otomatik uretilir: npm run build:css. Kaynak modulleri dogrudan duzenleyin. */";
-await writeFile(outputFile, `${banner}\n\n${sections.join("\n\n")}\n`, "utf8");
+function minifyCss(css) {
+  return css
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\s*([\{\}\:\;\,\>\+\~])\s*/g, "$1")
+    .replace(/;;+/g, ";")
+    .replace(/;}/g, "}")
+    .trim();
+}
 
-console.log(`Ana sayfa CSS paketi olusturuldu: ${sourceFiles.length} modul.`);
+const minified = minifyCss(sections.join("\n"));
+const banner = "/* Otomatik uretilir: npm run build:css */";
+await writeFile(outputFile, `${banner}${minified}\n`, "utf8");
+
+console.log(`Ana sayfa CSS paketi olusturuldu ve minified edildi: ${sourceFiles.length} modul.`);

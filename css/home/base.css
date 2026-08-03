@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --paper: hsl(38 38% 98%);
   --paper-deep: hsl(35 40% 96%);
   --ink: hsl(28 11% 12%);
@@ -37,4 +37,74 @@ body {
     linear-gradient(135deg, var(--paper) 0%, hsl(42 33% 99%) 52%, var(--paper-deep) 100%);
   font-family: var(--sans);
   overflow-x: hidden;
+}
+
+/* App Preloader (Açılış Yükleme Ekranı) */
+.app-preloader {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--paper);
+  transition:
+    opacity 0.35s ease,
+    visibility 0.35s ease;
+}
+
+.app-preloader.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.app-preloader__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: loader-emblem 1.8s ease-in-out infinite;
+}
+
+.app-preloader__mark {
+  width: 48px;
+  height: 48px;
+  fill: none;
+  stroke: var(--gold-dark);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.app-preloader__name {
+  font-family: var(--serif);
+  font-size: 24px;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+.app-preloader__bar {
+  position: relative;
+  width: 120px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.app-preloader__bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--gold-dark);
+  transform: translateX(-100%);
+  animation: loader-progress 1.5s ease-in-out infinite;
 }
