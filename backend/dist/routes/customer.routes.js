@@ -1,12 +1,26 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../config/prisma.js';
 import { authenticate, requireChangedPassword, requireRole, } from '../middlewares/auth.middleware.js';
+import { validateRequest } from '../middlewares/validate.middleware.js';
 import { AppError } from '../utils/appError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { decryptValue } from '../utils/crypto.js';
 import { deliveryEncryptionAad } from '../utils/domain.js';
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole('MUSTERI'));
+const emptyRequestSchema = z.object({
+    body: z.object({}).strict().optional().default({}),
+    query: z.object({}).strict(),
+    params: z.object({}).strict(),
+});
+const customerDashboardSchema = z.object({
+    body: z.object({}).strict().optional().default({}),
+    query: z.object({
+        weddingId: z.string().optional(),
+    }).strict(),
+    params: z.object({}).strict(),
+});
 const getCustomerWedding = (userId) => prisma.wedding.findUnique({
     where: { customerUserId: userId },
     include: {
@@ -16,7 +30,7 @@ const getCustomerWedding = (userId) => prisma.wedding.findUnique({
         },
     },
 });
-router.get('/dashboard', asyncHandler(async (req, res) => {
+router.get('/dashboard', validateRequest(customerDashboardSchema), asyncHandler(async (req, res) => {
     const wedding = await getCustomerWedding(req.auth.userId);
     if (!wedding || !wedding.delivery)
         throw new AppError('Düğün kaydı bulunamadı.', 404);
@@ -45,7 +59,7 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
         correlationId: req.correlationId,
     });
 }));
-router.get('/delivery', asyncHandler(async (req, res) => {
+router.get('/delivery', validateRequest(emptyRequestSchema), asyncHandler(async (req, res) => {
     const wedding = await getCustomerWedding(req.auth.userId);
     const delivery = wedding?.delivery;
     if (!delivery ||

@@ -21,6 +21,14 @@ const emptyRequestSchema = z.object({
   params: z.object({}).strict(),
 });
 
+const customerDashboardSchema = z.object({
+  body: z.object({}).strict().optional().default({}),
+  query: z.object({
+    weddingId: z.string().optional(),
+  }).strict(),
+  params: z.object({}).strict(),
+});
+
 const getCustomerWedding = (userId: string) =>
   prisma.wedding.findUnique({
     where: { customerUserId: userId },
@@ -34,7 +42,7 @@ const getCustomerWedding = (userId: string) =>
 
 router.get(
   '/dashboard',
-  validateRequest(emptyRequestSchema),
+  validateRequest(customerDashboardSchema),
   asyncHandler(async (req, res) => {
     const wedding = await getCustomerWedding(req.auth!.userId);
     if (!wedding || !wedding.delivery) throw new AppError('Düğün kaydı bulunamadı.', 404);

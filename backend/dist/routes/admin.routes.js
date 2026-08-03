@@ -102,7 +102,7 @@ router.post('/booking-applications/:id/reject', verifyCsrf, validateRequest(z.ob
     const result = await rejectBookingApplication(req.params.id, req.body.reason, req.auth.userId, req.correlationId);
     res.json({ success: true, data: result, correlationId: req.correlationId });
 }));
-router.get('/weddings', asyncHandler(async (req, res) => {
+router.get('/weddings', validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })), asyncHandler(async (req, res) => {
     const weddings = await prisma.wedding.findMany({
         include: {
             venue: { select: { name: true } },
@@ -508,7 +508,7 @@ const catalogRoutes = (path, schema) => {
     const partialSchema = schema
         .partial()
         .refine((value) => Object.keys(value).length > 0, 'En az bir alan gönderin.');
-    router.get(`/${path}`, asyncHandler(async (req, res) => {
+    router.get(`/${path}`, validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })), asyncHandler(async (req, res) => {
         const rows = path === 'packages'
             ? await prisma.package.findMany({ orderBy: { name: 'asc' } })
             : await prisma.service.findMany({ orderBy: [{ category: 'asc' }, { name: 'asc' }] });
@@ -595,7 +595,7 @@ const catalogRoutes = (path, schema) => {
 };
 catalogRoutes('packages', packageBodySchema);
 catalogRoutes('services', serviceBodySchema);
-router.get('/message-tasks', asyncHandler(async (req, res) => {
+router.get('/message-tasks', validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })), asyncHandler(async (req, res) => {
     const tasks = await prisma.messageTask.findMany({
         include: {
             wedding: {
@@ -657,7 +657,10 @@ const renderMessage = async (taskId) => {
         message = `Merhaba ${couple}.\n\nGeçici parolanız: ${password}\nİlk girişte yeni bir parola belirlemeniz gerekecektir.`;
     }
     else if (task.kind === 'PREPARATION_UPDATE') {
-        const dueDate = task.wedding.delivery?.dueDate.toLocaleDateString('tr-TR', {
+        if (!task.wedding.delivery?.dueDate) {
+            throw new AppError('Teslimat tahmini tarihi bulunamadı.', 409);
+        }
+        const dueDate = task.wedding.delivery.dueDate.toLocaleDateString('tr-TR', {
             timeZone: 'UTC',
         });
         message = `Merhaba ${couple}.\n\nFotoğraf ve video çalışmalarınız hazırlanmaktadır.\nOrtalama teslim süremiz 21 gündür.\nTahmini teslim tarihi: ${dueDate}`;
@@ -824,7 +827,7 @@ router.post('/customers/:id/reset-password', verifyCsrf, validateRequest(uuidReq
         correlationId: req.correlationId,
     });
 }));
-router.get('/audit-logs', asyncHandler(async (req, res) => {
+router.get('/audit-logs', validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })), asyncHandler(async (req, res) => {
     const logs = await prisma.auditLog.findMany({
         include: { actor: { select: { username: true, role: true } } },
         orderBy: { createdAt: 'desc' },
@@ -832,7 +835,7 @@ router.get('/audit-logs', asyncHandler(async (req, res) => {
     });
     res.json({ success: true, data: logs, correlationId: req.correlationId });
 }));
-router.get('/overview', asyncHandler(async (req, res) => {
+router.get('/overview', validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })), asyncHandler(async (req, res) => {
     const [pendingBookings, activeWeddings, pendingMessages, readyDeliveries] = await Promise.all([
         prisma.bookingApplication.count({ where: { status: 'ONAY_BEKLIYOR' } }),
         prisma.wedding.count({ where: { cancelledAt: null } }),
