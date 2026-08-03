@@ -43,13 +43,13 @@ async function processDirectory(dirPath, options = {}) {
 
 async function main() {
   const rules = {
-    "hero-couple.webp": { maxWidth: 900, quality: 78 },
-    "venue-pavilion.webp": { maxWidth: 500, quality: 78 },
-    "bride-portrait.webp": { maxWidth: 450, quality: 78 },
-    "groom-portrait.webp": { maxWidth: 500, quality: 78 },
-    "why-beauty-studio.webp": { maxWidth: 800, quality: 78 },
-    "why-bridal-showroom.webp": { maxWidth: 800, quality: 78 },
-    "why-digital-delivery.webp": { maxWidth: 800, quality: 78 }
+    "hero-couple.webp": { maxWidth: 650, quality: 76 },
+    "venue-pavilion.webp": { maxWidth: 400, quality: 76 },
+    "bride-portrait.webp": { maxWidth: 380, quality: 76 },
+    "groom-portrait.webp": { maxWidth: 400, quality: 76 },
+    "why-beauty-studio.webp": { maxWidth: 700, quality: 76 },
+    "why-bridal-showroom.webp": { maxWidth: 700, quality: 76 },
+    "why-digital-delivery.webp": { maxWidth: 700, quality: 76 }
   };
 
   for (const [filename, opts] of Object.entries(rules)) {
