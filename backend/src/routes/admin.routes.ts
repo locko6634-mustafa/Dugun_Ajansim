@@ -189,6 +189,7 @@ router.post(
 
 router.get(
   '/weddings',
+  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const weddings = await prisma.wedding.findMany({
       include: {
@@ -655,6 +656,7 @@ const catalogRoutes = (
 
   router.get(
     `/${path}`,
+    validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
     asyncHandler(async (req, res) => {
       const rows =
         path === 'packages'
@@ -766,6 +768,7 @@ catalogRoutes('services', serviceBodySchema);
 
 router.get(
   '/message-tasks',
+  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const tasks = await prisma.messageTask.findMany({
       include: {
@@ -836,7 +839,10 @@ const renderMessage = async (taskId: string) => {
     );
     message = `Merhaba ${couple}.\n\nGeçici parolanız: ${password}\nİlk girişte yeni bir parola belirlemeniz gerekecektir.`;
   } else if (task.kind === 'PREPARATION_UPDATE') {
-    const dueDate = task.wedding.delivery?.dueDate.toLocaleDateString('tr-TR', {
+    if (!task.wedding.delivery?.dueDate) {
+      throw new AppError('Teslimat tahmini tarihi bulunamadı.', 409);
+    }
+    const dueDate = task.wedding.delivery.dueDate.toLocaleDateString('tr-TR', {
       timeZone: 'UTC',
     });
     message = `Merhaba ${couple}.\n\nFotoğraf ve video çalışmalarınız hazırlanmaktadır.\nOrtalama teslim süremiz 21 gündür.\nTahmini teslim tarihi: ${dueDate}`;
@@ -1030,6 +1036,7 @@ router.post(
 
 router.get(
   '/audit-logs',
+  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const logs = await prisma.auditLog.findMany({
       include: { actor: { select: { username: true, role: true } } },
@@ -1042,6 +1049,7 @@ router.get(
 
 router.get(
   '/overview',
+  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const [pendingBookings, activeWeddings, pendingMessages, readyDeliveries] = await Promise.all([
       prisma.bookingApplication.count({ where: { status: 'ONAY_BEKLIYOR' } }),

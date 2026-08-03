@@ -917,3 +917,14 @@ test('genel rate limiter CORS tarafından reddedilen 101. API isteğini de engel
   assert.equal(typeof response?.body.correlationId, 'string');
   assert.equal(response?.headers['cache-control'], 'no-store');
 });
+
+test('tüm GET rotaları tanım dışı query parametrelerini 400 ile reddeder', async () => {
+  const integrationApp = createApp();
+  const response = await request(integrationApp)
+    .get('/api/v1/catalog?bilinmeyenParametre=1')
+    .set('Origin', 'http://localhost:3000');
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.success, false);
+  assert.equal(response.body.message, 'Girdi doğrulama hatası');
+});

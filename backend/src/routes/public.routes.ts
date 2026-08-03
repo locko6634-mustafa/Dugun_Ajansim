@@ -22,8 +22,15 @@ const publicBookingLimiter = rateLimit({
   handler: createRateLimitHandler('Çok fazla başvuru denemesi yaptınız.'),
 });
 
+const emptyRequestSchema = z.object({
+  body: z.object({}).strict().optional().default({}),
+  query: z.object({}).strict(),
+  params: z.object({}).strict(),
+});
+
 router.get(
   '/catalog',
+  validateRequest(emptyRequestSchema),
   asyncHandler(async (req, res) => {
     const [packages, services] = await Promise.all([
       prisma.package.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
@@ -42,6 +49,7 @@ router.get(
 
 router.get(
   '/venues',
+  validateRequest(emptyRequestSchema),
   asyncHandler(async (req, res) => {
     const venues = await prisma.venue.findMany({
       where: { isActive: true },

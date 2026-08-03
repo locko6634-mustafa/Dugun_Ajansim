@@ -1,10 +1,12 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../config/prisma.js';
 import {
   authenticate,
   requireChangedPassword,
   requireRole,
 } from '../middlewares/auth.middleware.js';
+import { validateRequest } from '../middlewares/validate.middleware.js';
 import { AppError } from '../utils/appError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { decryptValue } from '../utils/crypto.js';
@@ -12,6 +14,12 @@ import { deliveryEncryptionAad } from '../utils/domain.js';
 
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole('MUSTERI'));
+
+const emptyRequestSchema = z.object({
+  body: z.object({}).strict().optional().default({}),
+  query: z.object({}).strict(),
+  params: z.object({}).strict(),
+});
 
 const getCustomerWedding = (userId: string) =>
   prisma.wedding.findUnique({
@@ -26,6 +34,7 @@ const getCustomerWedding = (userId: string) =>
 
 router.get(
   '/dashboard',
+  validateRequest(emptyRequestSchema),
   asyncHandler(async (req, res) => {
     const wedding = await getCustomerWedding(req.auth!.userId);
     if (!wedding || !wedding.delivery) throw new AppError('Düğün kaydı bulunamadı.', 404);
@@ -59,6 +68,7 @@ router.get(
 
 router.get(
   '/delivery',
+  validateRequest(emptyRequestSchema),
   asyncHandler(async (req, res) => {
     const wedding = await getCustomerWedding(req.auth!.userId);
     const delivery = wedding?.delivery;
