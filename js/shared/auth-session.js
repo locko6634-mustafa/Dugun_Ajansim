@@ -82,7 +82,11 @@ export async function initHeaderAuth() {
       <span>Çıkış</span>
     `;
     logoutBtn.addEventListener("click", logoutUser);
-    desktopHeaderActions.appendChild(logoutBtn);
+    if (desktopLoginLink) {
+      desktopLoginLink.insertAdjacentElement("afterend", logoutBtn);
+    } else {
+      desktopHeaderActions.appendChild(logoutBtn);
+    }
   }
 
   // Mobil Menü Güncelleme

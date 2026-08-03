@@ -624,10 +624,10 @@ button {
   gap: 6px;
   min-height: 54px;
   padding: 0 14px;
-  border: 1px solid hsl(0 60% 88%);
+  border: 1px solid hsl(33 45% 79%);
   border-radius: 13px;
-  color: hsl(0 65% 42%);
-  background: hsl(0 100% 99% / 0.8);
+  color: var(--gold-dark);
+  background: hsl(0 0% 100% / 0.52);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -635,15 +635,18 @@ button {
   transition:
     border-color 220ms ease,
     background 220ms ease,
+    color 220ms ease,
     transform 220ms var(--ease);
 }
 
 .header-logout:hover,
 .header-logout:focus-visible {
-  border-color: hsl(0 65% 55%);
-  background: hsl(0 100% 96%);
+  border-color: hsl(0 65% 75%);
+  background: hsl(0 70% 98%);
+  color: hsl(0 70% 42%);
   transform: translateY(-2px);
 }
+
 
 .header-logout svg {
   width: 16px;
