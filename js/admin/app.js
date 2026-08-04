@@ -45,6 +45,48 @@ const manualDialog = document.querySelector(".js-manual-dialog");
 const manualForm = document.querySelector(".js-manual-form");
 const weddingDialog = document.querySelector(".js-wedding-dialog");
 const weddingForm = document.querySelector(".js-wedding-form");
+const dangerDialog = document.querySelector(".js-danger-dialog");
+const dangerForm = document.querySelector(".js-danger-form");
+let dangerTrigger = null;
+
+dangerForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
+  button.addEventListener("click", () => dangerDialog.close());
+});
+
+function requestDangerConfirmation(
+  { title, copy, confirmation = "", button = "Kalıcı sil" },
+  trigger
+) {
+  dangerTrigger = trigger;
+  dangerForm.querySelector("h2").textContent = title;
+  dangerForm.querySelector(".js-danger-copy").textContent = copy;
+  dangerForm.querySelector(".js-danger-confirm-wrap").hidden = !confirmation;
+  dangerForm.querySelector(".js-danger-confirm-label").textContent = confirmation;
+  dangerForm.querySelector(".js-danger-confirm").value = "";
+  dangerForm.querySelector(".js-danger-message").textContent = "";
+  dangerForm.querySelector(".js-danger-submit").textContent = button;
+  dangerDialog.showModal();
+  const input = dangerForm.querySelector(".js-danger-confirm");
+  setTimeout(
+    () => (confirmation ? input : dangerForm.querySelector(".js-danger-submit")).focus(),
+    0
+  );
+  return new Promise((resolve) => {
+    const done = (accepted) => {
+      dangerDialog.removeEventListener("close", closed);
+      resolve(accepted ? input.value.trim() : null);
+      dangerTrigger?.focus();
+      dangerTrigger = null;
+    };
+    const closed = () => done(false);
+    dangerDialog.addEventListener("close", closed, { once: true });
+    dangerForm.onsubmit = (event) => {
+      event.preventDefault();
+      done(true);
+      dangerDialog.close();
+    };
+  });
+}
 
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -315,7 +357,8 @@ async function loadApplications() {
   const filter = document.querySelector(".js-application-filter").value;
   const referenceCode = document.querySelector(".js-application-reference").value.trim();
   const query = new window.URLSearchParams();
-  if (filter) query.set("status", filter);
+  if (filter === "ARCHIVED") query.set("includeArchived", "true");
+  else if (filter) query.set("status", filter);
   if (referenceCode) query.set("referenceCode", referenceCode);
   container.innerHTML = empty("Başvurular yükleniyor…");
   try {
@@ -327,9 +370,13 @@ async function loadApplications() {
           .map(
             (item) =>
               `<article class="data-row"><div><strong>${escapeHtml(item.brideFirstName)} &amp; ${escapeHtml(item.groomFirstName)}</strong><small>${escapeHtml(item.referenceCode)}</small></div><div><small>Paket</small><strong>${escapeHtml(item.packageNameSnapshot)}</strong></div><div><small>Tarih</small><strong>${formatDate(item.weddingStartsAt, true)}</strong></div><div class="data-row__actions">${
-                item.status === "ONAY_BEKLIYOR"
-                  ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button><button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button>`
-                  : `<small>${escapeHtml(item.status.replaceAll("_", " "))}</small>`
+                item.deletedAt
+                  ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button><button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>`
+                  : item.status === "ONAY_BEKLIYOR"
+                    ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button><button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
+                    : item.status === "REDDEDILDI"
+                      ? `<button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
+                      : `<small>${escapeHtml(item.status.replaceAll("_", " "))}</small>`
               }</div></article>`
           )
           .join("")
@@ -343,7 +390,8 @@ async function loadWeddings() {
   const container = document.querySelector(".js-weddings");
   container.innerHTML = empty("Düğünler yükleniyor…");
   try {
-    const response = await apiRequest("/admin/weddings");
+    const archived = document.querySelector(".js-wedding-status").value === "ARCHIVED";
+    const response = await apiRequest(`/admin/weddings${archived ? "?includeArchived=true" : ""}`);
     state.weddings = response.data;
     renderWeddings();
   } catch (error) {
@@ -359,7 +407,10 @@ function renderWeddings() {
       `${coupleName(wedding)} ${wedding.bridePhone} ${wedding.groomPhone} ${wedding.venue.name}`.toLocaleLowerCase(
         "tr-TR"
       );
-    return (!term || haystack.includes(term)) && (!status || wedding.delivery?.status === status);
+    return (
+      (!term || haystack.includes(term)) &&
+      (!status || status === "ARCHIVED" || wedding.delivery?.status === status)
+    );
   });
   document.querySelector(".js-weddings").innerHTML = rows.length
     ? rows
@@ -393,7 +444,7 @@ function renderWeddingDetail(wedding) {
   const assignedIds = new Set(wedding.assignments.map((assignment) => assignment.staffId));
   const available = wedding.availableStaff.filter((staff) => !assignedIds.has(staff.id));
   document.querySelector(".js-detail-title").textContent = coupleName(wedding);
-  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span></div><div class="detail-actions"><button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}">Müşteri parolasını sıfırla</button></div></section>
+  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span></div><div class="detail-actions">${wedding.deletedAt ? `<button class="secondary-button" type="button" data-restore-wedding="${wedding.id}">Geri Yükle</button>` : `<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}">Müşteri parolasını sıfırla</button><button class="secondary-button" type="button" data-archive-wedding="${wedding.id}">Arşivle</button>`}</div></section>
   <div class="detail-grid">
     <section class="detail-block"><h3>Çift ve iletişim</h3><div class="contact-line"><span>${escapeHtml(wedding.brideFirstName)} ${escapeHtml(wedding.brideLastName)}</span><a href="${safePhoneHref(wedding.bridePhone)}">${escapeHtml(wedding.bridePhone)}</a></div><div class="contact-line"><span>${escapeHtml(wedding.groomFirstName)} ${escapeHtml(wedding.groomLastName)}</span><a href="${safePhoneHref(wedding.groomPhone)}">${escapeHtml(wedding.groomPhone)}</a></div><div class="contact-line"><span>E-posta</span><a href="mailto:${escapeHtml(wedding.primaryEmail)}">${escapeHtml(wedding.primaryEmail)}</a></div></section>
     <section class="detail-block"><h3>Paket</h3>${packageDetail(wedding.packageSummary)}${wedding.note ? `<p>${escapeHtml(wedding.note)}</p>` : ""}</section>
@@ -429,6 +480,7 @@ function renderWeddingDetail(wedding) {
       .join(
         ""
       )}</select><select name="specialty" aria-label="Görev" required><option value="">Görev seçin</option></select><button class="mini-button mini-button--primary" type="submit">Ata</button></form></section>
+    <section class="detail-block wide danger-zone"><h3>Tehlikeli işlemler</h3><p>Kalıcı silme; atamaları, mesaj görevlerini ve teslimat operasyon kayıtlarını geri alınamaz şekilde siler. Denetim kayıtları korunur.</p><button class="mini-button mini-button--danger" type="button" data-delete-wedding="${wedding.id}" data-confirm="${escapeHtml(coupleName(wedding))}">Kalıcı Sil</button></section>
     <section class="detail-block wide"><h3>Mesaj geçmişi</h3><div class="message-timeline">${
       wedding.messageTasks.length
         ? wedding.messageTasks
@@ -484,7 +536,7 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" data-confirm="${escapeHtml(`${staff.firstName} ${staff.lastName}`)}">Sil</button></footer></article>`
         )
         .join("")
     : empty("Filtreye uyan personel yok.");
@@ -630,6 +682,9 @@ document
 document.querySelector(".js-applications").addEventListener("click", async (event) => {
   const approveButton = event.target.closest("[data-approve]");
   const rejectButton = event.target.closest("[data-reject]");
+  const archiveButton = event.target.closest("[data-archive-application]");
+  const restoreButton = event.target.closest("[data-restore-application]");
+  const deleteButton = event.target.closest("[data-delete-application]");
   try {
     if (approveButton) {
       await apiRequest(`/admin/booking-applications/${approveButton.dataset.approve}/approve`, {
@@ -644,6 +699,44 @@ document.querySelector(".js-applications").addEventListener("click", async (even
         body: { reason }
       });
       setMessage("Başvuru reddedildi.", true);
+    } else if (archiveButton) {
+      const accepted = await requestDangerConfirmation(
+        {
+          title: "Başvuruyu arşivle",
+          copy: "Başvuru normal listelerden kaldırılır; istediğiniz zaman geri yükleyebilirsiniz.",
+          button: "Arşivle"
+        },
+        archiveButton
+      );
+      if (accepted === null) return;
+      await apiRequest(
+        `/admin/booking-applications/${archiveButton.dataset.archiveApplication}/archive`,
+        { method: "POST" }
+      );
+      setMessage("Başvuru arşivlendi.", true);
+    } else if (restoreButton) {
+      await apiRequest(
+        `/admin/booking-applications/${restoreButton.dataset.restoreApplication}/restore`,
+        { method: "POST" }
+      );
+      setMessage("Başvuru geri yüklendi.", true);
+    } else if (deleteButton) {
+      const confirmation = await requestDangerConfirmation(
+        {
+          title: "Başvuruyu kalıcı sil",
+          copy: "Bu işlem geri alınamaz. Başvuru ve bağlı hizmet seçimleri silinecektir.",
+          confirmation: deleteButton.dataset.confirm,
+          button: "Kalıcı Sil"
+        },
+        deleteButton
+      );
+      if (confirmation === null) return;
+      deleteButton.disabled = true;
+      await apiRequest(`/admin/booking-applications/${deleteButton.dataset.deleteApplication}`, {
+        method: "DELETE",
+        body: { confirmText: confirmation }
+      });
+      setMessage("Başvuru kalıcı olarak silindi.", true);
     } else return;
     await Promise.all([loadApplications(), loadDashboard()]);
   } catch (error) {
@@ -652,7 +745,7 @@ document.querySelector(".js-applications").addEventListener("click", async (even
 });
 
 document.querySelector(".js-wedding-search").addEventListener("input", renderWeddings);
-document.querySelector(".js-wedding-status").addEventListener("change", renderWeddings);
+document.querySelector(".js-wedding-status").addEventListener("change", () => void loadWeddings());
 
 detailContent.addEventListener("change", (event) => {
   if (event.target.name !== "staffId") return;
@@ -712,6 +805,9 @@ detailContent.addEventListener("click", async (event) => {
   const deliverButton = event.target.closest("[data-deliver]");
   const resetButton = event.target.closest("[data-reset-user]");
   const removeButton = event.target.closest("[data-remove-assignment]");
+  const archiveWeddingButton = event.target.closest("[data-archive-wedding]");
+  const restoreWeddingButton = event.target.closest("[data-restore-wedding]");
+  const deleteWeddingButton = event.target.closest("[data-delete-wedding]");
   try {
     if (editButton) {
       await openWeddingEditor(state.currentWedding);
@@ -748,7 +844,54 @@ detailContent.addEventListener("click", async (event) => {
       );
       window.open(response.data.whatsappUrl, "_blank", "noopener");
       setMessage("Geçici parola mesajı hazırlandı.", true);
+    } else if (archiveWeddingButton) {
+      const accepted = await requestDangerConfirmation(
+        {
+          title: "Düğünü arşivle",
+          copy: "Düğün; plan, takvim, bugün/yarın ve yaklaşan teslimatlardan kaldırılır. Geri yüklenebilir.",
+          button: "Arşivle"
+        },
+        archiveWeddingButton
+      );
+      if (accepted === null) return;
+      await apiRequest(`/admin/weddings/${archiveWeddingButton.dataset.archiveWedding}/archive`, {
+        method: "POST"
+      });
+      detailDialog.close();
+      setMessage("Düğün arşivlendi.", true);
+    } else if (restoreWeddingButton) {
+      await apiRequest(`/admin/weddings/${restoreWeddingButton.dataset.restoreWedding}/restore`, {
+        method: "POST"
+      });
+      setMessage("Düğün geri yüklendi.", true);
+    } else if (deleteWeddingButton) {
+      const confirmation = await requestDangerConfirmation(
+        {
+          title: "Düğünü kalıcı sil",
+          copy: "Bu işlem geri alınamaz. Operasyon kayıtları silinir; denetim kayıtları korunur.",
+          confirmation: deleteWeddingButton.dataset.confirm,
+          button: "Kalıcı Sil"
+        },
+        deleteWeddingButton
+      );
+      if (confirmation === null) return;
+      deleteWeddingButton.disabled = true;
+      await apiRequest(`/admin/weddings/${deleteWeddingButton.dataset.deleteWedding}`, {
+        method: "DELETE",
+        body: { confirmText: confirmation }
+      });
+      detailDialog.close();
+      setMessage("Düğün kalıcı olarak silindi.", true);
     } else if (removeButton) {
+      const accepted = await requestDangerConfirmation(
+        {
+          title: "Personel atamasını kaldır",
+          copy: "Bu işlem yalnızca atamayı kaldırır; geçmiş düğün ve personel kayıtları silinmez.",
+          button: "Atamayı kaldır"
+        },
+        removeButton
+      );
+      if (accepted === null) return;
       await apiRequest(
         `/admin/weddings/${state.currentWedding.id}/assignments/${removeButton.dataset.removeAssignment}`,
         { method: "DELETE" }
@@ -781,7 +924,47 @@ document.querySelector(".js-staff-specialty-filter").insertAdjacentHTML(
 document.querySelector(".js-add-staff").addEventListener("click", () => openStaffForm());
 document.querySelector(".js-staff").addEventListener("click", (event) => {
   const button = event.target.closest("[data-edit-staff]");
+  const toggleButton = event.target.closest("[data-toggle-staff]");
+  const deleteButton = event.target.closest("[data-delete-staff]");
   if (button) openStaffForm(state.staff.find((staff) => staff.id === button.dataset.editStaff));
+  else if (toggleButton)
+    void apiRequest(`/admin/staff/${toggleButton.dataset.toggleStaff}`, {
+      method: "PATCH",
+      body: { isActive: toggleButton.dataset.active !== "true" }
+    })
+      .then(() => Promise.all([loadStaff(), loadDashboard()]))
+      .then(() => setMessage("Personel durumu güncellendi.", true))
+      .catch((error) => setMessage(error.message));
+  else if (deleteButton)
+    void requestDangerConfirmation(
+      {
+        title: "Personeli sil",
+        copy: "Ataması varsa personel silinmez, pasife alınır. Ataması yoksa işlem geri alınamaz.",
+        confirmation: deleteButton.dataset.confirm,
+        button: "Devam et"
+      },
+      deleteButton
+    ).then(async (confirmation) => {
+      if (confirmation === null) return;
+      deleteButton.disabled = true;
+      try {
+        const response = await apiRequest(`/admin/staff/${deleteButton.dataset.deleteStaff}`, {
+          method: "DELETE",
+          body: { confirmText: confirmation }
+        });
+        setMessage(
+          response.data.action === "deactivated"
+            ? "Personelin geçmiş atamaları var; pasife alındı."
+            : "Personel kalıcı olarak silindi.",
+          true
+        );
+        await Promise.all([loadStaff(), loadDashboard()]);
+      } catch (error) {
+        setMessage(error.message);
+      } finally {
+        deleteButton.disabled = false;
+      }
+    });
 });
 [".js-staff-search", ".js-staff-specialty-filter", ".js-staff-active-filter"].forEach(
   (selector) => {

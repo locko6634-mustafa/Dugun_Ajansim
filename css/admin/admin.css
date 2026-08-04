@@ -1036,6 +1036,38 @@ button:disabled {
   font-size: 12px;
   text-align: center;
 }
+.danger-zone {
+  border-color: hsl(4 58% 48% / 28%);
+  background: hsl(4 70% 97%);
+}
+.danger-zone h3 {
+  color: hsl(4 58% 34%);
+}
+.danger-zone p {
+  max-width: 620px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.js-danger-copy {
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+.js-danger-confirm-wrap {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  color: var(--ink);
+  font-size: 12px;
+}
+.js-danger-confirm {
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
 
 dialog {
   padding: 0;

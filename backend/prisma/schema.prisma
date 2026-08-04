@@ -120,6 +120,8 @@ model User {
   auditLogs                  AuditLog[]
   deliveryHistory            DeliveryStatusHistory[]
   sentMessages               MessageTask[]           @relation("MessageSender")
+  archivedApplications       BookingApplication[]    @relation("ApplicationArchivedBy")
+  archivedWeddings           Wedding[]               @relation("WeddingArchivedBy")
 
   @@index([role, status])
   @@index([venueId])
@@ -213,6 +215,9 @@ model BookingApplication {
   rejectionReason        String?
   createdAt              DateTime                    @default(now())
   updatedAt              DateTime                    @updatedAt
+  deletedAt              DateTime?
+  deletedById            String?
+  deletedBy              User?                       @relation("ApplicationArchivedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   services               BookingApplicationService[]
   wedding                Wedding?
 
@@ -221,6 +226,7 @@ model BookingApplication {
   @@index([packageId])
   @@index([reviewedById])
   @@index([primaryEmail])
+  @@index([deletedAt])
   @@map("booking_applications")
 }
 
@@ -261,6 +267,9 @@ model Wedding {
   packageSummary Json
   note           String?
   cancelledAt    DateTime?
+  deletedAt      DateTime?
+  deletedById    String?
+  deletedBy      User?                @relation("WeddingArchivedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   delivery       Delivery?
@@ -269,6 +278,7 @@ model Wedding {
 
   @@index([venueId, startsAt])
   @@index([startsAt, endsAt])
+  @@index([deletedAt])
   @@map("weddings")
 }
 

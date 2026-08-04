@@ -195,7 +195,8 @@
                 <option value="ONAY_BEKLIYOR">Onay bekleyen</option>
                 <option value="">Tümü</option>
                 <option value="ONAYLANDI">Onaylanan</option>
-                <option value="REDDEDILDI">Reddedilen</option></select
+                <option value="REDDEDILDI">Reddedilen</option>
+                <option value="ARCHIVED">Arşiv</option></select
               ><button class="mini-button" type="submit">Bul</button>
             </form>
           </div>
@@ -221,6 +222,7 @@
                 <option value="KONTROL">Kontrol</option>
                 <option value="TESLIME_HAZIR">Teslime hazır</option>
                 <option value="TESLIM_EDILDI">Teslim edildi</option>
+                <option value="ARCHIVED">Arşiv</option>
               </select>
             </div>
           </div>
@@ -458,6 +460,31 @@
         <div class="dialog-actions">
           <button class="secondary-button" type="button" value="cancel">Vazgeç</button
           ><button class="primary-button" type="submit">Değişiklikleri kaydet</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="form-dialog js-danger-dialog" aria-labelledby="danger-title">
+      <form class="form-shell js-danger-form" method="dialog">
+        <div class="sheet-heading">
+          <div>
+            <p class="section-index">Tehlikeli işlem</p>
+            <h2 id="danger-title">İşlemi onayla</h2>
+          </div>
+          <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
+        </div>
+        <p class="js-danger-copy"></p>
+        <label class="js-danger-confirm-wrap" hidden
+          >Devam etmek için <strong class="js-danger-confirm-label"></strong> yazın<input
+            class="js-danger-confirm"
+            type="text"
+            autocomplete="off"
+        /></label>
+        <p class="dialog-message js-danger-message" role="status"></p>
+        <div class="dialog-actions">
+          <button class="secondary-button" type="button" value="cancel">Vazgeç</button
+          ><button class="mini-button mini-button--danger js-danger-submit" type="submit">
+            Onayla
+          </button>
         </div>
       </form>
     </dialog>

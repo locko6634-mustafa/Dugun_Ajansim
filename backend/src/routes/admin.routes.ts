@@ -1,41 +1,43 @@
-import { Prisma } from '@prisma/client';
-import { Router } from 'express';
-import { z } from 'zod';
-import { env } from '../config/env.config.js';
-import { prisma } from '../config/prisma.js';
+import { Prisma } from "@prisma/client";
+import { Router } from "express";
+import { z } from "zod";
+import { env } from "../config/env.config.js";
+import { prisma } from "../config/prisma.js";
 import {
   authenticate,
   requireChangedPassword,
   requireRole,
-  verifyCsrf,
-} from '../middlewares/auth.middleware.js';
-import { validateRequest } from '../middlewares/validate.middleware.js';
+  verifyCsrf
+} from "../middlewares/auth.middleware.js";
+import { validateRequest } from "../middlewares/validate.middleware.js";
 import {
   adminBookingBodySchema,
   assignmentBodySchema,
+  archivedQuerySchema,
   bookingQuerySchema,
   calendarQuerySchema,
   dashboardQuerySchema,
   deliveryUpdateBodySchema,
   packageBodySchema,
+  permanentDeleteBodySchema,
   rejectBookingBodySchema,
   serviceBodySchema,
   staffBodySchema,
   staffUpdateBodySchema,
   uuidParamsSchema,
-  weddingUpdateBodySchema,
-} from '../schemas/api.schemas.js';
+  weddingUpdateBodySchema
+} from "../schemas/api.schemas.js";
 import {
   approveBookingApplication,
   createAudit,
   createBookingApplication,
   createUniqueCustomerUsername,
   rejectBookingApplication,
-  retryUsernameConflict,
-} from '../services/booking.service.js';
-import { AppError } from '../utils/appError.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
-import { decryptValue, encryptValue, hashPassword } from '../utils/crypto.js';
+  retryUsernameConflict
+} from "../services/booking.service.js";
+import { AppError } from "../utils/appError.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { decryptValue, encryptValue, hashPassword } from "../utils/crypto.js";
 import {
   assertGoogleDriveUrl,
   addCalendarDays,
@@ -46,13 +48,13 @@ import {
   getIstanbulDate,
   messageSecretEncryptionAad,
   normalizePhone,
-  randomTemporaryPassword,
-} from '../utils/domain.js';
+  randomTemporaryPassword
+} from "../utils/domain.js";
 
 const router = Router();
-router.use(authenticate, requireChangedPassword, requireRole('ADMIN'));
+router.use(authenticate, requireChangedPassword, requireRole("ADMIN"));
 router.use((_req, res, next) => {
-  res.set('Cache-Control', 'no-store');
+  res.set("Cache-Control", "no-store");
   next();
 });
 
@@ -62,13 +64,13 @@ const uuidRequest = z.object({ body: emptyBody, query: emptyQuery, params: uuidP
 const markSentRequest = z.object({
   body: z.object({ expectedUpdatedAt: z.string().datetime({ offset: true }) }).strict(),
   query: emptyQuery,
-  params: uuidParamsSchema,
+  params: uuidParamsSchema
 });
 
 const assignmentParamsSchema = z
   .object({
     id: z.string().uuid(),
-    assignmentId: z.string().uuid(),
+    assignmentId: z.string().uuid()
   })
   .strict();
 
@@ -77,8 +79,8 @@ const dashboardWeddingInclude = {
   delivery: { select: { id: true, status: true, dueDate: true, releasedAt: true } },
   assignments: {
     include: { staff: { select: { id: true, firstName: true, lastName: true, isActive: true } } },
-    orderBy: { createdAt: 'asc' as const },
-  },
+    orderBy: { createdAt: "asc" as const }
+  }
 } satisfies Prisma.WeddingInclude;
 
 const mondayOf = (date: string): string => {
@@ -93,7 +95,7 @@ const nextMonthOf = (month: string): string => {
 };
 
 const dashboardWedding = (
-  wedding: Prisma.WeddingGetPayload<{ include: typeof dashboardWeddingInclude }>,
+  wedding: Prisma.WeddingGetPayload<{ include: typeof dashboardWeddingInclude }>
 ) => ({
   id: wedding.id,
   brideFirstName: wedding.brideFirstName,
@@ -105,56 +107,59 @@ const dashboardWedding = (
   venue: wedding.venue,
   packageSummary: wedding.packageSummary,
   delivery: wedding.delivery,
-  assignments: wedding.assignments,
+  assignments: wedding.assignments
 });
 
 const isPrismaError = (error: unknown, code: string): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
 
 const throwCatalogError = (error: unknown): never => {
-  if (isPrismaError(error, 'P2002')) {
-    throw new AppError('Aynı kodu kullanan başka bir katalog kaydı var.', 409);
+  if (isPrismaError(error, "P2002")) {
+    throw new AppError("Aynı kodu kullanan başka bir katalog kaydı var.", 409);
   }
-  if (isPrismaError(error, 'P2025')) {
-    throw new AppError('Katalog kaydı bulunamadı.', 404);
+  if (isPrismaError(error, "P2025")) {
+    throw new AppError("Katalog kaydı bulunamadı.", 404);
   }
   throw error;
 };
 
 router.get(
-  '/booking-applications',
+  "/booking-applications",
   validateRequest(z.object({ body: emptyBody, query: bookingQuerySchema, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const applications = await prisma.bookingApplication.findMany({
       where: {
+        ...(req.query.includeArchived === "true"
+          ? { deletedAt: { not: null } }
+          : { deletedAt: null }),
         ...(req.query.status ? { status: req.query.status as never } : {}),
         ...(req.query.referenceCode
           ? {
               referenceCode: {
                 contains: String(req.query.referenceCode).toUpperCase(),
-                mode: 'insensitive' as const,
-              },
+                mode: "insensitive" as const
+              }
             }
-          : {}),
+          : {})
       },
       include: {
         venue: { select: { name: true } },
         services: true,
-        reviewedBy: { select: { username: true } },
+        reviewedBy: { select: { username: true } }
       },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
+      orderBy: { createdAt: "desc" },
+      take: 200
     });
     const safeApplications = applications.map(
       ({ idempotencyKey: _key, idempotencyFingerprint: _fingerprint, ...application }) =>
-        application,
+        application
     );
     res.json({ success: true, data: safeApplications, correlationId: req.correlationId });
-  }),
+  })
 );
 
 router.get(
-  '/booking-applications/:id',
+  "/booking-applications/:id",
   validateRequest(uuidRequest),
   asyncHandler(async (req, res) => {
     const application = await prisma.bookingApplication.findUnique({
@@ -171,76 +176,167 @@ router.get(
                 dueDate: true,
                 releasedAt: true,
                 createdAt: true,
-                updatedAt: true,
-              },
-            },
-          },
-        },
-      },
+                updatedAt: true
+              }
+            }
+          }
+        }
+      }
     });
-    if (!application) throw new AppError('Başvuru bulunamadı.', 404);
+    if (!application) throw new AppError("Başvuru bulunamadı.", 404);
     const {
       idempotencyKey: _key,
       idempotencyFingerprint: _fingerprint,
       ...safeApplication
     } = application;
     res.json({ success: true, data: safeApplication, correlationId: req.correlationId });
-  }),
+  })
 );
 
 router.post(
-  '/booking-applications',
+  "/booking-applications",
   verifyCsrf,
   validateRequest(
-    z.object({ body: adminBookingBodySchema, query: emptyQuery, params: z.object({}) }),
+    z.object({ body: adminBookingBodySchema, query: emptyQuery, params: z.object({}) })
   ),
   asyncHandler(async (req, res) => {
     const application = await createBookingApplication(req.body, {
-      source: 'ADMIN',
+      source: "ADMIN",
       actor: { id: req.auth!.userId },
-      correlationId: req.correlationId,
+      correlationId: req.correlationId
     });
     res.status(201).json({
       success: true,
       data: application,
-      correlationId: req.correlationId,
+      correlationId: req.correlationId
     });
-  }),
+  })
 );
 
 router.post(
-  '/booking-applications/:id/approve',
+  "/booking-applications/:id/approve",
   verifyCsrf,
   validateRequest(uuidRequest),
   asyncHandler(async (req, res) => {
     const result = await approveBookingApplication(
       req.params.id,
       req.auth!.userId,
-      req.correlationId,
+      req.correlationId
     );
     res.json({ success: true, data: result, correlationId: req.correlationId });
-  }),
+  })
 );
 
 router.post(
-  '/booking-applications/:id/reject',
+  "/booking-applications/:id/reject",
   verifyCsrf,
   validateRequest(
-    z.object({ body: rejectBookingBodySchema, query: emptyQuery, params: uuidParamsSchema }),
+    z.object({ body: rejectBookingBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
   asyncHandler(async (req, res) => {
     const result = await rejectBookingApplication(
       req.params.id,
       req.body.reason,
       req.auth!.userId,
-      req.correlationId,
+      req.correlationId
     );
     res.json({ success: true, data: result, correlationId: req.correlationId });
-  }),
+  })
+);
+
+router.post(
+  "/booking-applications/:id/archive",
+  verifyCsrf,
+  validateRequest(uuidRequest),
+  asyncHandler(async (req, res) => {
+    const application = await prisma.$transaction(async (transaction) => {
+      const updated = await transaction.bookingApplication.updateMany({
+        where: {
+          id: req.params.id,
+          deletedAt: null,
+          status: { in: ["ONAY_BEKLIYOR", "REDDEDILDI"] }
+        },
+        data: { deletedAt: new Date(), deletedById: req.auth!.userId }
+      });
+      if (updated.count !== 1)
+        throw new AppError("Yalnızca bekleyen veya reddedilmiş başvurular arşivlenebilir.", 409);
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: "booking_application.archived",
+        targetType: "BookingApplication",
+        targetId: req.params.id,
+        correlationId: req.correlationId
+      });
+      return transaction.bookingApplication.findUniqueOrThrow({ where: { id: req.params.id } });
+    });
+    res.json({ success: true, data: application, correlationId: req.correlationId });
+  })
+);
+
+router.post(
+  "/booking-applications/:id/restore",
+  verifyCsrf,
+  validateRequest(uuidRequest),
+  asyncHandler(async (req, res) => {
+    const application = await prisma.$transaction(async (transaction) => {
+      const updated = await transaction.bookingApplication.updateMany({
+        where: { id: req.params.id, deletedAt: { not: null } },
+        data: { deletedAt: null, deletedById: null }
+      });
+      if (updated.count !== 1) throw new AppError("Arşivde başvuru bulunamadı.", 404);
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: "booking_application.restored",
+        targetType: "BookingApplication",
+        targetId: req.params.id,
+        correlationId: req.correlationId
+      });
+      return transaction.bookingApplication.findUniqueOrThrow({ where: { id: req.params.id } });
+    });
+    res.json({ success: true, data: application, correlationId: req.correlationId });
+  })
+);
+
+router.delete(
+  "/booking-applications/:id",
+  verifyCsrf,
+  validateRequest(
+    z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
+  ),
+  asyncHandler(async (req, res) => {
+    await prisma.$transaction(
+      async (transaction) => {
+        const application = await transaction.bookingApplication.findUnique({
+          where: { id: req.params.id },
+          include: { wedding: true }
+        });
+        if (!application) throw new AppError("Başvuru bulunamadı.", 404);
+        if (application.status === "ONAYLANDI" || application.wedding)
+          throw new AppError("Onaylanan başvuru silinemez. İlgili düğün kaydını açın.", 409, true, {
+            weddingId: application.wedding?.id
+          });
+        if (!["ONAY_BEKLIYOR", "REDDEDILDI"].includes(application.status))
+          throw new AppError("Bu başvuru kalıcı olarak silinemez.", 409);
+        if (req.body.confirmText !== application.referenceCode)
+          throw new AppError("Onay metni başvuru referansı ile eşleşmiyor.", 400);
+        await transaction.bookingApplication.delete({ where: { id: application.id } });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "booking_application.permanently_deleted",
+          targetType: "BookingApplication",
+          targetId: application.id,
+          correlationId: req.correlationId,
+          metadata: { referenceCode: application.referenceCode }
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+    res.json({ success: true, data: { id: req.params.id }, correlationId: req.correlationId });
+  })
 );
 
 router.get(
-  '/dashboard',
+  "/dashboard",
   validateRequest(z.object({ body: emptyBody, query: dashboardQuerySchema, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const today = getIstanbulDate(new Date());
@@ -248,11 +344,11 @@ router.get(
     const dayAfterTomorrow = addCalendarDays(today, 2);
     const weekStart = mondayOf(req.query.weekStart ? String(req.query.weekStart) : today);
     const weekEnd = addCalendarDays(weekStart, 7);
-    const todayStart = atIstanbulTime(today, '00:00');
-    const tomorrowStart = atIstanbulTime(tomorrow, '00:00');
-    const dayAfterTomorrowStart = atIstanbulTime(dayAfterTomorrow, '00:00');
-    const weekStartsAt = atIstanbulTime(weekStart, '00:00');
-    const weekEndsAt = atIstanbulTime(weekEnd, '00:00');
+    const todayStart = atIstanbulTime(today, "00:00");
+    const tomorrowStart = atIstanbulTime(tomorrow, "00:00");
+    const dayAfterTomorrowStart = atIstanbulTime(dayAfterTomorrow, "00:00");
+    const weekStartsAt = atIstanbulTime(weekStart, "00:00");
+    const weekEndsAt = atIstanbulTime(weekEnd, "00:00");
 
     const [
       weekWeddings,
@@ -262,26 +358,37 @@ router.get(
       pendingBookings,
       pendingMessages,
       readyDeliveries,
-      upcomingDeliveries,
+      upcomingDeliveries
     ] = await Promise.all([
       prisma.wedding.findMany({
-        where: { cancelledAt: null, startsAt: { lt: weekEndsAt }, endsAt: { gt: weekStartsAt } },
+        where: {
+          cancelledAt: null,
+          deletedAt: null,
+          startsAt: { lt: weekEndsAt },
+          endsAt: { gt: weekStartsAt }
+        },
         include: dashboardWeddingInclude,
-        orderBy: { startsAt: 'asc' },
-      }),
-      prisma.wedding.findMany({
-        where: { cancelledAt: null, startsAt: { lt: tomorrowStart }, endsAt: { gt: todayStart } },
-        include: dashboardWeddingInclude,
-        orderBy: { startsAt: 'asc' },
+        orderBy: { startsAt: "asc" }
       }),
       prisma.wedding.findMany({
         where: {
           cancelledAt: null,
-          startsAt: { lt: dayAfterTomorrowStart },
-          endsAt: { gt: tomorrowStart },
+          deletedAt: null,
+          startsAt: { lt: tomorrowStart },
+          endsAt: { gt: todayStart }
         },
         include: dashboardWeddingInclude,
-        orderBy: { startsAt: 'asc' },
+        orderBy: { startsAt: "asc" }
+      }),
+      prisma.wedding.findMany({
+        where: {
+          cancelledAt: null,
+          deletedAt: null,
+          startsAt: { lt: dayAfterTomorrowStart },
+          endsAt: { gt: tomorrowStart }
+        },
+        include: dashboardWeddingInclude,
+        orderBy: { startsAt: "asc" }
       }),
       prisma.staff.findMany({
         where: { isActive: true },
@@ -290,38 +397,40 @@ router.get(
             where: {
               wedding: {
                 cancelledAt: null,
+                deletedAt: null,
                 startsAt: { lt: tomorrowStart },
-                endsAt: { gt: todayStart },
-              },
+                endsAt: { gt: todayStart }
+              }
             },
-            select: { id: true },
-          },
+            select: { id: true }
+          }
         },
-        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }]
       }),
-      prisma.bookingApplication.count({ where: { status: 'ONAY_BEKLIYOR' } }),
-      prisma.messageTask.count({ where: { status: 'PENDING' } }),
-      prisma.delivery.count({ where: { status: 'TESLIME_HAZIR' } }),
+      prisma.bookingApplication.count({ where: { status: "ONAY_BEKLIYOR", deletedAt: null } }),
+      prisma.messageTask.count({ where: { status: "PENDING", wedding: { deletedAt: null } } }),
+      prisma.delivery.count({ where: { status: "TESLIME_HAZIR", wedding: { deletedAt: null } } }),
       prisma.delivery.findMany({
         where: {
-          status: { not: 'TESLIM_EDILDI' },
+          wedding: { deletedAt: null },
+          status: { not: "TESLIM_EDILDI" },
           dueDate: {
             gte: new Date(`${today}T00:00:00.000Z`),
-            lt: new Date(`${addCalendarDays(today, 8)}T00:00:00.000Z`),
-          },
+            lt: new Date(`${addCalendarDays(today, 8)}T00:00:00.000Z`)
+          }
         },
         select: {
           id: true,
           status: true,
           dueDate: true,
-          wedding: { select: { id: true, brideFirstName: true, groomFirstName: true } },
+          wedding: { select: { id: true, brideFirstName: true, groomFirstName: true } }
         },
-        orderBy: { dueDate: 'asc' },
-      }),
+        orderBy: { dueDate: "asc" }
+      })
     ]);
 
     const assignments = weekWeddings.flatMap((wedding) =>
-      wedding.assignments.map((assignment) => ({ assignment, wedding })),
+      wedding.assignments.map((assignment) => ({ assignment, wedding }))
     );
     const conflicts: Array<Record<string, unknown>> = [];
     for (let leftIndex = 0; leftIndex < assignments.length; leftIndex += 1) {
@@ -336,19 +445,19 @@ router.get(
           conflicts.push({
             staff: left.assignment.staff,
             firstWedding: dashboardWedding(left.wedding),
-            secondWedding: dashboardWedding(right.wedding),
+            secondWedding: dashboardWedding(right.wedding)
           });
         }
       }
     }
 
     const distribution = Object.fromEntries(
-      ['PHOTOGRAPHY', 'VIDEO', 'DRONE', 'JIMMY_JIB', 'ASSISTANT', 'EDITING', 'ALBUM'].map(
+      ["PHOTOGRAPHY", "VIDEO", "DRONE", "JIMMY_JIB", "ASSISTANT", "EDITING", "ALBUM"].map(
         (specialty) => [
           specialty,
-          assignments.filter(({ assignment }) => assignment.specialty === specialty).length,
-        ],
-      ),
+          assignments.filter(({ assignment }) => assignment.specialty === specialty).length
+        ]
+      )
     );
 
     res.json({
@@ -361,7 +470,7 @@ router.get(
           pendingBookings,
           pendingMessages,
           readyDeliveries,
-          todayWeddings: todayWeddings.length,
+          todayWeddings: todayWeddings.length
         },
         todayWeddings: todayWeddings.map(dashboardWedding),
         tomorrowWeddings: tomorrowWeddings.map(dashboardWedding),
@@ -371,41 +480,42 @@ router.get(
           .map(({ assignments: _a, ...staff }) => staff),
         distribution,
         conflicts,
-        upcomingDeliveries,
+        upcomingDeliveries
       },
-      correlationId: req.correlationId,
+      correlationId: req.correlationId
     });
-  }),
+  })
 );
 
 router.get(
-  '/calendar',
+  "/calendar",
   validateRequest(z.object({ body: emptyBody, query: calendarQuerySchema, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const today = getIstanbulDate(new Date());
     const month = req.query.month ? String(req.query.month) : today.slice(0, 7);
-    const monthStart = atIstanbulTime(`${month}-01`, '00:00');
+    const monthStart = atIstanbulTime(`${month}-01`, "00:00");
     const nextMonth = nextMonthOf(month);
-    const monthEnd = atIstanbulTime(`${nextMonth}-01`, '00:00');
+    const monthEnd = atIstanbulTime(`${nextMonth}-01`, "00:00");
     const venues = await prisma.venue.findMany({
       select: { id: true, name: true, isActive: true },
-      orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
+      orderBy: [{ isActive: "desc" }, { name: "asc" }]
     });
     const selectedVenue = req.query.venueId
       ? venues.find((venue) => venue.id === String(req.query.venueId))
-      : venues.find((venue) => venue.isActive) ?? venues[0];
-    if (req.query.venueId && !selectedVenue) throw new AppError('Salon bulunamadı.', 404);
+      : (venues.find((venue) => venue.isActive) ?? venues[0]);
+    if (req.query.venueId && !selectedVenue) throw new AppError("Salon bulunamadı.", 404);
 
     const weddings = selectedVenue
       ? await prisma.wedding.findMany({
           where: {
             venueId: selectedVenue.id,
             cancelledAt: null,
+            deletedAt: null,
             startsAt: { lt: monthEnd },
-            endsAt: { gt: monthStart },
+            endsAt: { gt: monthStart }
           },
           include: dashboardWeddingInclude,
-          orderBy: { startsAt: 'asc' },
+          orderBy: { startsAt: "asc" }
         })
       : [];
 
@@ -416,21 +526,21 @@ router.get(
         today,
         venues,
         selectedVenue: selectedVenue ?? null,
-        weddings: weddings.map(dashboardWedding),
+        weddings: weddings.map(dashboardWedding)
       },
-      correlationId: req.correlationId,
+      correlationId: req.correlationId
     });
-  }),
+  })
 );
 
 router.get(
-  '/staff',
+  "/staff",
   validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const staff = await prisma.staff.findMany({
       include: {
         assignments: {
-          where: { wedding: { cancelledAt: null, endsAt: { gt: new Date() } } },
+          where: { wedding: { cancelledAt: null, deletedAt: null, endsAt: { gt: new Date() } } },
           select: {
             id: true,
             specialty: true,
@@ -440,22 +550,22 @@ router.get(
                 brideFirstName: true,
                 groomFirstName: true,
                 startsAt: true,
-                endsAt: true,
-              },
-            },
+                endsAt: true
+              }
+            }
           },
-          orderBy: { wedding: { startsAt: 'asc' } },
-          take: 5,
-        },
+          orderBy: { wedding: { startsAt: "asc" } },
+          take: 5
+        }
       },
-      orderBy: [{ isActive: 'desc' }, { lastName: 'asc' }, { firstName: 'asc' }],
+      orderBy: [{ isActive: "desc" }, { lastName: "asc" }, { firstName: "asc" }]
     });
     res.json({ success: true, data: staff, correlationId: req.correlationId });
-  }),
+  })
 );
 
 router.post(
-  '/staff',
+  "/staff",
   verifyCsrf,
   validateRequest(z.object({ body: staffBodySchema, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
@@ -464,27 +574,27 @@ router.post(
         data: {
           ...req.body,
           phone: normalizePhone(req.body.phone),
-          specialties: [...new Set(req.body.specialties)],
-        },
+          specialties: [...new Set(req.body.specialties)]
+        }
       });
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
-        action: 'staff.created',
-        targetType: 'Staff',
+        action: "staff.created",
+        targetType: "Staff",
         targetId: created.id,
-        correlationId: req.correlationId,
+        correlationId: req.correlationId
       });
       return created;
     });
     res.status(201).json({ success: true, data: staff, correlationId: req.correlationId });
-  }),
+  })
 );
 
 router.patch(
-  '/staff/:id',
+  "/staff/:id",
   verifyCsrf,
   validateRequest(
-    z.object({ body: staffUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema }),
+    z.object({ body: staffUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
   asyncHandler(async (req, res) => {
     try {
@@ -494,36 +604,92 @@ router.patch(
           data: {
             ...req.body,
             ...(req.body.phone ? { phone: normalizePhone(req.body.phone) } : {}),
-            ...(req.body.specialties ? { specialties: [...new Set(req.body.specialties)] } : {}),
-          },
+            ...(req.body.specialties ? { specialties: [...new Set(req.body.specialties)] } : {})
+          }
         });
         await createAudit(transaction, {
           actorUserId: req.auth!.userId,
-          action: 'staff.updated',
-          targetType: 'Staff',
+          action: "staff.updated",
+          targetType: "Staff",
           targetId: updated.id,
           correlationId: req.correlationId,
-          metadata: { active: updated.isActive },
+          metadata: { active: updated.isActive }
         });
         return updated;
       });
       res.json({ success: true, data: staff, correlationId: req.correlationId });
     } catch (error) {
-      if (isPrismaError(error, 'P2025')) throw new AppError('Personel bulunamadı.', 404);
+      if (isPrismaError(error, "P2025")) throw new AppError("Personel bulunamadı.", 404);
       throw error;
     }
-  }),
+  })
+);
+
+router.delete(
+  "/staff/:id",
+  verifyCsrf,
+  validateRequest(
+    z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
+  ),
+  asyncHandler(async (req, res) => {
+    const result = await prisma.$transaction(
+      async (transaction) => {
+        const staff = await transaction.staff.findUnique({
+          where: { id: req.params.id },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            isActive: true,
+            _count: { select: { assignments: true } }
+          }
+        });
+        if (!staff) throw new AppError("Personel bulunamadı.", 404);
+        const name = `${staff.firstName} ${staff.lastName}`;
+        if (req.body.confirmText !== name)
+          throw new AppError("Onay metni personel adıyla eşleşmiyor.", 400);
+        if (staff._count.assignments > 0) {
+          const updated = await transaction.staff.update({
+            where: { id: staff.id },
+            data: { isActive: false }
+          });
+          await createAudit(transaction, {
+            actorUserId: req.auth!.userId,
+            action: "staff.deactivated",
+            targetType: "Staff",
+            targetId: staff.id,
+            correlationId: req.correlationId,
+            metadata: { reason: "historical_assignments" }
+          });
+          return { id: updated.id, action: "deactivated" };
+        }
+        await transaction.staff.delete({ where: { id: staff.id } });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "staff.permanently_deleted",
+          targetType: "Staff",
+          targetId: staff.id,
+          correlationId: req.correlationId
+        });
+        return { id: staff.id, action: "deleted" };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+    res.json({ success: true, data: result, correlationId: req.correlationId });
+  })
 );
 
 router.get(
-  '/weddings',
-  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
+  "/weddings",
+  validateRequest(z.object({ body: emptyBody, query: archivedQuerySchema, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const weddings = await prisma.wedding.findMany({
+      where:
+        req.query.includeArchived === "true" ? { deletedAt: { not: null } } : { deletedAt: null },
       include: {
         venue: { select: { name: true } },
         customerUser: {
-          select: { id: true, username: true, activeAt: true, mustChangePassword: true },
+          select: { id: true, username: true, activeAt: true, mustChangePassword: true }
         },
         delivery: {
           select: {
@@ -532,16 +698,16 @@ router.get(
             dueDate: true,
             releasedAt: true,
             updatedAt: true,
-            driveUrlCiphertext: true,
-          },
+            driveUrlCiphertext: true
+          }
         },
         assignments: {
           include: { staff: true },
-          orderBy: { createdAt: 'asc' },
-        },
+          orderBy: { createdAt: "asc" }
+        }
       },
-      orderBy: { startsAt: 'desc' },
-      take: 200,
+      orderBy: { startsAt: "desc" },
+      take: 200
     });
     const safeWeddings = weddings.map((wedding) => ({
       ...wedding,
@@ -552,16 +718,16 @@ router.get(
             dueDate: wedding.delivery.dueDate,
             releasedAt: wedding.delivery.releasedAt,
             updatedAt: wedding.delivery.updatedAt,
-            hasDriveUrl: Boolean(wedding.delivery.driveUrlCiphertext),
+            hasDriveUrl: Boolean(wedding.delivery.driveUrlCiphertext)
           }
-        : null,
+        : null
     }));
     res.json({ success: true, data: safeWeddings, correlationId: req.correlationId });
-  }),
+  })
 );
 
 router.get(
-  '/weddings/:id',
+  "/weddings/:id",
   validateRequest(uuidRequest),
   asyncHandler(async (req, res) => {
     const wedding = await prisma.wedding.findUnique({
@@ -569,10 +735,10 @@ router.get(
       include: {
         venue: { select: { id: true, name: true } },
         customerUser: {
-          select: { id: true, username: true, activeAt: true, mustChangePassword: true },
+          select: { id: true, username: true, activeAt: true, mustChangePassword: true }
         },
         delivery: true,
-        assignments: { include: { staff: true }, orderBy: { createdAt: 'asc' } },
+        assignments: { include: { staff: true }, orderBy: { createdAt: "asc" } },
         messageTasks: {
           select: {
             id: true,
@@ -583,13 +749,13 @@ router.get(
             sentAt: true,
             createdAt: true,
             updatedAt: true,
-            sentBy: { select: { username: true } },
+            sentBy: { select: { username: true } }
           },
-          orderBy: { dueAt: 'desc' },
-        },
-      },
+          orderBy: { dueAt: "desc" }
+        }
+      }
     });
-    if (!wedding) throw new AppError('Düğün kaydı bulunamadı.', 404);
+    if (!wedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
 
     const availableStaff = await prisma.staff.findMany({
       where: {
@@ -599,13 +765,14 @@ router.get(
             wedding: {
               id: { not: wedding.id },
               cancelledAt: null,
+              deletedAt: null,
               startsAt: { lt: wedding.endsAt },
-              endsAt: { gt: wedding.startsAt },
-            },
-          },
-        },
+              endsAt: { gt: wedding.startsAt }
+            }
+          }
+        }
       },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }]
     });
 
     const { delivery, ...safeWedding } = wedding;
@@ -615,9 +782,9 @@ router.get(
         {
           ciphertext: delivery.driveUrlCiphertext,
           iv: delivery.driveUrlIv,
-          authTag: delivery.driveUrlAuthTag,
+          authTag: delivery.driveUrlAuthTag
         },
-        delivery.encryptionVersion >= 2 ? deliveryEncryptionAad(delivery.id) : undefined,
+        delivery.encryptionVersion >= 2 ? deliveryEncryptionAad(delivery.id) : undefined
       );
     }
     res.json({
@@ -632,21 +799,140 @@ router.get(
               releasedAt: delivery.releasedAt,
               updatedAt: delivery.updatedAt,
               hasDriveUrl: Boolean(driveUrl),
-              driveUrl,
+              driveUrl
             }
           : null,
-        availableStaff,
+        availableStaff
       },
-      correlationId: req.correlationId,
+      correlationId: req.correlationId
     });
-  }),
+  })
 );
 
 router.post(
-  '/weddings/:id/assignments',
+  "/weddings/:id/archive",
+  verifyCsrf,
+  validateRequest(uuidRequest),
+  asyncHandler(async (req, res) => {
+    const wedding = await prisma.$transaction(async (transaction) => {
+      const updated = await transaction.wedding.updateMany({
+        where: { id: req.params.id, deletedAt: null },
+        data: { deletedAt: new Date(), deletedById: req.auth!.userId }
+      });
+      if (updated.count !== 1)
+        throw new AppError("Düğün kaydı bulunamadı veya zaten arşivde.", 404);
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: "wedding.archived",
+        targetType: "Wedding",
+        targetId: req.params.id,
+        correlationId: req.correlationId
+      });
+      return transaction.wedding.findUniqueOrThrow({
+        where: { id: req.params.id },
+        select: { id: true, deletedAt: true }
+      });
+    });
+    res.json({ success: true, data: wedding, correlationId: req.correlationId });
+  })
+);
+
+router.post(
+  "/weddings/:id/restore",
+  verifyCsrf,
+  validateRequest(uuidRequest),
+  asyncHandler(async (req, res) => {
+    const wedding = await prisma.$transaction(async (transaction) => {
+      const updated = await transaction.wedding.updateMany({
+        where: { id: req.params.id, deletedAt: { not: null } },
+        data: { deletedAt: null, deletedById: null }
+      });
+      if (updated.count !== 1) throw new AppError("Arşivde düğün kaydı bulunamadı.", 404);
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: "wedding.restored",
+        targetType: "Wedding",
+        targetId: req.params.id,
+        correlationId: req.correlationId
+      });
+      return transaction.wedding.findUniqueOrThrow({
+        where: { id: req.params.id },
+        select: { id: true, deletedAt: true }
+      });
+    });
+    res.json({ success: true, data: wedding, correlationId: req.correlationId });
+  })
+);
+
+router.delete(
+  "/weddings/:id",
   verifyCsrf,
   validateRequest(
-    z.object({ body: assignmentBodySchema, query: emptyQuery, params: uuidParamsSchema }),
+    z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
+  ),
+  asyncHandler(async (req, res) => {
+    await prisma.$transaction(
+      async (transaction) => {
+        const wedding = await transaction.wedding.findUnique({
+          where: { id: req.params.id },
+          select: {
+            id: true,
+            applicationId: true,
+            customerUserId: true,
+            brideFirstName: true,
+            brideLastName: true,
+            groomFirstName: true,
+            groomLastName: true
+          }
+        });
+        if (!wedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
+        const confirmation = `${wedding.brideFirstName} ${wedding.brideLastName} & ${wedding.groomFirstName} ${wedding.groomLastName}`;
+        if (req.body.confirmText !== confirmation && req.body.confirmText !== wedding.id)
+          throw new AppError("Onay metni çift adı veya düğün referansıyla eşleşmiyor.", 400);
+        const [applicationUse, customerUse] = await Promise.all([
+          transaction.wedding.count({ where: { applicationId: wedding.applicationId } }),
+          transaction.wedding.count({ where: { customerUserId: wedding.customerUserId } })
+        ]);
+        if (applicationUse > 1 || customerUse > 1)
+          throw new AppError(
+            "İlişkili müşteri veya başvuru başka bir kayıtta kullanıldığı için silinemiyor.",
+            409
+          );
+        const delivery = await transaction.delivery.findUnique({
+          where: { weddingId: wedding.id },
+          select: { id: true }
+        });
+        await transaction.weddingAssignment.deleteMany({ where: { weddingId: wedding.id } });
+        await transaction.messageTask.deleteMany({ where: { weddingId: wedding.id } });
+        if (delivery) {
+          await transaction.deliveryStatusHistory.deleteMany({
+            where: { deliveryId: delivery.id }
+          });
+          await transaction.delivery.delete({ where: { id: delivery.id } });
+        }
+        await transaction.wedding.delete({ where: { id: wedding.id } });
+        await transaction.bookingApplication.delete({ where: { id: wedding.applicationId } });
+        await transaction.user.delete({ where: { id: wedding.customerUserId } });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "wedding.permanently_deleted",
+          targetType: "Wedding",
+          targetId: wedding.id,
+          correlationId: req.correlationId,
+          metadata: { applicationId: wedding.applicationId, operationalRecordsDeleted: true }
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+    res.json({ success: true, data: { id: req.params.id }, correlationId: req.correlationId });
+  })
+);
+
+router.post(
+  "/weddings/:id/assignments",
+  verifyCsrf,
+  validateRequest(
+    z.object({ body: assignmentBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
   asyncHandler(async (req, res) => {
     const assignment = await prisma.$transaction(
@@ -654,12 +940,13 @@ router.post(
         await transaction.$queryRaw`SELECT "id" FROM "staff" WHERE "id" = ${req.body.staffId} FOR UPDATE`;
         const [wedding, staff] = await Promise.all([
           transaction.wedding.findUnique({ where: { id: req.params.id } }),
-          transaction.staff.findUnique({ where: { id: req.body.staffId } }),
+          transaction.staff.findUnique({ where: { id: req.body.staffId } })
         ]);
-        if (!wedding || wedding.cancelledAt) throw new AppError('Düğün kaydı bulunamadı.', 404);
-        if (!staff || !staff.isActive) throw new AppError('Aktif personel bulunamadı.', 404);
+        if (!wedding || wedding.cancelledAt || wedding.deletedAt)
+          throw new AppError("Düğün kaydı bulunamadı.", 404);
+        if (!staff || !staff.isActive) throw new AppError("Aktif personel bulunamadı.", 404);
         if (!staff.specialties.includes(req.body.specialty)) {
-          throw new AppError('Seçilen görev personelin uzmanlıkları arasında değil.', 400);
+          throw new AppError("Seçilen görev personelin uzmanlıkları arasında değil.", 400);
         }
 
         const conflicts = await transaction.weddingAssignment.findMany({
@@ -668,9 +955,10 @@ router.post(
             wedding: {
               id: { not: wedding.id },
               cancelledAt: null,
+              deletedAt: null,
               startsAt: { lt: wedding.endsAt },
-              endsAt: { gt: wedding.startsAt },
-            },
+              endsAt: { gt: wedding.startsAt }
+            }
           },
           select: {
             id: true,
@@ -681,15 +969,15 @@ router.post(
                 groomFirstName: true,
                 startsAt: true,
                 endsAt: true,
-                venue: { select: { name: true } },
-              },
-            },
-          },
+                venue: { select: { name: true } }
+              }
+            }
+          }
         });
         if (conflicts.length > 0 && !req.body.allowConflict) {
-          throw new AppError('Personelin bu saatlerde başka bir görevi var.', 409, true, {
-            code: 'STAFF_CONFLICT',
-            conflicts: conflicts.map(({ wedding: conflictingWedding }) => conflictingWedding),
+          throw new AppError("Personelin bu saatlerde başka bir görevi var.", 409, true, {
+            code: "STAFF_CONFLICT",
+            conflicts: conflicts.map(({ wedding: conflictingWedding }) => conflictingWedding)
           });
         }
 
@@ -697,84 +985,85 @@ router.post(
         try {
           created = await transaction.weddingAssignment.create({
             data: { weddingId: wedding.id, staffId: staff.id, specialty: req.body.specialty },
-            include: { staff: true },
+            include: { staff: true }
           });
         } catch (error) {
-          if (isPrismaError(error, 'P2002')) {
-            throw new AppError('Bu personel düğüne zaten atanmış.', 409);
+          if (isPrismaError(error, "P2002")) {
+            throw new AppError("Bu personel düğüne zaten atanmış.", 409);
           }
           throw error;
         }
         await createAudit(transaction, {
           actorUserId: req.auth!.userId,
-          action: 'wedding.assignment.created',
-          targetType: 'WeddingAssignment',
+          action: "wedding.assignment.created",
+          targetType: "WeddingAssignment",
           targetId: created.id,
           correlationId: req.correlationId,
           metadata: {
             weddingId: wedding.id,
             staffId: staff.id,
-            conflictOverride: conflicts.length > 0,
-          },
+            conflictOverride: conflicts.length > 0
+          }
         });
         return { ...created, hasConflict: conflicts.length > 0 };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
     res.status(201).json({ success: true, data: assignment, correlationId: req.correlationId });
-  }),
+  })
 );
 
 router.delete(
-  '/weddings/:id/assignments/:assignmentId',
+  "/weddings/:id/assignments/:assignmentId",
   verifyCsrf,
   validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: assignmentParamsSchema })),
   asyncHandler(async (req, res) => {
     const deleted = await prisma.$transaction(async (transaction) => {
       const assignment = await transaction.weddingAssignment.findFirst({
-        where: { id: req.params.assignmentId, weddingId: req.params.id },
+        where: { id: req.params.assignmentId, weddingId: req.params.id }
       });
-      if (!assignment) throw new AppError('Personel ataması bulunamadı.', 404);
+      if (!assignment) throw new AppError("Personel ataması bulunamadı.", 404);
       await transaction.weddingAssignment.delete({ where: { id: assignment.id } });
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
-        action: 'wedding.assignment.deleted',
-        targetType: 'WeddingAssignment',
+        action: "wedding.assignment.deleted",
+        targetType: "WeddingAssignment",
         targetId: assignment.id,
         correlationId: req.correlationId,
-        metadata: { weddingId: assignment.weddingId, staffId: assignment.staffId },
+        metadata: { weddingId: assignment.weddingId, staffId: assignment.staffId }
       });
       return assignment;
     });
     res.json({ success: true, data: { id: deleted.id }, correlationId: req.correlationId });
-  }),
+  })
 );
 
 router.patch(
-  '/weddings/:id',
+  "/weddings/:id",
   verifyCsrf,
   validateRequest(
     z.object({
       body: weddingUpdateBodySchema,
       query: emptyQuery,
-      params: uuidParamsSchema,
-    }),
+      params: uuidParamsSchema
+    })
   ),
   asyncHandler(async (req, res) => {
     const wedding = await prisma.wedding.findUnique({
       where: { id: req.params.id },
-      include: { customerUser: true, delivery: true },
+      include: { customerUser: true, delivery: true }
     });
-    if (!wedding) throw new AppError('Düğün kaydı bulunamadı.', 404);
-    if (wedding.cancelledAt) throw new AppError('İptal edilmiş düğün güncellenemez.', 409);
+    if (!wedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
+    if (wedding.cancelledAt || wedding.deletedAt)
+      throw new AppError("İptal edilmiş veya arşivdeki düğün güncellenemez.", 409);
 
     const venue = await prisma.venue.findUnique({
       where: { id: req.body.venueId },
-      select: { id: true, isActive: true },
+      select: { id: true, isActive: true }
     });
-    if (!venue) throw new AppError('Salon bulunamadı.', 404);
+    if (!venue) throw new AppError("Salon bulunamadı.", 404);
     if (venue.id !== wedding.venueId && !venue.isActive) {
-      throw new AppError('Pasif bir salona geçiş yapılamaz.', 409);
+      throw new AppError("Pasif bir salona geçiş yapılamaz.", 409);
     }
 
     const bridePhone = normalizePhone(req.body.bridePhone);
@@ -783,7 +1072,7 @@ router.patch(
       req.body.weddingDate,
       req.body.startTime,
       req.body.endTime,
-      req.body.endsNextDay,
+      req.body.endsNextDay
     );
     const oldWeddingDate = getIstanbulDate(wedding.startsAt);
     const dateChanged = oldWeddingDate !== req.body.weddingDate;
@@ -795,9 +1084,9 @@ router.patch(
     const canRegenerateCredentials =
       wedding.customerUser.mustChangePassword && !wedding.customerUser.passwordChangedAt;
     const regenerateCredentials = canRegenerateCredentials && (dateChanged || namesChanged);
-    const recipientPhone = req.body.primaryContact === 'GELIN' ? bridePhone : groomPhone;
-    const activationAt = atIstanbulTime(addCalendarDays(req.body.weddingDate, 1), '09:00');
-    const preparationAt = atIstanbulTime(addCalendarDays(req.body.weddingDate, 2), '10:00');
+    const recipientPhone = req.body.primaryContact === "GELIN" ? bridePhone : groomPhone;
+    const activationAt = atIstanbulTime(addCalendarDays(req.body.weddingDate, 1), "09:00");
+    const preparationAt = atIstanbulTime(addCalendarDays(req.body.weddingDate, 2), "10:00");
     const dueDate = new Date(`${addCalendarDays(req.body.weddingDate, 21)}T00:00:00.000Z`);
 
     let nextUsername: string | undefined;
@@ -806,21 +1095,26 @@ router.patch(
     const now = new Date();
     const temporaryPasswordExpiresAt = createTemporaryPasswordExpiry(
       env.TEMPORARY_PASSWORD_TTL_HOURS,
-      activationAt > now ? activationAt : now,
+      activationAt > now ? activationAt : now
     );
     if (regenerateCredentials) {
       const temporaryPassword = randomTemporaryPassword();
       nextPasswordHash = await hashPassword(temporaryPassword);
       encryptedPassword = encryptValue(
         temporaryPassword,
-        messageSecretEncryptionAad(wedding.id, 'ACCOUNT_ACTIVATION'),
+        messageSecretEncryptionAad(wedding.id, "ACCOUNT_ACTIVATION")
       );
     }
 
     const updateWedding = () =>
       prisma.$transaction(async (transaction) => {
         const claimedWedding = await transaction.wedding.updateMany({
-          where: { id: wedding.id, updatedAt: wedding.updatedAt, cancelledAt: null },
+          where: {
+            id: wedding.id,
+            updatedAt: wedding.updatedAt,
+            cancelledAt: null,
+            deletedAt: null
+          },
           data: {
             brideFirstName: req.body.brideFirstName,
             brideLastName: req.body.brideLastName,
@@ -833,11 +1127,11 @@ router.patch(
             startsAt,
             endsAt,
             venueId: req.body.venueId,
-            note: req.body.note || null,
-          },
+            note: req.body.note || null
+          }
         });
         if (claimedWedding.count !== 1) {
-          throw new AppError('Düğün kaydı başka bir işlemde güncellendi.', 409);
+          throw new AppError("Düğün kaydı başka bir işlemde güncellendi.", 409);
         }
 
         if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
@@ -846,7 +1140,7 @@ router.patch(
               id: wedding.customerUserId,
               updatedAt: wedding.customerUser.updatedAt,
               mustChangePassword: true,
-              passwordChangedAt: null,
+              passwordChangedAt: null
             },
             data: {
               username: nextUsername,
@@ -854,44 +1148,44 @@ router.patch(
               activeAt: activationAt,
               mustChangePassword: true,
               temporaryPasswordExpiresAt,
-              passwordChangedAt: null,
-            },
+              passwordChangedAt: null
+            }
           });
           if (claimedUser.count !== 1) {
-            throw new AppError('Müşteri kimlik bilgileri başka bir işlemde güncellendi.', 409);
+            throw new AppError("Müşteri kimlik bilgileri başka bir işlemde güncellendi.", 409);
           }
           await transaction.authSession.updateMany({
             where: { userId: wedding.customerUserId, revokedAt: null },
-            data: { revokedAt: now },
+            data: { revokedAt: now }
           });
         }
 
         if (dateChanged) {
-          if (wedding.delivery && wedding.delivery.status !== 'TESLIM_EDILDI') {
+          if (wedding.delivery && wedding.delivery.status !== "TESLIM_EDILDI") {
             await transaction.delivery.updateMany({
               where: {
                 id: wedding.delivery.id,
-                status: { not: 'TESLIM_EDILDI' },
-                releasedAt: null,
+                status: { not: "TESLIM_EDILDI" },
+                releasedAt: null
               },
-              data: { dueDate },
+              data: { dueDate }
             });
           }
         }
 
         await transaction.messageTask.updateMany({
-          where: { weddingId: wedding.id, status: 'PENDING' },
-          data: { recipientPhone },
+          where: { weddingId: wedding.id, status: "PENDING" },
+          data: { recipientPhone }
         });
 
         if (dateChanged) {
           await transaction.messageTask.updateMany({
             where: {
               weddingId: wedding.id,
-              kind: 'PREPARATION_UPDATE',
-              status: 'PENDING',
+              kind: "PREPARATION_UPDATE",
+              status: "PENDING"
             },
-            data: { dueAt: preparationAt },
+            data: { dueAt: preparationAt }
           });
         }
 
@@ -900,21 +1194,21 @@ router.patch(
             where: {
               weddingId_kind: {
                 weddingId: wedding.id,
-                kind: 'ACCOUNT_ACTIVATION',
-              },
+                kind: "ACCOUNT_ACTIVATION"
+              }
             },
             create: {
               weddingId: wedding.id,
-              kind: 'ACCOUNT_ACTIVATION',
+              kind: "ACCOUNT_ACTIVATION",
               dueAt: activationAt,
               recipientPhone,
               secretCiphertext: encryptedPassword.ciphertext,
               secretIv: encryptedPassword.iv,
               secretAuthTag: encryptedPassword.authTag,
-              encryptionVersion: 2,
+              encryptionVersion: 2
             },
             update: {
-              status: 'PENDING',
+              status: "PENDING",
               dueAt: activationAt,
               recipientPhone,
               sentAt: null,
@@ -922,22 +1216,22 @@ router.patch(
               secretCiphertext: encryptedPassword.ciphertext,
               secretIv: encryptedPassword.iv,
               secretAuthTag: encryptedPassword.authTag,
-              encryptionVersion: 2,
-            },
+              encryptionVersion: 2
+            }
           });
         }
 
         await createAudit(transaction, {
           actorUserId: req.auth!.userId,
-          action: 'wedding.updated',
-          targetType: 'Wedding',
+          action: "wedding.updated",
+          targetType: "Wedding",
           targetId: wedding.id,
           correlationId: req.correlationId,
           metadata: {
             dateChanged,
             namesChanged,
-            credentialsRegenerated: regenerateCredentials,
-          },
+            credentialsRegenerated: regenerateCredentials
+          }
         });
 
         return transaction.wedding.findUniqueOrThrow({
@@ -945,7 +1239,7 @@ router.patch(
           include: {
             venue: { select: { name: true } },
             customerUser: {
-              select: { id: true, username: true, activeAt: true, mustChangePassword: true },
+              select: { id: true, username: true, activeAt: true, mustChangePassword: true }
             },
             delivery: {
               select: {
@@ -953,10 +1247,10 @@ router.patch(
                 status: true,
                 dueDate: true,
                 releasedAt: true,
-                updatedAt: true,
-              },
-            },
-          },
+                updatedAt: true
+              }
+            }
+          }
         });
       });
     const updated = regenerateCredentials
@@ -965,7 +1259,7 @@ router.patch(
           async (username) => {
             nextUsername = username;
             return updateWedding();
-          },
+          }
         )
       : await updateWedding();
 
@@ -974,28 +1268,28 @@ router.patch(
       data: {
         ...updated,
         credentialsRegenerated: regenerateCredentials,
-        username: nextUsername ?? updated.customerUser.username,
+        username: nextUsername ?? updated.customerUser.username
       },
-      correlationId: req.correlationId,
+      correlationId: req.correlationId
     });
-  }),
+  })
 );
 
 router.patch(
-  '/deliveries/:id',
+  "/deliveries/:id",
   verifyCsrf,
   validateRequest(
     z.object({
       body: deliveryUpdateBodySchema,
       query: emptyQuery,
-      params: uuidParamsSchema,
-    }),
+      params: uuidParamsSchema
+    })
   ),
   asyncHandler(async (req, res) => {
     const delivery = await prisma.delivery.findUnique({ where: { id: req.params.id } });
-    if (!delivery) throw new AppError('Teslimat kaydı bulunamadı.', 404);
-    if (delivery.status === 'TESLIM_EDILDI') {
-      throw new AppError('Teslim edilmiş kayıt bu işlemle değiştirilemez.', 409);
+    if (!delivery) throw new AppError("Teslimat kaydı bulunamadı.", 404);
+    if (delivery.status === "TESLIM_EDILDI") {
+      throw new AppError("Teslim edilmiş kayıt bu işlemle değiştirilemez.", 409);
     }
 
     const encrypted = req.body.driveUrl
@@ -1010,7 +1304,7 @@ router.patch(
           id: delivery.id,
           status: delivery.status,
           releasedAt: null,
-          updatedAt: delivery.updatedAt,
+          updatedAt: delivery.updatedAt
         },
         data: {
           status: nextStatus,
@@ -1020,13 +1314,13 @@ router.patch(
                 driveUrlCiphertext: encrypted.ciphertext,
                 driveUrlIv: encrypted.iv,
                 driveUrlAuthTag: encrypted.authTag,
-                encryptionVersion: 2,
+                encryptionVersion: 2
               }
-            : {}),
-        },
+            : {})
+        }
       });
       if (claimed.count !== 1) {
-        throw new AppError('Teslimat başka bir işlemde güncellendi.', 409);
+        throw new AppError("Teslimat başka bir işlemde güncellendi.", 409);
       }
       if (nextStatus !== delivery.status) {
         await transaction.deliveryStatusHistory.create({
@@ -1034,21 +1328,21 @@ router.patch(
             deliveryId: delivery.id,
             fromStatus: delivery.status,
             toStatus: nextStatus,
-            actorUserId: req.auth!.userId,
-          },
+            actorUserId: req.auth!.userId
+          }
         });
       }
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
-        action: 'delivery.updated',
-        targetType: 'Delivery',
+        action: "delivery.updated",
+        targetType: "Delivery",
         targetId: delivery.id,
         correlationId: req.correlationId,
         metadata: {
           statusChanged: nextStatus !== delivery.status,
           dueDateChanged: Boolean(dueDate),
-          driveUrlChanged: Boolean(encrypted),
-        },
+          driveUrlChanged: Boolean(encrypted)
+        }
       });
       return transaction.delivery.findUniqueOrThrow({
         where: { id: delivery.id },
@@ -1057,30 +1351,30 @@ router.patch(
           status: true,
           dueDate: true,
           releasedAt: true,
-          updatedAt: true,
-        },
+          updatedAt: true
+        }
       });
     });
 
     res.json({ success: true, data: updated, correlationId: req.correlationId });
-  }),
+  })
 );
 
 router.post(
-  '/deliveries/:id/deliver',
+  "/deliveries/:id/deliver",
   verifyCsrf,
   validateRequest(uuidRequest),
   asyncHandler(async (req, res) => {
     const delivery = await prisma.delivery.findUnique({
       where: { id: req.params.id },
-      include: { wedding: true },
+      include: { wedding: true }
     });
-    if (!delivery) throw new AppError('Teslimat kaydı bulunamadı.', 404);
-    if (delivery.status !== 'TESLIME_HAZIR') {
-      throw new AppError('Teslimat önce “Teslime Hazır” durumuna alınmalıdır.', 409);
+    if (!delivery) throw new AppError("Teslimat kaydı bulunamadı.", 404);
+    if (delivery.status !== "TESLIME_HAZIR") {
+      throw new AppError("Teslimat önce “Teslime Hazır” durumuna alınmalıdır.", 409);
     }
     if (!delivery.driveUrlCiphertext || !delivery.driveUrlIv || !delivery.driveUrlAuthTag) {
-      throw new AppError('Teslim etmeden önce Google Drive bağlantısı kaydedilmelidir.', 409);
+      throw new AppError("Teslim etmeden önce Google Drive bağlantısı kaydedilmelidir.", 409);
     }
 
     const now = new Date();
@@ -1095,60 +1389,60 @@ router.post(
         select: {
           primaryContact: true,
           bridePhone: true,
-          groomPhone: true,
-        },
+          groomPhone: true
+        }
       });
       const recipientPhone =
-        currentWedding.primaryContact === 'GELIN'
+        currentWedding.primaryContact === "GELIN"
           ? currentWedding.bridePhone
           : currentWedding.groomPhone;
       const claimed = await transaction.delivery.updateMany({
         where: {
           id: delivery.id,
-          status: 'TESLIME_HAZIR',
+          status: "TESLIME_HAZIR",
           releasedAt: null,
-          updatedAt: delivery.updatedAt,
+          updatedAt: delivery.updatedAt
         },
-        data: { status: 'TESLIM_EDILDI', releasedAt: now },
+        data: { status: "TESLIM_EDILDI", releasedAt: now }
       });
       if (claimed.count !== 1) {
-        throw new AppError('Teslimat başka bir işlemde güncellendi.', 409);
+        throw new AppError("Teslimat başka bir işlemde güncellendi.", 409);
       }
       await transaction.deliveryStatusHistory.create({
         data: {
           deliveryId: delivery.id,
           fromStatus: delivery.status,
-          toStatus: 'TESLIM_EDILDI',
-          actorUserId: req.auth!.userId,
-        },
+          toStatus: "TESLIM_EDILDI",
+          actorUserId: req.auth!.userId
+        }
       });
       await transaction.messageTask.upsert({
         where: {
           weddingId_kind: {
             weddingId: delivery.weddingId,
-            kind: 'DELIVERY_READY',
-          },
+            kind: "DELIVERY_READY"
+          }
         },
         create: {
           weddingId: delivery.weddingId,
-          kind: 'DELIVERY_READY',
+          kind: "DELIVERY_READY",
           dueAt: now,
-          recipientPhone,
+          recipientPhone
         },
         update: {
-          status: 'PENDING',
+          status: "PENDING",
           dueAt: now,
           recipientPhone,
           sentAt: null,
-          sentById: null,
-        },
+          sentById: null
+        }
       });
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
-        action: 'delivery.released',
-        targetType: 'Delivery',
+        action: "delivery.released",
+        targetType: "Delivery",
         targetId: delivery.id,
-        correlationId: req.correlationId,
+        correlationId: req.correlationId
       });
       return transaction.delivery.findUniqueOrThrow({
         where: { id: delivery.id },
@@ -1157,35 +1451,35 @@ router.post(
           status: true,
           dueDate: true,
           releasedAt: true,
-          updatedAt: true,
-        },
+          updatedAt: true
+        }
       });
     });
 
     res.json({ success: true, data: updated, correlationId: req.correlationId });
-  }),
+  })
 );
 
 const catalogRoutes = (
-  path: 'packages' | 'services',
-  schema: typeof packageBodySchema | typeof serviceBodySchema,
+  path: "packages" | "services",
+  schema: typeof packageBodySchema | typeof serviceBodySchema
 ) => {
-  const targetType = path === 'packages' ? 'Package' : 'Service';
-  const actionPrefix = path === 'packages' ? 'package' : 'service';
+  const targetType = path === "packages" ? "Package" : "Service";
+  const actionPrefix = path === "packages" ? "package" : "service";
   const partialSchema = schema
     .partial()
-    .refine((value) => Object.keys(value).length > 0, 'En az bir alan gönderin.');
+    .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
 
   router.get(
     `/${path}`,
     validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
     asyncHandler(async (req, res) => {
       const rows =
-        path === 'packages'
-          ? await prisma.package.findMany({ orderBy: { name: 'asc' } })
-          : await prisma.service.findMany({ orderBy: [{ category: 'asc' }, { name: 'asc' }] });
+        path === "packages"
+          ? await prisma.package.findMany({ orderBy: { name: "asc" } })
+          : await prisma.service.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] });
       res.json({ success: true, data: rows, correlationId: req.correlationId });
-    }),
+    })
   );
 
   router.post(
@@ -1197,7 +1491,7 @@ const catalogRoutes = (
       try {
         row = await prisma.$transaction(async (transaction) => {
           const created =
-            path === 'packages'
+            path === "packages"
               ? await transaction.package.create({ data: req.body })
               : await transaction.service.create({ data: req.body });
           await createAudit(transaction, {
@@ -1205,7 +1499,7 @@ const catalogRoutes = (
             action: `${actionPrefix}.created`,
             targetType,
             targetId: created.id,
-            correlationId: req.correlationId,
+            correlationId: req.correlationId
           });
           return created;
         });
@@ -1213,7 +1507,7 @@ const catalogRoutes = (
         throwCatalogError(error);
       }
       res.status(201).json({ success: true, data: row, correlationId: req.correlationId });
-    }),
+    })
   );
 
   router.patch(
@@ -1225,21 +1519,21 @@ const catalogRoutes = (
       try {
         row = await prisma.$transaction(async (transaction) => {
           const updated =
-            path === 'packages'
+            path === "packages"
               ? await transaction.package.update({
                   where: { id: req.params.id },
-                  data: req.body,
+                  data: req.body
                 })
               : await transaction.service.update({
                   where: { id: req.params.id },
-                  data: req.body,
+                  data: req.body
                 });
           await createAudit(transaction, {
             actorUserId: req.auth!.userId,
             action: `${actionPrefix}.updated`,
             targetType,
             targetId: updated.id,
-            correlationId: req.correlationId,
+            correlationId: req.correlationId
           });
           return updated;
         });
@@ -1247,7 +1541,7 @@ const catalogRoutes = (
         throwCatalogError(error);
       }
       res.json({ success: true, data: row, correlationId: req.correlationId });
-    }),
+    })
   );
 
   router.delete(
@@ -1259,21 +1553,21 @@ const catalogRoutes = (
       try {
         row = await prisma.$transaction(async (transaction) => {
           const deactivated =
-            path === 'packages'
+            path === "packages"
               ? await transaction.package.update({
                   where: { id: req.params.id },
-                  data: { isActive: false },
+                  data: { isActive: false }
                 })
               : await transaction.service.update({
                   where: { id: req.params.id },
-                  data: { isActive: false },
+                  data: { isActive: false }
                 });
           await createAudit(transaction, {
             actorUserId: req.auth!.userId,
             action: `${actionPrefix}.deactivated`,
             targetType,
             targetId: deactivated.id,
-            correlationId: req.correlationId,
+            correlationId: req.correlationId
           });
           return deactivated;
         });
@@ -1281,37 +1575,38 @@ const catalogRoutes = (
         throwCatalogError(error);
       }
       res.json({ success: true, data: row, correlationId: req.correlationId });
-    }),
+    })
   );
 };
 
-catalogRoutes('packages', packageBodySchema);
-catalogRoutes('services', serviceBodySchema);
+catalogRoutes("packages", packageBodySchema);
+catalogRoutes("services", serviceBodySchema);
 
 router.get(
-  '/message-tasks',
+  "/message-tasks",
   validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const tasks = await prisma.messageTask.findMany({
+      where: { wedding: { deletedAt: null } },
       include: {
         wedding: {
           select: {
             brideFirstName: true,
             brideLastName: true,
             groomFirstName: true,
-            groomLastName: true,
-          },
+            groomLastName: true
+          }
         },
-        sentBy: { select: { username: true } },
+        sentBy: { select: { username: true } }
       },
-      orderBy: [{ status: 'asc' }, { dueAt: 'asc' }],
-      take: 300,
+      orderBy: [{ status: "asc" }, { dueAt: "asc" }],
+      take: 300
     });
     const safeTasks = tasks.map(
-      ({ secretCiphertext: _ciphertext, secretIv: _iv, secretAuthTag: _tag, ...task }) => task,
+      ({ secretCiphertext: _ciphertext, secretIv: _iv, secretAuthTag: _tag, ...task }) => task
     );
     res.json({ success: true, data: safeTasks, correlationId: req.correlationId });
-  }),
+  })
 );
 
 const renderMessage = async (taskId: string) => {
@@ -1321,85 +1616,85 @@ const renderMessage = async (taskId: string) => {
       wedding: {
         include: {
           customerUser: true,
-          delivery: true,
-        },
-      },
-    },
+          delivery: true
+        }
+      }
+    }
   });
-  if (!task) throw new AppError('Mesaj görevi bulunamadı.', 404);
+  if (!task) throw new AppError("Mesaj görevi bulunamadı.", 404);
 
   const couple = `${task.wedding.brideFirstName} & ${task.wedding.groomFirstName}`;
   let message: string;
-  if (task.kind === 'ACCOUNT_ACTIVATION') {
+  if (task.kind === "ACCOUNT_ACTIVATION") {
     if (!task.secretCiphertext || !task.secretIv || !task.secretAuthTag) {
-      throw new AppError('Aktivasyon mesajı güvenlik bilgisi eksik.', 409);
+      throw new AppError("Aktivasyon mesajı güvenlik bilgisi eksik.", 409);
     }
     const password = decryptValue(
       {
         ciphertext: task.secretCiphertext,
         iv: task.secretIv,
-        authTag: task.secretAuthTag,
+        authTag: task.secretAuthTag
       },
       task.encryptionVersion >= 2
         ? messageSecretEncryptionAad(task.weddingId, task.kind)
-        : undefined,
+        : undefined
     );
     message = `Merhaba ${couple}.\n\nDüğün Ajansım teslimat paneliniz hazır.\nKullanıcı adı: ${task.wedding.customerUser.username}\nGeçici parola: ${password}\n\nİlk girişte parolanızı değiştirmeniz istenecektir.`;
-  } else if (task.kind === 'PASSWORD_RESET') {
+  } else if (task.kind === "PASSWORD_RESET") {
     if (!task.secretCiphertext || !task.secretIv || !task.secretAuthTag) {
-      throw new AppError('Parola sıfırlama bilgisi eksik.', 409);
+      throw new AppError("Parola sıfırlama bilgisi eksik.", 409);
     }
     const password = decryptValue(
       {
         ciphertext: task.secretCiphertext,
         iv: task.secretIv,
-        authTag: task.secretAuthTag,
+        authTag: task.secretAuthTag
       },
       task.encryptionVersion >= 2
         ? messageSecretEncryptionAad(task.weddingId, task.kind)
-        : undefined,
+        : undefined
     );
     message = `Merhaba ${couple}.\n\nGeçici parolanız: ${password}\nİlk girişte yeni bir parola belirlemeniz gerekecektir.`;
-  } else if (task.kind === 'PREPARATION_UPDATE') {
+  } else if (task.kind === "PREPARATION_UPDATE") {
     if (!task.wedding.delivery?.dueDate) {
-      throw new AppError('Teslimat tahmini tarihi bulunamadı.', 409);
+      throw new AppError("Teslimat tahmini tarihi bulunamadı.", 409);
     }
-    const dueDate = task.wedding.delivery.dueDate.toLocaleDateString('tr-TR', {
-      timeZone: 'UTC',
+    const dueDate = task.wedding.delivery.dueDate.toLocaleDateString("tr-TR", {
+      timeZone: "UTC"
     });
     message = `Merhaba ${couple}.\n\nFotoğraf ve video çalışmalarınız hazırlanmaktadır.\nOrtalama teslim süremiz 21 gündür.\nTahmini teslim tarihi: ${dueDate}`;
   } else {
     message = `Merhaba ${couple}.\n\nDüğün fotoğraf ve videolarınız hazırlandı.\nDosyalarınıza Düğün Ajansım müşteri panelinden ulaşabilirsiniz.\n\nİyi günlerde kullanmanızı dileriz.`;
   }
 
-  const phone = task.recipientPhone.replace(/\D/g, '');
+  const phone = task.recipientPhone.replace(/\D/g, "");
   return {
     task,
     message,
-    whatsappUrl: `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+    whatsappUrl: `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
   };
 };
 
 router.get(
-  '/message-tasks/:id/render',
+  "/message-tasks/:id/render",
   validateRequest(uuidRequest),
   asyncHandler(async (req, res) => {
     const rendered = await renderMessage(req.params.id);
-    res.set('Cache-Control', 'no-store');
+    res.set("Cache-Control", "no-store");
     res.json({
       success: true,
       data: {
         message: rendered.message,
         whatsappUrl: rendered.whatsappUrl,
-        expectedUpdatedAt: rendered.task.updatedAt.toISOString(),
+        expectedUpdatedAt: rendered.task.updatedAt.toISOString()
       },
-      correlationId: req.correlationId,
+      correlationId: req.correlationId
     });
-  }),
+  })
 );
 
 router.post(
-  '/message-tasks/:id/mark-sent',
+  "/message-tasks/:id/mark-sent",
   verifyCsrf,
   validateRequest(markSentRequest),
   asyncHandler(async (req, res) => {
@@ -1409,53 +1704,53 @@ router.post(
       const claimed = await transaction.messageTask.updateMany({
         where: {
           id: req.params.id,
-          status: 'PENDING',
-          updatedAt: expectedUpdatedAt,
+          status: "PENDING",
+          updatedAt: expectedUpdatedAt
         },
         data: {
-          status: 'SENT',
+          status: "SENT",
           sentAt: now,
           sentById: req.auth!.userId,
           secretCiphertext: null,
           secretIv: null,
-          secretAuthTag: null,
-        },
+          secretAuthTag: null
+        }
       });
       if (claimed.count !== 1) {
         const exists = await transaction.messageTask.findUnique({
           where: { id: req.params.id },
-          select: { id: true },
+          select: { id: true }
         });
-        if (!exists) throw new AppError('Mesaj görevi bulunamadı.', 404);
-        throw new AppError('Mesaj görevi başka bir işlemde güncellendi.', 409);
+        if (!exists) throw new AppError("Mesaj görevi bulunamadı.", 404);
+        throw new AppError("Mesaj görevi başka bir işlemde güncellendi.", 409);
       }
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
-        action: 'message.sent',
-        targetType: 'MessageTask',
+        action: "message.sent",
+        targetType: "MessageTask",
         targetId: req.params.id,
-        correlationId: req.correlationId,
+        correlationId: req.correlationId
       });
       return transaction.messageTask.findUniqueOrThrow({
         where: { id: req.params.id },
-        select: { id: true, status: true, sentAt: true },
+        select: { id: true, status: true, sentAt: true }
       });
     });
     res.json({ success: true, data: task, correlationId: req.correlationId });
-  }),
+  })
 );
 
 router.post(
-  '/customers/:id/reset-password',
+  "/customers/:id/reset-password",
   verifyCsrf,
   validateRequest(uuidRequest),
   asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { id: req.params.id },
-      include: { customerWedding: true },
+      include: { customerWedding: true }
     });
-    if (!user || user.role !== 'MUSTERI' || !user.customerWedding) {
-      throw new AppError('Müşteri hesabı bulunamadı.', 404);
+    if (!user || user.role !== "MUSTERI" || !user.customerWedding) {
+      throw new AppError("Müşteri hesabı bulunamadı.", 404);
     }
 
     const password = randomTemporaryPassword();
@@ -1463,11 +1758,11 @@ router.post(
     const now = new Date();
     const temporaryPasswordExpiresAt = createTemporaryPasswordExpiry(
       env.TEMPORARY_PASSWORD_TTL_HOURS,
-      user.activeAt !== null && user.activeAt > now ? user.activeAt : now,
+      user.activeAt !== null && user.activeAt > now ? user.activeAt : now
     );
     const encrypted = encryptValue(
       password,
-      messageSecretEncryptionAad(user.customerWedding.id, 'PASSWORD_RESET'),
+      messageSecretEncryptionAad(user.customerWedding.id, "PASSWORD_RESET")
     );
     const task = await prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw`
@@ -1485,48 +1780,48 @@ router.post(
         select: {
           primaryContact: true,
           bridePhone: true,
-          groomPhone: true,
-        },
+          groomPhone: true
+        }
       });
       const recipientPhone =
-        currentWedding.primaryContact === 'GELIN'
+        currentWedding.primaryContact === "GELIN"
           ? currentWedding.bridePhone
           : currentWedding.groomPhone;
       const claimedUser = await transaction.user.updateMany({
-        where: { id: user.id, updatedAt: user.updatedAt, role: 'MUSTERI' },
+        where: { id: user.id, updatedAt: user.updatedAt, role: "MUSTERI" },
         data: {
           passwordHash,
           mustChangePassword: true,
           temporaryPasswordExpiresAt,
-          passwordChangedAt: null,
-        },
+          passwordChangedAt: null
+        }
       });
       if (claimedUser.count !== 1) {
-        throw new AppError('Müşteri hesabı başka bir işlemde güncellendi.', 409);
+        throw new AppError("Müşteri hesabı başka bir işlemde güncellendi.", 409);
       }
       await transaction.authSession.updateMany({
         where: { userId: user.id, revokedAt: null },
-        data: { revokedAt: now },
+        data: { revokedAt: now }
       });
       const messageTask = await transaction.messageTask.upsert({
         where: {
           weddingId_kind: {
             weddingId: user.customerWedding!.id,
-            kind: 'PASSWORD_RESET',
-          },
+            kind: "PASSWORD_RESET"
+          }
         },
         create: {
           weddingId: user.customerWedding!.id,
-          kind: 'PASSWORD_RESET',
+          kind: "PASSWORD_RESET",
           dueAt: now,
           recipientPhone,
           secretCiphertext: encrypted.ciphertext,
           secretIv: encrypted.iv,
           secretAuthTag: encrypted.authTag,
-          encryptionVersion: 2,
+          encryptionVersion: 2
         },
         update: {
-          status: 'PENDING',
+          status: "PENDING",
           dueAt: now,
           recipientPhone,
           sentAt: null,
@@ -1534,57 +1829,57 @@ router.post(
           secretCiphertext: encrypted.ciphertext,
           secretIv: encrypted.iv,
           secretAuthTag: encrypted.authTag,
-          encryptionVersion: 2,
-        },
+          encryptionVersion: 2
+        }
       });
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
-        action: 'customer.password_reset',
-        targetType: 'User',
+        action: "customer.password_reset",
+        targetType: "User",
         targetId: user.id,
-        correlationId: req.correlationId,
+        correlationId: req.correlationId
       });
       return messageTask;
     });
     const rendered = await renderMessage(task.id);
-    res.set('Cache-Control', 'no-store');
+    res.set("Cache-Control", "no-store");
     res.json({
       success: true,
       data: { taskId: task.id, whatsappUrl: rendered.whatsappUrl },
-      correlationId: req.correlationId,
+      correlationId: req.correlationId
     });
-  }),
+  })
 );
 
 router.get(
-  '/audit-logs',
+  "/audit-logs",
   validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const logs = await prisma.auditLog.findMany({
       include: { actor: { select: { username: true, role: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: 300,
+      orderBy: { createdAt: "desc" },
+      take: 300
     });
     res.json({ success: true, data: logs, correlationId: req.correlationId });
-  }),
+  })
 );
 
 router.get(
-  '/overview',
+  "/overview",
   validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const [pendingBookings, activeWeddings, pendingMessages, readyDeliveries] = await Promise.all([
-      prisma.bookingApplication.count({ where: { status: 'ONAY_BEKLIYOR' } }),
+      prisma.bookingApplication.count({ where: { status: "ONAY_BEKLIYOR" } }),
       prisma.wedding.count({ where: { cancelledAt: null } }),
-      prisma.messageTask.count({ where: { status: 'PENDING' } }),
-      prisma.delivery.count({ where: { status: 'TESLIME_HAZIR' } }),
+      prisma.messageTask.count({ where: { status: "PENDING" } }),
+      prisma.delivery.count({ where: { status: "TESLIME_HAZIR" } })
     ]);
     res.json({
       success: true,
       data: { pendingBookings, activeWeddings, pendingMessages, readyDeliveries },
-      correlationId: req.correlationId,
+      correlationId: req.correlationId
     });
-  }),
+  })
 );
 
 export default router;
