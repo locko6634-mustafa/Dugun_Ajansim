@@ -213,9 +213,12 @@ function renderDashboard() {
     if (element) element.textContent = value;
   });
   updateNavBadges(data.metrics);
-  document.querySelector(".js-today-weddings").innerHTML = data.todayWeddings.length
-    ? data.todayWeddings.map(eventCard).join("")
-    : empty("Bugün planlanmış düğün yok. Takvim nefes alıyor.");
+  const todayElem = document.querySelector(".js-today-weddings");
+  if (todayElem) {
+    todayElem.innerHTML = data.todayWeddings.length
+      ? data.todayWeddings.map(eventCard).join("")
+      : empty("Bugün planlanmış düğün yok. Takvim nefes alıyor.");
+  }
   document.querySelector(".js-tomorrow-weddings").innerHTML = data.tomorrowWeddings.length
     ? data.tomorrowWeddings.map(compactWedding).join("")
     : empty("Yarın için düğün yok.");
@@ -273,12 +276,15 @@ function renderWeek() {
         : '<p class="empty-state">Plan yok</p>'
     }</div></section>`;
   }).join("");
-  document.querySelector(".js-distribution").innerHTML = Object.entries(SPECIALTIES)
-    .map(
-      ([key, label]) =>
-        `<article class="distribution-item"><strong>${data.distribution[key] || 0}</strong><span>${escapeHtml(label)}</span></article>`
-    )
-    .join("");
+  const distElem = document.querySelector(".js-distribution");
+  if (distElem) {
+    distElem.innerHTML = Object.entries(SPECIALTIES)
+      .map(
+        ([key, label]) =>
+          `<article class="distribution-item"><strong>${data.distribution[key] || 0}</strong><span>${escapeHtml(label)}</span></article>`
+      )
+      .join("");
+  }
 }
 
 async function loadDashboard(weekStart = state.weekStart) {
@@ -435,7 +441,7 @@ function renderWeddings() {
             month: "short",
             timeZone: "Europe/Istanbul"
           }).format(date);
-          return `<article class="wedding-card"><div class="date-tile"><strong>${day}</strong><span>${escapeHtml(month)}</span></div><div><h3>${escapeHtml(coupleName(wedding))}</h3><p>${escapeHtml(wedding.venue.name)} · ${formatTime(wedding.startsAt)}</p></div><div><span class="status-dot" data-status="${escapeHtml(wedding.delivery?.status || "")}">${escapeHtml(STATUS_LABELS[wedding.delivery?.status] || "Teslimat yok")}</span><small>${formatDate(wedding.delivery?.dueDate)}</small></div><div><div class="crew-line">${renderCrew(wedding.assignments)}</div></div><button class="mini-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}">Ayrıntılar</button></article>`;
+          return `<article class="wedding-card"><div class="date-tile"><strong>${day}</strong><span>${escapeHtml(month)}</span></div><div><h3>${escapeHtml(coupleName(wedding))}</h3><p>${escapeHtml(wedding.venue.name)} · ${formatTime(wedding.startsAt)}</p></div><div class="status-cell"><span class="status-dot" data-status="${escapeHtml(wedding.delivery?.status || "")}">${escapeHtml(STATUS_LABELS[wedding.delivery?.status] || "Teslimat yok")}</span><small class="delivery-date">${formatDate(wedding.delivery?.dueDate)}</small></div><div><div class="crew-line">${renderCrew(wedding.assignments)}</div></div><button class="mini-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}">Ayrıntılar</button></article>`;
         })
         .join("")
     : empty("Filtreye uyan düğün bulunamadı.");
@@ -556,7 +562,7 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><small>${escapeHtml(staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" data-confirm="${escapeHtml(`${staff.firstName} ${staff.lastName}`)}">Sil</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" data-confirm="${escapeHtml(`${staff.firstName} ${staff.lastName}`)}">Sil</button></footer></article>`
         )
         .join("")
     : empty("Filtreye uyan personel yok.");
@@ -1351,8 +1357,14 @@ if (await ensureAdmin()) {
 const toggleSidebarBtn = document.querySelector(".js-toggle-sidebar");
 const sidebar = document.querySelector(".admin-sidebar");
 if (toggleSidebarBtn && sidebar) {
-  toggleSidebarBtn.addEventListener("click", () => {
+  toggleSidebarBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
     sidebar.classList.toggle("is-open");
+  });
+  sidebar.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      sidebar.classList.remove("is-open");
+    });
   });
   document.addEventListener("click", (e) => {
     if (sidebar.classList.contains("is-open") && !sidebar.contains(e.target) && !toggleSidebarBtn.contains(e.target)) {

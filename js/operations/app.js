@@ -233,7 +233,7 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><header><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status">${staff.isActive ? "Aktif" : "Pasif"}</span></header><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><small>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</small><footer><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><header><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status">${staff.isActive ? "Aktif" : "Pasif"}</span></header><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><small>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</small><footer><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button></footer></article>`
         )
         .join("")
     : empty("Personel bulunamadı.");
@@ -481,8 +481,14 @@ if (await ensureSession()) await loadDashboard().catch((error) => setMessage(err
 const toggleOpsSidebarBtn = document.querySelector(".js-toggle-ops-sidebar");
 const opsSidebar = document.querySelector(".ops-sidebar");
 if (toggleOpsSidebarBtn && opsSidebar) {
-  toggleOpsSidebarBtn.addEventListener("click", () => {
+  toggleOpsSidebarBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
     opsSidebar.classList.toggle("is-open");
+  });
+  opsSidebar.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      opsSidebar.classList.remove("is-open");
+    });
   });
   document.addEventListener("click", (e) => {
     if (opsSidebar.classList.contains("is-open") && !opsSidebar.contains(e.target) && !toggleOpsSidebarBtn.contains(e.target)) {
