@@ -7,8 +7,8 @@
   --gold: hsl(34 53% 43%);
   --gold-light: hsl(36 50% 73%);
   --line: hsl(35 20% 81%);
-  --serif: "Italiana", Georgia, serif;
-  --sans: "Manrope", Arial, sans-serif;
+  --serif: "Inter", "Manrope", system-ui, sans-serif;
+  --sans: "Manrope", "Inter", Arial, sans-serif;
   --page-width: 1180px;
   --shadow: 0 28px 70px hsl(35 27% 18% / 0.09);
 }
@@ -682,3 +682,32 @@ a:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ==========================================================================
+   Okunabilirlik, Tipografi & Boşluk Düzeltmeleri (Müşteri Paneli)
+   ========================================================================== */
+h1, h2, h3,
+.customer-hero h1,
+.journey-section h2,
+.delivery-release h2,
+.customer-brand strong,
+.countdown-card__value strong,
+.event-detail strong {
+  font-family: "Inter", "Manrope", system-ui, -apple-system, sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em !important;
+}
+
+.event-detail strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.countdown-card__value strong {
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 800 !important;
+  color: var(--gold);
+}
+
