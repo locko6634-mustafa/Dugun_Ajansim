@@ -212,6 +212,7 @@ function renderDashboard() {
     const element = document.querySelector(`[data-metric="${key}"]`);
     if (element) element.textContent = value;
   });
+  updateNavBadges(data.metrics);
   document.querySelector(".js-today-weddings").innerHTML = data.todayWeddings.length
     ? data.todayWeddings.map(eventCard).join("")
     : empty("Bugün planlanmış düğün yok. Takvim nefes alıyor.");
@@ -1345,3 +1346,67 @@ document.querySelector(".js-current-date").textContent = `${new Intl.DateTimeFor
 if (await ensureAdmin()) {
   await loadDashboard().catch((error) => setMessage(error.message));
 }
+
+/* UX & Klavye Kısayolları */
+const toggleSidebarBtn = document.querySelector(".js-toggle-sidebar");
+const sidebar = document.querySelector(".admin-sidebar");
+if (toggleSidebarBtn && sidebar) {
+  toggleSidebarBtn.addEventListener("click", () => {
+    sidebar.classList.toggle("is-open");
+  });
+  document.addEventListener("click", (e) => {
+    if (sidebar.classList.contains("is-open") && !sidebar.contains(e.target) && !toggleSidebarBtn.contains(e.target)) {
+      sidebar.classList.remove("is-open");
+    }
+  });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    sidebar?.classList.remove("is-open");
+  }
+  const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
+  if (["input", "textarea", "select"].includes(activeTag)) return;
+
+  if (e.key >= "1" && e.key <= "9") {
+    const panels = ["overview", "plan", "calendar", "applications", "weddings", "staff", "messages", "catalog", "managers"];
+    const targetPanel = panels[parseInt(e.key, 10) - 1];
+    if (targetPanel) {
+      e.preventDefault();
+      switchPanel(targetPanel);
+    }
+  } else if (e.key === "/") {
+    e.preventDefault();
+    const activePanel = document.querySelector(".admin-panel.is-active")?.getAttribute("data-panel-content");
+    let searchInput = null;
+    if (activePanel === "applications") searchInput = document.querySelector(".js-application-reference");
+    else if (activePanel === "weddings") searchInput = document.querySelector(".js-wedding-search");
+    else if (activePanel === "staff") searchInput = document.querySelector(".js-staff-search");
+    
+    if (!searchInput) searchInput = document.querySelector("input[type='search']:not([hidden])");
+    searchInput?.focus();
+  }
+});
+
+function updateNavBadges(metrics) {
+  if (!metrics) return;
+  const appBadge = document.querySelector(".js-badge-applications");
+  if (appBadge) {
+    if (metrics.pendingBookings > 0) {
+      appBadge.textContent = metrics.pendingBookings;
+      appBadge.hidden = false;
+    } else {
+      appBadge.hidden = true;
+    }
+  }
+  const msgBadge = document.querySelector(".js-badge-messages");
+  if (msgBadge) {
+    if (metrics.pendingMessages > 0) {
+      msgBadge.textContent = metrics.pendingMessages;
+      msgBadge.hidden = false;
+    } else {
+      msgBadge.hidden = true;
+    }
+  }
+}
+

@@ -842,3 +842,86 @@ textarea {
     color: white;
   }
 }
+
+/* ==========================================================================
+   Salon Operasyon UX & Ergonomi Stilleri
+   ========================================================================== */
+.topbar-brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.mobile-toggle-btn {
+  display: none;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  cursor: pointer;
+  color: var(--ink);
+  align-items: center;
+  justify-content: center;
+}
+.quick-kbd-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.kbd-hint {
+  display: inline-block;
+  margin-left: auto;
+  padding: 2px 6px;
+  background: hsl(0 0% 100% / 0.15);
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: monospace;
+  color: hsl(42 25% 88%);
+}
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--clay);
+  color: #fff;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.ops-nav button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .mobile-toggle-btn {
+    display: flex;
+  }
+  .ops-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .ops-sidebar.is-open {
+    transform: translateX(0);
+    box-shadow: 0 0 40px rgba(0,0,0,0.5);
+  }
+  .quick-kbd-badge {
+    display: none;
+  }
+}
+

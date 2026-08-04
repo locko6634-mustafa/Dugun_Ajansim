@@ -120,6 +120,7 @@ function renderDashboard(data) {
     const node = document.querySelector(`[data-metric="${key}"]`);
     if (node) node.textContent = value;
   });
+  updateOpsBadges(data.metrics);
   document.querySelector(".js-today").innerHTML = data.todayWeddings.length
     ? data.todayWeddings
         .map(
@@ -475,3 +476,55 @@ document.querySelectorAll(".js-logout").forEach((button) =>
 );
 
 if (await ensureSession()) await loadDashboard().catch((error) => setMessage(error.message));
+
+/* UX & Klavye Kısayolları */
+const toggleOpsSidebarBtn = document.querySelector(".js-toggle-ops-sidebar");
+const opsSidebar = document.querySelector(".ops-sidebar");
+if (toggleOpsSidebarBtn && opsSidebar) {
+  toggleOpsSidebarBtn.addEventListener("click", () => {
+    opsSidebar.classList.toggle("is-open");
+  });
+  document.addEventListener("click", (e) => {
+    if (opsSidebar.classList.contains("is-open") && !opsSidebar.contains(e.target) && !toggleOpsSidebarBtn.contains(e.target)) {
+      opsSidebar.classList.remove("is-open");
+    }
+  });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    opsSidebar?.classList.remove("is-open");
+    detailContainer?.close();
+    weddingDialog?.close();
+    staffDialog?.close();
+  }
+  const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
+  if (["input", "textarea", "select"].includes(activeTag)) return;
+
+  if (e.key >= "1" && e.key <= "4") {
+    const panels = ["overview", "calendar", "weddings", "staff"];
+    const targetPanel = panels[parseInt(e.key, 10) - 1];
+    if (targetPanel) {
+      e.preventDefault();
+      switchPanel(targetPanel);
+    }
+  } else if (e.key === "/") {
+    e.preventDefault();
+    const searchInput = document.querySelector(".js-wedding-search");
+    searchInput?.focus();
+  }
+});
+
+function updateOpsBadges(metrics) {
+  if (!metrics) return;
+  const weddingBadge = document.querySelector(".js-badge-ops-weddings");
+  if (weddingBadge) {
+    if (metrics.unassignedWeddings > 0) {
+      weddingBadge.textContent = metrics.unassignedWeddings;
+      weddingBadge.hidden = false;
+    } else {
+      weddingBadge.hidden = true;
+    }
+  }
+}
+

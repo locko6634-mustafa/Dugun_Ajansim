@@ -26,12 +26,18 @@
           <small>Sorumlu salon</small><strong class="js-venue-name">Yükleniyor</strong>
         </div>
         <nav class="ops-nav" aria-label="Salon sorumlusu bölümleri">
-          <button class="is-active" type="button" data-panel="overview">
-            <span>01</span> Bugünün Akışı
+          <button class="is-active" type="button" data-panel="overview" title="Kısayol: 1">
+            <span>01</span> Bugünün Akışı <small class="kbd-hint">1</small>
           </button>
-          <button type="button" data-panel="calendar"><span>02</span> Salon Takvimi</button>
-          <button type="button" data-panel="weddings"><span>03</span> Düğün Planı</button>
-          <button type="button" data-panel="staff"><span>04</span> Ekibim</button>
+          <button type="button" data-panel="calendar" title="Kısayol: 2">
+            <span>02</span> Salon Takvimi <small class="kbd-hint">2</small>
+          </button>
+          <button type="button" data-panel="weddings" title="Kısayol: 3">
+            <span>03</span> Düğün Planı <span class="nav-badge js-badge-ops-weddings" hidden>0</span> <small class="kbd-hint">3</small>
+          </button>
+          <button type="button" data-panel="staff" title="Kısayol: 4">
+            <span>04</span> Ekibim <small class="kbd-hint">4</small>
+          </button>
         </nav>
         <footer>
           <span class="connection"><i></i> Salon verileri bağlı</span
@@ -41,13 +47,21 @@
 
       <main class="ops-main">
         <header class="ops-topbar">
-          <div>
-            <p class="kicker js-current-date">İstanbul</p>
-            <h1 class="js-page-title">Bugünün akışı</h1>
+          <div class="topbar-brand-wrap">
+            <button class="mobile-toggle-btn js-toggle-ops-sidebar" type="button" aria-label="Menüyü Aç/Kapat">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <div>
+              <p class="kicker js-current-date">İstanbul</p>
+              <h1 class="js-page-title">Bugünün akışı</h1>
+            </div>
           </div>
-          <div class="account-chip">
-            <span class="js-user-initial">S</span>
-            <div><small>Salon sorumlusu</small><strong class="js-username">—</strong></div>
+          <div class="topbar-actions">
+            <span class="quick-kbd-badge" title="Klavye Kısayolları (1-4)">⌨️ Kısayollar (1-4)</span>
+            <div class="account-chip">
+              <span class="js-user-initial">S</span>
+              <div><small>Salon sorumlusu</small><strong class="js-username">—</strong></div>
+            </div>
           </div>
         </header>
         <p class="global-message" role="status" aria-live="polite"></p>
