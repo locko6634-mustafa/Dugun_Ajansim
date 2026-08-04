@@ -113,6 +113,9 @@ const dashboardWedding = (
 const isPrismaError = (error: unknown, code: string): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
 
+const normalizeConfirmation = (value: string): string =>
+  value.trim().replace(/\s+/g, " ").toLocaleLowerCase("tr-TR");
+
 const throwCatalogError = (error: unknown): never => {
   if (isPrismaError(error, "P2002")) {
     throw new AppError("Aynı kodu kullanan başka bir katalog kaydı var.", 409);
@@ -317,7 +320,10 @@ router.delete(
           });
         if (!["ONAY_BEKLIYOR", "REDDEDILDI"].includes(application.status))
           throw new AppError("Bu başvuru kalıcı olarak silinemez.", 409);
-        if (req.body.confirmText !== application.referenceCode)
+        if (
+          normalizeConfirmation(req.body.confirmText) !==
+          normalizeConfirmation(application.referenceCode)
+        )
           throw new AppError("Onay metni başvuru referansı ile eşleşmiyor.", 400);
         await transaction.bookingApplication.delete({ where: { id: application.id } });
         await createAudit(transaction, {
@@ -646,7 +652,7 @@ router.delete(
         });
         if (!staff) throw new AppError("Personel bulunamadı.", 404);
         const name = `${staff.firstName} ${staff.lastName}`;
-        if (req.body.confirmText !== name)
+        if (normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation(name))
           throw new AppError("Onay metni personel adıyla eşleşmiyor.", 400);
         if (staff._count.assignments > 0) {
           const updated = await transaction.staff.update({
@@ -887,7 +893,10 @@ router.delete(
         });
         if (!wedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
         const confirmation = `${wedding.brideFirstName} ${wedding.brideLastName} & ${wedding.groomFirstName} ${wedding.groomLastName}`;
-        if (req.body.confirmText !== confirmation && req.body.confirmText !== wedding.id)
+        if (
+          normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation(confirmation) &&
+          req.body.confirmText.trim() !== wedding.id
+        )
           throw new AppError("Onay metni çift adı veya düğün referansıyla eşleşmiyor.", 400);
         const [applicationUse, customerUse] = await Promise.all([
           transaction.wedding.count({ where: { applicationId: wedding.applicationId } }),
@@ -1023,7 +1032,11 @@ router.delete(
         where: { id: req.params.assignmentId, weddingId: req.params.id }
       });
       if (!assignment) throw new AppError("Personel ataması bulunamadı.", 404);
-      await transaction.weddingAssignment.delete({ where: { id: assignment.id } });
+      const removed = await transaction.weddingAssignment.deleteMany({
+        where: { id: assignment.id, weddingId: assignment.weddingId }
+      });
+      if (removed.count !== 1)
+        throw new AppError("Personel ataması başka bir işlemde kaldırıldı.", 409);
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
         action: "wedding.assignment.deleted",

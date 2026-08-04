@@ -62,11 +62,12 @@ function requestDangerConfirmation(
   dangerForm.querySelector(".js-danger-copy").textContent = copy;
   dangerForm.querySelector(".js-danger-confirm-wrap").hidden = !confirmation;
   dangerForm.querySelector(".js-danger-confirm-label").textContent = confirmation;
-  dangerForm.querySelector(".js-danger-confirm").value = "";
+  const input = dangerForm.querySelector(".js-danger-confirm");
+  input.value = "";
+  input.required = Boolean(confirmation);
   dangerForm.querySelector(".js-danger-message").textContent = "";
   dangerForm.querySelector(".js-danger-submit").textContent = button;
   dangerDialog.showModal();
-  const input = dangerForm.querySelector(".js-danger-confirm");
   setTimeout(
     () => (confirmation ? input : dangerForm.querySelector(".js-danger-submit")).focus(),
     0
@@ -82,6 +83,12 @@ function requestDangerConfirmation(
     dangerDialog.addEventListener("close", closed, { once: true });
     dangerForm.onsubmit = (event) => {
       event.preventDefault();
+      if (confirmation && !input.value.trim()) {
+        dangerForm.querySelector(".js-danger-message").textContent =
+          "Devam etmek için onay metnini yazın.";
+        input.focus();
+        return;
+      }
       done(true);
       dangerDialog.close();
     };
@@ -740,6 +747,7 @@ document.querySelector(".js-applications").addEventListener("click", async (even
     } else return;
     await Promise.all([loadApplications(), loadDashboard()]);
   } catch (error) {
+    if (deleteButton) deleteButton.disabled = false;
     setMessage(error.message);
   }
 });
@@ -892,10 +900,12 @@ detailContent.addEventListener("click", async (event) => {
         removeButton
       );
       if (accepted === null) return;
+      removeButton.disabled = true;
       await apiRequest(
         `/admin/weddings/${state.currentWedding.id}/assignments/${removeButton.dataset.removeAssignment}`,
         { method: "DELETE" }
       );
+      removeButton.disabled = false;
       setMessage("Personel ataması kaldırıldı.", true);
     } else return;
     await Promise.all([
@@ -904,6 +914,8 @@ detailContent.addEventListener("click", async (event) => {
       loadWeddings()
     ]);
   } catch (error) {
+    if (removeButton) removeButton.disabled = false;
+    if (deleteWeddingButton) deleteWeddingButton.disabled = false;
     setMessage(error.message);
   }
 });
