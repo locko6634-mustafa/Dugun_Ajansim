@@ -52,12 +52,18 @@ async function loadDashboard() {
     data.delivery.status === "TESLIM_EDILDI" ? "teslimat tamamlandı" : "gün kaldı";
 
   const activeIndex = statusOrder.indexOf(data.delivery.status);
+  const journeySection = document.querySelector(".journey-section");
+  journeySection.style.setProperty(
+    "--delivery-progress",
+    `${Math.max(0, activeIndex) / (statusOrder.length - 1)}`
+  );
   document.querySelector(".js-timeline").innerHTML = statusOrder
     .map(
       (status, index) => `
-        <li class="${index < activeIndex ? "is-complete" : index === activeIndex ? "is-current" : ""}">
+        <li class="${index < activeIndex ? "is-complete" : index === activeIndex ? "is-current" : ""}"${index === activeIndex ? ' aria-current="step"' : ""}>
           <small>0${index + 1}</small>
           <strong>${statusLabels[status]}</strong>
+          <span>${index < activeIndex ? "Tamamlandı" : index === activeIndex ? "Şu an bu aşamada" : "Sırada"}</span>
         </li>`
     )
     .join("");

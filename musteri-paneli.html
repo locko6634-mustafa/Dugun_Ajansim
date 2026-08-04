@@ -18,45 +18,71 @@
   </head>
   <body>
     <header class="customer-header">
-      <a href="index.html" class="customer-brand"><span>DA</span><strong>Düğünajansım</strong></a>
-      <button class="quiet-button js-logout" type="button">Çıkış</button>
+      <a href="index.html" class="customer-brand" aria-label="Düğünajansım ana sayfa">
+        <span>DA</span>
+        <strong>Düğünajansım</strong>
+      </a>
+      <div class="header-actions">
+        <span class="secure-session"><i aria-hidden="true"></i> Güvenli müşteri alanı</span>
+        <button class="quiet-button js-logout" type="button">Çıkış</button>
+      </div>
     </header>
 
     <main class="customer-main">
       <p class="page-message" role="status" aria-live="polite">
         Teslimat bilgileriniz hazırlanıyor…
       </p>
-      <section class="customer-hero" hidden>
+      <section class="customer-hero" hidden aria-labelledby="welcome-title">
         <div class="customer-hero__copy">
-          <p class="eyebrow">Sizin hikâyeniz</p>
-          <h1><span class="js-bride">—</span> <em>&amp;</em> <span class="js-groom">—</span></h1>
+          <p class="eyebrow"><span>Özel teslimat dosyanız</span></p>
+          <h1 id="welcome-title">
+            <span class="js-bride">—</span> <em>&amp;</em> <span class="js-groom">—</span>
+          </h1>
           <p class="hero-note">
-            Çalışmalarınız ekibimizin teslim hattında ilerliyor. Her aşamayı burada sakin ve net
-            biçimde takip edebilirsiniz.
+            En değerli gününüzden kalan her kare özenle hazırlanıyor. Sürecin hangi aşamada olduğunu
+            ve tahmini teslim tarihini buradan takip edebilirsiniz.
           </p>
         </div>
         <aside class="countdown-card">
-          <span>Tahmini teslimata</span>
-          <strong class="js-days">—</strong>
-          <p class="js-days-label">gün kaldı</p>
-          <time class="js-due-date">—</time>
+          <div class="countdown-card__heading">
+            <span>Tahmini teslimat</span>
+            <i aria-hidden="true"></i>
+          </div>
+          <div class="countdown-card__value">
+            <strong class="js-days">—</strong>
+            <p class="js-days-label">gün kaldı</p>
+          </div>
+          <div class="countdown-card__date">
+            <span>Planlanan tarih</span>
+            <time class="js-due-date">—</time>
+          </div>
         </aside>
       </section>
 
-      <section class="event-strip" hidden>
-        <div><span>Düğün tarihi</span><strong class="js-wedding-date">—</strong></div>
-        <div><span>Salon</span><strong class="js-venue">—</strong></div>
-        <div>
-          <span>Güncel durum</span><strong class="status-badge js-current-status">—</strong>
+      <section class="event-strip" hidden aria-label="Düğün ve teslimat özeti">
+        <div class="event-detail">
+          <span>01 · Düğün tarihi</span><strong class="js-wedding-date">—</strong>
+        </div>
+        <div class="event-detail"><span>02 · Mekân</span><strong class="js-venue">—</strong></div>
+        <div class="event-detail event-detail--status">
+          <span>03 · Güncel durum</span><strong class="status-badge js-current-status">—</strong>
         </div>
       </section>
 
-      <section class="journey-section" hidden>
-        <header>
-          <p class="eyebrow">Teslimat yolculuğu</p>
-          <h2>Her adım özenle tamamlanıyor.</h2>
+      <section class="journey-section" hidden aria-labelledby="journey-title">
+        <header class="journey-heading">
+          <div>
+            <p class="eyebrow"><span>Teslimat yolculuğu</span></p>
+            <h2 id="journey-title">Hikâyeniz emin ellerde.</h2>
+          </div>
+          <p>
+            Ekibimiz tamamlanan her aşamanın ardından dosyanızı bir sonraki uzmanımıza aktarıyor.
+          </p>
         </header>
-        <ol class="delivery-timeline js-timeline"></ol>
+        <div class="timeline-shell">
+          <div class="timeline-progress" aria-hidden="true"><span></span></div>
+          <ol class="delivery-timeline js-timeline"></ol>
+        </div>
       </section>
 
       <section class="delivery-release" hidden>
