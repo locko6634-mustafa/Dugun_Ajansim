@@ -491,7 +491,11 @@ if (toggleOpsSidebarBtn && opsSidebar) {
     });
   });
   document.addEventListener("click", (e) => {
-    if (opsSidebar.classList.contains("is-open") && !opsSidebar.contains(e.target) && !toggleOpsSidebarBtn.contains(e.target)) {
+    if (
+      opsSidebar.classList.contains("is-open") &&
+      !opsSidebar.contains(e.target) &&
+      !toggleOpsSidebarBtn.contains(e.target)
+    ) {
       opsSidebar.classList.remove("is-open");
     }
   });
@@ -512,7 +516,7 @@ document.addEventListener("keydown", (e) => {
     const targetPanel = panels[parseInt(e.key, 10) - 1];
     if (targetPanel) {
       e.preventDefault();
-      switchPanel(targetPanel);
+      activatePanel(targetPanel);
     }
   } else if (e.key === "/") {
     e.preventDefault();
@@ -533,4 +537,3 @@ function updateOpsBadges(metrics) {
     }
   }
 }
-

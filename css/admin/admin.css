@@ -83,7 +83,7 @@ textarea:focus-visible {
   place-items: center;
   border: 1px solid hsl(42 25% 88% / 35%);
   border-radius: 50%;
-  font-family: "Inter", "Manrope", sans-serif;
+  font-family: Inter, Manrope, sans-serif;
 }
 .admin-brand strong {
   font-size: 15px;
@@ -183,7 +183,7 @@ p {
 h1,
 h2 {
   margin: 0;
-  font-family: "Inter", "Manrope", sans-serif;
+  font-family: Inter, Manrope, sans-serif;
   font-weight: 400;
   letter-spacing: -0.025em;
 }
@@ -287,7 +287,7 @@ button:disabled {
 .metric-ribbon strong {
   display: block;
   margin-top: 8px;
-  font-family: "Inter", "Manrope", sans-serif;
+  font-family: Inter, Manrope, sans-serif;
   font-size: 38px;
   font-weight: 400;
 }
@@ -352,7 +352,7 @@ button:disabled {
 }
 .event-copy strong {
   display: block;
-  font-family: "Inter", "Manrope", sans-serif;
+  font-family: Inter, Manrope, sans-serif;
   font-size: 24px;
   font-weight: 400;
 }
@@ -484,7 +484,7 @@ button:disabled {
   border-bottom: 1px solid var(--line);
 }
 .day-head strong {
-  font-family: "Inter", "Manrope", sans-serif;
+  font-family: Inter, Manrope, sans-serif;
   font-size: 25px;
   font-weight: 400;
 }
@@ -530,7 +530,7 @@ button:disabled {
 }
 .distribution-item strong {
   display: block;
-  font-family: "Inter", "Manrope", sans-serif;
+  font-family: Inter, Manrope, sans-serif;
   font-size: 28px;
   font-weight: 400;
 }
@@ -776,7 +776,7 @@ button:disabled {
 }
 .date-tile strong {
   display: block;
-  font-family: "Inter", "Manrope", sans-serif;
+  font-family: Inter, Manrope, sans-serif;
   font-size: 30px;
   font-weight: 400;
 }
@@ -787,7 +787,7 @@ button:disabled {
 }
 .wedding-card h3 {
   margin-bottom: 5px;
-  font-family: "Inter", "Manrope", sans-serif;
+  font-family: Inter, Manrope, sans-serif;
   font-size: 22px;
   font-weight: 400;
 }
@@ -845,12 +845,12 @@ button:disabled {
   border-radius: 50%;
   background: var(--olive-pale);
   color: var(--olive);
-  font-family: "Inter", "Manrope", sans-serif;
+  font-family: Inter, Manrope, sans-serif;
   font-size: 17px;
 }
 .staff-card h3 {
   margin-top: 16px;
-  font-family: "Inter", "Manrope", sans-serif;
+  font-family: Inter, Manrope, sans-serif;
   font-size: 22px;
   font-weight: 400;
 }
@@ -911,7 +911,7 @@ button:disabled {
   color: var(--clay);
 }
 .catalog-card h3 {
-  font-family: "Inter", "Manrope", sans-serif;
+  font-family: Inter, Manrope, sans-serif;
   font-size: 28px;
   font-weight: 400;
 }
@@ -1441,7 +1441,7 @@ dialog {
     height: auto;
     justify-content: start;
     border-radius: 0;
-    font-family: "Inter", "Manrope", sans-serif;
+    font-family: Inter, Manrope, sans-serif;
     font-size: 28px;
     font-weight: 400;
   }
@@ -1681,11 +1681,6 @@ dialog {
   font-weight: 700;
   line-height: 1;
 }
-.admin-nav button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 @media (max-width: 900px) {
   .mobile-toggle-btn {
@@ -1703,7 +1698,7 @@ dialog {
     width: 280px !important;
     max-width: 85vw !important;
     transform: translateX(0) !important;
-    box-shadow: 0 0 50px rgba(0, 0, 0, 0.7) !important;
+    box-shadow: 0 0 50px rgb(0, 0, 0, 0.7) !important;
     background: var(--ink) !important;
   }
   .quick-kbd-badge {
@@ -1714,27 +1709,28 @@ dialog {
 /* ==========================================================================
    Okunabilirlik, Tipografi & Boşluk Düzeltmeleri
    ========================================================================== */
-h1, h2, h3, h4, h5, h6,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
 .section-heading h2,
 .admin-brand strong,
 .metric-ribbon strong,
 .date-tile strong,
 .staff-card h3,
 .wedding-card h3 {
-  font-family: "Inter", "Manrope", system-ui, -apple-system, sans-serif !important;
+  font-family:
+    Inter,
+    Manrope,
+    system-ui,
+    -apple-system,
+    sans-serif !important;
   font-weight: 700 !important;
   letter-spacing: -0.01em !important;
 }
 
-.staff-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 20px;
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  border: 1px solid var(--line);
-}
 .staff-card .staff-phone {
   display: block;
   margin-top: 4px;
@@ -1770,23 +1766,6 @@ h1, h2, h3, h4, h5, h6,
   color: var(--ink-soft);
 }
 
-.status-dot {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.crew-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
-}
 .crew-line .tag {
   display: inline-block;
   padding: 3px 8px;
@@ -1796,24 +1775,3 @@ h1, h2, h3, h4, h5, h6,
   background: var(--surface-strong);
   color: var(--ink);
 }
-
-.nav-badge {
-  margin-left: auto;
-  background: var(--clay);
-  color: #ffffff;
-  border-radius: 12px;
-  font-size: 11px;
-  padding: 2px 8px;
-  font-weight: 700;
-}
-.kbd-hint {
-  margin-left: 6px;
-  font-size: 11px;
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
-}
-
-

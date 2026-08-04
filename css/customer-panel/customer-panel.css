@@ -686,28 +686,19 @@ a:focus-visible {
 /* ==========================================================================
    Okunabilirlik, Tipografi & Boşluk Düzeltmeleri (Müşteri Paneli)
    ========================================================================== */
-h1, h2, h3,
+h1,
+h2,
+h3,
 .customer-hero h1,
 .journey-section h2,
 .delivery-release h2,
-.customer-brand strong,
-.countdown-card__value strong,
-.event-detail strong {
-  font-family: "Inter", "Manrope", system-ui, -apple-system, sans-serif !important;
+.customer-brand strong {
+  font-family:
+    Inter,
+    Manrope,
+    system-ui,
+    -apple-system,
+    sans-serif !important;
   font-weight: 700 !important;
   letter-spacing: -0.01em !important;
 }
-
-.event-detail strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 15px;
-  color: var(--ink);
-}
-
-.countdown-card__value strong {
-  font-size: clamp(36px, 5vw, 56px);
-  font-weight: 800 !important;
-  color: var(--gold);
-}
-

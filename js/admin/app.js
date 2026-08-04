@@ -1367,7 +1367,11 @@ if (toggleSidebarBtn && sidebar) {
     });
   });
   document.addEventListener("click", (e) => {
-    if (sidebar.classList.contains("is-open") && !sidebar.contains(e.target) && !toggleSidebarBtn.contains(e.target)) {
+    if (
+      sidebar.classList.contains("is-open") &&
+      !sidebar.contains(e.target) &&
+      !toggleSidebarBtn.contains(e.target)
+    ) {
       sidebar.classList.remove("is-open");
     }
   });
@@ -1381,20 +1385,33 @@ document.addEventListener("keydown", (e) => {
   if (["input", "textarea", "select"].includes(activeTag)) return;
 
   if (e.key >= "1" && e.key <= "9") {
-    const panels = ["overview", "plan", "calendar", "applications", "weddings", "staff", "messages", "catalog", "managers"];
+    const panels = [
+      "overview",
+      "plan",
+      "calendar",
+      "applications",
+      "weddings",
+      "staff",
+      "messages",
+      "catalog",
+      "managers"
+    ];
     const targetPanel = panels[parseInt(e.key, 10) - 1];
     if (targetPanel) {
       e.preventDefault();
-      switchPanel(targetPanel);
+      activatePanel(targetPanel);
     }
   } else if (e.key === "/") {
     e.preventDefault();
-    const activePanel = document.querySelector(".admin-panel.is-active")?.getAttribute("data-panel-content");
+    const activePanel = document
+      .querySelector(".admin-panel.is-active")
+      ?.getAttribute("data-panel-content");
     let searchInput = null;
-    if (activePanel === "applications") searchInput = document.querySelector(".js-application-reference");
+    if (activePanel === "applications")
+      searchInput = document.querySelector(".js-application-reference");
     else if (activePanel === "weddings") searchInput = document.querySelector(".js-wedding-search");
     else if (activePanel === "staff") searchInput = document.querySelector(".js-staff-search");
-    
+
     if (!searchInput) searchInput = document.querySelector("input[type='search']:not([hidden])");
     searchInput?.focus();
   }
@@ -1421,4 +1438,3 @@ function updateNavBadges(metrics) {
     }
   }
 }
-
