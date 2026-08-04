@@ -104,6 +104,7 @@ export const authenticate = asyncHandler(async (req, res, next) => {
     role: session.user.role,
     sessionId: session.id,
     mustChangePassword: session.user.mustChangePassword,
+    venueId: session.user.venueId,
   };
 
   if (

@@ -33,6 +33,7 @@
           <button type="button" data-panel="staff"><span>06</span> Personeller</button>
           <button type="button" data-panel="messages"><span>07</span> Mesajlar</button>
           <button type="button" data-panel="catalog"><span>08</span> Paketler</button>
+          <button type="button" data-panel="managers"><span>09</span> Salon Sorumluları</button>
         </nav>
         <div class="admin-sidebar__footer">
           <span class="connection-status"><i></i> Sistem bağlı</span>
@@ -270,6 +271,18 @@
           <div class="data-surface js-messages"></div>
         </section>
 
+        <section class="admin-panel" data-panel-content="managers" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-index">Yetki yönetimi</p>
+              <h2>Salon sorumluları</h2>
+            </div>
+            <button class="primary-button js-add-manager" type="button">+ Sorumlu hesabı</button>
+          </div>
+          <p>Her hesap yalnızca bağlı olduğu salonun takvimini ve personelini yönetebilir.</p>
+          <div class="staff-grid js-managers"></div>
+        </section>
+
         <section class="admin-panel" data-panel-content="catalog" hidden>
           <div class="section-heading">
             <div>
@@ -329,6 +342,7 @@
       ><button type="button" data-panel="staff">Personeller</button
       ><button type="button" data-panel="messages">Mesajlar</button
       ><button type="button" data-panel="catalog">Paketler</button
+      ><button type="button" data-panel="managers">Salon sorumluları</button
       ><button class="js-logout" type="button">Çıkış</button>
     </div>
 
@@ -358,13 +372,57 @@
         <div class="form-grid">
           <label>Ad<input name="firstName" type="text" required /></label
           ><label>Soyad<input name="lastName" type="text" required /></label
-          ><label class="wide">Telefon<input name="phone" type="tel" required /></label>
+          ><label class="wide">Telefon<input name="phone" type="tel" required /></label
+          ><label class="wide"
+            >Salon<select class="js-staff-venue" name="venueId" required></select
+          ></label>
           <fieldset class="wide specialty-choices">
             <legend>Uzmanlıklar</legend>
             <div class="js-staff-specialties"></div>
           </fieldset>
           <label class="switch-row wide"
             ><input name="isActive" type="checkbox" checked /> Aktif personel</label
+          >
+        </div>
+        <p class="dialog-message" role="status"></p>
+        <div class="dialog-actions">
+          <button class="secondary-button" type="button" value="cancel">Vazgeç</button
+          ><button class="primary-button" type="submit">Kaydet</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="form-dialog js-manager-dialog">
+      <form class="form-shell js-manager-form" method="dialog">
+        <div class="sheet-heading">
+          <div>
+            <p class="section-index">Salon hesabı</p>
+            <h2 class="js-manager-form-title">Sorumlu hesabı ekle</h2>
+          </div>
+          <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
+        </div>
+        <input name="managerId" type="hidden" />
+        <div class="form-grid">
+          <label
+            >Kullanıcı adı<input
+              name="username"
+              type="text"
+              minlength="3"
+              maxlength="40"
+              autocomplete="off"
+              required /></label
+          ><label>Salon<select class="js-manager-venue" name="venueId" required></select></label
+          ><label class="wide"
+            >Parola <small class="js-manager-password-note">En az 15 karakter</small
+            ><input
+              name="password"
+              type="password"
+              minlength="15"
+              maxlength="128"
+              autocomplete="new-password"
+              required /></label
+          ><label class="switch-row wide"
+            ><input name="isActive" type="checkbox" checked /> Aktif hesap</label
           >
         </div>
         <p class="dialog-message" role="status"></p>

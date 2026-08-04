@@ -30,6 +30,7 @@ const state = {
   calendarVenueId: "",
   weddings: [],
   staff: [],
+  managers: [],
   venues: [],
   packages: [],
   services: [],
@@ -41,6 +42,8 @@ const detailDialog = document.querySelector(".js-wedding-detail");
 const detailContent = document.querySelector(".js-wedding-detail-content");
 const staffDialog = document.querySelector(".js-staff-dialog");
 const staffForm = document.querySelector(".js-staff-form");
+const managerDialog = document.querySelector(".js-manager-dialog");
+const managerForm = document.querySelector(".js-manager-form");
 const manualDialog = document.querySelector(".js-manual-dialog");
 const manualForm = document.querySelector(".js-manual-form");
 const weddingDialog = document.querySelector(".js-wedding-dialog");
@@ -526,6 +529,15 @@ async function loadStaff() {
   }
 }
 
+async function ensureVenues() {
+  if (!state.venues.length) state.venues = (await apiRequest("/venues")).data;
+  const options = state.venues
+    .map((venue) => `<option value="${escapeHtml(venue.id)}">${escapeHtml(venue.name)}</option>`)
+    .join("");
+  document.querySelector(".js-staff-venue").innerHTML = options;
+  document.querySelector(".js-manager-venue").innerHTML = options;
+}
+
 function renderStaff() {
   const term = document.querySelector(".js-staff-search").value.trim().toLocaleLowerCase("tr-TR");
   const specialty = document.querySelector(".js-staff-specialty-filter").value;
@@ -543,19 +555,21 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" data-confirm="${escapeHtml(`${staff.firstName} ${staff.lastName}`)}">Sil</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><small>${escapeHtml(staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" data-confirm="${escapeHtml(`${staff.firstName} ${staff.lastName}`)}">Sil</button></footer></article>`
         )
         .join("")
     : empty("Filtreye uyan personel yok.");
 }
 
-function openStaffForm(staff = null) {
+async function openStaffForm(staff = null) {
+  await ensureVenues();
   staffForm.reset();
   staffForm.elements.staffId.value = staff?.id || "";
   staffForm.elements.firstName.value = staff?.firstName || "";
   staffForm.elements.lastName.value = staff?.lastName || "";
   staffForm.elements.phone.value = staff?.phone || "";
   staffForm.elements.isActive.checked = staff?.isActive ?? true;
+  staffForm.elements.venueId.value = staff?.venueId || state.venues[0]?.id || "";
   document.querySelector(".js-staff-form-title").textContent = staff
     ? "Personeli düzenle"
     : "Personel ekle";
@@ -564,6 +578,43 @@ function openStaffForm(staff = null) {
     input.checked = staff?.specialties.includes(input.value) || false;
   });
   staffDialog.showModal();
+}
+
+async function loadManagers() {
+  const container = document.querySelector(".js-managers");
+  container.innerHTML = empty("Salon sorumluları yükleniyor…");
+  try {
+    const response = await apiRequest("/admin/venue-managers");
+    state.managers = response.data;
+    container.innerHTML = state.managers.length
+      ? state.managers
+          .map(
+            (manager) =>
+              `<article class="staff-card ${manager.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(manager.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${manager.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${manager.status === "ACTIVE" ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(manager.username)}</h3><p>${escapeHtml(manager.venue?.name || "Salon atanmamış")}</p><small>${manager.lastLoginAt ? `Son giriş: ${formatDate(manager.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${manager.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-manager="${manager.id}">Düzenle</button></footer></article>`
+          )
+          .join("")
+      : empty("Henüz salon sorumlusu hesabı yok.");
+  } catch (error) {
+    container.innerHTML = empty(error.message);
+  }
+}
+
+async function openManagerForm(manager = null) {
+  await ensureVenues();
+  managerForm.reset();
+  managerForm.elements.managerId.value = manager?.id || "";
+  managerForm.elements.username.value = manager?.username || "";
+  managerForm.elements.venueId.value = manager?.venue?.id || state.venues[0]?.id || "";
+  managerForm.elements.isActive.checked = manager?.status !== "DISABLED";
+  managerForm.elements.password.required = !manager;
+  document.querySelector(".js-manager-password-note").textContent = manager
+    ? "Değişmeyecekse boş bırakın"
+    : "En az 15 karakter";
+  document.querySelector(".js-manager-form-title").textContent = manager
+    ? "Sorumlu hesabını düzenle"
+    : "Sorumlu hesabı ekle";
+  managerForm.querySelector(".dialog-message").textContent = "";
+  managerDialog.showModal();
 }
 
 async function loadMessages() {
@@ -615,6 +666,7 @@ const panelLoaders = {
   applications: loadApplications,
   weddings: loadWeddings,
   staff: loadStaff,
+  managers: loadManagers,
   messages: loadMessages,
   catalog: loadCatalogAdmin
 };
@@ -933,12 +985,13 @@ document.querySelector(".js-staff-specialty-filter").insertAdjacentHTML(
     .map(([key, label]) => `<option value="${key}">${escapeHtml(label)}</option>`)
     .join("")
 );
-document.querySelector(".js-add-staff").addEventListener("click", () => openStaffForm());
+document.querySelector(".js-add-staff").addEventListener("click", () => void openStaffForm());
 document.querySelector(".js-staff").addEventListener("click", (event) => {
   const button = event.target.closest("[data-edit-staff]");
   const toggleButton = event.target.closest("[data-toggle-staff]");
   const deleteButton = event.target.closest("[data-delete-staff]");
-  if (button) openStaffForm(state.staff.find((staff) => staff.id === button.dataset.editStaff));
+  if (button)
+    void openStaffForm(state.staff.find((staff) => staff.id === button.dataset.editStaff));
   else if (toggleButton)
     void apiRequest(`/admin/staff/${toggleButton.dataset.toggleStaff}`, {
       method: "PATCH",
@@ -998,7 +1051,8 @@ staffForm.addEventListener("submit", async (event) => {
     lastName: data.get("lastName"),
     phone: data.get("phone"),
     specialties: data.getAll("specialties"),
-    isActive: data.has("isActive")
+    isActive: data.has("isActive"),
+    venueId: data.get("venueId")
   };
   try {
     await apiRequest(staffId ? `/admin/staff/${staffId}` : "/admin/staff", {
@@ -1010,6 +1064,41 @@ staffForm.addEventListener("submit", async (event) => {
     await Promise.all([loadStaff(), loadDashboard()]);
   } catch (error) {
     staffForm.querySelector(".dialog-message").textContent = error.message;
+  }
+});
+
+document.querySelector(".js-add-manager").addEventListener("click", () => void openManagerForm());
+document.querySelector(".js-managers").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-edit-manager]");
+  if (button)
+    void openManagerForm(
+      state.managers.find((manager) => manager.id === button.dataset.editManager)
+    );
+});
+managerForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
+  button.addEventListener("click", () => managerDialog.close());
+});
+managerForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (event.submitter?.value === "cancel") return;
+  const data = new FormData(managerForm);
+  const managerId = data.get("managerId");
+  const body = {
+    username: data.get("username"),
+    venueId: data.get("venueId"),
+    status: data.has("isActive") ? "ACTIVE" : "DISABLED",
+    ...(data.get("password") ? { password: data.get("password") } : {})
+  };
+  try {
+    await apiRequest(managerId ? `/admin/venue-managers/${managerId}` : "/admin/venue-managers", {
+      method: managerId ? "PATCH" : "POST",
+      body
+    });
+    managerDialog.close();
+    setMessage(managerId ? "Salon sorumlusu güncellendi." : "Salon sorumlusu eklendi.", true);
+    await loadManagers();
+  } catch (error) {
+    managerForm.querySelector(".dialog-message").textContent = error.message;
   }
 });
 
@@ -1162,11 +1251,6 @@ manualForm.addEventListener("submit", async (event) => {
     manualForm.querySelector(".dialog-message").textContent = error.message;
   }
 });
-
-async function ensureVenues() {
-  if (state.venues.length) return;
-  state.venues = (await apiRequest("/venues")).data;
-}
 
 async function openWeddingEditor(wedding) {
   await ensureVenues();

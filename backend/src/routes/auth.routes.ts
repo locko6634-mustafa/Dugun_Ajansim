@@ -139,6 +139,7 @@ router.post(
         username: user.username,
         role: user.role,
         mustChangePassword: user.mustChangePassword,
+        venueId: user.venueId,
       },
       correlationId: req.correlationId,
     });
@@ -156,6 +157,7 @@ router.get(
         username: req.auth!.username,
         role: req.auth!.role,
         mustChangePassword: req.auth!.mustChangePassword,
+        venueId: req.auth!.venueId,
       },
       correlationId: req.correlationId,
     });

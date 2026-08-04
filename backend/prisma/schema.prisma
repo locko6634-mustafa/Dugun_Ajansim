@@ -94,6 +94,7 @@ model Venue {
   managers     User[]
   applications BookingApplication[]
   weddings     Wedding[]
+  staff        Staff[]
 
   @@index([isActive, name])
   @@map("venues")
@@ -289,11 +290,14 @@ model Staff {
   phone       String
   specialties StaffSpecialty[]
   isActive    Boolean             @default(true)
+  venueId      String
+  venue        Venue               @relation(fields: [venueId], references: [id], onDelete: Restrict)
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
   assignments WeddingAssignment[]
 
   @@index([isActive, lastName, firstName])
+  @@index([venueId, isActive, lastName, firstName])
   @@map("staff")
 }
 

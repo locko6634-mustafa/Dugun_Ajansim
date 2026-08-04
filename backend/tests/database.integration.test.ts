@@ -226,7 +226,9 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const correlationId = `integration-${marker}`;
   const weddingDate = addCalendarDays(getIstanbulDate(new Date()), 30);
   let venueId: string | undefined;
+  let secondaryVenueId: string | undefined;
   let adminId: string | undefined;
+  let managerId: string | undefined;
   const staffIds: string[] = [];
 
   context.after(async () => {
@@ -247,6 +249,8 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     });
     await prisma.bookingApplication.deleteMany({ where: { id: { in: applicationIds } } });
     await prisma.package.deleteMany({ where: { code: { contains: marker } } });
+    if (managerId) await prisma.user.deleteMany({ where: { id: managerId } });
+    if (secondaryVenueId) await prisma.venue.deleteMany({ where: { id: secondaryVenueId } });
     if (venueId) await prisma.venue.deleteMany({ where: { id: venueId } });
     if (adminId) await prisma.user.deleteMany({ where: { id: adminId } });
   });
@@ -640,12 +644,111 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       firstName: 'Deniz',
       lastName: 'Kamera',
       phone: '05551112233',
+      venueId: venue.id,
       specialties: ['PHOTOGRAPHY', 'VIDEO'],
       isActive: true,
     });
   assert.equal(createdStaff.status, 201);
   staffIds.push(createdStaff.body.data.id as string);
   assert.equal(createdStaff.body.data.phone, '+905551112233');
+
+  const createdManager = await request(app)
+    .post('/api/v1/admin/venue-managers')
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({
+      username: `sorumlu-${marker}`,
+      password: 'Manager-Test-2026!',
+      venueId: venue.id,
+      status: 'ACTIVE',
+    });
+  assert.equal(createdManager.status, 201);
+  managerId = createdManager.body.data.id as string;
+  await prisma.user.update({
+    where: { id: managerId },
+    data: {
+      mustChangePassword: false,
+      temporaryPasswordExpiresAt: null,
+      passwordChangedAt: new Date(),
+    },
+  });
+  const managerToken = `${marker}-manager-token`;
+  const managerCsrfToken = `${marker}-manager-csrf`;
+  await prisma.authSession.create({
+    data: {
+      tokenHash: hashToken(managerToken),
+      csrfTokenHash: hashToken(managerCsrfToken),
+      userId: managerId,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    },
+  });
+  const managerCookie = `${env.SESSION_COOKIE_NAME}=${managerToken}`;
+  const managerAuthCookie = `${managerCookie}; ${CSRF_COOKIE_NAME}=${managerCsrfToken}`;
+  const secondaryVenue = await prisma.venue.create({
+    data: { slug: `other-${marker}`, name: `Diğer Salon ${marker}` },
+  });
+  secondaryVenueId = secondaryVenue.id;
+  const foreignStaff = await prisma.staff.create({
+    data: {
+      firstName: 'Başka',
+      lastName: 'Salon',
+      phone: '+905559990011',
+      specialties: ['VIDEO'],
+      venueId: secondaryVenue.id,
+    },
+  });
+  staffIds.push(foreignStaff.id);
+
+  const venueOperationsDashboard = await request(app)
+    .get('/api/v1/operations/dashboard')
+    .set('Cookie', managerCookie);
+  assert.equal(venueOperationsDashboard.status, 200);
+  assert.equal(venueOperationsDashboard.body.data.venue.id, venue.id);
+  const operationsWeddingUpdate = await request(app)
+    .patch(`/api/v1/operations/weddings/${wedding.id}`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', managerAuthCookie)
+    .set('X-CSRF-Token', managerCsrfToken)
+    .send({
+      weddingDate,
+      startTime: '20:00',
+      endTime: '02:00',
+      endsNextDay: true,
+      note: 'Salon sorumlusu operasyon notu',
+    });
+  assert.equal(operationsWeddingUpdate.status, 200);
+  const applicationAfterOperationsUpdate = await prisma.bookingApplication.findUniqueOrThrow({
+    where: { id: wedding.applicationId },
+  });
+  assert.equal(applicationAfterOperationsUpdate.note, 'Salon sorumlusu operasyon notu');
+  const operationsStaff = await request(app)
+    .get('/api/v1/operations/staff')
+    .set('Cookie', managerCookie);
+  assert.equal(operationsStaff.status, 200);
+  assert.equal(
+    operationsStaff.body.data.some(
+      (staff: { id: string }) => staff.id === createdStaff.body.data.id,
+    ),
+    true,
+  );
+  assert.equal(
+    operationsStaff.body.data.some((staff: { id: string }) => staff.id === foreignStaff.id),
+    false,
+  );
+  const updatedOwnStaff = await request(app)
+    .patch(`/api/v1/operations/staff/${createdStaff.body.data.id}`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', managerAuthCookie)
+    .set('X-CSRF-Token', managerCsrfToken)
+    .send({ firstName: 'Denizcan' });
+  assert.equal(updatedOwnStaff.status, 200);
+  const rejectedForeignStaff = await request(app)
+    .patch(`/api/v1/operations/staff/${foreignStaff.id}`)
+    .set('Cookie', managerAuthCookie)
+    .set('X-CSRF-Token', managerCsrfToken)
+    .send({ firstName: 'Erişilmemeli' });
+  assert.equal(rejectedForeignStaff.status, 404);
 
   const invalidStaff = await request(app)
     .post('/api/v1/admin/staff')

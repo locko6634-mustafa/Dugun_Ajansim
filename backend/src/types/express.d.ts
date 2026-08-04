@@ -10,6 +10,7 @@ declare global {
         role: UserRole;
         sessionId: string;
         mustChangePassword: boolean;
+        venueId: string | null;
       };
     }
   }

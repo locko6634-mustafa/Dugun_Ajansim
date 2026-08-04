@@ -154,13 +154,57 @@ export const staffBodySchema = z
     lastName: personNameSchema,
     phone: phoneSchema,
     specialties: z.array(staffSpecialtySchema).min(1).max(7),
-    isActive: z.boolean().default(true)
+    isActive: z.boolean().default(true),
+    venueId: z.string().uuid()
   })
   .strict();
 
 export const staffUpdateBodySchema = staffBodySchema
   .partial()
   .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+
+export const venueStaffBodySchema = staffBodySchema.omit({ venueId: true });
+export const venueStaffUpdateBodySchema = venueStaffBodySchema
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+
+export const venueManagerBodySchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9][a-z0-9._-]{2,39}$/),
+    password: strongPasswordSchema,
+    venueId: z.string().uuid(),
+    status: z.enum(["ACTIVE", "DISABLED"]).default("ACTIVE")
+  })
+  .strict();
+
+export const venueManagerUpdateBodySchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9][a-z0-9._-]{2,39}$/)
+      .optional(),
+    password: strongPasswordSchema.optional(),
+    venueId: z.string().uuid().optional(),
+    status: z.enum(["ACTIVE", "DISABLED"]).optional()
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+
+export const operationalWeddingUpdateBodySchema = z
+  .object({
+    weddingDate: dateSchema,
+    startTime: timeSchema,
+    endTime: timeSchema,
+    endsNextDay: z.boolean(),
+    note: z.string().trim().max(2_000).optional().or(z.literal(""))
+  })
+  .strict();
 
 export const assignmentBodySchema = z
   .object({

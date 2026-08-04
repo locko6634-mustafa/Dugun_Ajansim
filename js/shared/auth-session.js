@@ -35,7 +35,7 @@ export function getRoleLabel(role) {
   const labels = {
     ADMIN: "Admin Paneli",
     MUSTERI: "Müşteri Paneli",
-    SALON_YETKILISI: "Operasyon Paneli"
+    SALON_YETKILISI: "Salon Sorumlusu Paneli"
   };
   return labels[role] || "Hesabım";
 }

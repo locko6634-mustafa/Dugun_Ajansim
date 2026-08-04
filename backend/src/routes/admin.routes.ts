@@ -25,6 +25,8 @@ import {
   staffBodySchema,
   staffUpdateBodySchema,
   uuidParamsSchema,
+  venueManagerBodySchema,
+  venueManagerUpdateBodySchema,
   weddingUpdateBodySchema
 } from "../schemas/api.schemas.js";
 import {
@@ -545,6 +547,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const staff = await prisma.staff.findMany({
       include: {
+        venue: { select: { id: true, name: true } },
         assignments: {
           where: { wedding: { cancelledAt: null, deletedAt: null, endsAt: { gt: new Date() } } },
           select: {
@@ -686,6 +689,156 @@ router.delete(
 );
 
 router.get(
+  "/venue-managers",
+  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
+  asyncHandler(async (req, res) => {
+    const managers = await prisma.user.findMany({
+      where: { role: "SALON_YETKILISI" },
+      select: {
+        id: true,
+        username: true,
+        status: true,
+        mustChangePassword: true,
+        lastLoginAt: true,
+        createdAt: true,
+        venue: { select: { id: true, name: true } }
+      },
+      orderBy: [{ status: "asc" }, { username: "asc" }]
+    });
+    res.json({ success: true, data: managers, correlationId: req.correlationId });
+  })
+);
+
+router.post(
+  "/venue-managers",
+  verifyCsrf,
+  validateRequest(
+    z.object({ body: venueManagerBodySchema, query: emptyQuery, params: z.object({}) })
+  ),
+  asyncHandler(async (req, res) => {
+    const venue = await prisma.venue.findUnique({
+      where: { id: req.body.venueId },
+      select: { id: true }
+    });
+    if (!venue) throw new AppError("Salon bulunamadı.", 404);
+    try {
+      const passwordHash = await hashPassword(req.body.password);
+      const manager = await prisma.$transaction(async (transaction) => {
+        const created = await transaction.user.create({
+          data: {
+            username: req.body.username,
+            passwordHash,
+            role: "SALON_YETKILISI",
+            status: req.body.status,
+            venueId: req.body.venueId,
+            mustChangePassword: true,
+            temporaryPasswordExpiresAt: createTemporaryPasswordExpiry(
+              env.TEMPORARY_PASSWORD_TTL_HOURS
+            )
+          },
+          select: {
+            id: true,
+            username: true,
+            status: true,
+            mustChangePassword: true,
+            venue: { select: { id: true, name: true } }
+          }
+        });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "venue_manager.created",
+          targetType: "User",
+          targetId: created.id,
+          correlationId: req.correlationId,
+          metadata: { venueId: req.body.venueId }
+        });
+        return created;
+      });
+      res.status(201).json({ success: true, data: manager, correlationId: req.correlationId });
+    } catch (error) {
+      if (isPrismaError(error, "P2002"))
+        throw new AppError("Bu kullanıcı adı zaten kullanılıyor.", 409);
+      throw error;
+    }
+  })
+);
+
+router.patch(
+  "/venue-managers/:id",
+  verifyCsrf,
+  validateRequest(
+    z.object({ body: venueManagerUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema })
+  ),
+  asyncHandler(async (req, res) => {
+    if (req.body.venueId) {
+      const venue = await prisma.venue.findUnique({
+        where: { id: req.body.venueId },
+        select: { id: true }
+      });
+      if (!venue) throw new AppError("Salon bulunamadı.", 404);
+    }
+    const passwordHash = req.body.password ? await hashPassword(req.body.password) : undefined;
+    try {
+      const manager = await prisma.$transaction(async (transaction) => {
+        const current = await transaction.user.findFirst({
+          where: { id: req.params.id, role: "SALON_YETKILISI" }
+        });
+        if (!current) throw new AppError("Salon sorumlusu bulunamadı.", 404);
+        const updated = await transaction.user.update({
+          where: { id: current.id },
+          data: {
+            ...(req.body.username ? { username: req.body.username } : {}),
+            ...(req.body.venueId ? { venueId: req.body.venueId } : {}),
+            ...(req.body.status ? { status: req.body.status } : {}),
+            ...(passwordHash
+              ? {
+                  passwordHash,
+                  mustChangePassword: true,
+                  passwordChangedAt: null,
+                  temporaryPasswordExpiresAt: createTemporaryPasswordExpiry(
+                    env.TEMPORARY_PASSWORD_TTL_HOURS
+                  )
+                }
+              : {})
+          },
+          select: {
+            id: true,
+            username: true,
+            status: true,
+            mustChangePassword: true,
+            venue: { select: { id: true, name: true } }
+          }
+        });
+        if (passwordHash || req.body.status === "DISABLED") {
+          await transaction.authSession.updateMany({
+            where: { userId: current.id, revokedAt: null },
+            data: { revokedAt: new Date() }
+          });
+        }
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "venue_manager.updated",
+          targetType: "User",
+          targetId: updated.id,
+          correlationId: req.correlationId,
+          metadata: {
+            venueId: updated.venue?.id,
+            passwordReset: Boolean(passwordHash),
+            status: updated.status
+          }
+        });
+        return updated;
+      });
+      res.json({ success: true, data: manager, correlationId: req.correlationId });
+    } catch (error) {
+      if (isPrismaError(error, "P2002"))
+        throw new AppError("Bu kullanıcı adı zaten kullanılıyor.", 409);
+      throw error;
+    }
+  })
+);
+
+router.get(
   "/weddings",
   validateRequest(z.object({ body: emptyBody, query: archivedQuerySchema, params: z.object({}) })),
   asyncHandler(async (req, res) => {
@@ -765,6 +918,7 @@ router.get(
 
     const availableStaff = await prisma.staff.findMany({
       where: {
+        venueId: wedding.venueId,
         isActive: true,
         assignments: {
           none: {
@@ -954,6 +1108,9 @@ router.post(
         if (!wedding || wedding.cancelledAt || wedding.deletedAt)
           throw new AppError("Düğün kaydı bulunamadı.", 404);
         if (!staff || !staff.isActive) throw new AppError("Aktif personel bulunamadı.", 404);
+        if (staff.venueId !== wedding.venueId) {
+          throw new AppError("Personel bu düğünün salon ekibinde değil.", 400);
+        }
         if (!staff.specialties.includes(req.body.specialty)) {
           throw new AppError("Seçilen görev personelin uzmanlıkları arasında değil.", 400);
         }

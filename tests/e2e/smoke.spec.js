@@ -519,6 +519,106 @@ test("oturum acilmis kullanici anasayfada role uygun paneli ve cikis butonunu go
   }
 });
 
+test("salon sorumlusu yalniz kendi salon takvimi ve ekibini yonetir", async ({ page }) => {
+  const venueId = "de305d54-75b4-431b-adb2-eb6b9e546014";
+  const staffId = "2bb5d7fd-232f-4a96-a56a-92d93b669f21";
+  const wedding = {
+    id: "6ae9f9e6-6217-4b6c-91ea-251be3bb6fc1",
+    venueId,
+    brideFirstName: "Ayşe",
+    brideLastName: "Yılmaz",
+    bridePhone: "+905551234567",
+    groomFirstName: "Mehmet",
+    groomLastName: "Demir",
+    groomPhone: "+905559876543",
+    startsAt: "2026-08-10T17:00:00.000Z",
+    endsAt: "2026-08-10T23:00:00.000Z",
+    note: "Giriş çekimi 18.30",
+    venue: { id: venueId, name: "Cess Wedding" },
+    packageSummary: { name: "Mini Paket" },
+    assignments: []
+  };
+  const staff = {
+    id: staffId,
+    venueId,
+    firstName: "Cem",
+    lastName: "Arslan",
+    phone: "+905551110101",
+    specialties: ["PHOTOGRAPHY", "DRONE"],
+    isActive: true,
+    assignments: []
+  };
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          role: "SALON_YETKILISI",
+          mustChangePassword: false,
+          username: "cess-sorumlu",
+          venueId
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/operations/dashboard**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          venue: { id: venueId, name: "Cess Wedding" },
+          today: "2026-08-10",
+          weekStart: "2026-08-10",
+          weekEnd: "2026-08-16",
+          metrics: { todayWeddings: 1, weekWeddings: 1, activeStaff: 1, unassignedWeddings: 1 },
+          todayWeddings: [wedding],
+          weekWeddings: [wedding],
+          idleStaff: [staff],
+          conflicts: []
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/operations/calendar**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          venue: { id: venueId, name: "Cess Wedding" },
+          month: "2026-08",
+          today: "2026-08-10",
+          weddings: [wedding]
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/operations/staff", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [staff] })
+    })
+  );
+
+  await page.goto("/operasyon-paneli.html");
+  await expect(page.locator(".js-venue-name")).toContainText("Cess Wedding");
+  await expect(page.locator('[data-metric="todayWeddings"]')).toHaveText("1");
+  await page.locator('[data-panel="calendar"]:visible').first().click();
+  await expect(page.locator(".calendar-event")).toContainText("Ayşe & Mehmet");
+  await page.locator('[data-panel="staff"]:visible').first().click();
+  await expect(page.locator(".js-staff")).toContainText("Cem Arslan");
+  await page.locator(".js-add-staff").click();
+  await expect(page.locator(".js-staff-dialog")).toBeVisible();
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(overflow).toBe(false);
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
+});
+
 test("oturum acilmis kullanici login.html sayfasina gittiginde otomatik panele yonlendirilir", async ({
   page
 }) => {
