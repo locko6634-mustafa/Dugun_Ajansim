@@ -508,21 +508,6 @@ document.addEventListener("keydown", (e) => {
     weddingDialog?.close();
     staffDialog?.close();
   }
-  const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
-  if (["input", "textarea", "select"].includes(activeTag)) return;
-
-  if (e.key >= "1" && e.key <= "4") {
-    const panels = ["overview", "calendar", "weddings", "staff"];
-    const targetPanel = panels[parseInt(e.key, 10) - 1];
-    if (targetPanel) {
-      e.preventDefault();
-      activatePanel(targetPanel);
-    }
-  } else if (e.key === "/") {
-    e.preventDefault();
-    const searchInput = document.querySelector(".js-wedding-search");
-    searchInput?.focus();
-  }
 });
 
 function updateOpsBadges(metrics) {

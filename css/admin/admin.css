@@ -1646,27 +1646,6 @@ dialog {
   align-items: center;
   justify-content: center;
 }
-.quick-kbd-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  background: var(--surface-strong);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ink-soft);
-}
-.kbd-hint {
-  display: inline-block;
-  margin-left: auto;
-  padding: 2px 6px;
-  background: hsl(0 0% 100% / 0.15);
-  border-radius: 4px;
-  font-size: 10px;
-  font-family: monospace;
-  color: hsl(42 25% 88%);
-}
 .nav-badge {
   display: inline-flex;
   align-items: center;
@@ -1700,9 +1679,6 @@ dialog {
     transform: translateX(0) !important;
     box-shadow: 0 0 50px rgb(0, 0, 0, 0.7) !important;
     background: var(--ink) !important;
-  }
-  .quick-kbd-badge {
-    display: none;
   }
 }
 

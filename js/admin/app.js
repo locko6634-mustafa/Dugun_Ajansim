@@ -1381,40 +1381,6 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     sidebar?.classList.remove("is-open");
   }
-  const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
-  if (["input", "textarea", "select"].includes(activeTag)) return;
-
-  if (e.key >= "1" && e.key <= "9") {
-    const panels = [
-      "overview",
-      "plan",
-      "calendar",
-      "applications",
-      "weddings",
-      "staff",
-      "messages",
-      "catalog",
-      "managers"
-    ];
-    const targetPanel = panels[parseInt(e.key, 10) - 1];
-    if (targetPanel) {
-      e.preventDefault();
-      activatePanel(targetPanel);
-    }
-  } else if (e.key === "/") {
-    e.preventDefault();
-    const activePanel = document
-      .querySelector(".admin-panel.is-active")
-      ?.getAttribute("data-panel-content");
-    let searchInput = null;
-    if (activePanel === "applications")
-      searchInput = document.querySelector(".js-application-reference");
-    else if (activePanel === "weddings") searchInput = document.querySelector(".js-wedding-search");
-    else if (activePanel === "staff") searchInput = document.querySelector(".js-staff-search");
-
-    if (!searchInput) searchInput = document.querySelector("input[type='search']:not([hidden])");
-    searchInput?.focus();
-  }
 });
 
 function updateNavBadges(metrics) {
