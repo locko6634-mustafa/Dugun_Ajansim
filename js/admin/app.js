@@ -533,7 +533,7 @@ function renderCatalogRows(container, rows, type) {
   container.innerHTML = rows
     .map(
       (item) =>
-        `<div class="catalog-row" data-catalog-row="${item.id}" data-catalog-type="${type}"><div class="catalog-name"><input aria-label="${escapeHtml(item.name)} adı" type="text" value="${escapeHtml(item.name)}" /><small>${escapeHtml(item.code)}</small></div><input aria-label="${escapeHtml(item.name)} fiyatı" type="number" min="0" step="100" value="${item.priceCents / 100}" /><label><input type="checkbox" ${item.isActive ? "checked" : ""} /> Aktif</label><button class="mini-button" type="button" data-save-catalog="${item.id}">Kaydet</button></div>`
+        `<article class="catalog-row" data-catalog-row="${item.id}" data-catalog-type="${type}"><div class="catalog-name"><label>Hizmet adı<input aria-label="${escapeHtml(item.name)} adı" type="text" value="${escapeHtml(item.name)}" /></label><small>${escapeHtml(item.code)}</small></div><label class="catalog-price">Fiyat<span><b aria-hidden="true">₺</b><input aria-label="${escapeHtml(item.name)} fiyatı" type="number" min="0" step="100" value="${item.priceCents / 100}" /></span></label><label class="catalog-status"><input type="checkbox" ${item.isActive ? "checked" : ""} /><span><strong>Yayında</strong><small>${item.isActive ? "Müşterilere açık" : "Gizli"}</small></span></label><button class="mini-button catalog-save" type="button" data-save-catalog="${item.id}">Kaydet <span aria-hidden="true">→</span></button></article>`
     )
     .join("");
 }

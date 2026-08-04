@@ -30,6 +30,7 @@ Runtime rolü şema oluşturamaz/değiştiremez; mevcut tablolarda gereken okuma
 oturum temizliği için silme yetkisine sahiptir. Rol hazırlama adımı her dağıtımda idempotent
 çalışır ve yeni migration nesneleri için default privilege kurallarını yeniden doğrular.
 
+
 `edge_proxy` ağı yalnız Traefik ile bu uygulamanın frontend/backend container'larını içermelidir.
 Traefik'e bu ağda sabit bir IP verin, aynı kesin IP'yi `TRUST_PROXY` olarak kullanın ve Traefik
 `forwardedHeaders.insecure` ayarını etkinleştirmeyin. Sayısal `TRUST_PROXY=1` kullanımı, ağa
