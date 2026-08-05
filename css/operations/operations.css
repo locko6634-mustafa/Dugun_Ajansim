@@ -452,31 +452,71 @@ p {
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
-.calendar-day.is-outside {
-  background: var(--paper);
-  color: var(--ink-soft);
+.calendar-day__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
-.calendar-day.is-today > b {
+.calendar-day__number {
   display: grid;
   width: 26px;
   height: 26px;
   place-items: center;
   border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+}
+.calendar-day__weekday {
+  display: none;
+  color: var(--ink-soft);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.calendar-events {
+  display: grid;
+  gap: 5px;
+}
+.calendar-day.is-outside {
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+.calendar-day.is-today .calendar-day__number {
   background: var(--ink);
   color: white;
 }
 .calendar-event {
   display: block;
   width: 100%;
-  margin-top: 8px;
   padding: 7px;
   border: 0;
+  border-left: 3px solid var(--olive);
   border-radius: 8px;
   background: var(--olive-pale);
-  color: var(--olive);
-  font-size: 9px;
+  color: var(--ink);
   text-align: left;
   cursor: pointer;
+}
+.calendar-event.is-unassigned {
+  border-left-color: var(--clay);
+  background: var(--clay-pale);
+}
+.calendar-event time,
+.calendar-event strong,
+.calendar-event small {
+  display: block;
+}
+.calendar-event time,
+.calendar-event small {
+  color: var(--ink-soft);
+  font-size: 8px;
+}
+.calendar-event strong {
+  margin: 3px 0;
+  font-size: 10px;
+}
+.calendar-mobile-empty {
+  display: none;
 }
 .search-input {
   min-height: 42px;
@@ -794,7 +834,9 @@ body.sidebar-open {
   }
 }
 
-@media (max-width: 680px) {
+/* The sidebar becomes a drawer at 900px, so the content must reflow at the
+   same point instead of retaining a desktop gutter on compact tablets. */
+@media (max-width: 900px) {
   .ops-main {
     margin-left: 0;
     padding: 20px 16px 36px;
@@ -836,11 +878,58 @@ body.sidebar-open {
     grid-column: 1 / -1;
   }
   .calendar-shell {
-    overflow-x: auto;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
-  .calendar-weekdays,
+  .calendar-weekdays {
+    display: none;
+  }
   .month-grid {
-    width: 770px;
+    grid-template-columns: 1fr;
+    gap: 9px;
+    overflow: visible;
+  }
+  .calendar-day {
+    display: grid;
+    min-height: 0;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+  }
+  .calendar-day.is-empty,
+  .calendar-day.is-outside {
+    display: none;
+  }
+  .calendar-day__head {
+    align-content: start;
+    align-items: flex-start;
+    justify-content: flex-start;
+    margin: 0;
+    flex-direction: column;
+  }
+  .calendar-day__number {
+    width: auto;
+    height: auto;
+    justify-content: start;
+    border-radius: 0;
+    font-family: Inter, Manrope, sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+  }
+  .calendar-day.is-today .calendar-day__number {
+    background: transparent;
+    color: var(--olive);
+  }
+  .calendar-day__weekday {
+    display: block;
+  }
+  .calendar-mobile-empty:not([hidden]) {
+    display: block;
   }
   .wedding-card {
     grid-template-columns: 56px 1fr;
@@ -995,4 +1084,226 @@ h6,
   border-radius: 6px;
   background: var(--surface-strong);
   color: var(--ink);
+}
+
+/* Compact field workflow for phones: clear hierarchy, dense data, no tiny
+   labels or desktop-sized cards. */
+@media (max-width: 560px) {
+  :root {
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+  }
+
+  .ops-main {
+    padding-top: 16px;
+    padding-bottom: 32px;
+  }
+
+  .ops-topbar {
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .topbar-brand-wrap {
+    min-width: 0;
+    gap: 10px;
+  }
+
+  .mobile-toggle-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .kicker {
+    margin-bottom: 4px;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+  }
+
+  h1 {
+    font-size: clamp(25px, 7.6vw, 28px);
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .account-chip {
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+    padding: 3px;
+  }
+
+  .account-chip > span {
+    width: 32px;
+    height: 32px;
+  }
+
+  .account-chip > div {
+    display: none;
+  }
+
+  .metric-ribbon {
+    margin-bottom: 18px;
+  }
+
+  .metric-ribbon article {
+    min-height: 78px;
+    padding: 13px 14px;
+  }
+
+  .metric-ribbon span {
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
+  .metric-ribbon strong {
+    font-size: 27px;
+    line-height: 1;
+  }
+
+  .flow-stage,
+  .week-stage,
+  .team-rail section {
+    padding: 16px;
+    border-radius: var(--radius-md);
+  }
+
+  .week-stage {
+    margin-top: 16px;
+  }
+
+  .section-heading {
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .section-heading h2 {
+    font-size: clamp(22px, 6.5vw, 25px);
+    line-height: 1.12;
+  }
+
+  .section-index {
+    margin-bottom: 5px;
+    font-size: 9px;
+    letter-spacing: 0.13em;
+  }
+
+  .event-card {
+    gap: 10px;
+    padding: 12px 0;
+  }
+
+  .event-card time {
+    font-size: 13px;
+  }
+
+  .event-card small {
+    margin-top: 3px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .event-card button,
+  .mini-button,
+  .pager button {
+    min-height: 36px;
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+
+  .name-cloud,
+  .crew-line {
+    gap: 5px;
+  }
+
+  .name-cloud span,
+  .tag,
+  .crew-line .tag {
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+
+  .week-grid {
+    grid-template-columns: repeat(7, minmax(76vw, 1fr));
+    padding-bottom: 10px;
+  }
+
+  .week-day {
+    min-height: 250px;
+    padding: 14px;
+  }
+
+  .week-item {
+    padding: 10px;
+  }
+
+  .week-item strong,
+  .week-item small {
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .calendar-day {
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .calendar-day__number {
+    font-size: 24px;
+  }
+
+  .calendar-event {
+    padding: 8px;
+  }
+
+  .calendar-event time,
+  .calendar-event small {
+    font-size: 10px;
+  }
+
+  .calendar-event strong {
+    font-size: 12px;
+  }
+
+  .wedding-list,
+  .staff-grid {
+    gap: 10px;
+  }
+
+  .wedding-card {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .wedding-card .date-tile {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+
+  .wedding-card .date-tile strong,
+  .wedding-card .date-tile small {
+    margin: 0;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .wedding-card .date-tile strong {
+    font-size: 24px;
+  }
+
+  .wedding-card p,
+  .wedding-card small {
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
+  .search-input,
+  .primary-button,
+  .secondary-button {
+    min-height: 40px;
+  }
 }

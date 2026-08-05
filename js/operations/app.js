@@ -175,9 +175,11 @@ function renderCalendar(data) {
   }).format(new Date(Date.UTC(year, month - 1, 1)));
   const first = new Date(Date.UTC(year, month - 1, 1, 12));
   const leading = (first.getUTCDay() + 6) % 7;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const cellCount = leading + daysInMonth <= 35 ? 35 : 42;
   const gridStart = new Date(first);
   gridStart.setUTCDate(1 - leading);
-  const cells = Array.from({ length: 42 }, (_, index) => {
+  const cells = Array.from({ length: cellCount }, (_, index) => {
     const probe = new Date(gridStart);
     probe.setUTCDate(gridStart.getUTCDate() + index);
     return probe.toISOString().slice(0, 10);
@@ -185,14 +187,18 @@ function renderCalendar(data) {
   document.querySelector(".js-calendar").innerHTML = cells
     .map((day) => {
       const events = data.weddings.filter((wedding) => dateKey(wedding.startsAt) === day);
-      return `<article class="calendar-day ${day.slice(0, 7) !== data.month ? "is-outside" : ""} ${day === data.today ? "is-today" : ""}"><b>${Number(day.slice(8))}</b>${events
+      const date = new Date(`${day}T12:00:00.000Z`);
+      const outside = day.slice(0, 7) !== data.month;
+      const weekday = new Intl.DateTimeFormat("tr-TR", { weekday: "short" }).format(date);
+      return `<article class="calendar-day ${outside ? "is-outside" : ""} ${events.length ? "" : "is-empty"} ${day === data.today ? "is-today" : ""}"><div class="calendar-day__head"><span class="calendar-day__number">${date.getUTCDate()}</span><span class="calendar-day__weekday">${escapeHtml(weekday)}</span></div><div class="calendar-events">${events
         .map(
           (wedding) =>
-            `<button class="calendar-event" type="button" data-open-wedding="${wedding.id}">${formatTime(wedding.startsAt)} · ${escapeHtml(couple(wedding))}</button>`
+            `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${wedding.id}"><time>${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)}</time><strong>${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
         )
-        .join("")}</article>`;
+        .join("")}</div></article>`;
     })
     .join("");
+  document.querySelector(".js-calendar-empty").hidden = data.weddings.length > 0;
 }
 
 async function loadCalendar(month = state.calendarMonth) {

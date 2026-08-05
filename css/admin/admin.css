@@ -2597,6 +2597,19 @@ h6,
     font-size: 26px;
   }
 
+  .admin-main .wedding-card .date-tile {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .admin-main .wedding-card .date-tile strong,
+  .admin-main .wedding-card .date-tile span {
+    line-height: 1;
+    white-space: nowrap;
+  }
+
   .admin-main .wedding-card h3,
   .admin-main .staff-card h3 {
     font-size: 18px;
