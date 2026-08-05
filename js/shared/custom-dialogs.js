@@ -178,8 +178,8 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
         ? "Paket Bilgilerini Düzenle"
         : "Ek Hizmet Bilgilerini Düzenle"
       : isPackage
-      ? "Yeni Paket Ekle"
-      : "Yeni Ek Hizmet Ekle");
+        ? "Yeni Paket Ekle"
+        : "Yeni Ek Hizmet Ekle");
 
   const categories = [
     { value: "experience", label: "Deneyim / Organizasyon" },
@@ -206,11 +206,14 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
 
   const currentCode = initialData?.code || "";
   const currentName = initialData?.name || "";
-  const currentPrice = initialData?.priceCents ? initialData.priceCents / 100 : initialData?.price || 0;
+  const currentPrice = initialData?.priceCents
+    ? initialData.priceCents / 100
+    : initialData?.price || 0;
   const currentEyebrow = initialData?.eyebrow || "";
   const currentDescription = initialData?.description || "";
   const currentImagePath = initialData?.imagePath || "";
-  const currentIsActive = initialData?.isActive !== undefined ? Boolean(initialData.isActive) : true;
+  const currentIsActive =
+    initialData?.isActive !== undefined ? Boolean(initialData.isActive) : true;
 
   dialog.innerHTML = `
     <form class="form-shell custom-dialog-shell" method="dialog" style="max-width: 620px;">
@@ -340,7 +343,8 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
       const isActive = activeCheckbox ? activeCheckbox.checked : true;
 
       if (!code || !name || !Number.isFinite(priceVal) || priceVal < 0) {
-        if (errorEl) errorEl.textContent = "Lütfen zorunlu alanları (Kod, Ad, Fiyat) doğru doldurun.";
+        if (errorEl)
+          errorEl.textContent = "Lütfen zorunlu alanları (Kod, Ad, Fiyat) doğru doldurun.";
         return;
       }
 
@@ -358,7 +362,6 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
     };
   });
 }
-
 
 const escapeHtml = (value) =>
   String(value ?? "")

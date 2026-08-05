@@ -1267,7 +1267,9 @@ document
           method: "PATCH",
           body: {
             name: row.querySelector('input[type="text"]')?.value.trim(),
-            priceCents: Math.round(Number(row.querySelector('input[type="number"]')?.value || 0) * 100),
+            priceCents: Math.round(
+              Number(row.querySelector('input[type="number"]')?.value || 0) * 100
+            ),
             isActive: row.querySelector('input[type="checkbox"]')?.checked ?? true
           }
         });
@@ -1310,7 +1312,8 @@ document.querySelectorAll("[data-add-catalog]").forEach((button) => {
     });
     if (!formData) return;
 
-    const { code, name, priceCents, category, eyebrow, imagePath, description, isActive } = formData;
+    const { code, name, priceCents, category, eyebrow, imagePath, description, isActive } =
+      formData;
     const body =
       type === "packages"
         ? { code, name, priceCents, imagePath, description, isActive }

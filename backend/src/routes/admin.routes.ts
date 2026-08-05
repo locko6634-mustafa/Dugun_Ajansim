@@ -1721,42 +1721,45 @@ const catalogRoutes = (
     asyncHandler(async (req, res) => {
       let row;
       try {
+        const id = req.params.id;
+        const isReferenced =
+          path === "packages"
+            ? (await prisma.bookingApplication.count({ where: { packageId: id } })) > 0
+            : (await prisma.bookingApplicationService.count({ where: { serviceId: id } })) > 0;
+
         row = await prisma.$transaction(async (transaction) => {
-          try {
-            const deletedRow =
+          if (isReferenced) {
+            const deactivated =
               path === "packages"
-                ? await transaction.package.delete({ where: { id: req.params.id } })
-                : await transaction.service.delete({ where: { id: req.params.id } });
+                ? await transaction.package.update({
+                    where: { id },
+                    data: { isActive: false }
+                  })
+                : await transaction.service.update({
+                    where: { id },
+                    data: { isActive: false }
+                  });
+            await createAudit(transaction, {
+              actorUserId: req.auth!.userId,
+              action: `${actionPrefix}.deactivated`,
+              targetType,
+              targetId: deactivated.id,
+              correlationId: req.correlationId
+            });
+            return deactivated;
+          } else {
+            const deleted =
+              path === "packages"
+                ? await transaction.package.delete({ where: { id } })
+                : await transaction.service.delete({ where: { id } });
             await createAudit(transaction, {
               actorUserId: req.auth!.userId,
               action: `${actionPrefix}.deleted`,
               targetType,
-              targetId: req.params.id,
+              targetId: id,
               correlationId: req.correlationId
             });
-            return { ...deletedRow, isActive: false };
-          } catch (deleteError) {
-            if (isPrismaError(deleteError, "P2003")) {
-              const deactivated =
-                path === "packages"
-                  ? await transaction.package.update({
-                      where: { id: req.params.id },
-                      data: { isActive: false }
-                    })
-                  : await transaction.service.update({
-                      where: { id: req.params.id },
-                      data: { isActive: false }
-                    });
-              await createAudit(transaction, {
-                actorUserId: req.auth!.userId,
-                action: `${actionPrefix}.deactivated`,
-                targetType,
-                targetId: deactivated.id,
-                correlationId: req.correlationId
-              });
-              return deactivated;
-            }
-            throw deleteError;
+            return { ...deleted, isActive: false };
           }
         });
       } catch (error) {
