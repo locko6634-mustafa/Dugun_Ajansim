@@ -1777,3 +1777,96 @@ h6,
   background: var(--surface-strong);
   color: var(--ink);
 }
+
+/* Custom Modern Dialog & Modal Styling */
+.custom-modal-dialog {
+  width: min(540px, calc(100% - 32px));
+  max-height: calc(100vh - 32px);
+  border-radius: var(--radius-lg, 16px);
+  box-shadow:
+    0 24px 48px -12px rgb(0 0 0 / 40%),
+    0 0 0 1px rgb(255 255 255 / 8%);
+}
+.custom-modal-dialog::backdrop {
+  background: hsl(72 12% 8% / 65%);
+  backdrop-filter: blur(8px);
+}
+.custom-dialog-shell {
+  padding: clamp(20px, 4vw, 32px);
+}
+.custom-dialog-badge {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--clay, #c9935a);
+}
+.custom-badge--danger {
+  color: #ef4444 !important;
+}
+.custom-badge--warning {
+  color: #f59e0b !important;
+}
+.custom-dialog-title {
+  margin-top: 4px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink, #fff);
+}
+.custom-dialog-body {
+  margin-top: 18px;
+}
+.custom-dialog-message {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--ink-soft, #a1a1aa);
+  white-space: pre-wrap;
+}
+.custom-dialog-label {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+.custom-dialog-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line, rgb(255 255 255 / 15%));
+  background: var(--surface, rgb(255 255 255 / 4%));
+  color: var(--ink, #fff);
+  font-size: 14px;
+  outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.custom-dialog-input:focus {
+  border-color: var(--clay, #c9935a);
+  box-shadow: 0 0 0 3px rgb(201 147 90 / 20%);
+}
+.custom-catalog-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 20px;
+}
+.custom-catalog-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+.custom-catalog-grid input,
+.custom-catalog-grid select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13.5px;
+}

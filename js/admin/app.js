@@ -1,4 +1,9 @@
 import { apiRequest } from "../shared/api-client.js";
+import {
+  showCustomConfirm,
+  showCustomPrompt,
+  showCatalogFormModal
+} from "../shared/custom-dialogs.js";
 
 const SPECIALTIES = {
   PHOTOGRAPHY: "Fotoğraf",
@@ -762,7 +767,15 @@ document.querySelector(".js-applications").addEventListener("click", async (even
       });
       setMessage("Başvuru onaylandı; düğün ve teslimat planı oluşturuldu.", true);
     } else if (rejectButton) {
-      const reason = window.prompt("Red nedenini yazın:");
+      const reason = await showCustomPrompt({
+        title: "Başvuruyu Reddet",
+        message: "Lütfen başvuru sahibine iletilecek red nedenini belirtin.",
+        placeholder: "Örn: Seçilen tarihte ajansımız doludur...",
+        confirmText: "Reddet",
+        cancelText: "Vazgeç",
+        isDanger: true,
+        required: true
+      });
       if (!reason) return;
       await apiRequest(`/admin/booking-applications/${rejectButton.dataset.reject}/reject`, {
         method: "POST",
@@ -859,8 +872,14 @@ detailContent.addEventListener("submit", async (event) => {
     const summary = conflicts
       .map((wedding) => `${coupleName(wedding)} (${formatDate(wedding.startsAt, true)})`)
       .join("\n");
-    if (!window.confirm(`Personelin çakışan görevi var:\n${summary}\n\nYine de atansın mı?`))
-      return;
+    const confirmed = await showCustomConfirm({
+      title: "Çakışan Görev Uyarısı",
+      message: `Personelin çakışan görevi var:\n${summary}\n\nYine de atansın mı?`,
+      confirmText: "Yine de Atansın",
+      cancelText: "Vazgeç",
+      isWarning: true
+    });
+    if (!confirmed) return;
     await apiRequest(`/admin/weddings/${state.currentWedding.id}/assignments`, {
       method: "POST",
       body: { ...body, allowConflict: true }
@@ -897,18 +916,25 @@ detailContent.addEventListener("click", async (event) => {
       });
       setMessage("Teslimat bilgileri kaydedildi.", true);
     } else if (deliverButton) {
-      if (
-        !window.confirm(
-          "Drive bağlantısını müşteriye açıp teslim mesajını hazırlamak istiyor musunuz?"
-        )
-      )
-        return;
+      const confirmed = await showCustomConfirm({
+        title: "Teslimatı Onayla ve Bildir",
+        message: "Drive bağlantısını müşteriye açıp teslim mesajını hazırlamak istiyor musunuz?",
+        confirmText: "Teslim Et",
+        cancelText: "Vazgeç"
+      });
+      if (!confirmed) return;
       await apiRequest(`/admin/deliveries/${deliverButton.dataset.deliver}/deliver`, {
         method: "POST"
       });
       setMessage("Teslimat müşteriye açıldı ve mesaj görevi oluşturuldu.", true);
     } else if (resetButton) {
-      if (!window.confirm("Müşteri için yeni geçici parola hazırlansın mı?")) return;
+      const confirmed = await showCustomConfirm({
+        title: "Geçici Parola Oluştur",
+        message: "Müşteri için yeni geçici parola hazırlansın mı?",
+        confirmText: "Parola Hazırla",
+        cancelText: "Vazgeç"
+      });
+      if (!confirmed) return;
       const response = await apiRequest(
         `/admin/customers/${resetButton.dataset.resetUser}/reset-password`,
         { method: "POST" }
@@ -1195,17 +1221,20 @@ document
 document.querySelectorAll("[data-add-catalog]").forEach((button) => {
   button.addEventListener("click", async () => {
     const type = button.dataset.addCatalog;
-    const code = window.prompt("Benzersiz kısa kod:")?.trim();
-    const name = code ? window.prompt("Görünen ad:")?.trim() : "";
-    const price = name ? Number(window.prompt("Fiyat (TL):", "0")) : Number.NaN;
-    if (!code || !name || !Number.isFinite(price) || price < 0) return;
+    const formData = await showCatalogFormModal({
+      type,
+      title: type === "packages" ? "Yeni Paket Oluştur" : "Yeni Ek Hizmet Oluştur"
+    });
+    if (!formData) return;
+
+    const { code, name, price, category } = formData;
     const body =
       type === "packages"
         ? { code, name, priceCents: Math.round(price * 100), isActive: true }
         : {
             code,
             name,
-            category: window.prompt("Kategori:", "experience")?.trim() || "experience",
+            category,
             priceCents: Math.round(price * 100),
             isActive: true
           };
