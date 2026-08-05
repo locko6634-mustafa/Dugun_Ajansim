@@ -136,7 +136,7 @@ document.addEventListener("click", (event) => {
       }
       try {
         window.history.pushState(null, "", `#${targetId}`);
-      } catch (_) {}
+      } catch {}
       setActiveNav(targetId);
       isManualClick = true;
       clearTimeout(manualClickTimer);

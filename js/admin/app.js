@@ -941,29 +941,29 @@ function renderCatalogRows(container, rows, type) {
         .join(" • ");
 
       return `
-        <article class="catalog-row" data-catalog-row="${item.id}" data-catalog-type="${type}" data-catalog-name="${escapeHtml(item.name)}" style="display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--color-border, #eee);">
-          <div class="catalog-thumb" style="width: 56px; height: 56px; border-radius: 8px; overflow: hidden; background: #f3f4f6; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.08);">
+        <article class="catalog-row" data-catalog-row="${item.id}" data-catalog-type="${type}" data-catalog-name="${escapeHtml(item.name)}">
+          <div class="catalog-thumb">
             <img src="${escapeHtml(img)}" alt="${escapeHtml(item.name)}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='assets/images/hero-couple.webp'" />
           </div>
-          <div class="catalog-info" style="flex: 1; min-width: 150px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <strong style="font-size: 15px; color: var(--color-text, #111);">${escapeHtml(item.name)}</strong>
-              <span class="status-dot ${item.isActive ? "status-dot--active" : "status-dot--disabled"}" style="font-size: 11px; padding: 2px 8px; border-radius: 12px; background: ${item.isActive ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)"}; color: ${item.isActive ? "#10b981" : "#ef4444"}; font-weight: 600;">
+          <div class="catalog-info">
+            <div class="catalog-title-row">
+              <strong class="catalog-title">${escapeHtml(item.name)}</strong>
+              <span class="catalog-status-badge ${item.isActive ? "catalog-status-badge--active" : "catalog-status-badge--disabled"}">
                 ${item.isActive ? "Yayında" : "Gizli"}
               </span>
             </div>
-            <small style="display: block; color: var(--color-muted, #666); font-size: 12px; margin-top: 2px;">${subInfo}</small>
+            <small class="catalog-subinfo">${subInfo}</small>
             ${
               item.description
-                ? `<p style="margin: 4px 0 0 0; font-size: 12px; color: var(--color-subtext, #555); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4;">${escapeHtml(item.description)}</p>`
-                : `<p style="margin: 4px 0 0 0; font-size: 11px; color: var(--color-muted, #aaa); italic;">Açıklama belirtilmemiş.</p>`
+                ? `<p class="catalog-desc">${escapeHtml(item.description)}</p>`
+                : `<p class="catalog-desc catalog-desc--empty">Açıklama belirtilmemiş.</p>`
             }
           </div>
-          <div class="catalog-price" style="text-align: right; min-width: 90px; flex-shrink: 0;">
-            <small style="display: block; color: var(--color-muted, #777); font-size: 11px;">Fiyat</small>
-            <strong style="font-size: 16px; color: var(--color-primary, #b89354);">₺${priceFormatted}</strong>
+          <div class="catalog-price">
+            <small>Fiyat</small>
+            <strong>₺${priceFormatted}</strong>
           </div>
-          <div class="catalog-actions" style="display: flex; gap: 6px; flex-shrink: 0;">
+          <div class="catalog-actions">
             <button class="mini-button mini-button--primary catalog-edit" type="button" data-edit-catalog="${item.id}">Düzenle</button>
             <button class="mini-button mini-button--danger catalog-delete" type="button" data-delete-catalog="${item.id}">Sil</button>
           </div>
