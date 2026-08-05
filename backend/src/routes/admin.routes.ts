@@ -125,6 +125,9 @@ const throwCatalogError = (error: unknown): never => {
   if (isPrismaError(error, "P2025")) {
     throw new AppError("Katalog kaydı bulunamadı.", 404);
   }
+  if (isPrismaError(error, "P2003")) {
+    throw new AppError("Bu katalog kaydı ilişkili veriler tarafından kullanıldığı için silinemez.", 409);
+  }
   throw error;
 };
 
@@ -1748,18 +1751,42 @@ const catalogRoutes = (
             });
             return deactivated;
           } else {
-            const deleted =
-              path === "packages"
-                ? await transaction.package.delete({ where: { id } })
-                : await transaction.service.delete({ where: { id } });
-            await createAudit(transaction, {
-              actorUserId: req.auth!.userId,
-              action: `${actionPrefix}.deleted`,
-              targetType,
-              targetId: id,
-              correlationId: req.correlationId
-            });
-            return { ...deleted, isActive: false };
+            try {
+              const deleted =
+                path === "packages"
+                  ? await transaction.package.delete({ where: { id } })
+                  : await transaction.service.delete({ where: { id } });
+              await createAudit(transaction, {
+                actorUserId: req.auth!.userId,
+                action: `${actionPrefix}.deleted`,
+                targetType,
+                targetId: id,
+                correlationId: req.correlationId
+              });
+              return { ...deleted, isActive: false };
+            } catch (err) {
+              if (isPrismaError(err, "P2003")) {
+                const deactivated =
+                  path === "packages"
+                    ? await transaction.package.update({
+                        where: { id },
+                        data: { isActive: false }
+                      })
+                    : await transaction.service.update({
+                        where: { id },
+                        data: { isActive: false }
+                      });
+                await createAudit(transaction, {
+                  actorUserId: req.auth!.userId,
+                  action: `${actionPrefix}.deactivated`,
+                  targetType,
+                  targetId: deactivated.id,
+                  correlationId: req.correlationId
+                });
+                return deactivated;
+              }
+              throw err;
+            }
           }
         });
       } catch (error) {
