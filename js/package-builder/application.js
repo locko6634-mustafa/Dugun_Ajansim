@@ -528,7 +528,9 @@ const venueSelect = document.querySelector(".js-venue-select");
 const weddingDateInput = document.querySelector(".js-wedding-date");
 const startTimeInput = checkoutForm ? checkoutForm.querySelector('input[name="startTime"]') : null;
 const endTimeInput = checkoutForm ? checkoutForm.querySelector('input[name="endTime"]') : null;
-const endsNextDayCheckbox = checkoutForm ? checkoutForm.querySelector('input[name="endsNextDay"]') : null;
+const endsNextDayCheckbox = checkoutForm
+  ? checkoutForm.querySelector('input[name="endsNextDay"]')
+  : null;
 const dateHint = document.querySelector(".js-date-hint");
 const availabilityBanner = document.querySelector(".js-availability-banner");
 
@@ -583,9 +585,7 @@ function renderAvailabilityBanner() {
     return;
   }
 
-  const slotsText = currentOccupiedSlots
-    .map((s) => `${s.startTime} - ${s.endTime}`)
-    .join(", ");
+  const slotsText = currentOccupiedSlots.map((s) => `${s.startTime} - ${s.endTime}`).join(", ");
 
   availabilityBanner.innerHTML = `
     <div class="availability-banner__warning">

@@ -350,7 +350,10 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   );
   await assert.rejects(
     createBookingApplication(
-      { ...applicationInput, brideFirstName: 'Farkli' },
+      {
+        ...applicationInput,
+        brideFirstName: 'Farkli',
+      },
       {
         source: 'PUBLIC_FORM',
         idempotencyKey: `${marker}-idempotent`,
@@ -363,9 +366,29 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       (error as { statusCode: number }).statusCode === 409,
   );
 
+  // Aynı salon ve saat aralığında çakışan başvuru reddedilmelidir (400 Bad Request)
+  await assert.rejects(
+    createBookingApplication(
+      {
+        ...applicationInput,
+        primaryEmail: `cakisan-${marker}@example.com`,
+      },
+      {
+        source: 'PUBLIC_FORM',
+        idempotencyKey: `${marker}-conflicting-test`,
+        correlationId,
+      },
+    ),
+    (error: unknown) =>
+      error instanceof Error &&
+      'statusCode' in error &&
+      (error as { statusCode: number }).statusCode === 400,
+  );
+
   const secondApplication = await createBookingApplication(
     {
       ...applicationInput,
+      weddingDate: addCalendarDays(weddingDate, 1),
       brideFirstName: 'Elif',
       groomFirstName: 'Can',
       primaryEmail: `iki-${marker}@example.com`,
@@ -381,6 +404,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const retryApplication = await createBookingApplication(
     {
       ...applicationInput,
+      weddingDate: addCalendarDays(weddingDate, 2),
       brideFirstName: 'Derya',
       groomFirstName: 'Mert',
       primaryEmail: `retry-${marker}@example.com`,
@@ -1122,4 +1146,11 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     wedding.messageTasks.some((task) => task.secretCiphertext === temporaryPassword),
     false,
   );
+
+  const availabilityRes = await request(app).get(
+    `/api/v1/public/venues/${venue.id}/availability?date=${weddingDate}`,
+  );
+  assert.equal(availabilityRes.status, 200);
+  assert.equal(availabilityRes.body.success, true);
+  assert.ok(Array.isArray(availabilityRes.body.data.occupiedSlots));
 });
