@@ -1111,9 +1111,6 @@ router.post(
         if (!wedding || wedding.cancelledAt || wedding.deletedAt)
           throw new AppError("Düğün kaydı bulunamadı.", 404);
         if (!staff || !staff.isActive) throw new AppError("Aktif personel bulunamadı.", 404);
-        if (staff.venueId !== wedding.venueId) {
-          throw new AppError("Personel bu düğünün salon ekibinde değil.", 400);
-        }
         if (!staff.specialties.includes(req.body.specialty)) {
           throw new AppError("Seçilen görev personelin uzmanlıkları arasında değil.", 400);
         }
