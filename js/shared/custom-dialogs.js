@@ -210,13 +210,21 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
     ? initialData.priceCents / 100
     : initialData?.price || 0;
   const currentEyebrow = initialData?.eyebrow || "";
+  const currentSubtitle = initialData?.subtitle || "";
+  const currentDelivery = initialData?.deliveryText || initialData?.delivery || "";
   const currentDescription = initialData?.description || "";
   const currentImagePath = initialData?.imagePath || "";
+  const currentFeatures = Array.isArray(initialData?.features)
+    ? initialData.features.join("\n")
+    : initialData?.features || "";
+  const currentGallery = Array.isArray(initialData?.gallery)
+    ? initialData.gallery.join("\n")
+    : initialData?.gallery || "";
   const currentIsActive =
     initialData?.isActive !== undefined ? Boolean(initialData.isActive) : true;
 
   dialog.innerHTML = `
-    <form class="form-shell custom-dialog-shell" method="dialog" style="max-width: 620px;">
+    <form class="form-shell custom-dialog-shell" method="dialog" style="max-width: 680px; max-height: 85vh; overflow-y: auto;">
       <div class="sheet-heading">
         <div>
           <p class="section-index custom-dialog-badge">${isEdit ? "DÜZENLEME MODU" : "YENİ KAYIT"}</p>
@@ -232,7 +240,7 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
           )}" ${isEdit ? "readonly style='opacity:0.75; cursor:not-allowed;'" : "required"} />
         </label>
         <label>
-          Görünen Ad *
+          Görünen Ad / Başlık *
           <input class="js-catalog-name" type="text" placeholder="Örn: Premium Düğün Paketi" value="${escapeHtml(
             currentName
           )}" required />
@@ -242,24 +250,36 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
           <input class="js-catalog-price" type="number" min="0" step="50" placeholder="0" value="${currentPrice}" required />
         </label>
         ${
-          !isPackage
+          isPackage
             ? `
+        <label>
+          Alt Başlık / Etiket
+          <input class="js-catalog-subtitle" type="text" placeholder="Örn: Temel çekim paketi" value="${escapeHtml(
+            currentSubtitle
+          )}" />
+        </label>`
+            : `
         <label>
           Kategori *
           <select class="js-catalog-category">
             ${categoryOptions}
           </select>
         </label>
-        <label class="wide">
+        <label>
           Üst Başlık (Eyebrow / Rozet)
-          <input class="js-catalog-eyebrow" type="text" placeholder="Örn: POPÜLER SEÇİM veya ÖZEL EKSTRA" value="${escapeHtml(
+          <input class="js-catalog-eyebrow" type="text" placeholder="Örn: ZAMANSIZ KARELER" value="${escapeHtml(
             currentEyebrow
           )}" />
         </label>`
-            : ""
         }
         <label class="wide">
-          Görsel Yolu / URL
+          Teslim Süresi Metni
+          <input class="js-catalog-delivery" type="text" placeholder="${
+            isPackage ? "Örn: En geç 21 takvim gününde dijital teslim" : "Örn: En geç 21 iş günü"
+          }" value="${escapeHtml(currentDelivery)}" />
+        </label>
+        <label class="wide">
+          Ana Görsel Yolu / URL
           <input class="js-catalog-image" type="text" placeholder="Örn: assets/images/hero-couple.webp" value="${escapeHtml(
             currentImagePath
           )}" />
@@ -273,10 +293,27 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
               .join("")}
           </small>
         </label>
+        ${
+          !isPackage
+            ? `
         <label class="wide">
-          Açıklama Metni
-          <textarea class="js-catalog-description" rows="3" placeholder="Özellikler, dahil olan hizmetler veya detaylar...">${escapeHtml(
+          Ek Galeri Görselleri (Her satıra bir görsel yolu)
+          <textarea class="js-catalog-gallery" rows="2" placeholder="assets/images/story-1.webp&#10;assets/images/story-2.webp">${escapeHtml(
+            currentGallery
+          )}</textarea>
+        </label>`
+            : ""
+        }
+        <label class="wide">
+          Genel Açıklama Metni
+          <textarea class="js-catalog-description" rows="3" placeholder="Hazırlık telaşından son dansa kadar günün gerçek duygusunu doğal, estetik ve zamansız karelerle anlatıyoruz...">${escapeHtml(
             currentDescription
+          )}</textarea>
+        </label>
+        <label class="wide">
+          Özellik Maddeleri (Tikli Liste - Her satıra bir madde yazın)
+          <textarea class="js-catalog-features" rows="4" placeholder="Hazırlık, tören ve davet boyunca profesyonel fotoğraf çekimi&#10;Gelin-damat, aile ve yakın çevre portreleri&#10;Doğal anlara odaklanan belgesel çekim yaklaşımı&#10;Seçilen karelerde renk, ışık ve rötuş düzenlemesi">${escapeHtml(
+            currentFeatures
           )}</textarea>
         </label>
         <label class="switch-row wide">
@@ -300,8 +337,12 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
     const priceInput = dialog.querySelector(".js-catalog-price");
     const categorySelect = dialog.querySelector(".js-catalog-category");
     const eyebrowInput = dialog.querySelector(".js-catalog-eyebrow");
+    const subtitleInput = dialog.querySelector(".js-catalog-subtitle");
+    const deliveryInput = dialog.querySelector(".js-catalog-delivery");
     const imageInput = dialog.querySelector(".js-catalog-image");
+    const galleryInput = dialog.querySelector(".js-catalog-gallery");
     const descriptionInput = dialog.querySelector(".js-catalog-description");
+    const featuresInput = dialog.querySelector(".js-catalog-features");
     const activeCheckbox = dialog.querySelector(".js-catalog-active");
     const errorEl = dialog.querySelector(".js-dialog-error");
     const cancelButtons = dialog.querySelectorAll(".js-dialog-cancel");
@@ -338,8 +379,22 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
       const priceVal = priceInput ? Number(priceInput.value) : Number.NaN;
       const category = categorySelect ? categorySelect.value : "experience";
       const eyebrow = eyebrowInput ? eyebrowInput.value.trim() : undefined;
+      const subtitle = subtitleInput ? subtitleInput.value.trim() : undefined;
+      const deliveryText = deliveryInput ? deliveryInput.value.trim() : undefined;
       const imagePath = imageInput ? imageInput.value.trim() : undefined;
       const description = descriptionInput ? descriptionInput.value.trim() : undefined;
+      const features = featuresInput
+        ? featuresInput.value
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
+      const gallery = galleryInput
+        ? galleryInput.value
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
       const isActive = activeCheckbox ? activeCheckbox.checked : true;
 
       if (!code || !name || !Number.isFinite(priceVal) || priceVal < 0) {
@@ -355,8 +410,13 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
         priceCents: Math.round(priceVal * 100),
         category,
         eyebrow,
+        subtitle,
+        deliveryText,
+        delivery: deliveryText,
         imagePath,
         description,
+        features,
+        gallery,
         isActive
       });
     };

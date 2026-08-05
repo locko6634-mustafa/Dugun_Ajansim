@@ -150,9 +150,12 @@ model Package {
   id           String               @id @default(uuid())
   code         String               @unique
   name         String
+  subtitle     String?
   description  String?
   imagePath    String?
   priceCents   Int
+  deliveryText String?
+  features     String[]             @default([])
   isActive     Boolean              @default(true)
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
@@ -171,6 +174,9 @@ model Service {
   description String?
   imagePath   String?
   priceCents  Int
+  delivery    String?
+  features    String[]                    @default([])
+  gallery     String[]                    @default([])
   isActive    Boolean                     @default(true)
   createdAt   DateTime                    @default(now())
   updatedAt   DateTime                    @updatedAt

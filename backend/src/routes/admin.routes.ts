@@ -1635,13 +1635,13 @@ router.post(
 
 const catalogRoutes = (
   path: "packages" | "services",
-  schema: typeof packageBodySchema | typeof serviceBodySchema
+  schema: z.ZodObject<any>
 ) => {
   const targetType = path === "packages" ? "Package" : "Service";
   const actionPrefix = path === "packages" ? "package" : "service";
   const partialSchema = schema
     .partial()
-    .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+    .refine((value: Record<string, unknown>) => Object.keys(value).length > 0, "En az bir alan gönderin.");
 
   router.get(
     `/${path}`,

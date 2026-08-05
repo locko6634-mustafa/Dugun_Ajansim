@@ -100,9 +100,12 @@ export const packageBodySchema = z
   .object({
     code: codeSchema.regex(/^[a-z0-9-]+$/),
     name: nameSchema,
-    description: z.string().trim().max(1_000).optional().nullable(),
+    subtitle: z.string().trim().max(200).optional().nullable(),
+    description: z.string().trim().max(2_000).optional().nullable(),
     imagePath: z.string().trim().max(500).optional().nullable(),
     priceCents: z.number().int().min(0).max(100_000_000),
+    deliveryText: z.string().trim().max(200).optional().nullable(),
+    features: z.array(z.string().trim().max(500)).optional().default([]),
     isActive: z.boolean().default(true)
   })
   .strict();
@@ -116,6 +119,9 @@ export const serviceBodySchema = z
     description: z.string().trim().max(2_000).optional().nullable(),
     imagePath: z.string().trim().max(500).optional().nullable(),
     priceCents: z.number().int().min(0).max(100_000_000),
+    delivery: z.string().trim().max(200).optional().nullable(),
+    features: z.array(z.string().trim().max(500)).optional().default([]),
+    gallery: z.array(z.string().trim().max(500)).optional().default([]),
     isActive: z.boolean().default(true)
   })
   .strict();

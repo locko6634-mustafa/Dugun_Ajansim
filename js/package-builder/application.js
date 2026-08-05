@@ -114,12 +114,12 @@ function renderBasePackages(packages) {
           </span>
           <span class="base-package__body">
             <span class="base-package__topline">
-              <span><small>Temel çekim paketi</small><strong>${escapeHtml(item.name)}</strong></span>
+              <span><small>${escapeHtml(item.subtitle || "Temel çekim paketi")}</small><strong>${escapeHtml(item.name)}</strong></span>
               <b>${formatPrice(item.priceCents / 100)}</b>
             </span>
             <span class="base-package__features">
               <span>${escapeHtml(item.description || "Düğün gününüze özel profesyonel çekim planı")}</span>
-              <span>En geç 21 takvim gününde dijital teslim</span>
+              <span>${escapeHtml(item.deliveryText || "En geç 21 takvim gününde dijital teslim")}</span>
             </span>
           </span>
         </label>`
@@ -142,6 +142,9 @@ async function hydrateRemoteData() {
       basePackages[item.code] = {
         ...current,
         name: item.name,
+        subtitle: item.subtitle || current.subtitle,
+        description: item.description || current.description,
+        deliveryText: item.deliveryText || current.deliveryText,
         price: item.priceCents / 100,
         image: item.imagePath || current.image || "assets/images/hero-couple.webp"
       };
@@ -150,6 +153,15 @@ async function hydrateRemoteData() {
 
     catalogResponse.data.services.forEach((item) => {
       const current = services.find((service) => service.id === item.code);
+      const parsedFeatures =
+        Array.isArray(item.features) && item.features.length > 0
+          ? item.features
+          : current?.features || [];
+      const parsedGallery =
+        Array.isArray(item.gallery) && item.gallery.length > 0
+          ? item.gallery
+          : current?.gallery || [item.imagePath || "assets/images/hero-couple.webp"];
+
       if (current) {
         Object.assign(current, {
           category: item.category,
@@ -157,7 +169,10 @@ async function hydrateRemoteData() {
           eyebrow: item.eyebrow || current.eyebrow,
           price: item.priceCents / 100,
           image: item.imagePath || current.image,
-          description: item.description || current.description
+          description: item.description || current.description,
+          delivery: item.delivery || current.delivery,
+          features: parsedFeatures,
+          gallery: parsedGallery
         });
       } else {
         services.push({
@@ -167,10 +182,10 @@ async function hydrateRemoteData() {
           eyebrow: item.eyebrow || "Ek Hizmet",
           price: item.priceCents / 100,
           image: item.imagePath || "assets/images/hero-couple.webp",
-          gallery: [item.imagePath || "assets/images/hero-couple.webp"],
+          gallery: parsedGallery,
           description: item.description || "Düğününüze özel olarak planlanan ek hizmet.",
-          features: [],
-          delivery: "Paket teslim planına göre"
+          features: parsedFeatures,
+          delivery: item.delivery || "Paket teslim planına göre"
         });
       }
     });

@@ -1243,11 +1243,17 @@ document
         priceCents: formData.priceCents,
         imagePath: formData.imagePath,
         description: formData.description,
+        features: formData.features,
         isActive: formData.isActive
       };
-      if (type === "services") {
+      if (type === "packages") {
+        body.subtitle = formData.subtitle;
+        body.deliveryText = formData.deliveryText;
+      } else {
         body.category = formData.category;
         body.eyebrow = formData.eyebrow;
+        body.delivery = formData.delivery;
+        body.gallery = formData.gallery;
       }
 
       try {
@@ -1312,12 +1318,25 @@ document.querySelectorAll("[data-add-catalog]").forEach((button) => {
     });
     if (!formData) return;
 
-    const { code, name, priceCents, category, eyebrow, imagePath, description, isActive } =
-      formData;
+    const {
+      code,
+      name,
+      priceCents,
+      category,
+      eyebrow,
+      subtitle,
+      deliveryText,
+      delivery,
+      imagePath,
+      description,
+      features,
+      gallery,
+      isActive
+    } = formData;
     const body =
       type === "packages"
-        ? { code, name, priceCents, imagePath, description, isActive }
-        : { code, name, category, eyebrow, priceCents, imagePath, description, isActive };
+        ? { code, name, priceCents, subtitle, deliveryText, imagePath, description, features, isActive }
+        : { code, name, category, eyebrow, priceCents, delivery, imagePath, description, features, gallery, isActive };
 
     try {
       await apiRequest(`/admin/${type}`, { method: "POST", body });
