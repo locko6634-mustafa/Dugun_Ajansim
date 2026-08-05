@@ -83,7 +83,7 @@ function requestDangerConfirmation(
   return new Promise((resolve) => {
     const done = (accepted) => {
       dangerDialog.removeEventListener("close", closed);
-      resolve(accepted ? input.value.trim() : null);
+      resolve(accepted ? input.value.trim() || true : null);
       dangerTrigger?.focus();
       dangerTrigger = null;
     };
@@ -1197,14 +1197,14 @@ document
       const row = deleteButton.closest("[data-catalog-row]");
       const typeLabel = row.dataset.catalogType === "packages" ? "Temel paketi" : "Ek hizmeti";
       const name = row.dataset.catalogName || "Katalog kaydı";
-      const accepted = await requestDangerConfirmation(
-        {
-          title: `${typeLabel} sil`,
-          copy: `"${name}" seçeneğini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`,
-          button: "Sil"
-        },
-        deleteButton
-      );
+      const accepted = await showCustomConfirm({
+        title: `${typeLabel} Sil`,
+        message: `"${name}" seçeneğini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`,
+        badge: "SİLME ONAYI",
+        confirmText: "Sil",
+        cancelText: "Vazgeç",
+        isDanger: true
+      });
       if (!accepted) return;
       try {
         await apiRequest(`/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`, {
