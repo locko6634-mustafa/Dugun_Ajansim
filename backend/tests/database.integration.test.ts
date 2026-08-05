@@ -226,7 +226,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const correlationId = `integration-${marker}`;
   const weddingDate = addCalendarDays(getIstanbulDate(new Date()), 30);
   let venueId: string | undefined;
-  let secondaryVenueId: string | undefined;
+  const secondaryVenueIds: string[] = [];
   let adminId: string | undefined;
   let managerId: string | undefined;
   const staffIds: string[] = [];
@@ -250,7 +250,9 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     await prisma.bookingApplication.deleteMany({ where: { id: { in: applicationIds } } });
     await prisma.package.deleteMany({ where: { code: { contains: marker } } });
     if (managerId) await prisma.user.deleteMany({ where: { id: managerId } });
-    if (secondaryVenueId) await prisma.venue.deleteMany({ where: { id: secondaryVenueId } });
+    if (secondaryVenueIds.length > 0) {
+      await prisma.venue.deleteMany({ where: { id: { in: secondaryVenueIds } } });
+    }
     if (venueId) await prisma.venue.deleteMany({ where: { id: venueId } });
     if (adminId) await prisma.user.deleteMany({ where: { id: adminId } });
   });
@@ -262,7 +264,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const secondVenue = await prisma.venue.create({
     data: { slug: `${marker}-second`, name: `Test Salonu İki ${marker}` },
   });
-  secondaryVenueId = secondVenue.id;
+  secondaryVenueIds.push(secondVenue.id);
   const packageRecord = await prisma.package.create({
     data: {
       code: marker,
@@ -727,7 +729,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const secondaryVenue = await prisma.venue.create({
     data: { slug: `other-${marker}`, name: `Diğer Salon ${marker}` },
   });
-  secondaryVenueId = secondaryVenue.id;
+  secondaryVenueIds.push(secondaryVenue.id);
   const foreignStaff = await prisma.staff.create({
     data: {
       firstName: 'Başka',
@@ -744,6 +746,20 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set('Cookie', managerCookie);
   assert.equal(venueOperationsDashboard.status, 200);
   assert.equal(venueOperationsDashboard.body.data.venue.id, venue.id);
+  const operationsScheduleConflict = await request(app)
+    .patch(`/api/v1/operations/weddings/${wedding.id}`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', managerAuthCookie)
+    .set('X-CSRF-Token', managerCsrfToken)
+    .send({
+      weddingDate: addCalendarDays(weddingDate, 2),
+      startTime: '20:00',
+      endTime: '02:00',
+      endsNextDay: true,
+      note: 'Çakışan salon sorumlusu güncellemesi',
+    });
+  assert.equal(operationsScheduleConflict.status, 409);
+  assert.equal(operationsScheduleConflict.body.errors.code, 'VENUE_SCHEDULE_CONFLICT');
   const operationsWeddingUpdate = await request(app)
     .patch(`/api/v1/operations/weddings/${wedding.id}`)
     .set('X-Correlation-ID', correlationId)
@@ -946,6 +962,54 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     await prisma.user.findUniqueOrThrow({ where: { id: wedding.customerUserId } })
   ).passwordHash;
   const updatedWeddingDate = addCalendarDays(weddingDate, 1);
+  const adminScheduleConflict = await request(app)
+    .patch(`/api/v1/admin/weddings/${wedding.id}`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({
+      brideFirstName: wedding.brideFirstName,
+      brideLastName: wedding.brideLastName,
+      bridePhone: wedding.bridePhone,
+      groomFirstName: wedding.groomFirstName,
+      groomLastName: wedding.groomLastName,
+      groomPhone: wedding.groomPhone,
+      primaryContact: wedding.primaryContact,
+      primaryEmail: wedding.primaryEmail,
+      weddingDate,
+      startTime: '20:00',
+      endTime: '02:00',
+      endsNextDay: true,
+      venueId: secondVenue.id,
+      note: wedding.note ?? '',
+    });
+  assert.equal(adminScheduleConflict.status, 409);
+  assert.equal(adminScheduleConflict.body.errors.code, 'VENUE_SCHEDULE_CONFLICT');
+
+  const adminVenueAssignmentMismatch = await request(app)
+    .patch(`/api/v1/admin/weddings/${wedding.id}`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({
+      brideFirstName: wedding.brideFirstName,
+      brideLastName: wedding.brideLastName,
+      bridePhone: wedding.bridePhone,
+      groomFirstName: wedding.groomFirstName,
+      groomLastName: wedding.groomLastName,
+      groomPhone: wedding.groomPhone,
+      primaryContact: wedding.primaryContact,
+      primaryEmail: wedding.primaryEmail,
+      weddingDate: updatedWeddingDate,
+      startTime: '20:00',
+      endTime: '02:00',
+      endsNextDay: true,
+      venueId: secondVenue.id,
+      note: wedding.note ?? '',
+    });
+  assert.equal(adminVenueAssignmentMismatch.status, 409);
+  assert.equal(adminVenueAssignmentMismatch.body.errors.code, 'VENUE_ASSIGNMENT_MISMATCH');
+
   const weddingUpdate = await request(app)
     .patch(`/api/v1/admin/weddings/${wedding.id}`)
     .set('X-Correlation-ID', correlationId)
@@ -970,6 +1034,12 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(weddingUpdate.status, 200);
   assert.equal(weddingUpdate.body.data.credentialsRegenerated, false);
   assert.equal(weddingUpdate.body.data.username, wedding.customerUser.username);
+  const applicationAfterAdminUpdate = await prisma.bookingApplication.findUniqueOrThrow({
+    where: { id: wedding.applicationId },
+  });
+  assert.equal(applicationAfterAdminUpdate.groomPhone, '+905550001122');
+  assert.equal(applicationAfterAdminUpdate.weddingStartsAt.toISOString(), weddingUpdate.body.data.startsAt);
+  assert.equal(applicationAfterAdminUpdate.venueId, wedding.venueId);
   const customerAfterWeddingUpdate = await prisma.user.findUniqueOrThrow({
     where: { id: wedding.customerUserId },
   });

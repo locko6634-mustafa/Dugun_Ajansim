@@ -31,6 +31,7 @@ import {
 } from "../schemas/api.schemas.js";
 import {
   approveBookingApplication,
+  assertVenueScheduleAvailable,
   createAudit,
   createBookingApplication,
   createUniqueCustomerUsername,
@@ -1278,6 +1279,31 @@ router.patch(
 
     const updateWedding = () =>
       prisma.$transaction(async (transaction) => {
+        await assertVenueScheduleAvailable(transaction, {
+          venueId: req.body.venueId,
+          startsAt,
+          endsAt,
+          excludeWeddingId: wedding.id,
+          excludeApplicationId: wedding.applicationId
+        });
+
+        if (req.body.venueId !== wedding.venueId) {
+          const incompatibleAssignments = await transaction.weddingAssignment.count({
+            where: {
+              weddingId: wedding.id,
+              staff: { venueId: { not: req.body.venueId } }
+            }
+          });
+          if (incompatibleAssignments > 0) {
+            throw new AppError(
+              "Salon değişmeden önce farklı salona bağlı personel atamalarını kaldırın.",
+              409,
+              true,
+              { code: "VENUE_ASSIGNMENT_MISMATCH" }
+            );
+          }
+        }
+
         const claimedWedding = await transaction.wedding.updateMany({
           where: {
             id: wedding.id,
@@ -1303,6 +1329,24 @@ router.patch(
         if (claimedWedding.count !== 1) {
           throw new AppError("Düğün kaydı başka bir işlemde güncellendi.", 409);
         }
+
+        await transaction.bookingApplication.update({
+          where: { id: wedding.applicationId },
+          data: {
+            brideFirstName: req.body.brideFirstName,
+            brideLastName: req.body.brideLastName,
+            bridePhone,
+            groomFirstName: req.body.groomFirstName,
+            groomLastName: req.body.groomLastName,
+            groomPhone,
+            primaryContact: req.body.primaryContact,
+            primaryEmail: req.body.primaryEmail,
+            weddingStartsAt: startsAt,
+            weddingEndsAt: endsAt,
+            venueId: req.body.venueId,
+            note: req.body.note || null
+          }
+        });
 
         if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
           const claimedUser = await transaction.user.updateMany({
@@ -1422,7 +1466,14 @@ router.patch(
             }
           }
         });
-      });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }).catch(
+        (error: unknown) => {
+          if (isPrismaError(error, "P2034")) {
+            throw new AppError("Düğün takvimi başka bir işlemde güncellendi. Tekrar deneyin.", 409);
+          }
+          throw error;
+        }
+      );
     const updated = regenerateCredentials
       ? await retryUsernameConflict(
           () => createUniqueCustomerUsername(req.body.brideLastName, req.body.groomLastName),

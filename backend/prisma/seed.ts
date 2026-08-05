@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import argon2 from 'argon2';
 
 const prisma = new PrismaClient();
 
@@ -92,68 +91,6 @@ const main = async () => {
     ),
   ]);
 
-  const seededVenues = await prisma.venue.findMany({
-    where: { slug: { in: ['cess-wedding', 'bella-garden'] } },
-    select: { id: true, slug: true },
-  });
-  const venueBySlug = new Map(seededVenues.map((venue) => [venue.slug, venue.id]));
-  const passwordHash = await argon2.hash('SalonMVP!2026Giris', {
-    type: argon2.argon2id,
-    memoryCost: 19_456,
-    timeCost: 2,
-    parallelism: 1,
-  });
-
-  for (const [username, venueSlug] of [
-    ['cess-sorumlu', 'cess-wedding'],
-    ['bella-sorumlu', 'bella-garden'],
-  ] as const) {
-    const venueId = venueBySlug.get(venueSlug);
-    if (!venueId) continue;
-    await prisma.user.upsert({
-      where: { username },
-      create: {
-        username,
-        passwordHash,
-        role: 'SALON_YETKILISI',
-        status: 'ACTIVE',
-        mustChangePassword: false,
-        passwordChangedAt: new Date(),
-        venueId,
-      },
-      update: {
-        passwordHash,
-        role: 'SALON_YETKILISI',
-        status: 'ACTIVE',
-        mustChangePassword: false,
-        temporaryPasswordExpiresAt: null,
-        passwordChangedAt: new Date(),
-        venueId,
-      },
-    });
-  }
-
-  for (const row of [
-    ['Cem', 'Arslan', '+905551110101', ['PHOTOGRAPHY', 'DRONE'], 'cess-wedding'],
-    ['Ece', 'Kaya', '+905551110102', ['VIDEO', 'EDITING'], 'cess-wedding'],
-    ['Baran', 'Yıldız', '+905551110201', ['PHOTOGRAPHY', 'ASSISTANT'], 'bella-garden'],
-    ['Derya', 'Akın', '+905551110202', ['VIDEO', 'ALBUM'], 'bella-garden'],
-  ] as const) {
-    const [firstName, lastName, phone, specialties, venueSlug] = row;
-    const venueId = venueBySlug.get(venueSlug);
-    if (!venueId) continue;
-    const existing = await prisma.staff.findFirst({ where: { phone } });
-    if (existing) {
-      await prisma.staff.update({
-        where: { id: existing.id },
-        data: { firstName, lastName, specialties: [...specialties], venueId, isActive: true },
-      });
-    } else {
-      await prisma.staff.create({
-        data: { firstName, lastName, phone, specialties: [...specialties], venueId },
-      });
-    }
-  }
 };
 
 main()

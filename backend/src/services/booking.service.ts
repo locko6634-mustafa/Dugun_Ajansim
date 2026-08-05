@@ -87,6 +87,53 @@ const assertIdempotencyFingerprint = (
   }
 };
 
+type VenueScheduleAvailabilityInput = {
+  venueId: string;
+  startsAt: Date;
+  endsAt: Date;
+  excludeWeddingId?: string;
+  excludeApplicationId?: string;
+};
+
+export const assertVenueScheduleAvailable = async (
+  transaction: Prisma.TransactionClient,
+  input: VenueScheduleAvailabilityInput,
+): Promise<void> => {
+  const [conflictingWedding, conflictingApplication] = await Promise.all([
+    transaction.wedding.findFirst({
+      where: {
+        venueId: input.venueId,
+        ...(input.excludeWeddingId ? { id: { not: input.excludeWeddingId } } : {}),
+        cancelledAt: null,
+        deletedAt: null,
+        startsAt: { lt: input.endsAt },
+        endsAt: { gt: input.startsAt },
+      },
+      select: { id: true },
+    }),
+    transaction.bookingApplication.findFirst({
+      where: {
+        venueId: input.venueId,
+        ...(input.excludeApplicationId ? { id: { not: input.excludeApplicationId } } : {}),
+        status: { in: ['ONAY_BEKLIYOR', 'ONAYLANDI'] },
+        deletedAt: null,
+        weddingStartsAt: { lt: input.endsAt },
+        weddingEndsAt: { gt: input.startsAt },
+      },
+      select: { id: true },
+    }),
+  ]);
+
+  if (conflictingWedding || conflictingApplication) {
+    throw new AppError(
+      'Seçilen salonda bu saat aralığında başka bir düğün veya aktif başvuru bulunuyor.',
+      409,
+      true,
+      { code: 'VENUE_SCHEDULE_CONFLICT' },
+    );
+  }
+};
+
 export const createBookingFingerprint = (
   input: BookingInput,
   source: BookingSource,

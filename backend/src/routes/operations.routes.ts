@@ -18,7 +18,10 @@ import {
   venueStaffBodySchema,
   venueStaffUpdateBodySchema
 } from "../schemas/api.schemas.js";
-import { createAudit } from "../services/booking.service.js";
+import {
+  assertVenueScheduleAvailable,
+  createAudit
+} from "../services/booking.service.js";
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import {
@@ -366,66 +369,85 @@ router.patch(
       req.body.endTime,
       req.body.endsNextDay
     );
-    const wedding = await prisma.$transaction(async (transaction) => {
-      const current = await transaction.wedding.findFirst({
-        where: { id: req.params.id, venueId, deletedAt: null, cancelledAt: null },
-        include: { delivery: true }
-      });
-      if (!current) throw new AppError("Düğün kaydı bulunamadı.", 404);
-      const dateChanged = getIstanbulDate(current.startsAt) !== req.body.weddingDate;
-      const claimed = await transaction.wedding.updateMany({
-        where: {
-          id: current.id,
-          updatedAt: current.updatedAt,
-          deletedAt: null,
-          cancelledAt: null
-        },
-        data: { startsAt: range.startsAt, endsAt: range.endsAt, note: req.body.note || null }
-      });
-      if (claimed.count !== 1) {
-        throw new AppError("Düğün kaydı başka bir işlemde güncellendi.", 409);
-      }
-      await transaction.bookingApplication.update({
-        where: { id: current.applicationId },
-        data: {
-          weddingStartsAt: range.startsAt,
-          weddingEndsAt: range.endsAt,
-          note: req.body.note || null
-        }
-      });
-      if (dateChanged) {
-        if (
-          current.delivery &&
-          current.delivery.status !== "TESLIM_EDILDI" &&
-          !current.delivery.releasedAt
-        ) {
-          await transaction.delivery.update({
-            where: { id: current.delivery.id },
+    const wedding = await prisma
+      .$transaction(
+        async (transaction) => {
+          const current = await transaction.wedding.findFirst({
+            where: { id: req.params.id, venueId, deletedAt: null, cancelledAt: null },
+            include: { delivery: true }
+          });
+          if (!current) throw new AppError("Düğün kaydı bulunamadı.", 404);
+
+          await assertVenueScheduleAvailable(transaction, {
+            venueId,
+            startsAt: range.startsAt,
+            endsAt: range.endsAt,
+            excludeWeddingId: current.id,
+            excludeApplicationId: current.applicationId
+          });
+
+          const dateChanged = getIstanbulDate(current.startsAt) !== req.body.weddingDate;
+          const claimed = await transaction.wedding.updateMany({
+            where: {
+              id: current.id,
+              updatedAt: current.updatedAt,
+              deletedAt: null,
+              cancelledAt: null
+            },
+            data: { startsAt: range.startsAt, endsAt: range.endsAt, note: req.body.note || null }
+          });
+          if (claimed.count !== 1) {
+            throw new AppError("Düğün kaydı başka bir işlemde güncellendi.", 409);
+          }
+          await transaction.bookingApplication.update({
+            where: { id: current.applicationId },
             data: {
-              dueDate: new Date(`${addCalendarDays(req.body.weddingDate, 21)}T00:00:00.000Z`)
+              weddingStartsAt: range.startsAt,
+              weddingEndsAt: range.endsAt,
+              note: req.body.note || null
             }
           });
+          if (dateChanged) {
+            if (
+              current.delivery &&
+              current.delivery.status !== "TESLIM_EDILDI" &&
+              !current.delivery.releasedAt
+            ) {
+              await transaction.delivery.update({
+                where: { id: current.delivery.id },
+                data: {
+                  dueDate: new Date(`${addCalendarDays(req.body.weddingDate, 21)}T00:00:00.000Z`)
+                }
+              });
+            }
+            await transaction.messageTask.updateMany({
+              where: {
+                weddingId: current.id,
+                kind: "PREPARATION_UPDATE",
+                status: "PENDING"
+              },
+              data: { dueAt: atIstanbulTime(addCalendarDays(req.body.weddingDate, 2), "10:00") }
+            });
+          }
+          const updated = await transaction.wedding.findUniqueOrThrow({ where: { id: current.id } });
+          await createAudit(transaction, {
+            actorUserId: req.auth!.userId,
+            action: "venue_wedding.schedule_updated",
+            targetType: "Wedding",
+            targetId: updated.id,
+            correlationId: req.correlationId,
+            metadata: { venueId, dateChanged }
+          });
+          return updated;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      )
+      .catch((error: unknown) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+          throw new AppError("Düğün takvimi başka bir işlemde güncellendi. Tekrar deneyin.", 409);
         }
-        await transaction.messageTask.updateMany({
-          where: {
-            weddingId: current.id,
-            kind: "PREPARATION_UPDATE",
-            status: "PENDING"
-          },
-          data: { dueAt: atIstanbulTime(addCalendarDays(req.body.weddingDate, 2), "10:00") }
-        });
-      }
-      const updated = await transaction.wedding.findUniqueOrThrow({ where: { id: current.id } });
-      await createAudit(transaction, {
-        actorUserId: req.auth!.userId,
-        action: "venue_wedding.schedule_updated",
-        targetType: "Wedding",
-        targetId: updated.id,
-        correlationId: req.correlationId,
-        metadata: { venueId, dateChanged }
+        throw error;
       });
-      return updated;
-    });
     res.json({ success: true, data: wedding, correlationId: req.correlationId });
   })
 );
