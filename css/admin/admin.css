@@ -944,6 +944,11 @@ button:disabled {
   padding: 16px 0;
   border-top: 1px solid var(--line);
 }
+.catalog-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .catalog-row:first-child {
   border-top: 0;
 }
@@ -1550,7 +1555,8 @@ body.sidebar-open {
   .catalog-status {
     padding-top: 0;
   }
-  .catalog-save {
+  .catalog-save,
+  .catalog-actions {
     justify-self: end;
     min-width: 0;
   }

@@ -1722,24 +1722,42 @@ const catalogRoutes = (
       let row;
       try {
         row = await prisma.$transaction(async (transaction) => {
-          const deactivated =
-            path === "packages"
-              ? await transaction.package.update({
-                  where: { id: req.params.id },
-                  data: { isActive: false }
-                })
-              : await transaction.service.update({
-                  where: { id: req.params.id },
-                  data: { isActive: false }
-                });
-          await createAudit(transaction, {
-            actorUserId: req.auth!.userId,
-            action: `${actionPrefix}.deactivated`,
-            targetType,
-            targetId: deactivated.id,
-            correlationId: req.correlationId
-          });
-          return deactivated;
+          try {
+            const deletedRow =
+              path === "packages"
+                ? await transaction.package.delete({ where: { id: req.params.id } })
+                : await transaction.service.delete({ where: { id: req.params.id } });
+            await createAudit(transaction, {
+              actorUserId: req.auth!.userId,
+              action: `${actionPrefix}.deleted`,
+              targetType,
+              targetId: req.params.id,
+              correlationId: req.correlationId
+            });
+            return { ...deletedRow, isActive: false };
+          } catch (deleteError) {
+            if (isPrismaError(deleteError, "P2003")) {
+              const deactivated =
+                path === "packages"
+                  ? await transaction.package.update({
+                      where: { id: req.params.id },
+                      data: { isActive: false }
+                    })
+                  : await transaction.service.update({
+                      where: { id: req.params.id },
+                      data: { isActive: false }
+                    });
+              await createAudit(transaction, {
+                actorUserId: req.auth!.userId,
+                action: `${actionPrefix}.deactivated`,
+                targetType,
+                targetId: deactivated.id,
+                correlationId: req.correlationId
+              });
+              return deactivated;
+            }
+            throw deleteError;
+          }
         });
       } catch (error) {
         throwCatalogError(error);

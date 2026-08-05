@@ -650,7 +650,7 @@ function renderCatalogRows(container, rows, type) {
   container.innerHTML = rows
     .map(
       (item) =>
-        `<article class="catalog-row" data-catalog-row="${item.id}" data-catalog-type="${type}"><div class="catalog-name"><label>Hizmet adı<input aria-label="${escapeHtml(item.name)} adı" type="text" value="${escapeHtml(item.name)}" /></label><small>${escapeHtml(item.code)}</small></div><label class="catalog-price">Fiyat<span><b aria-hidden="true">₺</b><input aria-label="${escapeHtml(item.name)} fiyatı" type="number" min="0" step="100" value="${item.priceCents / 100}" /></span></label><label class="catalog-status"><input type="checkbox" ${item.isActive ? "checked" : ""} /><span><strong>Yayında</strong><small>${item.isActive ? "Müşterilere açık" : "Gizli"}</small></span></label><button class="mini-button catalog-save" type="button" data-save-catalog="${item.id}">Kaydet <span aria-hidden="true">→</span></button></article>`
+        `<article class="catalog-row" data-catalog-row="${item.id}" data-catalog-type="${type}" data-catalog-name="${escapeHtml(item.name)}"><div class="catalog-name"><label>Hizmet adı<input aria-label="${escapeHtml(item.name)} adı" type="text" value="${escapeHtml(item.name)}" /></label><small>${escapeHtml(item.code)}</small></div><label class="catalog-price">Fiyat<span><b aria-hidden="true">₺</b><input aria-label="${escapeHtml(item.name)} fiyatı" type="number" min="0" step="100" value="${item.priceCents / 100}" /></span></label><label class="catalog-status"><input type="checkbox" ${item.isActive ? "checked" : ""} /><span><strong>Yayında</strong><small>${item.isActive ? "Müşterilere açık" : "Gizli"}</small></span></label><div class="catalog-actions"><button class="mini-button catalog-save" type="button" data-save-catalog="${item.id}">Kaydet <span aria-hidden="true">→</span></button><button class="mini-button mini-button--danger catalog-delete" type="button" data-delete-catalog="${item.id}">Sil</button></div></article>`
     )
     .join("");
 }
@@ -1150,21 +1150,45 @@ document.querySelector(".js-messages").addEventListener("click", async (event) =
 document
   .querySelector('[data-panel-content="catalog"]')
   .addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-save-catalog]");
-    if (!button) return;
-    const row = button.closest("[data-catalog-row]");
-    try {
-      await apiRequest(`/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`, {
-        method: "PATCH",
-        body: {
-          name: row.querySelector('input[type="text"]').value.trim(),
-          priceCents: Math.round(Number(row.querySelector('input[type="number"]').value) * 100),
-          isActive: row.querySelector('input[type="checkbox"]').checked
-        }
-      });
-      setMessage("Katalog güncellendi.", true);
-    } catch (error) {
-      setMessage(error.message);
+    const saveButton = event.target.closest("[data-save-catalog]");
+    const deleteButton = event.target.closest("[data-delete-catalog]");
+    if (saveButton) {
+      const row = saveButton.closest("[data-catalog-row]");
+      try {
+        await apiRequest(`/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`, {
+          method: "PATCH",
+          body: {
+            name: row.querySelector('input[type="text"]').value.trim(),
+            priceCents: Math.round(Number(row.querySelector('input[type="number"]').value) * 100),
+            isActive: row.querySelector('input[type="checkbox"]').checked
+          }
+        });
+        setMessage("Katalog güncellendi.", true);
+      } catch (error) {
+        setMessage(error.message);
+      }
+    } else if (deleteButton) {
+      const row = deleteButton.closest("[data-catalog-row]");
+      const typeLabel = row.dataset.catalogType === "packages" ? "Temel paketi" : "Ek hizmeti";
+      const name = row.dataset.catalogName || "Katalog kaydı";
+      const accepted = await requestDangerConfirmation(
+        {
+          title: `${typeLabel} sil`,
+          copy: `"${name}" seçeneğini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`,
+          button: "Sil"
+        },
+        deleteButton
+      );
+      if (!accepted) return;
+      try {
+        await apiRequest(`/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`, {
+          method: "DELETE"
+        });
+        await loadCatalogAdmin();
+        setMessage(`${typeLabel} silindi.`, true);
+      } catch (error) {
+        setMessage(error.message);
+      }
     }
   });
 
