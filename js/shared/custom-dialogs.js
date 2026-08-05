@@ -164,23 +164,59 @@ export function showCustomPrompt({
 /**
  * Show a form modal specifically for adding catalog packages or services
  */
-export function showCatalogFormModal({ type = "packages", title = "" } = {}) {
+/**
+ * Show a form modal specifically for adding or editing catalog packages or services
+ */
+export function showCatalogFormModal({ type = "packages", title = "", initialData = null } = {}) {
   const dialog = getOrCreateDialog();
   const isPackage = type === "packages";
-  const modalTitle = title || (isPackage ? "Yeni Paket Ekle" : "Yeni Ek Hizmet Ekle");
+  const isEdit = Boolean(initialData && initialData.id);
+  const modalTitle =
+    title ||
+    (isEdit
+      ? isPackage
+        ? "Paket Bilgilerini Düzenle"
+        : "Ek Hizmet Bilgilerini Düzenle"
+      : isPackage
+      ? "Yeni Paket Ekle"
+      : "Yeni Ek Hizmet Ekle");
 
-  const categoryOptions = `
-    <option value="experience">Deneyim / Organizasyon</option>
-    <option value="photo">Fotoğraf & Video</option>
-    <option value="production">Sinematik Prodüksiyon</option>
-    <option value="album">Albüm & Baskı</option>
-  `;
+  const categories = [
+    { value: "experience", label: "Deneyim / Organizasyon" },
+    { value: "photo", label: "Fotoğraf & Video" },
+    { value: "production", label: "Sinematik Prodüksiyon" },
+    { value: "album", label: "Albüm & Baskı" }
+  ];
+
+  const categoryOptions = categories
+    .map(
+      (cat) =>
+        `<option value="${cat.value}" ${
+          initialData?.category === cat.value ? "selected" : ""
+        }>${escapeHtml(cat.label)}</option>`
+    )
+    .join("");
+
+  const sampleImages = [
+    "assets/images/hero-couple.webp",
+    "assets/images/story-1.webp",
+    "assets/images/story-2.webp",
+    "assets/images/story-3.webp"
+  ];
+
+  const currentCode = initialData?.code || "";
+  const currentName = initialData?.name || "";
+  const currentPrice = initialData?.priceCents ? initialData.priceCents / 100 : initialData?.price || 0;
+  const currentEyebrow = initialData?.eyebrow || "";
+  const currentDescription = initialData?.description || "";
+  const currentImagePath = initialData?.imagePath || "";
+  const currentIsActive = initialData?.isActive !== undefined ? Boolean(initialData.isActive) : true;
 
   dialog.innerHTML = `
-    <form class="form-shell custom-dialog-shell" method="dialog">
+    <form class="form-shell custom-dialog-shell" method="dialog" style="max-width: 620px;">
       <div class="sheet-heading">
         <div>
-          <p class="section-index custom-dialog-badge">KATALOG GÜNCELLEME</p>
+          <p class="section-index custom-dialog-badge">${isEdit ? "DÜZENLEME MODU" : "YENİ KAYIT"}</p>
           <h2 class="custom-dialog-title">${escapeHtml(modalTitle)}</h2>
         </div>
         <button class="dialog-close js-dialog-cancel" type="button" aria-label="Kapat">×</button>
@@ -188,15 +224,19 @@ export function showCatalogFormModal({ type = "packages", title = "" } = {}) {
       <div class="form-grid custom-catalog-grid">
         <label>
           Benzersiz Kısa Kod *
-          <input class="js-catalog-code" type="text" placeholder="Örn: PKG-VIP veya EXP-DRONE" required />
+          <input class="js-catalog-code" type="text" placeholder="Örn: PKG-VIP veya EXP-DRONE" value="${escapeHtml(
+            currentCode
+          )}" ${isEdit ? "readonly style='opacity:0.75; cursor:not-allowed;'" : "required"} />
         </label>
         <label>
           Görünen Ad *
-          <input class="js-catalog-name" type="text" placeholder="Örn: Premium Düğün Paketi" required />
+          <input class="js-catalog-name" type="text" placeholder="Örn: Premium Düğün Paketi" value="${escapeHtml(
+            currentName
+          )}" required />
         </label>
         <label>
           Fiyat (TL) *
-          <input class="js-catalog-price" type="number" min="0" step="50" placeholder="0" required />
+          <input class="js-catalog-price" type="number" min="0" step="50" placeholder="0" value="${currentPrice}" required />
         </label>
         ${
           !isPackage
@@ -206,14 +246,45 @@ export function showCatalogFormModal({ type = "packages", title = "" } = {}) {
           <select class="js-catalog-category">
             ${categoryOptions}
           </select>
+        </label>
+        <label class="wide">
+          Üst Başlık (Eyebrow / Rozet)
+          <input class="js-catalog-eyebrow" type="text" placeholder="Örn: POPÜLER SEÇİM veya ÖZEL EKSTRA" value="${escapeHtml(
+            currentEyebrow
+          )}" />
         </label>`
             : ""
         }
+        <label class="wide">
+          Görsel Yolu / URL
+          <input class="js-catalog-image" type="text" placeholder="Örn: assets/images/hero-couple.webp" value="${escapeHtml(
+            currentImagePath
+          )}" />
+          <small style="margin-top: 4px; display: block; color: var(--color-muted, #666);">
+            Örnek Görseller:
+            ${sampleImages
+              .map(
+                (img) =>
+                  `<button type="button" class="mini-button js-quick-img" data-img="${img}" style="margin-left: 4px; padding: 2px 6px; font-size: 11px;">${img.split("/").pop()}</button>`
+              )
+              .join("")}
+          </small>
+        </label>
+        <label class="wide">
+          Açıklama Metni
+          <textarea class="js-catalog-description" rows="3" placeholder="Özellikler, dahil olan hizmetler veya detaylar...">${escapeHtml(
+            currentDescription
+          )}</textarea>
+        </label>
+        <label class="switch-row wide">
+          <input class="js-catalog-active" type="checkbox" ${currentIsActive ? "checked" : ""} />
+          <span><strong>Yayında / Aktif</strong> <small>Müşterilere başvuru ve paket oluşturma ekranında görünsün.</small></span>
+        </label>
       </div>
       <p class="dialog-message js-dialog-error" role="status"></p>
       <div class="dialog-actions" style="margin-top: 24px;">
         <button class="secondary-button js-dialog-cancel" type="button">Vazgeç</button>
-        <button class="primary-button js-dialog-submit" type="submit">Katalog Kaydı Oluştur</button>
+        <button class="primary-button js-dialog-submit" type="submit">${isEdit ? "Değişiklikleri Kaydet" : "Katalog Kaydı Oluştur"}</button>
       </div>
     </form>
   `;
@@ -225,10 +296,24 @@ export function showCatalogFormModal({ type = "packages", title = "" } = {}) {
     const nameInput = dialog.querySelector(".js-catalog-name");
     const priceInput = dialog.querySelector(".js-catalog-price");
     const categorySelect = dialog.querySelector(".js-catalog-category");
+    const eyebrowInput = dialog.querySelector(".js-catalog-eyebrow");
+    const imageInput = dialog.querySelector(".js-catalog-image");
+    const descriptionInput = dialog.querySelector(".js-catalog-description");
+    const activeCheckbox = dialog.querySelector(".js-catalog-active");
     const errorEl = dialog.querySelector(".js-dialog-error");
     const cancelButtons = dialog.querySelectorAll(".js-dialog-cancel");
 
-    setTimeout(() => codeInput?.focus(), 50);
+    // Quick image buttons
+    dialog.querySelectorAll(".js-quick-img").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (imageInput) imageInput.value = btn.dataset.img;
+      });
+    });
+
+    setTimeout(() => {
+      if (!isEdit && codeInput) codeInput.focus();
+      else if (nameInput) nameInput.focus();
+    }, 50);
 
     const cleanup = (value) => {
       dialog.close();
@@ -249,9 +334,13 @@ export function showCatalogFormModal({ type = "packages", title = "" } = {}) {
       const name = nameInput ? nameInput.value.trim() : "";
       const priceVal = priceInput ? Number(priceInput.value) : Number.NaN;
       const category = categorySelect ? categorySelect.value : "experience";
+      const eyebrow = eyebrowInput ? eyebrowInput.value.trim() : undefined;
+      const imagePath = imageInput ? imageInput.value.trim() : undefined;
+      const description = descriptionInput ? descriptionInput.value.trim() : undefined;
+      const isActive = activeCheckbox ? activeCheckbox.checked : true;
 
       if (!code || !name || !Number.isFinite(priceVal) || priceVal < 0) {
-        if (errorEl) errorEl.textContent = "Lütfen tüm zorunlu alanları doğru doldurun.";
+        if (errorEl) errorEl.textContent = "Lütfen zorunlu alanları (Kod, Ad, Fiyat) doğru doldurun.";
         return;
       }
 
@@ -259,11 +348,17 @@ export function showCatalogFormModal({ type = "packages", title = "" } = {}) {
         code,
         name,
         price: priceVal,
-        category
+        priceCents: Math.round(priceVal * 100),
+        category,
+        eyebrow,
+        imagePath,
+        description,
+        isActive
       });
     };
   });
 }
+
 
 const escapeHtml = (value) =>
   String(value ?? "")

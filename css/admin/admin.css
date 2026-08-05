@@ -937,12 +937,14 @@ button:disabled {
   padding: 8px 26px 18px;
 }
 .catalog-row {
-  display: grid;
-  grid-template-columns: minmax(160px, 1fr) 132px 126px auto;
-  gap: 12px;
+  display: flex;
   align-items: center;
+  gap: 16px;
   padding: 16px 0;
   border-top: 1px solid var(--line);
+}
+.catalog-thumb img {
+  border-radius: 8px;
 }
 .catalog-actions {
   display: flex;

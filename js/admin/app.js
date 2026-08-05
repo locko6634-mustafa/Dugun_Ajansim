@@ -652,11 +652,52 @@ async function loadMessages() {
 }
 
 function renderCatalogRows(container, rows, type) {
+  if (!rows || !rows.length) {
+    container.innerHTML = `<div class="empty-state" style="padding: 24px; text-align: center; color: var(--color-muted, #777); font-size: 14px;">Kayıt bulunamadı.</div>`;
+    return;
+  }
+  const isPackage = type === "packages";
   container.innerHTML = rows
-    .map(
-      (item) =>
-        `<article class="catalog-row" data-catalog-row="${item.id}" data-catalog-type="${type}" data-catalog-name="${escapeHtml(item.name)}"><div class="catalog-name"><label>Hizmet adı<input aria-label="${escapeHtml(item.name)} adı" type="text" value="${escapeHtml(item.name)}" /></label><small>${escapeHtml(item.code)}</small></div><label class="catalog-price">Fiyat<span><b aria-hidden="true">₺</b><input aria-label="${escapeHtml(item.name)} fiyatı" type="number" min="0" step="100" value="${item.priceCents / 100}" /></span></label><label class="catalog-status"><input type="checkbox" ${item.isActive ? "checked" : ""} /><span><strong>Yayında</strong><small>${item.isActive ? "Müşterilere açık" : "Gizli"}</small></span></label><div class="catalog-actions"><button class="mini-button catalog-save" type="button" data-save-catalog="${item.id}">Kaydet <span aria-hidden="true">→</span></button><button class="mini-button mini-button--danger catalog-delete" type="button" data-delete-catalog="${item.id}">Sil</button></div></article>`
-    )
+    .map((item) => {
+      const img = item.imagePath || "assets/images/hero-couple.webp";
+      const priceFormatted = (item.priceCents / 100).toLocaleString("tr-TR");
+      const subInfo = [
+        `Kod: ${escapeHtml(item.code)}`,
+        !isPackage && item.category ? `Kategori: ${escapeHtml(item.category)}` : null,
+        !isPackage && item.eyebrow ? `Rozet: ${escapeHtml(item.eyebrow)}` : null
+      ]
+        .filter(Boolean)
+        .join(" • ");
+
+      return `
+        <article class="catalog-row" data-catalog-row="${item.id}" data-catalog-type="${type}" data-catalog-name="${escapeHtml(item.name)}" style="display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--color-border, #eee);">
+          <div class="catalog-thumb" style="width: 56px; height: 56px; border-radius: 8px; overflow: hidden; background: #f3f4f6; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.08);">
+            <img src="${escapeHtml(img)}" alt="${escapeHtml(item.name)}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='assets/images/hero-couple.webp'" />
+          </div>
+          <div class="catalog-info" style="flex: 1; min-width: 150px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <strong style="font-size: 15px; color: var(--color-text, #111);">${escapeHtml(item.name)}</strong>
+              <span class="status-dot ${item.isActive ? "status-dot--active" : "status-dot--disabled"}" style="font-size: 11px; padding: 2px 8px; border-radius: 12px; background: ${item.isActive ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)"}; color: ${item.isActive ? "#10b981" : "#ef4444"}; font-weight: 600;">
+                ${item.isActive ? "Yayında" : "Gizli"}
+              </span>
+            </div>
+            <small style="display: block; color: var(--color-muted, #666); font-size: 12px; margin-top: 2px;">${subInfo}</small>
+            ${
+              item.description
+                ? `<p style="margin: 4px 0 0 0; font-size: 12px; color: var(--color-subtext, #555); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4;">${escapeHtml(item.description)}</p>`
+                : `<p style="margin: 4px 0 0 0; font-size: 11px; color: var(--color-muted, #aaa); italic;">Açıklama belirtilmemiş.</p>`
+            }
+          </div>
+          <div class="catalog-price" style="text-align: right; min-width: 90px; flex-shrink: 0;">
+            <small style="display: block; color: var(--color-muted, #777); font-size: 11px;">Fiyat</small>
+            <strong style="font-size: 16px; color: var(--color-primary, #b89354);">₺${priceFormatted}</strong>
+          </div>
+          <div class="catalog-actions" style="display: flex; gap: 6px; flex-shrink: 0;">
+            <button class="mini-button mini-button--primary catalog-edit" type="button" data-edit-catalog="${item.id}">Düzenle</button>
+            <button class="mini-button mini-button--danger catalog-delete" type="button" data-delete-catalog="${item.id}">Sil</button>
+          </div>
+        </article>`;
+    })
     .join("");
 }
 
@@ -1176,19 +1217,61 @@ document.querySelector(".js-messages").addEventListener("click", async (event) =
 document
   .querySelector('[data-panel-content="catalog"]')
   .addEventListener("click", async (event) => {
+    const editButton = event.target.closest("[data-edit-catalog]");
     const saveButton = event.target.closest("[data-save-catalog]");
     const deleteButton = event.target.closest("[data-delete-catalog]");
-    if (saveButton) {
+
+    if (editButton) {
+      const row = editButton.closest("[data-catalog-row]");
+      const type = row.dataset.catalogType;
+      const itemId = row.dataset.catalogRow;
+      const itemsList = type === "packages" ? state.packages : state.services;
+      const currentItem = itemsList.find((i) => i.id === itemId);
+
+      if (!currentItem) return;
+
+      const formData = await showCatalogFormModal({
+        type,
+        title: type === "packages" ? "Paket Bilgilerini Düzenle" : "Ek Hizmet Bilgilerini Düzenle",
+        initialData: currentItem
+      });
+
+      if (!formData) return;
+
+      const body = {
+        name: formData.name,
+        priceCents: formData.priceCents,
+        imagePath: formData.imagePath,
+        description: formData.description,
+        isActive: formData.isActive
+      };
+      if (type === "services") {
+        body.category = formData.category;
+        body.eyebrow = formData.eyebrow;
+      }
+
+      try {
+        await apiRequest(`/admin/${type}/${itemId}`, {
+          method: "PATCH",
+          body
+        });
+        await loadCatalogAdmin();
+        setMessage("Katalog kaydı başarıyla güncellendi.", true);
+      } catch (error) {
+        setMessage(error.message);
+      }
+    } else if (saveButton) {
       const row = saveButton.closest("[data-catalog-row]");
       try {
         await apiRequest(`/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`, {
           method: "PATCH",
           body: {
-            name: row.querySelector('input[type="text"]').value.trim(),
-            priceCents: Math.round(Number(row.querySelector('input[type="number"]').value) * 100),
-            isActive: row.querySelector('input[type="checkbox"]').checked
+            name: row.querySelector('input[type="text"]')?.value.trim(),
+            priceCents: Math.round(Number(row.querySelector('input[type="number"]')?.value || 0) * 100),
+            isActive: row.querySelector('input[type="checkbox"]')?.checked ?? true
           }
         });
+        await loadCatalogAdmin();
         setMessage("Katalog güncellendi.", true);
       } catch (error) {
         setMessage(error.message);
@@ -1227,17 +1310,12 @@ document.querySelectorAll("[data-add-catalog]").forEach((button) => {
     });
     if (!formData) return;
 
-    const { code, name, price, category } = formData;
+    const { code, name, priceCents, category, eyebrow, imagePath, description, isActive } = formData;
     const body =
       type === "packages"
-        ? { code, name, priceCents: Math.round(price * 100), isActive: true }
-        : {
-            code,
-            name,
-            category,
-            priceCents: Math.round(price * 100),
-            isActive: true
-          };
+        ? { code, name, priceCents, imagePath, description, isActive }
+        : { code, name, category, eyebrow, priceCents, imagePath, description, isActive };
+
     try {
       await apiRequest(`/admin/${type}`, { method: "POST", body });
       await loadCatalogAdmin();

@@ -154,6 +154,7 @@ async function hydrateRemoteData() {
         Object.assign(current, {
           category: item.category,
           name: item.name,
+          eyebrow: item.eyebrow || current.eyebrow,
           price: item.priceCents / 100,
           image: item.imagePath || current.image,
           description: item.description || current.description
