@@ -112,6 +112,15 @@ SELECT format('REVOKE UPDATE ON TABLE %I.%I FROM %I', 'public', 'audit_logs', :'
 WHERE to_regclass('public.audit_logs') IS NOT NULL \gexec
 SELECT format('GRANT DELETE ON TABLE %I.%I TO %I', 'public', 'auth_sessions', :'runtime_user')
 WHERE to_regclass('public.auth_sessions') IS NOT NULL \gexec
+
+-- Kalıcı silme (hard-delete) gerektiren tablolara DELETE yetkisi ver
+SELECT format('GRANT DELETE ON TABLE %I.%I TO %I', 'public', t.tbl, :'runtime_user')
+FROM unnest(ARRAY[
+  'packages', 'services', 'staff', 'users',
+  'booking_applications', 'booking_application_services',
+  'weddings', 'wedding_assignments',
+  'message_tasks', 'deliveries', 'delivery_status_history'
+]) AS t(tbl) WHERE to_regclass('public.' || t.tbl) IS NOT NULL \gexec
 SELECT format('REVOKE ALL PRIVILEGES ON TABLE %I.%I FROM %I', 'public', '_prisma_migrations', :'runtime_user')
 WHERE to_regclass('public."_prisma_migrations"') IS NOT NULL \gexec
 
