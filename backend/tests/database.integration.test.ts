@@ -259,6 +259,10 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     data: { slug: marker, name: `Test Salonu ${marker}` },
   });
   venueId = venue.id;
+  const secondVenue = await prisma.venue.create({
+    data: { slug: `${marker}-second`, name: `Test Salonu İki ${marker}` },
+  });
+  secondaryVenueId = secondVenue.id;
   const packageRecord = await prisma.package.create({
     data: {
       code: marker,
@@ -397,7 +401,8 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const secondApplication = await createBookingApplication(
     {
       ...applicationInput,
-      weddingDate: addCalendarDays(weddingDate, 1),
+      venueId: secondVenue.id,
+      weddingDate,
       brideFirstName: 'Elif',
       groomFirstName: 'Can',
       primaryEmail: `iki-${marker}@example.com`,
