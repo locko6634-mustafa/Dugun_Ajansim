@@ -17,11 +17,33 @@
     <script type="module" src="js/admin/app.js"></script>
   </head>
   <body>
+    <div class="sidebar-overlay js-sidebar-overlay" aria-hidden="true"></div>
     <div class="admin-shell">
       <aside class="admin-sidebar" aria-label="Ana yönetim menüsü">
-        <a class="admin-brand" href="index.html" aria-label="Düğünajansım ana sayfa">
-          <span>DA</span><strong>Düğünajansım</strong><small>Ajans yönetimi</small>
-        </a>
+        <div class="sidebar-header-mobile">
+          <a class="admin-brand" href="index.html" aria-label="Düğünajansım ana sayfa">
+            <span>DA</span><strong>Düğünajansım</strong><small>Ajans yönetimi</small>
+          </a>
+          <button
+            class="mobile-sidebar-close js-close-sidebar"
+            type="button"
+            aria-label="Menüyü Kapat"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
         <nav class="admin-nav" aria-label="Yönetim bölümleri">
           <button class="is-active" type="button" data-panel="overview">
             <span>01</span> Genel Bakış
@@ -340,22 +362,6 @@
           </div>
         </section>
       </main>
-    </div>
-
-    <nav class="mobile-nav" aria-label="Mobil yönetim menüsü">
-      <button class="is-active" type="button" data-panel="overview">Bugün</button
-      ><button type="button" data-panel="plan">Plan</button
-      ><button type="button" data-panel="calendar">Takvim</button
-      ><button type="button" data-panel="weddings">Düğünler</button
-      ><button type="button" data-mobile-more>Diğer</button>
-    </nav>
-    <div class="mobile-more" hidden>
-      <button type="button" data-panel="applications">Başvurular</button
-      ><button type="button" data-panel="staff">Personeller</button
-      ><button type="button" data-panel="messages">Mesajlar</button
-      ><button type="button" data-panel="catalog">Paketler</button
-      ><button type="button" data-panel="managers">Salon sorumluları</button
-      ><button class="js-logout" type="button">Çıkış</button>
     </div>
 
     <dialog class="sheet-dialog js-wedding-detail">

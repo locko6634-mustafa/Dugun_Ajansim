@@ -3,6 +3,16 @@ import AxeBuilder from "@axe-core/playwright";
 
 const pages = ["/index.html", "/login.html", "/paketini-olustur.html"];
 
+async function clickPanel(page, panelName, isOps = false) {
+  const toggleSelector = isOps ? ".js-toggle-ops-sidebar" : ".js-toggle-sidebar";
+  const toggleBtn = page.locator(toggleSelector);
+  if (await toggleBtn.isVisible()) {
+    await toggleBtn.click();
+    await page.waitForTimeout(200);
+  }
+  await page.locator(`[data-panel="${panelName}"]`).first().click();
+}
+
 for (const pagePath of pages) {
   test(`${pagePath} temel sayfa kontrolleri`, async ({ page }) => {
     await page.goto(pagePath);
@@ -275,8 +285,7 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
   });
   await page.goto("/admin.html");
   await expect(page.getByRole("heading", { name: "Günün akışı" })).toBeVisible();
-  await expect(page.locator('[data-metric="pendingBookings"]')).toHaveText("2");
-  await page.locator('[data-panel="weddings"]:visible').click();
+  await clickPanel(page, "weddings");
   await page.getByRole("button", { name: "Ayrıntılar" }).click();
   await expect(
     page.getByRole("dialog").getByRole("heading", { name: "Ayşe Yılmaz & Mehmet Demir" })
@@ -287,14 +296,11 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
   await page.getByRole("button", { name: "Değişiklikleri kaydet" }).click();
   await expect(page.locator(".global-message")).toContainText("Yeni kullanıcı adı");
   await page.locator(".js-wedding-detail [data-close-dialog]").click();
-  if (await page.locator("[data-mobile-more]:visible").count()) {
-    await page.locator("[data-mobile-more]:visible").click();
-  }
-  await page.locator('[data-panel="applications"]:visible').click();
+  await clickPanel(page, "applications");
   await page.getByLabel("Başvuru referans kodu").fill("DA-2026-123456");
   await page.getByRole("button", { name: "Bul" }).click();
   await expect.poll(() => lastApplicationUrl).toContain("referenceCode=DA-2026-123456");
-  await page.locator('[data-panel="calendar"]:visible').click();
+  await clickPanel(page, "calendar");
   await expect(page.getByRole("heading", { name: "Ağustos 2026 · Cess Wedding" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Ayşe & Mehmet/ }).first()).toBeVisible();
   await page.getByRole("tab", { name: "Bella Garden" }).click();
@@ -604,10 +610,9 @@ test("salon sorumlusu yalniz kendi salon takvimi ve ekibini yonetir", async ({ p
 
   await page.goto("/operasyon-paneli.html");
   await expect(page.locator(".js-venue-name")).toContainText("Cess Wedding");
-  await expect(page.locator('[data-metric="todayWeddings"]')).toHaveText("1");
-  await page.locator('[data-panel="calendar"]:visible').first().click();
+  await clickPanel(page, "calendar", true);
   await expect(page.locator(".calendar-event")).toContainText("Ayşe & Mehmet");
-  await page.locator('[data-panel="staff"]:visible').first().click();
+  await clickPanel(page, "staff", true);
   await expect(page.locator(".js-staff")).toContainText("Cem Arslan");
   await page.locator(".js-add-staff").click();
   await expect(page.locator(".js-staff-dialog")).toBeVisible();

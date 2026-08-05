@@ -687,7 +687,8 @@ function activatePanel(name) {
     panel.hidden = !active;
     panel.classList.toggle("is-active", active);
   });
-  document.querySelector(".mobile-more").hidden = true;
+  const mobileMore = document.querySelector(".mobile-more");
+  if (mobileMore) mobileMore.hidden = true;
   void panelLoaders[name]?.().catch((error) => setMessage(error.message));
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -701,10 +702,13 @@ document.addEventListener("click", (event) => {
   else if (weddingButton) void openWeddingDetail(weddingButton.dataset.openWedding);
 });
 
-document.querySelector("[data-mobile-more]").addEventListener("click", () => {
-  const menu = document.querySelector(".mobile-more");
-  menu.hidden = !menu.hidden;
-});
+const mobileMoreBtn = document.querySelector("[data-mobile-more]");
+if (mobileMoreBtn) {
+  mobileMoreBtn.addEventListener("click", () => {
+    const menu = document.querySelector(".mobile-more");
+    if (menu) menu.hidden = !menu.hidden;
+  });
+}
 document.querySelector("[data-close-dialog]").addEventListener("click", () => detailDialog.close());
 detailDialog.addEventListener("click", (event) => {
   if (event.target === detailDialog) detailDialog.close();
@@ -1355,16 +1359,35 @@ if (await ensureAdmin()) {
 
 /* UX & Klavye Kısayolları */
 const toggleSidebarBtn = document.querySelector(".js-toggle-sidebar");
+const closeSidebarBtn = document.querySelector(".js-close-sidebar");
 const sidebar = document.querySelector(".admin-sidebar");
+const sidebarOverlay = document.querySelector(".js-sidebar-overlay");
+
+function closeAdminSidebar() {
+  sidebar?.classList.remove("is-open");
+  sidebarOverlay?.classList.remove("is-open");
+  document.body.classList.remove("sidebar-open");
+}
+
+function openAdminSidebar() {
+  sidebar?.classList.add("is-open");
+  sidebarOverlay?.classList.add("is-open");
+  document.body.classList.add("sidebar-open");
+}
+
 if (toggleSidebarBtn && sidebar) {
   toggleSidebarBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    sidebar.classList.toggle("is-open");
+    if (sidebar.classList.contains("is-open")) {
+      closeAdminSidebar();
+    } else {
+      openAdminSidebar();
+    }
   });
-  sidebar.querySelectorAll("button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      sidebar.classList.remove("is-open");
-    });
+  closeSidebarBtn?.addEventListener("click", () => closeAdminSidebar());
+  sidebarOverlay?.addEventListener("click", () => closeAdminSidebar());
+  sidebar.querySelectorAll("button, a").forEach((btn) => {
+    btn.addEventListener("click", () => closeAdminSidebar());
   });
   document.addEventListener("click", (e) => {
     if (
@@ -1372,14 +1395,14 @@ if (toggleSidebarBtn && sidebar) {
       !sidebar.contains(e.target) &&
       !toggleSidebarBtn.contains(e.target)
     ) {
-      sidebar.classList.remove("is-open");
+      closeAdminSidebar();
     }
   });
 }
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
-    sidebar?.classList.remove("is-open");
+    closeAdminSidebar();
   }
 });
 

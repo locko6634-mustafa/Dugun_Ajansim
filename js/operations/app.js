@@ -479,16 +479,35 @@ if (await ensureSession()) await loadDashboard().catch((error) => setMessage(err
 
 /* UX & Klavye Kısayolları */
 const toggleOpsSidebarBtn = document.querySelector(".js-toggle-ops-sidebar");
+const closeOpsSidebarBtn = document.querySelector(".js-close-ops-sidebar");
 const opsSidebar = document.querySelector(".ops-sidebar");
+const opsSidebarOverlay = document.querySelector(".js-ops-sidebar-overlay");
+
+function closeOpsSidebar() {
+  opsSidebar?.classList.remove("is-open");
+  opsSidebarOverlay?.classList.remove("is-open");
+  document.body.classList.remove("sidebar-open");
+}
+
+function openOpsSidebar() {
+  opsSidebar?.classList.add("is-open");
+  opsSidebarOverlay?.classList.add("is-open");
+  document.body.classList.add("sidebar-open");
+}
+
 if (toggleOpsSidebarBtn && opsSidebar) {
   toggleOpsSidebarBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    opsSidebar.classList.toggle("is-open");
+    if (opsSidebar.classList.contains("is-open")) {
+      closeOpsSidebar();
+    } else {
+      openOpsSidebar();
+    }
   });
-  opsSidebar.querySelectorAll("button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      opsSidebar.classList.remove("is-open");
-    });
+  closeOpsSidebarBtn?.addEventListener("click", () => closeOpsSidebar());
+  opsSidebarOverlay?.addEventListener("click", () => closeOpsSidebar());
+  opsSidebar.querySelectorAll("button, a").forEach((btn) => {
+    btn.addEventListener("click", () => closeOpsSidebar());
   });
   document.addEventListener("click", (e) => {
     if (
@@ -496,14 +515,14 @@ if (toggleOpsSidebarBtn && opsSidebar) {
       !opsSidebar.contains(e.target) &&
       !toggleOpsSidebarBtn.contains(e.target)
     ) {
-      opsSidebar.classList.remove("is-open");
+      closeOpsSidebar();
     }
   });
 }
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
-    opsSidebar?.classList.remove("is-open");
+    closeOpsSidebar();
     detailContainer?.close();
     weddingDialog?.close();
     staffDialog?.close();
