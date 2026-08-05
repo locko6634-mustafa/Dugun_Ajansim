@@ -533,7 +533,7 @@ async function loadStaff() {
   const container = document.querySelector(".js-staff");
   container.innerHTML = empty("Personeller yükleniyor…");
   try {
-    const response = await apiRequest("/admin/staff");
+    const [response] = await Promise.all([apiRequest("/admin/staff"), ensureVenues()]);
     state.staff = response.data;
     renderStaff();
   } catch (error) {
@@ -548,20 +548,28 @@ async function ensureVenues() {
     .join("");
   document.querySelector(".js-staff-venue").innerHTML = options;
   document.querySelector(".js-manager-venue").innerHTML = options;
+  const filterVenueSelect = document.querySelector(".js-staff-venue-filter");
+  if (filterVenueSelect) {
+    const currentValue = filterVenueSelect.value;
+    filterVenueSelect.innerHTML = `<option value="">Tüm salonlar</option>${options}`;
+    filterVenueSelect.value = currentValue;
+  }
 }
 
 function renderStaff() {
   const term = document.querySelector(".js-staff-search").value.trim().toLocaleLowerCase("tr-TR");
   const specialty = document.querySelector(".js-staff-specialty-filter").value;
+  const venueId = document.querySelector(".js-staff-venue-filter")?.value || "";
   const active = document.querySelector(".js-staff-active-filter").value;
   const rows = state.staff.filter((staff) => {
     const matchesTerm = `${staff.firstName} ${staff.lastName} ${staff.phone}`
       .toLocaleLowerCase("tr-TR")
       .includes(term);
     const matchesSpecialty = !specialty || staff.specialties.includes(specialty);
+    const matchesVenue = !venueId || staff.venueId === venueId || staff.venue?.id === venueId;
     const matchesActive =
       active === "all" || (active === "active" ? staff.isActive : !staff.isActive);
-    return matchesTerm && matchesSpecialty && matchesActive;
+    return matchesTerm && matchesSpecialty && matchesVenue && matchesActive;
   });
   document.querySelector(".js-staff").innerHTML = rows.length
     ? rows
@@ -1109,13 +1117,15 @@ document.querySelector(".js-staff").addEventListener("click", (event) => {
       }
     });
 });
-[".js-staff-search", ".js-staff-specialty-filter", ".js-staff-active-filter"].forEach(
-  (selector) => {
-    document
-      .querySelector(selector)
-      .addEventListener(selector.includes("search") ? "input" : "change", renderStaff);
-  }
-);
+[
+  ".js-staff-search",
+  ".js-staff-specialty-filter",
+  ".js-staff-venue-filter",
+  ".js-staff-active-filter"
+].forEach((selector) => {
+  const el = document.querySelector(selector);
+  if (el) el.addEventListener(selector.includes("search") ? "input" : "change", renderStaff);
+});
 staffForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
   button.addEventListener("click", () => staffDialog.close());
 });

@@ -194,12 +194,17 @@
               <h2>Personeller</h2>
             </div>
             <div class="heading-actions">
-              <input
-                class="search-input js-staff-search"
-                type="search"
-                placeholder="Personel ara"
-                aria-label="Personel ara"
-              /><button class="primary-button js-add-staff" type="button">+ Personel ekle</button>
+              <div class="filter-bar">
+                <input
+                  class="search-input js-staff-search"
+                  type="search"
+                  placeholder="Personel ara"
+                  aria-label="Personel ara"
+                /><select class="js-staff-venue-filter" aria-label="Salona göre filtrele">
+                  <option value="">Tüm salonlar</option>
+                </select>
+              </div>
+              <button class="primary-button js-add-staff" type="button">+ Personel ekle</button>
             </div>
           </div>
           <div class="staff-grid js-staff"></div>

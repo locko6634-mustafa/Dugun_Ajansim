@@ -224,16 +224,45 @@ async function loadWeddings() {
   renderWeddings();
 }
 
+function populateVenueFilter() {
+  const select = document.querySelector(".js-staff-venue-filter");
+  if (!select) return;
+  const currentValue = select.value;
+  const venues = new Map();
+  (state.staff || []).forEach((staff) => {
+    if (staff.venue?.id && staff.venue?.name) {
+      venues.set(staff.venue.id, staff.venue.name);
+    } else if (staff.venueId) {
+      venues.set(staff.venueId, staff.venueName || "Salon");
+    }
+  });
+
+  if (venues.size === 0) return;
+
+  let options = '<option value="">Tüm salonlar</option>';
+  venues.forEach((name, id) => {
+    options += `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`;
+  });
+  select.innerHTML = options;
+  select.value = currentValue;
+}
+
 function renderStaff() {
-  const term = document.querySelector(".js-staff-search").value.trim().toLocaleLowerCase("tr-TR");
-  const rows = state.staff.filter((staff) =>
-    `${staff.firstName} ${staff.lastName} ${staff.phone}`.toLocaleLowerCase("tr-TR").includes(term)
-  );
+  const term =
+    document.querySelector(".js-staff-search")?.value.trim().toLocaleLowerCase("tr-TR") || "";
+  const venueId = document.querySelector(".js-staff-venue-filter")?.value || "";
+  const rows = state.staff.filter((staff) => {
+    const matchesTerm = `${staff.firstName} ${staff.lastName} ${staff.phone}`
+      .toLocaleLowerCase("tr-TR")
+      .includes(term);
+    const matchesVenue = !venueId || staff.venueId === venueId || staff.venue?.id === venueId;
+    return matchesTerm && matchesVenue;
+  });
   document.querySelector(".js-staff").innerHTML = rows.length
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><header><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status">${staff.isActive ? "Aktif" : "Pasif"}</span></header><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><small>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</small><footer><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><header><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status">${staff.isActive ? "Aktif" : "Pasif"}</span></header><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><small>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</small><footer><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button></footer></article>`
         )
         .join("")
     : empty("Personel bulunamadı.");
@@ -242,6 +271,7 @@ function renderStaff() {
 async function loadStaff() {
   const response = await apiRequest("/operations/staff");
   state.staff = response.data;
+  populateVenueFilter();
   renderStaff();
 }
 
@@ -317,6 +347,7 @@ document
   .addEventListener("click", () => weddingDialog.close());
 document.querySelector(".js-wedding-search").addEventListener("input", renderWeddings);
 document.querySelector(".js-staff-search").addEventListener("input", renderStaff);
+document.querySelector(".js-staff-venue-filter")?.addEventListener("change", renderStaff);
 document.querySelector(".js-add-staff").addEventListener("click", () => openStaffForm());
 document.querySelector(".js-staff").addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit-staff]");

@@ -216,6 +216,7 @@ router.get(
     const staff = await prisma.staff.findMany({
       where: { venueId },
       include: {
+        venue: { select: { id: true, name: true } },
         assignments: {
           where: { wedding: { cancelledAt: null, deletedAt: null, endsAt: { gt: new Date() } } },
           select: {
