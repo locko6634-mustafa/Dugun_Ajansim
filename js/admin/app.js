@@ -170,6 +170,21 @@ const setMessage = (message, success = false) => {
   globalMessage.style.color = success ? "var(--success)" : "";
 };
 
+const formErrorMessage = (form, error) => {
+  const detail = error?.payload?.errors?.find(({ field }) => field.startsWith("body."));
+  if (!detail) return error.message;
+
+  const fieldName = detail.field.slice("body.".length);
+  const field = form.elements.namedItem(fieldName);
+  if (field instanceof HTMLElement) field.focus();
+
+  const label =
+    field instanceof HTMLElement
+      ? field.closest("label")?.childNodes[0]?.textContent?.trim()
+      : "Alan";
+  return `${label || "Alan"}: ${detail.message}`;
+};
+
 const empty = (message) => `<p class="empty-state">${escapeHtml(message)}</p>`;
 const coupleName = (wedding) =>
   `${wedding.brideFirstName} ${wedding.brideLastName || ""} & ${wedding.groomFirstName} ${wedding.groomLastName || ""}`
@@ -1704,6 +1719,7 @@ manualForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
 manualForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (event.submitter?.value === "cancel") return;
+  if (!manualForm.reportValidity()) return;
   const data = new FormData(manualForm);
   try {
     await apiRequest("/admin/booking-applications", {
@@ -1735,7 +1751,7 @@ manualForm.addEventListener("submit", async (event) => {
     setMessage("Başvuru oluşturuldu ve onay kuyruğuna eklendi.", true);
     await Promise.all([loadApplications(), loadDashboard()]);
   } catch (error) {
-    manualForm.querySelector(".dialog-message").textContent = error.message;
+    manualForm.querySelector(".dialog-message").textContent = formErrorMessage(manualForm, error);
   }
 });
 
@@ -1778,6 +1794,7 @@ weddingForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
 weddingForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (event.submitter?.value === "cancel") return;
+  if (!weddingForm.reportValidity()) return;
   const data = new FormData(weddingForm);
   const weddingId = data.get("weddingId");
   try {
@@ -1809,7 +1826,7 @@ weddingForm.addEventListener("submit", async (event) => {
     );
     await Promise.all([openWeddingDetail(weddingId), loadWeddings(), loadDashboard()]);
   } catch (error) {
-    weddingForm.querySelector(".dialog-message").textContent = error.message;
+    weddingForm.querySelector(".dialog-message").textContent = formErrorMessage(weddingForm, error);
   }
 });
 

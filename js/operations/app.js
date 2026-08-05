@@ -218,7 +218,16 @@ function renderWeddings() {
     ? rows
         .map((wedding) => {
           const date = new Date(wedding.startsAt);
-          return `<article class="wedding-card"><div class="date-tile"><strong>${new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", day: "2-digit" }).format(date)}</strong><small>${new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", month: "short" }).format(date)}</small></div><div><strong>${escapeHtml(couple(wedding))}</strong><p>${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)}</p></div><div class="crew-line">${crew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${wedding.id}">Ayrıntılar</button></article>`;
+          const hasAssignments = wedding.assignments.length > 0;
+          const day = new Intl.DateTimeFormat("tr-TR", {
+            timeZone: "Europe/Istanbul",
+            day: "2-digit"
+          }).format(date);
+          const month = new Intl.DateTimeFormat("tr-TR", {
+            timeZone: "Europe/Istanbul",
+            month: "short"
+          }).format(date);
+          return `<article class="wedding-card"><div class="date-tile"><strong>${day}</strong><span>${escapeHtml(month)}</span></div><div><h3>${escapeHtml(couple(wedding))}</h3><p>${escapeHtml(wedding.venue?.name || "Salon belirtilmedi")} · ${formatTime(wedding.startsAt)}</p></div><div class="status-cell"><span class="status-dot ${hasAssignments ? "" : "is-unassigned"}">${hasAssignments ? "Ekip atandı" : "Ekip bekliyor"}</span><small class="delivery-date">${formatDate(wedding.startsAt)}</small></div><div><div class="crew-line">${crew(wedding.assignments)}</div></div><button class="mini-button" type="button" data-open-wedding="${wedding.id}">Ayrıntılar</button></article>`;
         })
         .join("")
     : empty("Aramanızla eşleşen düğün yok.");
@@ -268,7 +277,7 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><header><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status">${staff.isActive ? "Aktif" : "Pasif"}</span></header><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><small>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</small><footer><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button></footer></article>`
         )
         .join("")
     : empty("Personel bulunamadı.");

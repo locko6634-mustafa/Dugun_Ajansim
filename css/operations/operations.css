@@ -546,45 +546,82 @@ p {
   gap: 10px;
 }
 .wedding-list {
-  display: grid;
-  gap: 10px;
-}
-.wedding-card {
-  display: grid;
-  grid-template-columns: 70px 1.4fr 1fr auto;
-  gap: 18px;
-  align-items: center;
-  padding: 16px 20px;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface);
 }
-.date-tile {
+.wedding-card {
   display: grid;
-  place-items: center;
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  background: var(--olive-pale);
+  grid-template-columns: 72px minmax(180px, 1.2fr) 1fr 1fr auto;
+  gap: 18px;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.wedding-card:last-child {
+  border-bottom: 0;
+}
+.date-tile {
+  text-align: center;
 }
 .date-tile strong {
+  display: block;
   font-family: Inter, Manrope, sans-serif;
-  font-size: 26px;
+  font-size: 30px;
+}
+.date-tile span {
+  color: var(--ink-soft);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.wedding-card h3 {
+  margin: 0 0 5px;
+  font-family: Inter, Manrope, sans-serif;
+  font-size: 22px;
+  font-weight: 400;
 }
 .wedding-card p,
 .wedding-card small {
-  margin: 3px 0 0;
+  margin: 0;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 10px;
+}
+.status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.status-dot::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  content: "";
+}
+.status-dot.is-unassigned::before,
+.status-dot.is-passive::before {
+  background: var(--clay);
+}
+.delivery-date {
+  display: block;
+  font-size: 12px !important;
+  font-weight: 600;
 }
 .staff-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
 }
 .staff-card {
-  display: flex;
-  min-height: 255px;
-  flex-direction: column;
   padding: 22px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -593,34 +630,36 @@ p {
 .staff-card.is-passive {
   opacity: 0.58;
 }
-.staff-card header {
+.staff-card__head {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
 }
-.status {
-  align-self: start;
-  padding: 5px 8px;
-  border-radius: 999px;
-  background: var(--olive-pale);
-  color: var(--success);
-  font-size: 9px;
-  font-weight: 700;
-}
-.staff-card h3 {
-  margin: 18px 0 3px;
+.staff-card .avatar {
+  width: 42px;
+  height: 42px;
+  font-family: Inter, Manrope, sans-serif;
   font-size: 17px;
 }
-.staff-card a {
-  color: var(--ink-soft);
-  font-size: 12px;
+.staff-card h3 {
+  margin: 16px 0 0;
+  font-family: Inter, Manrope, sans-serif;
+  font-size: 22px;
+  font-weight: 400;
 }
 .staff-card .crew-line {
-  margin: 18px 0;
+  margin-top: 9px;
 }
 .staff-card footer {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 7px;
-  margin-top: auto;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
 }
 dialog {
   width: min(720px, calc(100% - 28px));
@@ -827,10 +866,13 @@ body.sidebar-open {
     grid-template-columns: 1fr 1fr;
   }
   .wedding-card {
-    grid-template-columns: 60px 1fr auto;
+    grid-template-columns: 62px 1fr 1fr auto;
   }
-  .wedding-card > div:nth-child(3) {
+  .wedding-card > :nth-child(4) {
     display: none;
+  }
+  .staff-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1066,7 +1108,7 @@ h6,
 .staff-card .staff-phone {
   display: block;
   margin-top: 4px;
-  margin-bottom: 10px;
+  margin-bottom: 2px;
   font-weight: 600;
   font-size: 13.5px;
   color: var(--clay);
@@ -1074,6 +1116,13 @@ h6,
 }
 .staff-card .staff-phone:hover {
   text-decoration: underline;
+}
+.staff-card .staff-venue {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .crew-line .tag {
@@ -1266,14 +1315,38 @@ h6,
     font-size: 12px;
   }
 
-  .wedding-list,
+  .wedding-list {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
   .staff-grid {
+    grid-template-columns: 1fr;
     gap: 10px;
   }
 
   .wedding-card {
+    grid-template-columns: 1fr 1fr;
     gap: 10px;
     padding: 14px;
+    margin-bottom: 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .wedding-card > :nth-child(2),
+  .wedding-card > button {
+    grid-column: 1 / -1;
+  }
+
+  .wedding-card > :nth-child(4) {
+    display: block;
+  }
+
+  .wedding-card > button {
+    width: 100%;
   }
 
   .wedding-card .date-tile {
@@ -1299,6 +1372,27 @@ h6,
   .wedding-card small {
     font-size: 10px;
     line-height: 1.4;
+  }
+
+  .staff-card {
+    padding: 16px;
+  }
+
+  .staff-card .avatar {
+    width: 38px;
+    height: 38px;
+    font-size: 15px;
+  }
+
+  .staff-card h3 {
+    margin-top: 12px;
+    font-size: 18px;
+    line-height: 1.2;
+  }
+
+  .staff-card footer {
+    margin-top: 14px;
+    padding-top: 12px;
   }
 
   .search-input,
