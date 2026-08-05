@@ -380,15 +380,24 @@ test("paket başvurusu sunucunun kuruş bazlı tutarını özet ve WhatsApp mesa
       })
     })
   );
-  await page.route("**/api/v1/venues", (route) =>
-    route.fulfill({
+  await page.route("**/api/v1/venues*", (route) => {
+    if (route.request().url().includes("/availability")) {
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: { date: "2027-08-10", occupiedSlots: [] }
+        })
+      });
+    }
+    return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
         success: true,
         data: [{ id: "de305d54-75b4-431b-adb2-eb6b9e546014", name: "Cess Wedding" }]
       })
-    })
-  );
+    });
+  });
 
   let bookingRequest;
   await page.route("**/api/v1/booking-applications", async (route) => {
@@ -424,10 +433,10 @@ test("paket başvurusu sunucunun kuruş bazlı tutarını özet ve WhatsApp mesa
   await form.locator('input[name="groomLastName"]').fill("Demir");
   await form.locator('input[name="groomPhone"]').fill("05559876543");
   await form.locator('input[name="primaryEmail"]').fill("ayse@example.com");
+  await form.locator('select[name="venueId"]').selectOption("de305d54-75b4-431b-adb2-eb6b9e546014");
   await form.locator('input[name="weddingDate"]').fill("2027-08-10");
   await form.locator('input[name="startTime"]').fill("18:00");
   await form.locator('input[name="endTime"]').fill("23:00");
-  await form.locator('select[name="venueId"]').selectOption("de305d54-75b4-431b-adb2-eb6b9e546014");
   await form.locator('input[name="privacyConsent"]').check();
   await form.getByRole("button", { name: "Ödemeye Geç" }).click();
 

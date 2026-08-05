@@ -45,6 +45,9 @@ const state = {
 const globalMessage = document.querySelector(".global-message");
 const detailDialog = document.querySelector(".js-wedding-detail");
 const detailContent = document.querySelector(".js-wedding-detail-content");
+const appDetailDialog = document.querySelector(".js-application-detail-dialog");
+const appDetailTitle = document.querySelector(".js-app-detail-title");
+const appDetailContent = document.querySelector(".js-app-detail-content");
 const staffDialog = document.querySelector(".js-staff-dialog");
 const staffForm = document.querySelector(".js-staff-form");
 const managerDialog = document.querySelector(".js-manager-dialog");
@@ -388,24 +391,286 @@ async function loadApplications() {
       `/admin/booking-applications${query.size ? `?${query}` : ""}`
     );
     container.innerHTML = response.data.length
-      ? response.data
-          .map(
-            (item) =>
-              `<article class="data-row"><div><strong>${escapeHtml(item.brideFirstName)} &amp; ${escapeHtml(item.groomFirstName)}</strong><small>${escapeHtml(item.referenceCode)}</small></div><div><small>Paket</small><strong>${escapeHtml(item.packageNameSnapshot)}</strong></div><div><small>Tarih</small><strong>${formatDate(item.weddingStartsAt, true)}</strong></div><div class="data-row__actions">${
-                item.deletedAt
-                  ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button><button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>`
-                  : item.status === "ONAY_BEKLIYOR"
-                    ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button><button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
-                    : item.status === "REDDEDILDI"
-                      ? `<button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
-                      : `<small>${escapeHtml(item.status.replaceAll("_", " "))}</small>`
-              }</div></article>`
-          )
-          .join("")
+      ? response.data.map((item) => renderApplicationCard(item)).join("")
       : empty("Bu durumda başvuru yok.");
   } catch (error) {
     container.innerHTML = empty(error.message);
   }
+}
+
+function renderApplicationCard(item) {
+  const venueName = item.venue?.name || "Salon Belirtilmedi";
+  const dateStr = formatDate(item.weddingStartsAt, false);
+  const startTime = formatTime(item.weddingStartsAt);
+  const endTime = formatTime(item.weddingEndsAt);
+  const timeRangeStr = `${startTime} – ${endTime}`;
+
+  const brideFullName = `${item.brideFirstName} ${item.brideLastName}`.trim();
+  const groomFullName = `${item.groomFirstName} ${item.groomLastName}`.trim();
+
+  const isBridePrimary = item.primaryContact === "GELIN";
+  const isGroomPrimary = item.primaryContact === "DAMAT";
+  const primaryLabel = isBridePrimary ? "Gelin" : isGroomPrimary ? "Damat" : "Diğer";
+
+  const paymentLabel =
+    item.paymentMethod === "CASH"
+      ? "Peşin"
+      : item.paymentMethod === "DEPOSIT"
+        ? "Kapora"
+        : item.paymentMethod;
+
+  const statusLabel =
+    item.status === "ONAY_BEKLIYOR"
+      ? "Onay Bekliyor"
+      : item.status === "ONAYLANDI"
+        ? "Onaylandı"
+        : item.status === "REDDEDILDI"
+          ? "Reddedildi"
+          : item.status;
+  const statusClass =
+    item.status === "ONAYLANDI"
+      ? "status-tag--approved"
+      : item.status === "REDDEDILDI"
+        ? "status-tag--rejected"
+        : "status-tag--pending";
+
+  return `<article class="data-row application-card" data-application-id="${escapeHtml(item.id)}">
+    <div class="app-card__col app-card__col--couple">
+      <div class="app-card__header">
+        <strong class="app-card__couple-name">${escapeHtml(brideFullName)} &amp; ${escapeHtml(groomFullName)}</strong>
+        <span class="ref-badge">${escapeHtml(item.referenceCode)}</span>
+        <span class="status-tag ${statusClass}">${escapeHtml(statusLabel)}</span>
+      </div>
+      <div class="app-card__meta">
+        <small>Paket &amp; Tutar</small>
+        <strong>${escapeHtml(item.packageNameSnapshot)}</strong>
+        <span class="app-card__price">${formatMoney(item.totalPriceCents)} <small>(${escapeHtml(paymentLabel)})</small></span>
+      </div>
+    </div>
+
+    <div class="app-card__col app-card__col--venue-time">
+      <div class="app-card__venue-block">
+        <small>Etkinlik Salonu</small>
+        <strong class="app-card__venue-name">🏛️ ${escapeHtml(venueName)}</strong>
+      </div>
+      <div class="app-card__time-block">
+        <small>Tarih &amp; Başlangıç - Bitiş Saati</small>
+        <strong class="app-card__time-text">📅 ${escapeHtml(dateStr)} <span class="time-range-pill">⏰ ${escapeHtml(timeRangeStr)}</span></strong>
+      </div>
+    </div>
+
+    <div class="app-card__col app-card__col--contact">
+      <small>İletişim Bilgileri (${escapeHtml(primaryLabel)} birincil)</small>
+      <div class="contact-links-group">
+        <a class="contact-chip ${isBridePrimary ? "is-primary" : ""}" href="tel:${escapeHtml(item.bridePhone)}" title="Gelin Telefonu">
+          <span class="chip-label">Gelin:</span> <strong>${escapeHtml(item.bridePhone)}</strong>
+        </a>
+        <a class="contact-chip ${isGroomPrimary ? "is-primary" : ""}" href="tel:${escapeHtml(item.groomPhone)}" title="Damat Telefonu">
+          <span class="chip-label">Damat:</span> <strong>${escapeHtml(item.groomPhone)}</strong>
+        </a>
+        <a class="contact-chip contact-chip--email" href="mailto:${escapeHtml(item.primaryEmail)}" title="E-Posta">
+          <span>✉️ ${escapeHtml(item.primaryEmail)}</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="data-row__actions">
+      <button class="mini-button" type="button" data-open-application="${escapeHtml(item.id)}">Detaylar</button>
+      ${
+        item.deletedAt
+          ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button><button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>`
+          : item.status === "ONAY_BEKLIYOR"
+            ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button><button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
+            : item.status === "REDDEDILDI"
+              ? `<button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
+              : `<small>${escapeHtml(item.status.replaceAll("_", " "))}</small>`
+      }
+    </div>
+  </article>`;
+}
+
+async function openApplicationDetail(applicationId) {
+  if (!appDetailDialog) return;
+  if (!appDetailDialog.open) appDetailDialog.showModal();
+  appDetailTitle.textContent = "Yükleniyor…";
+  appDetailContent.innerHTML = empty("Başvuru detayları hazırlanıyor…");
+  try {
+    const response = await apiRequest(`/admin/booking-applications/${applicationId}`);
+    renderApplicationDetailModal(response.data);
+  } catch (error) {
+    appDetailContent.innerHTML = empty(error.message);
+  }
+}
+
+function renderApplicationDetailModal(item) {
+  const venueName = item.venue?.name || "Salon Belirtilmedi";
+  const dateStr = formatDate(item.weddingStartsAt, false);
+  const startTime = formatTime(item.weddingStartsAt);
+  const endTime = formatTime(item.weddingEndsAt);
+  const timeRangeStr = `${startTime} – ${endTime}`;
+
+  const brideFullName = `${item.brideFirstName} ${item.brideLastName}`.trim();
+  const groomFullName = `${item.groomFirstName} ${item.groomLastName}`.trim();
+
+  const primaryLabel =
+    item.primaryContact === "GELIN" ? "Gelin" : item.primaryContact === "DAMAT" ? "Damat" : "Diğer";
+  const paymentLabel =
+    item.paymentMethod === "CASH"
+      ? "Peşin Ödeme"
+      : item.paymentMethod === "DEPOSIT"
+        ? "Kapora Ödeme"
+        : item.paymentMethod;
+
+  const statusLabel =
+    item.status === "ONAY_BEKLIYOR"
+      ? "Onay Bekliyor"
+      : item.status === "ONAYLANDI"
+        ? "Onaylandı"
+        : item.status === "REDDEDILDI"
+          ? "Reddedildi"
+          : item.status;
+  const statusClass =
+    item.status === "ONAYLANDI"
+      ? "status-tag--approved"
+      : item.status === "REDDEDILDI"
+        ? "status-tag--rejected"
+        : "status-tag--pending";
+
+  const servicesHtml =
+    item.services && item.services.length
+      ? item.services
+          .map(
+            (s) => `
+        <div class="service-item-row">
+          <span>${escapeHtml(s.serviceNameSnapshot)}</span>
+          <strong>${formatMoney(s.priceCentsSnapshot)}</strong>
+        </div>
+      `
+          )
+          .join("")
+      : '<p class="empty-inline">Ekstra hizmet seçilmemiş.</p>';
+
+  appDetailTitle.textContent = `${brideFullName} & ${groomFullName}`;
+
+  appDetailContent.innerHTML = `
+    <div class="app-detail-wrapper">
+      <div class="app-detail-header-card">
+        <div>
+          <span class="ref-badge large">${escapeHtml(item.referenceCode)}</span>
+          <span class="status-tag ${statusClass}">${escapeHtml(statusLabel)}</span>
+        </div>
+        <div class="app-detail-header-date">
+          <small>Başvuru Tarihi</small>
+          <span>${formatDate(item.createdAt, true)}</span>
+        </div>
+      </div>
+
+      <section class="app-detail-section">
+        <h3>Etkinlik &amp; Salon Bilgileri</h3>
+        <div class="app-detail-grid">
+          <div class="app-detail-box">
+            <small>Salon / Mekân</small>
+            <strong>🏛️ ${escapeHtml(venueName)}</strong>
+          </div>
+          <div class="app-detail-box">
+            <small>Düğün / Etkinlik Tarihi</small>
+            <strong>📅 ${escapeHtml(dateStr)}</strong>
+          </div>
+          <div class="app-detail-box">
+            <small>Başlangıç - Bitiş Saati</small>
+            <strong class="highlight-time">⏰ ${escapeHtml(timeRangeStr)}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="app-detail-section">
+        <h3>İletişim &amp; Çift Bilgileri (Birincil: ${escapeHtml(primaryLabel)})</h3>
+        <div class="app-detail-grid">
+          <div class="app-detail-box ${item.primaryContact === "GELIN" ? "is-primary-box" : ""}">
+            <small>Gelin ${item.primaryContact === "GELIN" ? "⭐ (Birincil İletişim)" : ""}</small>
+            <strong>${escapeHtml(brideFullName)}</strong>
+            <a href="tel:${escapeHtml(item.bridePhone)}" class="phone-link">📞 ${escapeHtml(item.bridePhone)}</a>
+          </div>
+          <div class="app-detail-box ${item.primaryContact === "DAMAT" ? "is-primary-box" : ""}">
+            <small>Damat ${item.primaryContact === "DAMAT" ? "⭐ (Birincil İletişim)" : ""}</small>
+            <strong>${escapeHtml(groomFullName)}</strong>
+            <a href="tel:${escapeHtml(item.groomPhone)}" class="phone-link">📞 ${escapeHtml(item.groomPhone)}</a>
+          </div>
+          <div class="app-detail-box wide-box">
+            <small>Birincil E-Posta Adresi</small>
+            <a href="mailto:${escapeHtml(item.primaryEmail)}" class="email-link">✉️ ${escapeHtml(item.primaryEmail)}</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="app-detail-section">
+        <h3>Paket &amp; Hizmet Seçimleri</h3>
+        <div class="package-summary-card">
+          <div class="package-main-line">
+            <div>
+              <small>Ana Paket</small>
+              <strong>${escapeHtml(item.packageNameSnapshot)}</strong>
+            </div>
+            <strong>${formatMoney(item.packagePriceCents)}</strong>
+          </div>
+
+          <div class="extra-services-block">
+            <small>Seçilen Ek Hizmetler</small>
+            ${servicesHtml}
+          </div>
+
+          <div class="package-total-line">
+            <div>
+              <small>Ödeme Yöntemi: <strong>${escapeHtml(paymentLabel)}</strong></small>
+              <br><small>Hemen Ödenecek Tutar: <strong>${formatMoney(item.payableNowCents)}</strong></small>
+            </div>
+            <div class="total-amount">
+              <small>Toplam Tutar</small>
+              <strong>${formatMoney(item.totalPriceCents)}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      ${
+        item.note
+          ? `
+        <section class="app-detail-section">
+          <h3>Müşteri Notu</h3>
+          <blockquote class="customer-note-quote">${escapeHtml(item.note)}</blockquote>
+        </section>
+      `
+          : ""
+      }
+
+      ${
+        item.rejectionReason
+          ? `
+        <section class="app-detail-section">
+          <h3>Red Neden Bildirimi</h3>
+          <div class="rejection-box">${escapeHtml(item.rejectionReason)}</div>
+        </section>
+      `
+          : ""
+      }
+
+      <div class="app-detail-footer-actions">
+        ${
+          item.deletedAt
+            ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button><button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>`
+            : item.status === "ONAY_BEKLIYOR"
+              ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button><button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
+              : item.status === "REDDEDILDI"
+                ? `<button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
+                : ``
+        }
+        <button class="secondary-button" type="button" data-close-app-dialog>Kapat</button>
+      </div>
+    </div>
+  `;
+
+  const closeBtn = appDetailContent.querySelector("[data-close-app-dialog]");
+  if (closeBtn) closeBtn.addEventListener("click", () => appDetailDialog.close());
 }
 
 async function loadWeddings() {
@@ -803,18 +1068,29 @@ document.querySelector(".js-application-search").addEventListener("submit", (eve
 document
   .querySelector(".js-application-filter")
   .addEventListener("change", () => void loadApplications());
-document.querySelector(".js-applications").addEventListener("click", async (event) => {
+document.querySelector(".js-applications").addEventListener("click", handleApplicationAction);
+if (appDetailContent) appDetailContent.addEventListener("click", handleApplicationAction);
+
+async function handleApplicationAction(event) {
+  const openAppButton = event.target.closest("[data-open-application]");
   const approveButton = event.target.closest("[data-approve]");
   const rejectButton = event.target.closest("[data-reject]");
   const archiveButton = event.target.closest("[data-archive-application]");
   const restoreButton = event.target.closest("[data-restore-application]");
   const deleteButton = event.target.closest("[data-delete-application]");
+
+  if (openAppButton) {
+    void openApplicationDetail(openAppButton.dataset.openApplication);
+    return;
+  }
+
   try {
     if (approveButton) {
       await apiRequest(`/admin/booking-applications/${approveButton.dataset.approve}/approve`, {
         method: "POST"
       });
       setMessage("Başvuru onaylandı; düğün ve teslimat planı oluşturuldu.", true);
+      if (appDetailDialog?.open) appDetailDialog.close();
     } else if (rejectButton) {
       const reason = await showCustomPrompt({
         title: "Başvuruyu Reddet",
@@ -831,6 +1107,7 @@ document.querySelector(".js-applications").addEventListener("click", async (even
         body: { reason }
       });
       setMessage("Başvuru reddedildi.", true);
+      if (appDetailDialog?.open) appDetailDialog.close();
     } else if (archiveButton) {
       const accepted = await requestDangerConfirmation(
         {
@@ -846,12 +1123,14 @@ document.querySelector(".js-applications").addEventListener("click", async (even
         { method: "POST" }
       );
       setMessage("Başvuru arşivlendi.", true);
+      if (appDetailDialog?.open) appDetailDialog.close();
     } else if (restoreButton) {
       await apiRequest(
         `/admin/booking-applications/${restoreButton.dataset.restoreApplication}/restore`,
         { method: "POST" }
       );
       setMessage("Başvuru geri yüklendi.", true);
+      if (appDetailDialog?.open) appDetailDialog.close();
     } else if (deleteButton) {
       const confirmation = await requestDangerConfirmation(
         {
@@ -869,13 +1148,14 @@ document.querySelector(".js-applications").addEventListener("click", async (even
         body: { confirmText: confirmation }
       });
       setMessage("Başvuru kalıcı olarak silindi.", true);
+      if (appDetailDialog?.open) appDetailDialog.close();
     } else return;
     await Promise.all([loadApplications(), loadDashboard()]);
   } catch (error) {
     if (deleteButton) deleteButton.disabled = false;
     setMessage(error.message);
   }
-});
+}
 
 document.querySelector(".js-wedding-search").addEventListener("input", renderWeddings);
 document.querySelector(".js-wedding-status").addEventListener("change", () => void loadWeddings());

@@ -323,9 +323,14 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     }),
   );
   const concurrentIdempotencyKey = `${marker}-concurrent-idempotency`;
+  const concurrentDate = addCalendarDays(weddingDate, 3);
   const concurrentApplications = await Promise.all([
     createBookingApplication(
-      { ...applicationInput, primaryEmail: `eszamanli-${marker}@example.com` },
+      {
+        ...applicationInput,
+        weddingDate: concurrentDate,
+        primaryEmail: `eszamanli-${marker}@example.com`,
+      },
       {
         source: 'PUBLIC_FORM',
         idempotencyKey: concurrentIdempotencyKey,
@@ -333,7 +338,11 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       },
     ),
     createBookingApplication(
-      { ...applicationInput, primaryEmail: `eszamanli-${marker}@example.com` },
+      {
+        ...applicationInput,
+        weddingDate: concurrentDate,
+        primaryEmail: `eszamanli-${marker}@example.com`,
+      },
       {
         source: 'PUBLIC_FORM',
         idempotencyKey: concurrentIdempotencyKey,
