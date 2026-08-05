@@ -427,6 +427,7 @@ function renderApplicationCard(item) {
         : item.status === "REDDEDILDI"
           ? "Reddedildi"
           : item.status;
+
   const statusClass =
     item.status === "ONAYLANDI"
       ? "status-tag--approved"
@@ -435,56 +436,53 @@ function renderApplicationCard(item) {
         : "status-tag--pending";
 
   return `<article class="data-row application-card" data-application-id="${escapeHtml(item.id)}">
-    <div class="app-card__col app-card__col--couple">
-      <div class="app-card__header">
-        <strong class="app-card__couple-name">${escapeHtml(brideFullName)} &amp; ${escapeHtml(groomFullName)}</strong>
+    <div class="app-card__header-line">
+      <div class="app-card__couple-info">
+        <strong class="app-card__names">${escapeHtml(brideFullName)} &amp; ${escapeHtml(groomFullName)}</strong>
         <span class="ref-badge">${escapeHtml(item.referenceCode)}</span>
         <span class="status-tag ${statusClass}">${escapeHtml(statusLabel)}</span>
       </div>
-      <div class="app-card__meta">
+      <div class="data-row__actions">
+        <button class="mini-button" type="button" data-open-application="${escapeHtml(item.id)}">Detaylar</button>
+        ${
+          item.deletedAt
+            ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button><button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>`
+            : item.status === "ONAY_BEKLIYOR"
+              ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button><button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
+              : item.status === "REDDEDILDI"
+                ? `<button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
+                : `<small>${escapeHtml(item.status.replaceAll("_", " "))}</small>`
+        }
+      </div>
+    </div>
+
+    <div class="app-card__body-grid">
+      <div class="app-card__meta-item">
         <small>Paket &amp; Tutar</small>
         <strong>${escapeHtml(item.packageNameSnapshot)}</strong>
-        <span class="app-card__price">${formatMoney(item.totalPriceCents)} <small>(${escapeHtml(paymentLabel)})</small></span>
+        <div class="app-card__price">${formatMoney(item.totalPriceCents)} <small>(${escapeHtml(paymentLabel)})</small></div>
       </div>
-    </div>
 
-    <div class="app-card__col app-card__col--venue-time">
-      <div class="app-card__venue-block">
-        <small>Etkinlik Salonu</small>
-        <strong class="app-card__venue-name">🏛️ ${escapeHtml(venueName)}</strong>
+      <div class="app-card__meta-item">
+        <small>Salon &amp; Zaman</small>
+        <strong>🏛️ ${escapeHtml(venueName)}</strong>
+        <div>📅 ${escapeHtml(dateStr)} <span class="time-range-pill">⏰ ${escapeHtml(timeRangeStr)}</span></div>
       </div>
-      <div class="app-card__time-block">
-        <small>Tarih &amp; Başlangıç - Bitiş Saati</small>
-        <strong class="app-card__time-text">📅 ${escapeHtml(dateStr)} <span class="time-range-pill">⏰ ${escapeHtml(timeRangeStr)}</span></strong>
-      </div>
-    </div>
 
-    <div class="app-card__col app-card__col--contact">
-      <small>İletişim Bilgileri (${escapeHtml(primaryLabel)} birincil)</small>
-      <div class="contact-links-group">
-        <a class="contact-chip ${isBridePrimary ? "is-primary" : ""}" href="tel:${escapeHtml(item.bridePhone)}" title="Gelin Telefonu">
-          <span class="chip-label">Gelin:</span> <strong>${escapeHtml(item.bridePhone)}</strong>
-        </a>
-        <a class="contact-chip ${isGroomPrimary ? "is-primary" : ""}" href="tel:${escapeHtml(item.groomPhone)}" title="Damat Telefonu">
-          <span class="chip-label">Damat:</span> <strong>${escapeHtml(item.groomPhone)}</strong>
-        </a>
-        <a class="contact-chip contact-chip--email" href="mailto:${escapeHtml(item.primaryEmail)}" title="E-Posta">
-          <span>✉️ ${escapeHtml(item.primaryEmail)}</span>
-        </a>
+      <div class="app-card__meta-item">
+        <small>İletişim Bilgileri (${escapeHtml(primaryLabel)} birincil)</small>
+        <div class="contact-links-list">
+          <a class="contact-link ${isBridePrimary ? "is-primary" : ""}" href="tel:${escapeHtml(item.bridePhone)}" title="Gelin Telefonu">
+            <span>Gelin:</span> <strong>${escapeHtml(item.bridePhone)}</strong> ${isBridePrimary ? '<span class="primary-tag">Birincil</span>' : ""}
+          </a>
+          <a class="contact-link ${isGroomPrimary ? "is-primary" : ""}" href="tel:${escapeHtml(item.groomPhone)}" title="Damat Telefonu">
+            <span>Damat:</span> <strong>${escapeHtml(item.groomPhone)}</strong> ${isGroomPrimary ? '<span class="primary-tag">Birincil</span>' : ""}
+          </a>
+          <a class="contact-link contact-link--email" href="mailto:${escapeHtml(item.primaryEmail)}" title="E-Posta">
+            ✉️ <span>${escapeHtml(item.primaryEmail)}</span>
+          </a>
+        </div>
       </div>
-    </div>
-
-    <div class="data-row__actions">
-      <button class="mini-button" type="button" data-open-application="${escapeHtml(item.id)}">Detaylar</button>
-      ${
-        item.deletedAt
-          ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button><button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>`
-          : item.status === "ONAY_BEKLIYOR"
-            ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button><button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
-            : item.status === "REDDEDILDI"
-              ? `<button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
-              : `<small>${escapeHtml(item.status.replaceAll("_", " "))}</small>`
-      }
     </div>
   </article>`;
 }
@@ -555,13 +553,13 @@ function renderApplicationDetailModal(item) {
   appDetailContent.innerHTML = `
     <div class="app-detail-wrapper">
       <div class="app-detail-header-card">
-        <div>
+        <div class="app-detail-header-left">
           <span class="ref-badge large">${escapeHtml(item.referenceCode)}</span>
           <span class="status-tag ${statusClass}">${escapeHtml(statusLabel)}</span>
         </div>
         <div class="app-detail-header-date">
           <small>Başvuru Tarihi</small>
-          <span>${formatDate(item.createdAt, true)}</span>
+          <strong>${formatDate(item.createdAt, true)}</strong>
         </div>
       </div>
 
@@ -587,12 +585,12 @@ function renderApplicationDetailModal(item) {
         <h3>İletişim &amp; Çift Bilgileri (Birincil: ${escapeHtml(primaryLabel)})</h3>
         <div class="app-detail-grid">
           <div class="app-detail-box ${item.primaryContact === "GELIN" ? "is-primary-box" : ""}">
-            <small>Gelin ${item.primaryContact === "GELIN" ? "⭐ (Birincil İletişim)" : ""}</small>
+            <small>Gelin ${item.primaryContact === "GELIN" ? "⭐ (Birincil)" : ""}</small>
             <strong>${escapeHtml(brideFullName)}</strong>
             <a href="tel:${escapeHtml(item.bridePhone)}" class="phone-link">📞 ${escapeHtml(item.bridePhone)}</a>
           </div>
           <div class="app-detail-box ${item.primaryContact === "DAMAT" ? "is-primary-box" : ""}">
-            <small>Damat ${item.primaryContact === "DAMAT" ? "⭐ (Birincil İletişim)" : ""}</small>
+            <small>Damat ${item.primaryContact === "DAMAT" ? "⭐ (Birincil)" : ""}</small>
             <strong>${escapeHtml(groomFullName)}</strong>
             <a href="tel:${escapeHtml(item.groomPhone)}" class="phone-link">📞 ${escapeHtml(item.groomPhone)}</a>
           </div>
@@ -1028,10 +1026,23 @@ if (mobileMoreBtn) {
     if (menu) menu.hidden = !menu.hidden;
   });
 }
-document.querySelector("[data-close-dialog]").addEventListener("click", () => detailDialog.close());
-detailDialog.addEventListener("click", (event) => {
-  if (event.target === detailDialog) detailDialog.close();
+document.querySelectorAll(".dialog-close, [data-close-dialog]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const dialog = button.closest("dialog");
+    if (dialog) dialog.close();
+  });
 });
+
+if (detailDialog) {
+  detailDialog.addEventListener("click", (event) => {
+    if (event.target === detailDialog) detailDialog.close();
+  });
+}
+if (appDetailDialog) {
+  appDetailDialog.addEventListener("click", (event) => {
+    if (event.target === appDetailDialog) appDetailDialog.close();
+  });
+}
 
 document.querySelectorAll("[data-week-move]").forEach((button) => {
   button.addEventListener(
