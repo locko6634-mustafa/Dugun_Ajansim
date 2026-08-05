@@ -517,6 +517,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set('Idempotency-Key', `${marker}-public-route-key`)
     .send({
       ...applicationInput,
+      weddingDate: addCalendarDays(weddingDate, 4),
       brideFirstName: 'Route',
       groomFirstName: 'Public',
       primaryEmail: `route-${marker}@example.com`,
