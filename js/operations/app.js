@@ -218,16 +218,7 @@ function renderWeddings() {
     ? rows
         .map((wedding) => {
           const date = new Date(wedding.startsAt);
-          const hasAssignments = wedding.assignments.length > 0;
-          const day = new Intl.DateTimeFormat("tr-TR", {
-            timeZone: "Europe/Istanbul",
-            day: "2-digit"
-          }).format(date);
-          const month = new Intl.DateTimeFormat("tr-TR", {
-            timeZone: "Europe/Istanbul",
-            month: "short"
-          }).format(date);
-          return `<article class="wedding-card"><div class="date-tile"><strong>${day}</strong><span>${escapeHtml(month)}</span></div><div><h3>${escapeHtml(couple(wedding))}</h3><p>${escapeHtml(wedding.venue?.name || "Salon belirtilmedi")} · ${formatTime(wedding.startsAt)}</p></div><div class="status-cell"><span class="status-dot ${hasAssignments ? "" : "is-unassigned"}">${hasAssignments ? "Ekip atandı" : "Ekip bekliyor"}</span><small class="delivery-date">${formatDate(wedding.startsAt)}</small></div><div><div class="crew-line">${crew(wedding.assignments)}</div></div><button class="mini-button" type="button" data-open-wedding="${wedding.id}">Ayrıntılar</button></article>`;
+          return `<article class="wedding-card"><div class="date-tile"><strong>${new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", day: "2-digit" }).format(date)}</strong><small>${new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", month: "short" }).format(date)}</small></div><div><strong>${escapeHtml(couple(wedding))}</strong><p>${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)}</p></div><div class="crew-line">${crew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${wedding.id}">Ayrıntılar</button></article>`;
         })
         .join("")
     : empty("Aramanızla eşleşen düğün yok.");

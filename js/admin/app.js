@@ -724,7 +724,7 @@ function renderWeddings() {
             month: "short",
             timeZone: "Europe/Istanbul"
           }).format(date);
-          return `<article class="wedding-card"><div class="date-tile"><strong>${day}</strong><span>${escapeHtml(month)}</span></div><div><h3>${escapeHtml(coupleName(wedding))}</h3><p>${escapeHtml(wedding.venue.name)} · ${formatTime(wedding.startsAt)}</p></div><div class="status-cell"><span class="status-dot" data-status="${escapeHtml(wedding.delivery?.status || "")}">${escapeHtml(STATUS_LABELS[wedding.delivery?.status] || "Teslimat yok")}</span><small class="delivery-date">${formatDate(wedding.delivery?.dueDate)}</small></div><div><div class="crew-line">${renderCrew(wedding.assignments)}</div></div><button class="mini-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}">Ayrıntılar</button></article>`;
+          return `<article class="wedding-card"><div class="date-tile"><strong>${day}</strong><small>${escapeHtml(month)}</small></div><div><strong>${escapeHtml(coupleName(wedding))}</strong><p>${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)}</p></div><div class="crew-line">${renderCrew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}">Ayrıntılar</button></article>`;
         })
         .join("")
     : empty("Filtreye uyan düğün bulunamadı.");

@@ -735,6 +735,13 @@ button:disabled {
   border-radius: var(--radius-md);
   background: var(--surface);
 }
+.wedding-list {
+  display: grid;
+  gap: 10px;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+}
 .data-row {
   display: grid;
   grid-template-columns: minmax(190px, 1.4fr) 1fr 0.8fr auto;
@@ -762,40 +769,36 @@ button:disabled {
 }
 .wedding-card {
   display: grid;
-  grid-template-columns: 72px minmax(180px, 1.2fr) 1fr 1fr auto;
+  grid-template-columns: 70px 1.4fr 1fr auto;
   gap: 18px;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid var(--line);
-}
-.wedding-card:last-child {
-  border-bottom: 0;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
 }
 .date-tile {
-  text-align: center;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--olive-pale);
 }
 .date-tile strong {
-  display: block;
   font-family: Inter, Manrope, sans-serif;
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 400;
 }
-.date-tile span {
+.date-tile small {
   color: var(--ink-soft);
   font-size: 9px;
   text-transform: uppercase;
 }
-.wedding-card h3 {
-  margin-bottom: 5px;
-  font-family: Inter, Manrope, sans-serif;
-  font-size: 22px;
-  font-weight: 400;
-}
 .wedding-card p,
 .wedding-card small {
-  margin: 0;
+  margin: 3px 0 0;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 11px;
 }
 .status-dot {
   display: inline-flex;
@@ -1392,9 +1395,9 @@ body.sidebar-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .wedding-card {
-    grid-template-columns: 62px 1fr 1fr auto;
+    grid-template-columns: 60px 1fr auto;
   }
-  .wedding-card > :nth-child(4) {
+  .wedding-card > div:nth-child(3) {
     display: none;
   }
   .distribution-grid {
@@ -1629,17 +1632,14 @@ body.sidebar-open {
     border-radius: var(--radius-md);
     background: var(--surface);
   }
+  .wedding-card {
+    grid-template-columns: 56px 1fr;
+  }
   .wedding-card .date-tile {
     text-align: left;
   }
-  .wedding-card > :nth-child(2),
   .wedding-card > button {
     grid-column: 1 / -1;
-  }
-  .wedding-card > :nth-child(4) {
-    display: block;
-  }
-  .wedding-card > button {
     width: 100%;
   }
   .staff-grid {
@@ -2605,7 +2605,8 @@ h6,
   }
 
   .admin-main .wedding-card .date-tile strong,
-  .admin-main .wedding-card .date-tile span {
+  .admin-main .wedding-card .date-tile small {
+    margin: 0;
     line-height: 1;
     white-space: nowrap;
   }
