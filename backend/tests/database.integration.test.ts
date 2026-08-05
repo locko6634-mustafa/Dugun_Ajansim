@@ -1163,7 +1163,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   );
 
   const availabilityRes = await request(app).get(
-    `/api/v1/public/venues/${venue.id}/availability?date=${weddingDate}`,
+    `/api/v1/venues/${venue.id}/availability?date=${weddingDate}`,
   );
   assert.equal(availabilityRes.status, 200);
   assert.equal(availabilityRes.body.success, true);
