@@ -1335,8 +1335,30 @@ document.querySelectorAll("[data-add-catalog]").forEach((button) => {
     } = formData;
     const body =
       type === "packages"
-        ? { code, name, priceCents, subtitle, deliveryText, imagePath, description, features, isActive }
-        : { code, name, category, eyebrow, priceCents, delivery, imagePath, description, features, gallery, isActive };
+        ? {
+            code,
+            name,
+            priceCents,
+            subtitle,
+            deliveryText,
+            imagePath,
+            description,
+            features,
+            isActive
+          }
+        : {
+            code,
+            name,
+            category,
+            eyebrow,
+            priceCents,
+            delivery,
+            imagePath,
+            description,
+            features,
+            gallery,
+            isActive
+          };
 
     try {
       await apiRequest(`/admin/${type}`, { method: "POST", body });
