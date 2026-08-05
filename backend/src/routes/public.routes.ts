@@ -8,7 +8,7 @@ import {
 } from '../middlewares/rateLimit.middleware.js';
 import { validateRequest } from '../middlewares/validate.middleware.js';
 import { bookingBodySchema } from '../schemas/api.schemas.js';
-import { createBookingApplication } from '../services/booking.service.js';
+import { createBookingApplication, getVenueAvailability } from '../services/booking.service.js';
 import { AppError } from '../utils/appError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -26,6 +26,16 @@ const emptyRequestSchema = z.object({
   body: z.object({}).strict().optional().default({}),
   query: z.object({}).strict(),
   params: z.object({}).strict(),
+});
+
+const availabilitySchema = z.object({
+  body: z.object({}).strict().optional().default({}),
+  query: z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tarih YYYY-MM-DD formatında olmalıdır.'),
+  }),
+  params: z.object({
+    venueId: z.string().uuid('Geçerli bir salon IDsi girilmelidir.'),
+  }),
 });
 
 router.get(
@@ -57,6 +67,17 @@ router.get(
       orderBy: { name: 'asc' },
     });
     res.json({ success: true, data: venues, correlationId: req.correlationId });
+  }),
+);
+
+router.get(
+  '/venues/:venueId/availability',
+  validateRequest(availabilitySchema),
+  asyncHandler(async (req, res) => {
+    const { venueId } = req.params;
+    const { date } = req.query as { date: string };
+    const availability = await getVenueAvailability(venueId, date);
+    res.json({ success: true, data: availability, correlationId: req.correlationId });
   }),
 );
 

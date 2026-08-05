@@ -10,7 +10,9 @@ import {
   atIstanbulTime,
   createTemporaryPasswordExpiry,
   createWeddingRange,
+  formatIstanbulTime,
   getIstanbulDate,
+  isStrictGregorianDate,
   messageSecretEncryptionAad,
   normalizePhone,
   normalizeUsername,
@@ -176,6 +178,43 @@ export const createBookingApplication = async (
           if (!selectedPackage) throw new AppError('Seçilen paket artık aktif değil.', 400);
           if (selectedServices.length !== serviceCodes.length) {
             throw new AppError('Seçilen hizmetlerden biri artık aktif değil.', 400);
+          }
+
+          const conflictingWedding = await transaction.wedding.findFirst({
+            where: {
+              venueId: venue.id,
+              cancelledAt: null,
+              deletedAt: null,
+              startsAt: { lt: endsAt },
+              endsAt: { gt: startsAt },
+            },
+            select: { startsAt: true, endsAt: true },
+          });
+
+          const conflictingApp = !conflictingWedding
+            ? await transaction.bookingApplication.findFirst({
+                where: {
+                  venueId: venue.id,
+                  status: { in: ['ONAY_BEKLIYOR', 'ONAYLANDI'] },
+                  deletedAt: null,
+                  weddingStartsAt: { lt: endsAt },
+                  weddingEndsAt: { gt: startsAt },
+                },
+                select: { weddingStartsAt: true, weddingEndsAt: true },
+              })
+            : null;
+
+          if (conflictingWedding || conflictingApp) {
+            const conflStart = formatIstanbulTime(
+              conflictingWedding?.startsAt || conflictingApp!.weddingStartsAt,
+            );
+            const conflEnd = formatIstanbulTime(
+              conflictingWedding?.endsAt || conflictingApp!.weddingEndsAt,
+            );
+            throw new AppError(
+              `Seçilen salonda bu saat aralığında (${conflStart} - ${conflEnd}) dolu olan bir etkinlik/başvuru bulunmaktadır. Lütfen farklı bir saat seçin.`,
+              400,
+            );
           }
 
           const subtotalCents =
@@ -478,5 +517,62 @@ export const rejectBookingApplication = async (
     });
     return { id: applicationId, status: 'REDDEDILDI' as const };
   });
+
+export const getVenueAvailability = async (
+  venueId: string,
+  dateStr: string,
+): Promise<{ date: string; occupiedSlots: Array<{ startTime: string; endTime: string }> }> => {
+  if (!isStrictGregorianDate(dateStr)) {
+    throw new AppError('Geçersiz tarih formatı (YYYY-MM-DD olmalıdır).', 400);
+  }
+
+  const dayStartsAt = new Date(`${dateStr}T00:00:00+03:00`);
+  const dayEndsAt = new Date(`${dateStr}T23:59:59+03:00`);
+
+  const [weddings, applications] = await Promise.all([
+    prisma.wedding.findMany({
+      where: {
+        venueId,
+        cancelledAt: null,
+        deletedAt: null,
+        startsAt: { lt: dayEndsAt },
+        endsAt: { gt: dayStartsAt },
+      },
+      select: { startsAt: true, endsAt: true },
+      orderBy: { startsAt: 'asc' },
+    }),
+    prisma.bookingApplication.findMany({
+      where: {
+        venueId,
+        status: { in: ['ONAY_BEKLIYOR', 'ONAYLANDI'] },
+        deletedAt: null,
+        weddingStartsAt: { lt: dayEndsAt },
+        weddingEndsAt: { gt: dayStartsAt },
+      },
+      select: { weddingStartsAt: true, weddingEndsAt: true },
+      orderBy: { weddingStartsAt: 'asc' },
+    }),
+  ]);
+
+  const slotsMap = new Map<string, { startTime: string; endTime: string }>();
+
+  weddings.forEach((item) => {
+    const s = formatIstanbulTime(item.startsAt);
+    const e = formatIstanbulTime(item.endsAt);
+    slotsMap.set(`${s}-${e}`, { startTime: s, endTime: e });
+  });
+
+  applications.forEach((item) => {
+    const s = formatIstanbulTime(item.weddingStartsAt);
+    const e = formatIstanbulTime(item.weddingEndsAt);
+    slotsMap.set(`${s}-${e}`, { startTime: s, endTime: e });
+  });
+
+  const occupiedSlots = Array.from(slotsMap.values()).sort((a, b) =>
+    a.startTime.localeCompare(b.startTime),
+  );
+
+  return { date: dateStr, occupiedSlots };
+};
 
 export { createAudit };

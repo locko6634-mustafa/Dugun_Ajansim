@@ -146,3 +146,15 @@ export const formatMoney = (priceCents: number): string =>
     currency: 'TRY',
     maximumFractionDigits: 0,
   }).format(priceCents / 100);
+
+export const formatIstanbulTime = (date: Date): string => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Istanbul',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.hour}:${values.minute}`;
+};
+

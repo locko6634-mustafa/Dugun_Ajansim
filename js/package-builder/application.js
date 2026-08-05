@@ -524,6 +524,182 @@ function validatePhone(input) {
   return isValid;
 }
 
+const venueSelect = document.querySelector(".js-venue-select");
+const weddingDateInput = document.querySelector(".js-wedding-date");
+const startTimeInput = checkoutForm ? checkoutForm.querySelector('input[name="startTime"]') : null;
+const endTimeInput = checkoutForm ? checkoutForm.querySelector('input[name="endTime"]') : null;
+const endsNextDayCheckbox = checkoutForm ? checkoutForm.querySelector('input[name="endsNextDay"]') : null;
+const dateHint = document.querySelector(".js-date-hint");
+const availabilityBanner = document.querySelector(".js-availability-banner");
+
+let currentOccupiedSlots = [];
+
+const timeToMinutes = (timeStr, isNextDay = false) => {
+  if (!timeStr) return 0;
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + m + (isNextDay ? 24 * 60 : 0);
+};
+
+async function fetchVenueAvailability() {
+  const venueId = venueSelect?.value;
+  const date = weddingDateInput?.value;
+
+  if (!venueId || !date) {
+    currentOccupiedSlots = [];
+    if (availabilityBanner) availabilityBanner.hidden = true;
+    return;
+  }
+
+  if (!hasApiEndpoint()) {
+    if (availabilityBanner) availabilityBanner.hidden = true;
+    return;
+  }
+
+  try {
+    const res = await apiRequest(`/venues/${venueId}/availability?date=${date}`);
+    currentOccupiedSlots = res.data.occupiedSlots || [];
+    renderAvailabilityBanner();
+    validateTimeSlots();
+  } catch {
+    currentOccupiedSlots = [];
+    if (availabilityBanner) {
+      availabilityBanner.innerHTML = `<div class="availability-banner__warning">⚠️ Salon doluluk bilgisi alınamadı.</div>`;
+      availabilityBanner.hidden = false;
+    }
+  }
+}
+
+function renderAvailabilityBanner() {
+  if (!availabilityBanner) return;
+
+  if (currentOccupiedSlots.length === 0) {
+    availabilityBanner.innerHTML = `
+      <div class="availability-banner__info">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        <span>Seçilen tarihte bu salon için henüz bir düğün/başvuru kaydı bulunmamaktadır.</span>
+      </div>
+    `;
+    availabilityBanner.hidden = false;
+    return;
+  }
+
+  const slotsText = currentOccupiedSlots
+    .map((s) => `${s.startTime} - ${s.endTime}`)
+    .join(", ");
+
+  availabilityBanner.innerHTML = `
+    <div class="availability-banner__warning">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+      <div>
+        <strong>Bu tarihteki dolu saatler:</strong> ${escapeHtml(slotsText)}
+        <small style="display:block; margin-top:2px;">Bu saat aralıklarıyla çakışmayan bir zaman aralığı seçebilirsiniz (örn. dolu saat 13:00 - 17:00 ise 18:00 - 22:00 seçilebilir).</small>
+      </div>
+    </div>
+  `;
+  availabilityBanner.hidden = false;
+}
+
+function validateTimeSlots() {
+  if (!startTimeInput || !endTimeInput) return true;
+  const startTime = startTimeInput.value;
+  const endTime = endTimeInput.value;
+  const endsNextDay = Boolean(endsNextDayCheckbox?.checked);
+
+  if (!startTime || !endTime || currentOccupiedSlots.length === 0) {
+    setFieldValidity(startTimeInput, true);
+    setFieldValidity(endTimeInput, true);
+    return true;
+  }
+
+  const newStart = timeToMinutes(startTime);
+  const newEnd = timeToMinutes(endTime, endsNextDay);
+
+  if (newEnd <= newStart) {
+    setFieldValidity(endTimeInput, false, "Bitiş saati başlangıç saatinden sonra olmalıdır.");
+    return false;
+  }
+
+  const conflictingSlot = currentOccupiedSlots.find((slot) => {
+    const slotStart = timeToMinutes(slot.startTime);
+    let slotEnd = timeToMinutes(slot.endTime);
+    if (slotEnd <= slotStart) slotEnd += 24 * 60;
+
+    return newStart < slotEnd && newEnd > slotStart;
+  });
+
+  if (conflictingSlot) {
+    const errorMsg = `Seçilen saat aralığı salondaki dolu saatlerle (${conflictingSlot.startTime} - ${conflictingSlot.endTime}) çakışıyor.`;
+    setFieldValidity(startTimeInput, false, errorMsg);
+    setFieldValidity(endTimeInput, false, errorMsg);
+    return false;
+  } else {
+    setFieldValidity(startTimeInput, true);
+    setFieldValidity(endTimeInput, true);
+    return true;
+  }
+}
+
+if (venueSelect) {
+  venueSelect.addEventListener("change", () => {
+    const hasVenue = Boolean(venueSelect.value);
+    if (weddingDateInput) {
+      weddingDateInput.disabled = !hasVenue;
+      if (!hasVenue) weddingDateInput.value = "";
+    }
+    if (dateHint) {
+      dateHint.textContent = hasVenue
+        ? "Lütfen düğün tarihinizi seçin."
+        : "Tarih seçebilmek için lütfen önce salon seçiniz.";
+    }
+    if (!hasVenue) {
+      if (startTimeInput) {
+        startTimeInput.value = "";
+        startTimeInput.disabled = true;
+      }
+      if (endTimeInput) {
+        endTimeInput.value = "";
+        endTimeInput.disabled = true;
+      }
+      if (endsNextDayCheckbox) {
+        endsNextDayCheckbox.checked = false;
+        endsNextDayCheckbox.disabled = true;
+      }
+      currentOccupiedSlots = [];
+      if (availabilityBanner) availabilityBanner.hidden = true;
+    } else {
+      fetchVenueAvailability();
+    }
+  });
+}
+
+if (weddingDateInput) {
+  weddingDateInput.addEventListener("change", () => {
+    const hasDate = Boolean(weddingDateInput.value);
+    if (startTimeInput) startTimeInput.disabled = !hasDate;
+    if (endTimeInput) endTimeInput.disabled = !hasDate;
+    if (endsNextDayCheckbox) endsNextDayCheckbox.disabled = !hasDate;
+
+    if (hasDate) {
+      fetchVenueAvailability();
+    } else {
+      currentOccupiedSlots = [];
+      if (availabilityBanner) availabilityBanner.hidden = true;
+    }
+  });
+}
+
+if (startTimeInput) {
+  startTimeInput.addEventListener("input", validateTimeSlots);
+  startTimeInput.addEventListener("change", validateTimeSlots);
+}
+if (endTimeInput) {
+  endTimeInput.addEventListener("input", validateTimeSlots);
+  endTimeInput.addEventListener("change", validateTimeSlots);
+}
+if (endsNextDayCheckbox) {
+  endsNextDayCheckbox.addEventListener("change", validateTimeSlots);
+}
+
 checkoutForm.addEventListener("input", (event) => {
   if (phoneInputs.includes(event.target)) validatePhone(event.target);
   const field = event.target.closest(".form-field");
@@ -544,9 +720,12 @@ checkoutForm.addEventListener("submit", (event) => {
     setFieldValidity(input, input.validity.valid);
   });
 
+  const isTimeValid = validateTimeSlots();
+
   const firstInvalid = requiredFields.find((input) => !input.validity.valid);
-  if (firstInvalid) {
-    firstInvalid.focus();
+  if (firstInvalid || !isTimeValid) {
+    if (firstInvalid) firstInvalid.focus();
+    else if (startTimeInput) startTimeInput.focus();
     return;
   }
 
@@ -834,7 +1013,6 @@ updateProgress();
 setSummaryOpen(false, { returnFocus: false });
 void hydrateRemoteData();
 
-const weddingDateInput = document.querySelector(".js-wedding-date");
 const today = new Date();
 const localToday = [
   today.getFullYear(),

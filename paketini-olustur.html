@@ -421,39 +421,6 @@
                 >
               </label>
 
-              <label class="form-field">
-                <span>Düğün Tarihi</span>
-                <input
-                  class="js-wedding-date"
-                  type="date"
-                  name="weddingDate"
-                  required
-                  aria-describedby="wedding-date-error"
-                />
-                <small class="form-field__error" id="wedding-date-error"
-                  >Lütfen düğün tarihinizi seçin.</small
-                >
-              </label>
-
-              <label class="form-field">
-                <span>Başlangıç Saati</span>
-                <input type="time" name="startTime" required aria-describedby="start-time-error" />
-                <small class="form-field__error" id="start-time-error"
-                  >Başlangıç saatini seçin.</small
-                >
-              </label>
-
-              <label class="form-field">
-                <span>Bitiş Saati</span>
-                <input type="time" name="endTime" required aria-describedby="end-time-error" />
-                <small class="form-field__error" id="end-time-error">Bitiş saatini seçin.</small>
-              </label>
-
-              <label class="consent-field form-field--wide">
-                <input type="checkbox" name="endsNextDay" />
-                <span>Bitiş saati ertesi güne aittir.</span>
-              </label>
-
               <label class="form-field form-field--wide">
                 <span>Salon</span>
                 <select
@@ -468,6 +435,43 @@
                   >Lütfen düğün salonunuzu seçin.</small
                 >
               </label>
+
+              <label class="form-field">
+                <span>Düğün Tarihi</span>
+                <input
+                  class="js-wedding-date"
+                  type="date"
+                  name="weddingDate"
+                  required
+                  disabled
+                  aria-describedby="wedding-date-error"
+                />
+                <small class="form-field__hint js-date-hint">Tarih seçmek için lütfen önce salon seçiniz.</small>
+                <small class="form-field__error" id="wedding-date-error"
+                  >Lütfen düğün tarihinizi seçin.</small
+                >
+              </label>
+
+              <label class="form-field">
+                <span>Başlangıç Saati</span>
+                <input type="time" name="startTime" required disabled aria-describedby="start-time-error" />
+                <small class="form-field__error" id="start-time-error"
+                  >Başlangıç saatini seçin.</small
+                >
+              </label>
+
+              <label class="form-field">
+                <span>Bitiş Saati</span>
+                <input type="time" name="endTime" required disabled aria-describedby="end-time-error" />
+                <small class="form-field__error" id="end-time-error">Bitiş saatini seçin.</small>
+              </label>
+
+              <label class="consent-field form-field--wide">
+                <input type="checkbox" name="endsNextDay" disabled />
+                <span>Bitiş saati ertesi güne aittir.</span>
+              </label>
+
+              <div class="availability-banner js-availability-banner form-field--wide" hidden aria-live="polite"></div>
 
               <label class="form-field form-field--wide">
                 <span>Notunuz <em>Opsiyonel</em></span>
