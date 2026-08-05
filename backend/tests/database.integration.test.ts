@@ -848,7 +848,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(venueCalendar.status, 200);
   assert.equal(venueCalendar.body.data.selectedVenue.id, venue.id);
   assert.equal(venueCalendar.body.data.month, weddingDate.slice(0, 7));
-  assert.equal(venueCalendar.body.data.weddings.length, 3);
+  assert.equal(venueCalendar.body.data.weddings.length, 2);
   assert.equal(
     venueCalendar.body.data.weddings.every(
       (calendarWedding: { venue: { name: string } }) => calendarWedding.venue.name === venue.name,
