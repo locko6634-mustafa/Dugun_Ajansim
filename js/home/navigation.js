@@ -61,15 +61,23 @@ window.addEventListener("resize", () => {
 
 setMenu(false, { restoreFocus: false });
 
-const navLinks = document.querySelectorAll(
-  ".desktop-nav a[href^='#'], .mobile-menu nav a[href^='#']"
-);
-const sectionIds = ["anasayfa", "hakkimizda", "konseptler", "hizmetler", "galeri", "iletisim"];
+const sectionIds = [
+  "anasayfa",
+  "hakkimizda",
+  "konseptler",
+  "hizmetler",
+  "galeri",
+  "paket-olustur",
+  "iletisim"
+];
 let isManualClick = false;
 let manualClickTimer = null;
 
 function setActiveNav(targetId) {
   if (!targetId) return;
+  const navLinks = document.querySelectorAll(
+    ".desktop-nav a[href^='#'], .mobile-menu nav a[href^='#']"
+  );
   navLinks.forEach((link) => {
     const href = link.getAttribute("href");
     const isActive = href === `#${targetId}`;
@@ -82,26 +90,61 @@ function setActiveNav(targetId) {
   });
 }
 
-document.querySelectorAll("a[href^='#']").forEach((link) => {
-  link.addEventListener("click", (event) => {
-    const href = link.getAttribute("href");
-    if (href && href.startsWith("#") && href.length > 1) {
-      const targetId = href.slice(1);
-      if (sectionIds.includes(targetId)) {
-        if (targetId === "anasayfa") {
-          event.preventDefault();
-          window.scrollTo({ top: 0, behavior: "smooth" });
-          window.history.pushState(null, "", "#anasayfa");
-        }
-        setActiveNav(targetId);
-        isManualClick = true;
-        clearTimeout(manualClickTimer);
-        manualClickTimer = setTimeout(() => {
-          isManualClick = false;
-        }, 800);
-      }
-    }
+function scrollToTarget(targetElement) {
+  if (!targetElement) return;
+
+  const getDesiredY = () => {
+    const header = document.querySelector(".header-bar, .site-header, header");
+    const headerHeight = header ? header.getBoundingClientRect().height : 80;
+    const targetTop = targetElement.getBoundingClientRect().top + window.scrollY;
+    return Math.max(0, targetTop - headerHeight - 16);
+  };
+
+  const initialY = getDesiredY();
+  window.scrollTo({
+    top: initialY,
+    behavior: "smooth"
   });
+
+  [250, 550, 900, 1300].forEach((delay) => {
+    setTimeout(() => {
+      const desired = getDesiredY();
+      if (Math.abs(window.scrollY - desired) > 15) {
+        window.scrollTo({
+          top: desired,
+          behavior: "smooth"
+        });
+      }
+    }, delay);
+  });
+}
+
+document.addEventListener("click", (event) => {
+  const link = event.target.closest("a[href^='#']");
+  if (!link) return;
+
+  const href = link.getAttribute("href");
+  if (href && href.startsWith("#") && href.length > 1) {
+    const targetId = href.slice(1);
+    const targetElement = document.getElementById(targetId);
+    if (targetElement) {
+      event.preventDefault();
+      if (targetId === "anasayfa") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        scrollToTarget(targetElement);
+      }
+      try {
+        window.history.pushState(null, "", `#${targetId}`);
+      } catch (_) {}
+      setActiveNav(targetId);
+      isManualClick = true;
+      clearTimeout(manualClickTimer);
+      manualClickTimer = setTimeout(() => {
+        isManualClick = false;
+      }, 1400);
+    }
+  }
 });
 
 function initActiveNav() {

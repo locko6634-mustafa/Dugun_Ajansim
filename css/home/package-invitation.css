@@ -23,6 +23,7 @@
   width: min(1360px, 100%);
   min-height: 680px;
   margin: 0 auto;
+  scroll-margin-top: calc(var(--header-height) + 24px);
   border: 1px solid hsl(34 31% 84%);
   background: hsl(42 38% 99%);
   box-shadow: 0 30px 80px hsl(30 25% 26% / 0.1);
