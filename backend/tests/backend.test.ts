@@ -60,6 +60,9 @@ test('production seed kullanıcı, parola veya operasyon personeli oluşturmaz',
   assert.equal(seedSource.includes('passwordHash'), false);
   assert.equal(seedSource.includes('SALON_YETKILISI'), false);
   assert.equal(seedSource.includes('prisma.staff'), false);
+  assert.equal((seedSource.match(/update:\s*\{\}/g) ?? []).length, 3);
+  assert.equal(seedSource.includes('update: { name'), false);
+  assert.equal(seedSource.includes('update: { category'), false);
 });
 
 const createMockResponse = () => {

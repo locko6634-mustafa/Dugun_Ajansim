@@ -9,6 +9,7 @@ import { assertSafeLocalTestDatabase } from '../src/scripts/testDatabaseGuard.js
 import {
   approveBookingApplication,
   createBookingApplication,
+  rejectBookingApplication,
 } from '../src/services/booking.service.js';
 import { decryptValue, hashPassword, hashToken, verifyPassword } from '../src/utils/crypto.js';
 import {
@@ -73,6 +74,21 @@ test('migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalış�
       AND column_name = 'mustChangePassword'
   `;
   assert.equal(userDefault[0]?.column_default, null);
+
+  const catalogArrayColumns = await prisma.$queryRaw<
+    Array<{ table_name: string; column_name: string; is_nullable: string }>
+  >`
+    SELECT table_name, column_name, is_nullable
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND (
+        (table_name = 'packages' AND column_name = 'features')
+        OR (table_name = 'services' AND column_name IN ('features', 'gallery'))
+      )
+    ORDER BY table_name, column_name
+  `;
+  assert.equal(catalogArrayColumns.length, 3);
+  assert.equal(catalogArrayColumns.every((column) => column.is_nullable === 'NO'), true);
 
   const response = await request(createApp()).get('/api/v1/health');
 
@@ -230,8 +246,14 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   let adminId: string | undefined;
   let managerId: string | undefined;
   const staffIds: string[] = [];
+  let assignmentScopeTriggerDisabled = false;
 
   context.after(async () => {
+    if (assignmentScopeTriggerDisabled) {
+      await prisma.$executeRawUnsafe(
+        'ALTER TABLE "wedding_assignments" ENABLE TRIGGER "wedding_assignments_venue_match_trigger"',
+      );
+    }
     await prisma.auditLog.deleteMany({ where: { correlationId } });
     const applications = await prisma.bookingApplication.findMany({
       where: { primaryEmail: { contains: marker } },
@@ -412,6 +434,56 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     {
       source: 'ADMIN',
       idempotencyKey: `${marker}-second`,
+      actor: { id: admin.id },
+      correlationId,
+    },
+  );
+
+  const archivedDate = addCalendarDays(weddingDate, 8);
+  const archivedApplication = await createBookingApplication(
+    {
+      ...applicationInput,
+      weddingDate: archivedDate,
+      primaryEmail: `arsiv-${marker}@example.com`,
+    },
+    {
+      source: 'ADMIN',
+      idempotencyKey: `${marker}-archived`,
+      actor: { id: admin.id },
+      correlationId,
+    },
+  );
+  await prisma.bookingApplication.update({
+    where: { id: archivedApplication.id },
+    data: { deletedAt: new Date(), deletedById: admin.id },
+  });
+  await assert.rejects(
+    approveBookingApplication(archivedApplication.id, admin.id, correlationId),
+    (error: unknown) =>
+      error instanceof Error &&
+      'statusCode' in error &&
+      (error as { statusCode: number }).statusCode === 404,
+  );
+  await assert.rejects(
+    rejectBookingApplication(archivedApplication.id, 'Arşivli kayıt', admin.id, correlationId),
+    (error: unknown) =>
+      error instanceof Error &&
+      'statusCode' in error &&
+      (error as { statusCode: number }).statusCode === 409,
+  );
+  assert.equal(
+    await prisma.wedding.count({ where: { applicationId: archivedApplication.id } }),
+    0,
+  );
+  const replacementApplication = await createBookingApplication(
+    {
+      ...applicationInput,
+      weddingDate: archivedDate,
+      primaryEmail: `arsiv-yedek-${marker}@example.com`,
+    },
+    {
+      source: 'ADMIN',
+      idempotencyKey: `${marker}-archived-replacement`,
       actor: { id: admin.id },
       correlationId,
     },
@@ -676,6 +748,106 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal('idempotencyKey' in applicationDetail.body.data, false);
   assert.equal('idempotencyFingerprint' in applicationDetail.body.data, false);
 
+  const conflictingRestore = await request(app)
+    .post(`/api/v1/admin/booking-applications/${archivedApplication.id}/restore`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({});
+  assert.equal(conflictingRestore.status, 409);
+  assert.equal(conflictingRestore.body.errors.code, 'VENUE_SCHEDULE_CONFLICT');
+  await prisma.bookingApplication.delete({ where: { id: replacementApplication.id } });
+  const successfulRestore = await request(app)
+    .post(`/api/v1/admin/booking-applications/${archivedApplication.id}/restore`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({});
+  assert.equal(successfulRestore.status, 200);
+  assert.equal(successfulRestore.body.data.deletedAt, null);
+
+  const secondWeddingBeforeCredentialRotation = await prisma.wedding.findUniqueOrThrow({
+    where: { id: secondApproval.weddingId },
+    include: { customerUser: true },
+  });
+  const secondPasswordReset = await request(app)
+    .post(
+      `/api/v1/admin/customers/${secondWeddingBeforeCredentialRotation.customerUserId}/reset-password`,
+    )
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({});
+  assert.equal(secondPasswordReset.status, 200);
+  assert.equal(typeof secondPasswordReset.body.data.message, 'string');
+  assert.equal(new URL(secondPasswordReset.body.data.whatsappUrl).search, '');
+  assert.equal(
+    secondPasswordReset.body.data.whatsappUrl.includes(secondPasswordReset.body.data.message),
+    false,
+  );
+  const cancelledSecondActivation = await prisma.messageTask.findUniqueOrThrow({
+    where: {
+      weddingId_kind: {
+        weddingId: secondWeddingBeforeCredentialRotation.id,
+        kind: 'ACCOUNT_ACTIVATION',
+      },
+    },
+  });
+  assert.equal(cancelledSecondActivation.status, 'CANCELLED');
+  assert.equal(cancelledSecondActivation.secretCiphertext, null);
+  assert.equal(cancelledSecondActivation.secretIv, null);
+  assert.equal(cancelledSecondActivation.secretAuthTag, null);
+
+  const rotatedSecondWedding = await request(app)
+    .patch(`/api/v1/admin/weddings/${secondWeddingBeforeCredentialRotation.id}`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({
+      brideFirstName: 'Elifnur',
+      brideLastName: secondWeddingBeforeCredentialRotation.brideLastName,
+      bridePhone: secondWeddingBeforeCredentialRotation.bridePhone,
+      groomFirstName: secondWeddingBeforeCredentialRotation.groomFirstName,
+      groomLastName: secondWeddingBeforeCredentialRotation.groomLastName,
+      groomPhone: secondWeddingBeforeCredentialRotation.groomPhone,
+      primaryContact: secondWeddingBeforeCredentialRotation.primaryContact,
+      primaryEmail: secondWeddingBeforeCredentialRotation.primaryEmail,
+      weddingDate: getIstanbulDate(secondWeddingBeforeCredentialRotation.startsAt),
+      startTime: '20:00',
+      endTime: '02:00',
+      endsNextDay: true,
+      venueId: secondWeddingBeforeCredentialRotation.venueId,
+      note: secondWeddingBeforeCredentialRotation.note ?? '',
+    });
+  assert.equal(rotatedSecondWedding.status, 200);
+  assert.equal(rotatedSecondWedding.body.data.credentialsRegenerated, true);
+  const cancelledSecondReset = await prisma.messageTask.findUniqueOrThrow({
+    where: {
+      weddingId_kind: {
+        weddingId: secondWeddingBeforeCredentialRotation.id,
+        kind: 'PASSWORD_RESET',
+      },
+    },
+  });
+  assert.equal(cancelledSecondReset.status, 'CANCELLED');
+  assert.equal(cancelledSecondReset.secretCiphertext, null);
+  assert.equal(cancelledSecondReset.secretIv, null);
+  assert.equal(cancelledSecondReset.secretAuthTag, null);
+  const renewedSecondActivation = await prisma.messageTask.findUniqueOrThrow({
+    where: {
+      weddingId_kind: {
+        weddingId: secondWeddingBeforeCredentialRotation.id,
+        kind: 'ACCOUNT_ACTIVATION',
+      },
+    },
+  });
+  assert.equal(renewedSecondActivation.status, 'PENDING');
+  assert.ok(
+    renewedSecondActivation.secretCiphertext &&
+      renewedSecondActivation.secretIv &&
+      renewedSecondActivation.secretAuthTag,
+  );
+
   const createdStaff = await request(app)
     .post('/api/v1/admin/staff')
     .set('X-Correlation-ID', correlationId)
@@ -741,11 +913,51 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
   staffIds.push(foreignStaff.id);
 
+  await assert.rejects(
+    prisma.weddingAssignment.create({
+      data: { weddingId: wedding.id, staffId: foreignStaff.id, specialty: 'VIDEO' },
+    }),
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE "wedding_assignments" DISABLE TRIGGER "wedding_assignments_venue_match_trigger"',
+  );
+  assignmentScopeTriggerDisabled = true;
+  let legacyCrossVenueAssignmentId = '';
+  try {
+    const legacyCrossVenueAssignment = await prisma.weddingAssignment.create({
+      data: { weddingId: wedding.id, staffId: foreignStaff.id, specialty: 'VIDEO' },
+    });
+    legacyCrossVenueAssignmentId = legacyCrossVenueAssignment.id;
+  } finally {
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE "wedding_assignments" ENABLE TRIGGER "wedding_assignments_venue_match_trigger"',
+    );
+    assignmentScopeTriggerDisabled = false;
+  }
+
   const venueOperationsDashboard = await request(app)
     .get('/api/v1/operations/dashboard')
     .set('Cookie', managerCookie);
   assert.equal(venueOperationsDashboard.status, 200);
   assert.equal(venueOperationsDashboard.body.data.venue.id, venue.id);
+  const scopedWeddingDetail = await request(app)
+    .get(`/api/v1/operations/weddings/${wedding.id}`)
+    .set('Cookie', managerCookie);
+  assert.equal(scopedWeddingDetail.status, 200);
+  assert.equal(
+    scopedWeddingDetail.body.data.assignments.some(
+      (assignment: { staffId: string }) => assignment.staffId === foreignStaff.id,
+    ),
+    false,
+  );
+  const crossVenueAdminAssignment = await request(app)
+    .post(`/api/v1/admin/weddings/${wedding.id}/assignments`)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({ staffId: foreignStaff.id, specialty: 'VIDEO', allowConflict: false });
+  assert.equal(crossVenueAdminAssignment.status, 409);
+  assert.equal(crossVenueAdminAssignment.body.errors.code, 'VENUE_ASSIGNMENT_MISMATCH');
+  await prisma.weddingAssignment.delete({ where: { id: legacyCrossVenueAssignmentId } });
   const operationsScheduleConflict = await request(app)
     .patch(`/api/v1/operations/weddings/${wedding.id}`)
     .set('X-Correlation-ID', correlationId)
@@ -824,7 +1036,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     });
   assert.equal(firstAssignment.status, 201);
 
-  const rejectedConflict = await request(app)
+  const rejectedCrossVenueAssignment = await request(app)
     .post(`/api/v1/admin/weddings/${secondApproval.weddingId}/assignments`)
     .set('Cookie', adminAuthCookie)
     .set('X-CSRF-Token', adminCsrfToken)
@@ -833,30 +1045,16 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       specialty: 'VIDEO',
       allowConflict: false,
     });
-  assert.equal(rejectedConflict.status, 409);
-  assert.equal(rejectedConflict.body.errors.code, 'STAFF_CONFLICT');
-  assert.equal(rejectedConflict.body.errors.conflicts.length, 1);
-
-  const allowedConflict = await request(app)
-    .post(`/api/v1/admin/weddings/${secondApproval.weddingId}/assignments`)
-    .set('X-Correlation-ID', correlationId)
-    .set('Cookie', adminAuthCookie)
-    .set('X-CSRF-Token', adminCsrfToken)
-    .send({
-      staffId: createdStaff.body.data.id,
-      specialty: 'VIDEO',
-      allowConflict: true,
-    });
-  assert.equal(allowedConflict.status, 201);
-  assert.equal(allowedConflict.body.data.hasConflict, true);
+  assert.equal(rejectedCrossVenueAssignment.status, 409);
+  assert.equal(rejectedCrossVenueAssignment.body.errors.code, 'VENUE_ASSIGNMENT_MISMATCH');
 
   const operationsDashboard = await request(app)
     .get(`/api/v1/admin/dashboard?weekStart=${weddingDate}`)
     .set('Cookie', adminCookie);
   assert.equal(operationsDashboard.status, 200);
-  assert.equal(operationsDashboard.body.data.conflicts.length, 1);
+  assert.equal(operationsDashboard.body.data.conflicts.length, 0);
   assert.equal(operationsDashboard.body.data.distribution.PHOTOGRAPHY, 1);
-  assert.equal(operationsDashboard.body.data.distribution.VIDEO, 1);
+  assert.equal(operationsDashboard.body.data.distribution.VIDEO, 0);
 
   const venueCalendar = await request(app)
     .get(`/api/v1/admin/calendar?month=${weddingDate.slice(0, 7)}&venueId=${venue.id}`)
@@ -886,16 +1084,6 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     JSON.stringify(weddingDetail.body.data.messageTasks).includes('secretCiphertext'),
     false,
   );
-
-  const removedAssignment = await request(app)
-    .delete(
-      `/api/v1/admin/weddings/${secondApproval.weddingId}/assignments/${allowedConflict.body.data.id}`,
-    )
-    .set('X-Correlation-ID', correlationId)
-    .set('Cookie', adminAuthCookie)
-    .set('X-CSRF-Token', adminCsrfToken)
-    .send({});
-  assert.equal(removedAssignment.status, 200);
 
   const archivedStaff = await request(app)
     .patch(`/api/v1/admin/staff/${createdStaff.body.data.id}`)
@@ -957,6 +1145,19 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({});
   assert.equal(archivedRoutePackage.status, 200);
   assert.equal(archivedRoutePackage.body.data.isActive, false);
+  assert.equal(await prisma.package.count({ where: { id: routePackageId } }), 0);
+  const deactivatedReferencedPackage = await request(app)
+    .delete(`/api/v1/admin/packages/${packageRecord.id}`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({});
+  assert.equal(deactivatedReferencedPackage.status, 200);
+  assert.equal(deactivatedReferencedPackage.body.data.isActive, false);
+  assert.equal(
+    (await prisma.package.findUniqueOrThrow({ where: { id: packageRecord.id } })).isActive,
+    false,
+  );
 
   const customerPasswordHashBeforeWeddingUpdate = (
     await prisma.user.findUniqueOrThrow({ where: { id: wedding.customerUserId } })
@@ -1091,6 +1292,26 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     ),
     driveUrl,
   );
+  const clearedDelivery = await request(app)
+    .patch(`/api/v1/admin/deliveries/${wedding.delivery!.id}`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({ driveUrl: null });
+  assert.equal(clearedDelivery.status, 200);
+  const deliveryWithoutUrl = await prisma.delivery.findUniqueOrThrow({
+    where: { id: wedding.delivery!.id },
+  });
+  assert.equal(deliveryWithoutUrl.driveUrlCiphertext, null);
+  assert.equal(deliveryWithoutUrl.driveUrlIv, null);
+  assert.equal(deliveryWithoutUrl.driveUrlAuthTag, null);
+  const restoredDeliveryUrl = await request(app)
+    .patch(`/api/v1/admin/deliveries/${wedding.delivery!.id}`)
+    .set('X-Correlation-ID', correlationId)
+    .set('Cookie', adminAuthCookie)
+    .set('X-CSRF-Token', adminCsrfToken)
+    .send({ driveUrl });
+  assert.equal(restoredDeliveryUrl.status, 200);
   const hiddenDelivery = await request(app)
     .get('/api/v1/customer/delivery')
     .set('Cookie', customerCookie);
@@ -1169,6 +1390,9 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({});
   assert.equal(passwordReset.status, 200);
   assert.equal(passwordReset.headers['cache-control'], 'no-store');
+  assert.equal(typeof passwordReset.body.data.message, 'string');
+  assert.equal(new URL(passwordReset.body.data.whatsappUrl).search, '');
+  assert.equal(passwordReset.body.data.whatsappUrl.includes(passwordReset.body.data.message), false);
   const resetTaskId = passwordReset.body.data.taskId as string;
   const pendingResetTask = await prisma.messageTask.findUniqueOrThrow({
     where: { id: resetTaskId },
@@ -1198,6 +1422,8 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(renderedReset.status, 200);
   assert.equal(renderedReset.headers['cache-control'], 'no-store');
   assert.equal(renderedReset.body.data.message.includes('Geçici parolanız'), true);
+  assert.equal(new URL(renderedReset.body.data.whatsappUrl).search, '');
+  assert.equal(renderedReset.body.data.whatsappUrl.includes(renderedReset.body.data.message), false);
   const expectedUpdatedAt = renderedReset.body.data.expectedUpdatedAt as string;
   const markedSent = await request(app)
     .post(`/api/v1/admin/message-tasks/${resetTaskId}/mark-sent`)

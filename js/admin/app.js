@@ -117,7 +117,7 @@ const escapeHtml = (value) =>
 const formatDate = (value, includeTime = false) =>
   value
     ? new Intl.DateTimeFormat("tr-TR", {
-        timeZone: includeTime ? "Europe/Istanbul" : "UTC",
+        timeZone: "Europe/Istanbul",
         dateStyle: "medium",
         ...(includeTime ? { timeStyle: "short" } : {})
       }).format(new Date(value))
@@ -192,6 +192,74 @@ const coupleName = (wedding) =>
     .trim();
 
 const safePhoneHref = (phone) => `tel:${String(phone || "").replace(/[^+\d]/g, "")}`;
+
+const openBlankPopup = () => {
+  const popup = window.open("about:blank", "_blank");
+  if (popup) popup.opener = null;
+  return popup;
+};
+
+const safeWhatsAppUrl = (value) => {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("Geçerli bir WhatsApp yönlendirmesi alınamadı.");
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "wa.me" ||
+    url.port ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    !/^\/\d{8,15}$/.test(url.pathname)
+  ) {
+    throw new Error("Güvenli bir WhatsApp yönlendirmesi alınamadı.");
+  }
+  return url.href;
+};
+
+async function copyMessageToClipboard(value) {
+  const message = typeof value === "string" ? value.trim() : "";
+  if (!message) throw new Error("Kopyalanacak mesaj içeriği alınamadı.");
+
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(message);
+      return;
+    } catch {
+      // Güvenli context veya izin yoksa aşağıdaki yerel kopyalama yöntemini dene.
+    }
+  }
+
+  try {
+    const fallback = document.createElement("textarea");
+    fallback.value = message;
+    fallback.setAttribute("readonly", "");
+    fallback.style.position = "fixed";
+    fallback.style.opacity = "0";
+    document.body.append(fallback);
+    fallback.select();
+    const copied = document.execCommand("copy");
+    fallback.remove();
+    if (!copied) throw new Error("copy-failed");
+  } catch {
+    throw new Error("Mesaj panoya kopyalanamadı; hiçbir parola bağlantıya eklenmedi.");
+  }
+}
+
+async function openWhatsAppMessage(data, popup) {
+  const whatsappUrl = safeWhatsAppUrl(data?.whatsappUrl);
+  await copyMessageToClipboard(data?.message);
+  if (!popup) {
+    throw new Error(
+      "Mesaj panoya kopyalandı ancak WhatsApp penceresi engellendi. Açılır pencerelere izin verip tekrar deneyin."
+    );
+  }
+  popup.location.href = whatsappUrl;
+}
 
 async function ensureAdmin() {
   try {
@@ -1266,7 +1334,7 @@ detailContent.addEventListener("click", async (event) => {
         body: {
           status: row.querySelector('[data-field="status"]').value,
           dueDate: row.querySelector('[data-field="dueDate"]').value,
-          ...(driveUrl ? { driveUrl } : {})
+          driveUrl: driveUrl || null
         }
       });
       setMessage("Teslimat bilgileri kaydedildi.", true);
@@ -1290,12 +1358,18 @@ detailContent.addEventListener("click", async (event) => {
         cancelText: "Vazgeç"
       });
       if (!confirmed) return;
-      const response = await apiRequest(
-        `/admin/customers/${resetButton.dataset.resetUser}/reset-password`,
-        { method: "POST" }
-      );
-      window.open(response.data.whatsappUrl, "_blank", "noopener");
-      setMessage("Geçici parola mesajı hazırlandı.", true);
+      const popup = openBlankPopup();
+      try {
+        const response = await apiRequest(
+          `/admin/customers/${resetButton.dataset.resetUser}/reset-password`,
+          { method: "POST" }
+        );
+        await openWhatsAppMessage(response.data, popup);
+        setMessage("Geçici parola mesajı panoya kopyalandı ve WhatsApp açıldı.", true);
+      } catch (error) {
+        popup?.close();
+        throw error;
+      }
     } else if (archiveWeddingButton) {
       const accepted = await requestDangerConfirmation(
         {
@@ -1501,19 +1575,17 @@ document.querySelector(".js-messages").addEventListener("click", async (event) =
   const sentButton = event.target.closest("[data-mark-sent]");
   try {
     if (openButton) {
-      const popup = window.open("about:blank", "_blank");
+      const popup = openBlankPopup();
       try {
         const response = await apiRequest(
           `/admin/message-tasks/${openButton.dataset.openMessage}/render`
         );
-        if (popup) {
-          popup.opener = null;
-          popup.location.href = response.data.whatsappUrl;
-        } else window.location.href = response.data.whatsappUrl;
+        await openWhatsAppMessage(response.data, popup);
         const markButton = document.querySelector(
           `[data-mark-sent="${openButton.dataset.openMessage}"]`
         );
         if (markButton) markButton.dataset.taskUpdatedAt = response.data.expectedUpdatedAt;
+        setMessage("Mesaj panoya kopyalandı ve WhatsApp açıldı.", true);
       } catch (error) {
         popup?.close();
         throw error;

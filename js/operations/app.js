@@ -560,9 +560,8 @@ if (toggleOpsSidebarBtn && opsSidebar) {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closeOpsSidebar();
-    detailContainer?.close();
-    weddingDialog?.close();
-    staffDialog?.close();
+    if (weddingDialog?.open) weddingDialog.close();
+    if (staffDialog?.open) staffDialog.close();
   }
 });
 

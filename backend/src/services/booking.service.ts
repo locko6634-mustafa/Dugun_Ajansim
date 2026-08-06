@@ -413,126 +413,165 @@ export const approveBookingApplication = async (
   correlationId: string,
   dependencies: ApprovalDependencies = {},
 ) => {
-  const application = await prisma.bookingApplication.findUnique({
-    where: { id: applicationId },
-    include: { services: true, venue: true },
+  const applicationIdentity = await prisma.bookingApplication.findFirst({
+    where: { id: applicationId, deletedAt: null },
+    select: { brideLastName: true, groomLastName: true, status: true },
   });
-  if (!application) throw new AppError('Başvuru bulunamadı.', 404);
-  if (application.status !== 'ONAY_BEKLIYOR') {
+  if (!applicationIdentity) throw new AppError('Başvuru bulunamadı.', 404);
+  if (applicationIdentity.status !== 'ONAY_BEKLIYOR') {
     throw new AppError('Yalnızca onay bekleyen başvurular onaylanabilir.', 409);
   }
 
-  const weddingDate = getIstanbulDate(application.weddingStartsAt);
   const temporaryPassword = randomTemporaryPassword();
   const passwordHash = await hashPassword(temporaryPassword);
-  const activeAt = atIstanbulTime(addCalendarDays(weddingDate, 1), '09:00');
-  const now = new Date();
-  const temporaryPasswordExpiresAt = createTemporaryPasswordExpiry(
-    env.TEMPORARY_PASSWORD_TTL_HOURS,
-    activeAt > now ? activeAt : now,
-  );
-  const preparationDueAt = atIstanbulTime(addCalendarDays(weddingDate, 2), '10:00');
-  const dueDate = new Date(`${addCalendarDays(weddingDate, 21)}T00:00:00.000Z`);
-  const recipientPhone =
-    application.primaryContact === 'GELIN' ? application.bridePhone : application.groomPhone;
-
   const createUsername = dependencies.createUsername ?? createUniqueCustomerUsername;
   return retryUsernameConflict(
-    () => createUsername(application.brideLastName, application.groomLastName),
+    () => createUsername(applicationIdentity.brideLastName, applicationIdentity.groomLastName),
     (username) =>
-      prisma.$transaction(async (transaction) => {
-        const claimed = await transaction.bookingApplication.updateMany({
-          where: { id: application.id, status: 'ONAY_BEKLIYOR' },
-          data: {
-            status: 'ONAYLANDI',
-            reviewedAt: new Date(),
-            reviewedById: actorUserId,
-          },
-        });
-        if (claimed.count !== 1) throw new AppError('Başvuru başka bir işlemde güncellendi.', 409);
+      prisma.$transaction(
+        async (transaction) => {
+          const application = await transaction.bookingApplication.findFirst({
+            where: { id: applicationId, deletedAt: null },
+            include: { services: true },
+          });
+          if (!application) throw new AppError('Başvuru bulunamadı.', 404);
+          if (application.status !== 'ONAY_BEKLIYOR') {
+            throw new AppError('Yalnızca onay bekleyen başvurular onaylanabilir.', 409);
+          }
 
-        const user = await transaction.user.create({
-          data: {
-            username,
-            passwordHash,
-            role: 'MUSTERI',
-            mustChangePassword: true,
-            temporaryPasswordExpiresAt,
-            activeAt,
-          },
-        });
-        const wedding = await transaction.wedding.create({
-          data: {
-            applicationId: application.id,
-            customerUserId: user.id,
-            brideFirstName: application.brideFirstName,
-            brideLastName: application.brideLastName,
-            bridePhone: application.bridePhone,
-            groomFirstName: application.groomFirstName,
-            groomLastName: application.groomLastName,
-            groomPhone: application.groomPhone,
-            primaryContact: application.primaryContact,
-            primaryEmail: application.primaryEmail,
+          await assertVenueScheduleAvailable(transaction, {
+            venueId: application.venueId,
             startsAt: application.weddingStartsAt,
             endsAt: application.weddingEndsAt,
-            venueId: application.venueId,
-            packageSummary: {
-              code: application.packageCodeSnapshot,
-              name: application.packageNameSnapshot,
-              packagePriceCents: application.packagePriceCents,
-              totalPriceCents: application.totalPriceCents,
-              services: application.services.map((service) => ({
-                code: service.codeSnapshot,
-                name: service.nameSnapshot,
-                priceCents: service.priceCents,
-              })),
+            excludeApplicationId: application.id,
+          });
+
+          const claimed = await transaction.bookingApplication.updateMany({
+            where: {
+              id: application.id,
+              status: 'ONAY_BEKLIYOR',
+              deletedAt: null,
+              updatedAt: application.updatedAt,
             },
-            note: application.note,
-            delivery: {
-              create: {
-                dueDate,
-                history: { create: { toStatus: 'HAZIRLANIYOR', actorUserId } },
+            data: {
+              status: 'ONAYLANDI',
+              reviewedAt: new Date(),
+              reviewedById: actorUserId,
+            },
+          });
+          if (claimed.count !== 1) {
+            throw new AppError('Başvuru başka bir işlemde güncellendi.', 409);
+          }
+
+          const weddingDate = getIstanbulDate(application.weddingStartsAt);
+          const activeAt = atIstanbulTime(addCalendarDays(weddingDate, 1), '09:00');
+          const now = new Date();
+          const temporaryPasswordExpiresAt = createTemporaryPasswordExpiry(
+            env.TEMPORARY_PASSWORD_TTL_HOURS,
+            activeAt > now ? activeAt : now,
+          );
+          const preparationDueAt = atIstanbulTime(addCalendarDays(weddingDate, 2), '10:00');
+          const dueDate = new Date(`${addCalendarDays(weddingDate, 21)}T00:00:00.000Z`);
+          const recipientPhone =
+            application.primaryContact === 'GELIN'
+              ? application.bridePhone
+              : application.groomPhone;
+
+          const user = await transaction.user.create({
+            data: {
+              username,
+              passwordHash,
+              role: 'MUSTERI',
+              mustChangePassword: true,
+              temporaryPasswordExpiresAt,
+              activeAt,
+            },
+          });
+          const wedding = await transaction.wedding.create({
+            data: {
+              applicationId: application.id,
+              customerUserId: user.id,
+              brideFirstName: application.brideFirstName,
+              brideLastName: application.brideLastName,
+              bridePhone: application.bridePhone,
+              groomFirstName: application.groomFirstName,
+              groomLastName: application.groomLastName,
+              groomPhone: application.groomPhone,
+              primaryContact: application.primaryContact,
+              primaryEmail: application.primaryEmail,
+              startsAt: application.weddingStartsAt,
+              endsAt: application.weddingEndsAt,
+              venueId: application.venueId,
+              packageSummary: {
+                code: application.packageCodeSnapshot,
+                name: application.packageNameSnapshot,
+                packagePriceCents: application.packagePriceCents,
+                totalPriceCents: application.totalPriceCents,
+                services: application.services.map((service) => ({
+                  code: service.codeSnapshot,
+                  name: service.nameSnapshot,
+                  priceCents: service.priceCents,
+                })),
+              },
+              note: application.note,
+              delivery: {
+                create: {
+                  dueDate,
+                  history: { create: { toStatus: 'HAZIRLANIYOR', actorUserId } },
+                },
               },
             },
-          },
-        });
+          });
 
-        const encryptedPassword = encryptValue(
-          temporaryPassword,
-          messageSecretEncryptionAad(wedding.id, 'ACCOUNT_ACTIVATION'),
-        );
-        await transaction.messageTask.createMany({
-          data: [
-            {
-              weddingId: wedding.id,
-              kind: 'ACCOUNT_ACTIVATION',
-              dueAt: activeAt,
-              recipientPhone,
-              secretCiphertext: encryptedPassword.ciphertext,
-              secretIv: encryptedPassword.iv,
-              secretAuthTag: encryptedPassword.authTag,
-              encryptionVersion: 2,
-            },
-            {
-              weddingId: wedding.id,
-              kind: 'PREPARATION_UPDATE',
-              dueAt: preparationDueAt,
-              recipientPhone,
-            },
-          ],
-        });
-        await createAudit(transaction, {
-          actorUserId,
-          action: 'booking.approved',
-          targetType: 'BookingApplication',
-          targetId: application.id,
-          correlationId,
-          metadata: { weddingId: wedding.id },
-        });
+          const encryptedPassword = encryptValue(
+            temporaryPassword,
+            messageSecretEncryptionAad(wedding.id, 'ACCOUNT_ACTIVATION'),
+          );
+          await transaction.messageTask.createMany({
+            data: [
+              {
+                weddingId: wedding.id,
+                kind: 'ACCOUNT_ACTIVATION',
+                dueAt: activeAt,
+                recipientPhone,
+                secretCiphertext: encryptedPassword.ciphertext,
+                secretIv: encryptedPassword.iv,
+                secretAuthTag: encryptedPassword.authTag,
+                encryptionVersion: 2,
+              },
+              {
+                weddingId: wedding.id,
+                kind: 'PREPARATION_UPDATE',
+                dueAt: preparationDueAt,
+                recipientPhone,
+              },
+            ],
+          });
+          await createAudit(transaction, {
+            actorUserId,
+            action: 'booking.approved',
+            targetType: 'BookingApplication',
+            targetId: application.id,
+            correlationId,
+            metadata: { weddingId: wedding.id },
+          });
 
-        return { applicationId: application.id, weddingId: wedding.id, username, activeAt };
-      }),
-  );
+          return { applicationId: application.id, weddingId: wedding.id, username, activeAt };
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 5_000,
+          timeout: 10_000,
+        },
+      ),
+  ).catch((error: unknown) => {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      throw new AppError('Başvuru takvimi başka bir işlemde güncellendi. Tekrar deneyin.', 409, true, {
+        code: 'VENUE_SCHEDULE_CONFLICT',
+      });
+    }
+    throw error;
+  });
 };
 
 export const rejectBookingApplication = async (
@@ -543,7 +582,7 @@ export const rejectBookingApplication = async (
 ) =>
   prisma.$transaction(async (transaction) => {
     const updated = await transaction.bookingApplication.updateMany({
-      where: { id: applicationId, status: 'ONAY_BEKLIYOR' },
+      where: { id: applicationId, status: 'ONAY_BEKLIYOR', deletedAt: null },
       data: {
         status: 'REDDEDILDI',
         rejectionReason: reason,

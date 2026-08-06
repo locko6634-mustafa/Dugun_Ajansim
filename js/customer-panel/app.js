@@ -12,6 +12,19 @@ const statusLabels = {
 const formatDate = (value) =>
   new Intl.DateTimeFormat("tr-TR", { dateStyle: "long" }).format(new Date(value));
 
+const safeDeliveryUrl = (value) => {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("Geçerli bir teslimat bağlantısı alınamadı.");
+  }
+  if (url.protocol !== "https:" || url.username || url.password) {
+    throw new Error("Güvenli bir teslimat bağlantısı alınamadı.");
+  }
+  return url.href;
+};
+
 function showContent() {
   document.querySelectorAll(".customer-hero, .event-strip, .journey-section").forEach((item) => {
     item.hidden = false;
@@ -77,11 +90,20 @@ async function loadDashboard() {
 
 document.querySelector(".js-open-delivery").addEventListener("click", async () => {
   const button = document.querySelector(".js-open-delivery");
+  const popup = window.open("about:blank", "_blank");
+  if (popup) popup.opener = null;
   button.disabled = true;
   try {
     const response = await apiRequest("/customer/delivery");
-    window.open(response.data.driveUrl, "_blank", "noopener");
+    const driveUrl = safeDeliveryUrl(response.data.driveUrl);
+    if (!popup) {
+      throw new Error(
+        "Teslimat penceresi tarayıcı tarafından engellendi. Açılır pencerelere izin verip tekrar deneyin."
+      );
+    }
+    popup.location.href = driveUrl;
   } catch (error) {
+    popup?.close();
     document.querySelector(".page-message").textContent = error.message;
   } finally {
     button.disabled = false;

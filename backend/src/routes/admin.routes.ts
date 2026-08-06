@@ -287,21 +287,53 @@ router.post(
   verifyCsrf,
   validateRequest(uuidRequest),
   asyncHandler(async (req, res) => {
-    const application = await prisma.$transaction(async (transaction) => {
-      const updated = await transaction.bookingApplication.updateMany({
-        where: { id: req.params.id, deletedAt: { not: null } },
-        data: { deletedAt: null, deletedById: null }
+    const application = await prisma
+      .$transaction(
+        async (transaction) => {
+          const archived = await transaction.bookingApplication.findFirst({
+            where: { id: req.params.id, deletedAt: { not: null } }
+          });
+          if (!archived) throw new AppError("Arşivde başvuru bulunamadı.", 404);
+
+          if (archived.status === "ONAY_BEKLIYOR") {
+            await assertVenueScheduleAvailable(transaction, {
+              venueId: archived.venueId,
+              startsAt: archived.weddingStartsAt,
+              endsAt: archived.weddingEndsAt,
+              excludeApplicationId: archived.id
+            });
+          }
+
+          const updated = await transaction.bookingApplication.updateMany({
+            where: {
+              id: archived.id,
+              deletedAt: archived.deletedAt,
+              updatedAt: archived.updatedAt
+            },
+            data: { deletedAt: null, deletedById: null }
+          });
+          if (updated.count !== 1) {
+            throw new AppError("Başvuru başka bir işlemde güncellendi.", 409);
+          }
+          await createAudit(transaction, {
+            actorUserId: req.auth!.userId,
+            action: "booking_application.restored",
+            targetType: "BookingApplication",
+            targetId: archived.id,
+            correlationId: req.correlationId
+          });
+          return transaction.bookingApplication.findUniqueOrThrow({ where: { id: archived.id } });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      )
+      .catch((error: unknown) => {
+        if (isPrismaError(error, "P2034")) {
+          throw new AppError("Başvuru takvimi başka bir işlemde güncellendi. Tekrar deneyin.", 409, true, {
+            code: "VENUE_SCHEDULE_CONFLICT"
+          });
+        }
+        throw error;
       });
-      if (updated.count !== 1) throw new AppError("Arşivde başvuru bulunamadı.", 404);
-      await createAudit(transaction, {
-        actorUserId: req.auth!.userId,
-        action: "booking_application.restored",
-        targetType: "BookingApplication",
-        targetId: req.params.id,
-        correlationId: req.correlationId
-      });
-      return transaction.bookingApplication.findUniqueOrThrow({ where: { id: req.params.id } });
-    });
     res.json({ success: true, data: application, correlationId: req.correlationId });
   })
 );
@@ -1112,6 +1144,11 @@ router.post(
         if (!wedding || wedding.cancelledAt || wedding.deletedAt)
           throw new AppError("Düğün kaydı bulunamadı.", 404);
         if (!staff || !staff.isActive) throw new AppError("Aktif personel bulunamadı.", 404);
+        if (staff.venueId !== wedding.venueId) {
+          throw new AppError("Personel yalnızca bağlı olduğu salondaki düğüne atanabilir.", 409, true, {
+            code: "VENUE_ASSIGNMENT_MISMATCH"
+          });
+        }
         if (!staff.specialties.includes(req.body.specialty)) {
           throw new AppError("Seçilen görev personelin uzmanlıkları arasında değil.", 400);
         }
@@ -1404,6 +1441,21 @@ router.patch(
         }
 
         if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
+          await transaction.messageTask.updateMany({
+            where: {
+              weddingId: wedding.id,
+              kind: "PASSWORD_RESET",
+              status: "PENDING"
+            },
+            data: {
+              status: "CANCELLED",
+              sentAt: null,
+              sentById: null,
+              secretCiphertext: null,
+              secretIv: null,
+              secretAuthTag: null
+            }
+          });
           await transaction.messageTask.upsert({
             where: {
               weddingId_kind: {
@@ -1513,9 +1565,11 @@ router.patch(
       throw new AppError("Teslim edilmiş kayıt bu işlemle değiştirilemez.", 409);
     }
 
-    const encrypted = req.body.driveUrl
-      ? encryptValue(assertGoogleDriveUrl(req.body.driveUrl), deliveryEncryptionAad(delivery.id))
-      : undefined;
+    const hasDriveUrlUpdate = Object.hasOwn(req.body, "driveUrl");
+    const encrypted =
+      typeof req.body.driveUrl === "string"
+        ? encryptValue(assertGoogleDriveUrl(req.body.driveUrl), deliveryEncryptionAad(delivery.id))
+        : undefined;
     const nextStatus = req.body.status ?? delivery.status;
     const dueDate = req.body.dueDate ? new Date(`${req.body.dueDate}T00:00:00.000Z`) : undefined;
 
@@ -1530,13 +1584,20 @@ router.patch(
         data: {
           status: nextStatus,
           dueDate,
-          ...(encrypted
-            ? {
-                driveUrlCiphertext: encrypted.ciphertext,
-                driveUrlIv: encrypted.iv,
-                driveUrlAuthTag: encrypted.authTag,
-                encryptionVersion: 2
-              }
+          ...(hasDriveUrlUpdate
+            ? encrypted
+              ? {
+                  driveUrlCiphertext: encrypted.ciphertext,
+                  driveUrlIv: encrypted.iv,
+                  driveUrlAuthTag: encrypted.authTag,
+                  encryptionVersion: 2
+                }
+              : {
+                  driveUrlCiphertext: null,
+                  driveUrlIv: null,
+                  driveUrlAuthTag: null,
+                  encryptionVersion: 2
+                }
             : {})
         }
       });
@@ -1562,7 +1623,7 @@ router.patch(
         metadata: {
           statusChanged: nextStatus !== delivery.status,
           dueDateChanged: Boolean(dueDate),
-          driveUrlChanged: Boolean(encrypted)
+          driveUrlChanged: hasDriveUrlUpdate
         }
       });
       return transaction.delivery.findUniqueOrThrow({
@@ -1773,14 +1834,26 @@ const catalogRoutes = (
       let row;
       try {
         const id = req.params.id;
-        const isReferenced =
-          path === "packages"
-            ? (await prisma.bookingApplication.count({ where: { packageId: id } })) > 0
-            : (await prisma.bookingApplicationService.count({ where: { serviceId: id } })) > 0;
-
         row = await prisma.$transaction(async (transaction) => {
+          const lockedRows =
+            path === "packages"
+              ? await transaction.$queryRaw<Array<{ id: string }>>`
+                  SELECT "id" FROM "packages" WHERE "id" = ${id} FOR UPDATE
+                `
+              : await transaction.$queryRaw<Array<{ id: string }>>`
+                  SELECT "id" FROM "services" WHERE "id" = ${id} FOR UPDATE
+                `;
+          if (lockedRows.length !== 1) throw new AppError("Katalog kaydı bulunamadı.", 404);
+
+          const isReferenced =
+            path === "packages"
+              ? (await transaction.bookingApplication.count({ where: { packageId: id } })) > 0
+              : (await transaction.bookingApplicationService.count({ where: { serviceId: id } })) >
+                0;
+
+          let result;
           if (isReferenced) {
-            const deactivated =
+            result =
               path === "packages"
                 ? await transaction.package.update({
                     where: { id },
@@ -1790,52 +1863,22 @@ const catalogRoutes = (
                     where: { id },
                     data: { isActive: false }
                   });
-            await createAudit(transaction, {
-              actorUserId: req.auth!.userId,
-              action: `${actionPrefix}.deactivated`,
-              targetType,
-              targetId: deactivated.id,
-              correlationId: req.correlationId
-            });
-            return deactivated;
           } else {
-            try {
-              const deleted =
-                path === "packages"
-                  ? await transaction.package.delete({ where: { id } })
-                  : await transaction.service.delete({ where: { id } });
-              await createAudit(transaction, {
-                actorUserId: req.auth!.userId,
-                action: `${actionPrefix}.deleted`,
-                targetType,
-                targetId: id,
-                correlationId: req.correlationId
-              });
-              return { ...deleted, isActive: false };
-            } catch (err) {
-              if (isPrismaError(err, "P2003")) {
-                const deactivated =
-                  path === "packages"
-                    ? await transaction.package.update({
-                        where: { id },
-                        data: { isActive: false }
-                      })
-                    : await transaction.service.update({
-                        where: { id },
-                        data: { isActive: false }
-                      });
-                await createAudit(transaction, {
-                  actorUserId: req.auth!.userId,
-                  action: `${actionPrefix}.deactivated`,
-                  targetType,
-                  targetId: deactivated.id,
-                  correlationId: req.correlationId
-                });
-                return deactivated;
-              }
-              throw err;
-            }
+            const deleted =
+              path === "packages"
+                ? await transaction.package.delete({ where: { id } })
+                : await transaction.service.delete({ where: { id } });
+            result = { ...deleted, isActive: false };
           }
+
+          await createAudit(transaction, {
+            actorUserId: req.auth!.userId,
+            action: `${actionPrefix}.${isReferenced ? "deactivated" : "deleted"}`,
+            targetType,
+            targetId: result.id,
+            correlationId: req.correlationId
+          });
+          return result;
         });
       } catch (error) {
         throwCatalogError(error);
@@ -1934,10 +1977,13 @@ const renderMessage = async (taskId: string) => {
   }
 
   const phone = task.recipientPhone.replace(/\D/g, "");
+  if (!/^\d{8,15}$/.test(phone)) {
+    throw new AppError("Mesaj görevinin alıcı telefonu geçersiz.", 409);
+  }
   return {
     task,
     message,
-    whatsappUrl: `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+    whatsappUrl: `https://wa.me/${phone}`
   };
 };
 
@@ -2069,6 +2115,21 @@ router.post(
         where: { userId: user.id, revokedAt: null },
         data: { revokedAt: now }
       });
+      await transaction.messageTask.updateMany({
+        where: {
+          weddingId: user.customerWedding!.id,
+          kind: "ACCOUNT_ACTIVATION",
+          status: "PENDING"
+        },
+        data: {
+          status: "CANCELLED",
+          sentAt: null,
+          sentById: null,
+          secretCiphertext: null,
+          secretIv: null,
+          secretAuthTag: null
+        }
+      });
       const messageTask = await transaction.messageTask.upsert({
         where: {
           weddingId_kind: {
@@ -2111,7 +2172,7 @@ router.post(
     res.set("Cache-Control", "no-store");
     res.json({
       success: true,
-      data: { taskId: task.id, whatsappUrl: rendered.whatsappUrl },
+      data: { taskId: task.id, message: rendered.message, whatsappUrl: rendered.whatsappUrl },
       correlationId: req.correlationId
     });
   })

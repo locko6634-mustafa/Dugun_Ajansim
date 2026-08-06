@@ -14,6 +14,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     nginx,
     exampleEnv,
     deployReadme,
+    deployWorkflow,
     bootstrapAdmin,
     runtimeRoleScript
   ] = await Promise.all([
@@ -23,6 +24,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     readProjectFile("deploy/nginx.conf"),
     readProjectFile(".env.production.example"),
     readProjectFile("deploy/README.md"),
+    readProjectFile(".github/workflows/deploy.yml"),
     readProjectFile("backend/src/scripts/bootstrapAdmin.ts"),
     readProjectFile("deploy/postgres/init-runtime-role.sh")
   ]);
@@ -91,6 +93,34 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(deployReadme).toContain("Mevcut volume'u DDL yetkisiz runtime rolüne yükseltme");
   expect(deployReadme).toContain("database_create = false");
   expect(deployReadme).toContain("CREATE TABLE public.__runtime_ddl_probe");
+  expect(deployReadme).toContain("pg_restore --list");
+  expect(deployReadme).toContain("şifreli sunucu dışı kopya");
+  expect(deployReadme).toContain("geri yükleme veya rollback garantisi değildir");
+
+  expect(deployWorkflow).toContain("workflow_run:");
+  expect(deployWorkflow).toContain("- Project quality");
+  expect(deployWorkflow).toContain("- completed");
+  expect(deployWorkflow).toContain("workflow_dispatch:");
+  expect(deployWorkflow).not.toMatch(/^\s*push:/m);
+  expect(deployWorkflow).toContain("github.event.workflow_run.conclusion == 'success'");
+  expect(deployWorkflow).toContain("github.event.workflow_run.event == 'push'");
+  expect(deployWorkflow).toContain("github.event.workflow_run.head_branch == 'main'");
+  expect(deployWorkflow).toContain("github.event.workflow_run.head_sha");
+  expect(deployWorkflow).toContain('git cat-file -e "${DEPLOY_SHA}^{commit}"');
+  expect(deployWorkflow).toContain('git reset --hard "$DEPLOY_SHA"');
+  expect(deployWorkflow).not.toContain("git reset --hard origin/main");
+  expect(deployWorkflow).toContain("config -q");
+  expect(deployWorkflow).toContain("pg_dump");
+  expect(deployWorkflow).toContain("pg_restore --list");
+  expect(deployWorkflow.indexOf("pg_restore --list")).toBeLessThan(
+    deployWorkflow.indexOf("up -d --build --wait")
+  );
+  expect(deployWorkflow).toContain("up -d --build --wait");
+  expect(deployWorkflow).toContain("http://127.0.0.1:5000/api/v1/health");
+  expect(deployWorkflow).toContain("http://127.0.0.1:8080/healthz");
+  expect(deployWorkflow).toContain('"$PUBLIC_ORIGIN/healthz"');
+  expect(deployWorkflow).toContain('"$PUBLIC_ORIGIN/api/v1/health"');
+  expect(deployWorkflow).toContain("DEPLOYED_GIT_SHA=%s");
   expect(bootstrapAdmin).toContain("console.log('İlk admin başarıyla oluşturuldu.')");
   expect(bootstrapAdmin).not.toContain("admin.username");
 

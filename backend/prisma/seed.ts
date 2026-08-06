@@ -65,7 +65,7 @@ const main = async () => {
       prisma.venue.upsert({
         where: { slug },
         create: { slug, name },
-        update: { name, isActive: true },
+        update: {},
       }),
     ),
     prisma.package.upsert({
@@ -76,21 +76,16 @@ const main = async () => {
         priceCents: 2_000_000,
         imagePath: 'assets/images/hero-couple.webp',
       },
-      update: {
-        name: 'Mini Paket',
-        priceCents: 2_000_000,
-        imagePath: 'assets/images/hero-couple.webp',
-      },
+      update: {},
     }),
     ...services.map(([code, category, name, priceCents, imagePath]) =>
       prisma.service.upsert({
         where: { code },
         create: { code, category, name, priceCents, imagePath },
-        update: { category, name, priceCents, imagePath },
+        update: {},
       }),
     ),
   ]);
-
 };
 
 main()

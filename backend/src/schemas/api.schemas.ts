@@ -130,7 +130,7 @@ export const deliveryUpdateBodySchema = z
   .object({
     status: z.enum(["HAZIRLANIYOR", "MONTAJ", "KONTROL", "TESLIME_HAZIR"]).optional(),
     dueDate: dateSchema.optional(),
-    driveUrl: z.string().trim().url().max(2_000).optional()
+    driveUrl: z.string().trim().url().max(2_000).nullable().optional()
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");

@@ -135,17 +135,54 @@ test("paket formu çift, saat ve salon alanlarını backend kataloğuyla hazırl
       })
     })
   );
+  await page.route("**/api/v1/venues/*/availability?*", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { date: "2027-08-10", occupiedSlots: [] }
+      })
+    })
+  );
   await page.goto("/paketini-olustur.html");
   await expect(page.locator('input[name="base-package"]')).toHaveCount(2);
   await page.locator(".js-next-step").click();
+  await expect(page.locator(".builder-service")).toHaveCount(0);
   await page.locator(".js-details-step").click();
   await expect(page.locator('input[name="brideFirstName"]')).toBeVisible();
   await expect(page.locator('input[name="groomFirstName"]')).toBeVisible();
   await expect(page.locator('input[name="startTime"]')).toBeVisible();
   await expect(page.locator(".js-venue-select")).toContainText("Cess Wedding");
+  await page.locator('select[name="venueId"]').selectOption("de305d54-75b4-431b-adb2-eb6b9e546014");
+  await page.locator('input[name="weddingDate"]').fill("2027-08-10");
+  await expect(page.locator('input[name="startTime"]')).toBeEnabled();
+  await page.locator('input[name="startTime"]').fill("20:00");
+  await page.locator('input[name="endTime"]').fill("19:00");
+  await expect(page.locator('input[name="endTime"]')).toHaveAttribute("aria-invalid", "true");
 });
 
 test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açılır", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__adminWhatsAppUrls = [];
+    window.__copiedAdminMessages = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value) => {
+          window.__copiedAdminMessages.push(String(value));
+        }
+      }
+    });
+    window.open = () => ({
+      opener: null,
+      close() {},
+      location: {
+        set href(value) {
+          window.__adminWhatsAppUrls.push(String(value));
+        }
+      }
+    });
+  });
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -234,12 +271,32 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
       })
     });
   });
+  const midnightApplication = {
+    id: "263b221c-327b-4c8e-b015-33c70fc41e55",
+    referenceCode: "DA-2026-123456",
+    status: "ONAY_BEKLIYOR",
+    brideFirstName: "Zeynep",
+    brideLastName: "Kaya",
+    bridePhone: "+905551234567",
+    groomFirstName: "Emre",
+    groomLastName: "Arslan",
+    groomPhone: "+905559876543",
+    primaryContact: "GELIN",
+    primaryEmail: "zeynep@example.com",
+    weddingStartsAt: "2026-08-09T21:30:00.000Z",
+    weddingEndsAt: "2026-08-10T02:00:00.000Z",
+    packageNameSnapshot: "Mini Paket",
+    totalPriceCents: 2_000_000,
+    paymentMethod: "CASH",
+    venue: { name: "Cess Wedding" },
+    deletedAt: null
+  };
   let lastApplicationUrl = "";
   await page.route("**/api/v1/admin/booking-applications?**", (route) => {
     lastApplicationUrl = route.request().url();
     return route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ success: true, data: [] })
+      body: JSON.stringify({ success: true, data: [midnightApplication] })
     });
   });
   await page.route("**/api/v1/admin/weddings", (route) =>
@@ -257,6 +314,39 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
       })
     })
   );
+  await page.route("**/api/v1/admin/message-tasks**", (route) => {
+    if (route.request().url().endsWith("/render")) {
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            message: "Geçici parola: yalnız-panoda",
+            whatsappUrl: "https://wa.me/905551112233",
+            expectedUpdatedAt: "2026-08-10T10:00:00.000Z"
+          }
+        })
+      });
+    }
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: [
+          {
+            id: "f930bd2d-222d-4d22-86dc-7487fcd3f150",
+            kind: "PASSWORD_RESET",
+            status: "PENDING",
+            recipientPhone: "+905551112233",
+            dueAt: "2026-08-10T10:00:00.000Z",
+            updatedAt: "2026-08-10T10:00:00.000Z",
+            wedding: { brideFirstName: "Ayşe", groomFirstName: "Mehmet" },
+            sentAt: null
+          }
+        ]
+      })
+    });
+  });
   await page.route(`**/api/v1/admin/weddings/${wedding.id}`, async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
@@ -297,6 +387,8 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
   await expect(page.locator(".global-message")).toContainText("Yeni kullanıcı adı");
   await page.locator(".js-wedding-detail [data-close-dialog]").click();
   await clickPanel(page, "applications");
+  await expect(page.locator(".application-card")).toContainText("10 Ağu 2026");
+  await expect(page.locator(".application-card")).toContainText("00:30");
   await page.getByLabel("Başvuru referans kodu").fill("DA-2026-123456");
   await page.getByRole("button", { name: "Bul" }).click();
   await expect.poll(() => lastApplicationUrl).toContain("referenceCode=DA-2026-123456");
@@ -308,6 +400,14 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
   await expect(page.getByRole("heading", { name: "Ağustos 2026 · Bella Garden" })).toBeVisible();
   await page.getByRole("button", { name: "Önceki ay" }).click();
   await expect.poll(() => lastCalendarUrl).toContain("month=2026-07");
+  await clickPanel(page, "messages");
+  await page.getByRole("button", { name: "WhatsApp" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__copiedAdminMessages[0]))
+    .toBe("Geçici parola: yalnız-panoda");
+  const openedWhatsAppUrl = await page.evaluate(() => window.__adminWhatsAppUrls[0]);
+  expect(new URL(openedWhatsAppUrl).search).toBe("");
+  expect(openedWhatsAppUrl).not.toContain("yalnız-panoda");
 });
 
 test("müşteri teslimat paneli linki teslim öncesinde göstermiyor", async ({ page }) => {
@@ -345,7 +445,66 @@ test("müşteri teslimat paneli linki teslim öncesinde göstermiyor", async ({ 
   await expect(page.getByText("Montaj Aşamasında").first()).toBeVisible();
 });
 
-test("paket başvurusu sunucunun kuruş bazlı tutarını özet ve WhatsApp mesajında kullanır", async ({
+test("müşteri teslimat penceresini geciken API yanıtından önce güvenli açar", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__deliveryUrls = [];
+    window.open = () => ({
+      opener: null,
+      close() {},
+      location: {
+        set href(value) {
+          window.__deliveryUrls.push(String(value));
+        }
+      }
+    });
+  });
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { role: "MUSTERI", mustChangePassword: false, username: "musteri" }
+      })
+    })
+  );
+  await page.route("**/api/v1/customer/dashboard", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          couple: { bride: "Ayşe Yılmaz", groom: "Mehmet Demir" },
+          venue: "Cess Wedding",
+          startsAt: "2026-08-10T17:00:00.000Z",
+          delivery: {
+            status: "TESLIM_EDILDI",
+            dueDate: "2026-08-31T00:00:00.000Z",
+            releasedAt: "2026-08-31T12:00:00.000Z",
+            history: []
+          }
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/customer/delivery", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { driveUrl: "https://drive.google.com/file/d/e2e-test" }
+      })
+    });
+  });
+
+  await page.goto("/musteri-paneli.html");
+  await page.locator(".js-open-delivery").click();
+  await expect
+    .poll(() => page.evaluate(() => window.__deliveryUrls[0]))
+    .toBe("https://drive.google.com/file/d/e2e-test");
+});
+
+test("paket başvurusu sunucu tutarını kullanır ve yapılandırılmamış WhatsApp'a veri göndermez", async ({
   page
 }) => {
   await page.addInitScript(() => {
@@ -454,9 +613,10 @@ test("paket başvurusu sunucunun kuruş bazlı tutarını özet ve WhatsApp mesa
   expect(bookingRequest.body.paymentMethod).toBe("CASH");
   expect(bookingRequest.idempotencyKey).toBeTruthy();
 
-  const whatsappUrl = await page.evaluate(() => window.__whatsappUrls[0]);
-  expect(new URL(whatsappUrl).searchParams.get("text")).toContain(
-    "*Ödenecek Tutar:* 94,51 TL (Bugün havale edilecek)"
+  const whatsappUrls = await page.evaluate(() => window.__whatsappUrls);
+  expect(whatsappUrls).toEqual([]);
+  await expect(page.locator(".js-payment-notification-status")).toContainText(
+    "WhatsApp alıcısı henüz yapılandırılmadığı için yönlendirme yapılmadı"
   );
 });
 
@@ -535,6 +695,8 @@ test("oturum acilmis kullanici anasayfada role uygun paneli ve cikis butonunu go
 });
 
 test("salon sorumlusu yalniz kendi salon takvimi ve ekibini yonetir", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   const venueId = "de305d54-75b4-431b-adb2-eb6b9e546014";
   const staffId = "2bb5d7fd-232f-4a96-a56a-92d93b669f21";
   const wedding = {
@@ -625,6 +787,9 @@ test("salon sorumlusu yalniz kendi salon takvimi ve ekibini yonetir", async ({ p
   await expect(page.locator(".js-staff")).toContainText("Cem Arslan");
   await page.locator(".js-add-staff").click();
   await expect(page.locator(".js-staff-dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".js-staff-dialog")).toBeHidden();
+  expect(pageErrors).toEqual([]);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth
   );

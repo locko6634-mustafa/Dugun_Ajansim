@@ -97,11 +97,19 @@ function bindBaseInputs() {
 }
 
 function renderBasePackages(packages) {
-  if (!packages.length) return;
+  const container = document.querySelector(".base-packages");
+  const nextButton = document.querySelector(".js-next-step");
+  if (nextButton) nextButton.disabled = packages.length === 0;
+  if (!packages.length) {
+    state.base = "";
+    baseInputs = [];
+    container.replaceChildren();
+    return;
+  }
   if (!packages.some((item) => item.code === state.base)) {
     state.base = packages[0].code;
   }
-  document.querySelector(".base-packages").innerHTML = packages
+  container.innerHTML = packages
     .map(
       (item) => `
         <label class="base-package ${item.code === state.base ? "is-selected" : ""}">
@@ -137,7 +145,12 @@ async function hydrateRemoteData() {
       apiRequest("/venues")
     ]);
 
-    catalogResponse.data.packages.forEach((item) => {
+    const remotePackages = catalogResponse.data.packages;
+    const activePackageCodes = new Set(remotePackages.map((item) => item.code));
+    Object.keys(basePackages).forEach((code) => {
+      if (!activePackageCodes.has(code)) delete basePackages[code];
+    });
+    remotePackages.forEach((item) => {
       const current = basePackages[item.code] || {};
       basePackages[item.code] = {
         ...current,
@@ -149,9 +162,9 @@ async function hydrateRemoteData() {
         image: item.imagePath || current.image || "assets/images/hero-couple.webp"
       };
     });
-    renderBasePackages(catalogResponse.data.packages);
+    renderBasePackages(remotePackages);
 
-    catalogResponse.data.services.forEach((item) => {
+    const remoteServices = catalogResponse.data.services.map((item) => {
       const current = services.find((service) => service.id === item.code);
       const parsedFeatures =
         Array.isArray(item.features) && item.features.length > 0
@@ -162,33 +175,29 @@ async function hydrateRemoteData() {
           ? item.gallery
           : current?.gallery || [item.imagePath || "assets/images/hero-couple.webp"];
 
-      if (current) {
-        Object.assign(current, {
-          category: item.category,
-          name: item.name,
-          eyebrow: item.eyebrow || current.eyebrow,
-          price: item.priceCents / 100,
-          image: item.imagePath || current.image,
-          description: item.description || current.description,
-          delivery: item.delivery || current.delivery,
-          features: parsedFeatures,
-          gallery: parsedGallery
-        });
-      } else {
-        services.push({
-          id: item.code,
-          category: item.category,
-          name: item.name,
-          eyebrow: item.eyebrow || "Ek Hizmet",
-          price: item.priceCents / 100,
-          image: item.imagePath || "assets/images/hero-couple.webp",
-          gallery: parsedGallery,
-          description: item.description || "Düğününüze özel olarak planlanan ek hizmet.",
-          features: parsedFeatures,
-          delivery: item.delivery || "Paket teslim planına göre"
-        });
-      }
+      return {
+        id: item.code,
+        category: item.category,
+        name: item.name,
+        eyebrow: item.eyebrow || current?.eyebrow || "Ek Hizmet",
+        price: item.priceCents / 100,
+        image: item.imagePath || current?.image || "assets/images/hero-couple.webp",
+        gallery: parsedGallery,
+        description:
+          item.description || current?.description || "Düğününüze özel olarak planlanan ek hizmet.",
+        features: parsedFeatures,
+        delivery: item.delivery || current?.delivery || "Paket teslim planına göre"
+      };
     });
+    services.splice(0, services.length, ...remoteServices);
+    const activeServiceCodes = new Set(remoteServices.map((item) => item.id));
+    state.extras.forEach((code) => {
+      if (!activeServiceCodes.has(code)) state.extras.delete(code);
+    });
+    if (state.activeService && !activeServiceCodes.has(state.activeService)) {
+      state.activeService = null;
+      if (detailDialog.open) detailDialog.close();
+    }
 
     const venueSelect = document.querySelector(".js-venue-select");
     venuesResponse.data.forEach((venue) => {
@@ -200,7 +209,13 @@ async function hydrateRemoteData() {
     });
 
     renderServices();
-    updateSummary();
+    if (remotePackages.length) {
+      updateSummary();
+    } else {
+      setPaymentNotificationStatus(
+        "Şu anda başvuruya açık bir paket bulunmuyor. Lütfen daha sonra tekrar deneyin."
+      );
+    }
   } catch {
     setPaymentNotificationStatus(
       "Güncel paket ve salon bilgileri alınamadı. Lütfen bağlantınızı kontrol edip sayfayı yenileyin."
@@ -605,7 +620,7 @@ function validateTimeSlots() {
   const endTime = endTimeInput.value;
   const endsNextDay = Boolean(endsNextDayCheckbox?.checked);
 
-  if (!startTime || !endTime || currentOccupiedSlots.length === 0) {
+  if (!startTime || !endTime) {
     setFieldValidity(startTimeInput, true);
     setFieldValidity(endTimeInput, true);
     return true;
@@ -617,6 +632,12 @@ function validateTimeSlots() {
   if (newEnd <= newStart) {
     setFieldValidity(endTimeInput, false, "Bitiş saati başlangıç saatinden sonra olmalıdır.");
     return false;
+  }
+
+  if (currentOccupiedSlots.length === 0) {
+    setFieldValidity(startTimeInput, true);
+    setFieldValidity(endTimeInput, true);
+    return true;
   }
 
   const conflictingSlot = currentOccupiedSlots.find((slot) => {
@@ -777,10 +798,13 @@ async function copyTransferValue(value, label) {
 document.querySelectorAll(".js-copy-transfer").forEach((button) => {
   button.addEventListener("click", () => {
     const isIban = button.dataset.copy === "iban";
-    copyTransferValue(
-      isIban ? transferAccount.iban : getTransferDescription(),
-      isIban ? "IBAN" : "Açıklama kodu"
-    );
+    const label = isIban ? "IBAN" : "Açıklama kodu";
+    const value = isIban ? transferAccount?.iban : getTransferDescription();
+    if (!value) {
+      setCopyFeedback(`${label} henüz tanımlanmadı.`);
+      return;
+    }
+    copyTransferValue(value, label);
   });
 });
 
@@ -805,7 +829,8 @@ function generateWhatsAppMessage() {
 }
 
 function getWhatsAppUrl() {
-  const phone = transferAccount?.whatsappPhone || "905510653051";
+  const phone = String(transferAccount?.whatsappPhone || "").replace(/\D/g, "");
+  if (!phone) return null;
   return `https://wa.me/${phone}?text=${encodeURIComponent(generateWhatsAppMessage())}`;
 }
 
@@ -834,7 +859,9 @@ if (paymentNotificationForm) {
     }
 
     const submitButton = paymentNotificationForm.querySelector('button[type="submit"]');
-    const whatsappWindow = window.open("about:blank", "_blank");
+    const whatsappWindow = transferAccount?.whatsappPhone
+      ? window.open("about:blank", "_blank")
+      : null;
     if (whatsappWindow) whatsappWindow.opener = null;
     submitButton.disabled = true;
     setPaymentNotificationStatus("Başvurunuz güvenli şekilde kaydediliyor...", "pending");
@@ -873,10 +900,20 @@ if (paymentNotificationForm) {
       const refElement = document.querySelector(".js-booking-reference");
       if (refElement) refElement.textContent = state.transferReference;
 
-      if (whatsappWindow) {
+      if (waUrl && whatsappWindow) {
         whatsappWindow.location.href = waUrl;
+      } else if (waUrl) {
+        const fallbackWindow = window.open(waUrl, "_blank", "noopener,noreferrer");
+        if (!fallbackWindow) {
+          setPaymentNotificationStatus(
+            "Başvurunuz kaydedildi; WhatsApp penceresi tarayıcı tarafından engellendi."
+          );
+        }
       } else {
-        window.location.href = waUrl;
+        setPaymentNotificationStatus(
+          "Başvurunuz kaydedildi. WhatsApp alıcısı henüz yapılandırılmadığı için yönlendirme yapılmadı.",
+          "success"
+        );
       }
 
       bookingCompletion.hidden = false;

@@ -113,6 +113,7 @@ test('kalıcı parola uzunluk ve normalize edilmiş blocklist kurallarını uygu
 test('teslimat PATCH boş body ve geçersiz takvim tarihi kabul etmez', () => {
   assert.equal(deliveryUpdateBodySchema.safeParse({}).success, false);
   assert.equal(deliveryUpdateBodySchema.safeParse({ dueDate: '2026-04-31' }).success, false);
+  assert.equal(deliveryUpdateBodySchema.safeParse({ driveUrl: null }).success, true);
 });
 
 test('fiyat istemciden alınmaz ve ödeme kuralı backend hesabıyla uygulanır', () => {

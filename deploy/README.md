@@ -96,6 +96,12 @@ Kontroller başarılıysa normal `up -d --build` komutuyla backend ve frontend'i
 
 ## Yedekleme ve geri yükleme tatbikatı
 
+GitHub Actions dağıtımı migration öncesinde `backups/` altında izinleri kısıtlı custom-format
+bir yedek oluşturur ve `pg_restore --list` ile arşiv bütünlüğünü doğrulamadan ilerlemez. Bu yerel
+önlem; şifreli sunucu dışı kopya, saklama süresi ve gerçek geri yükleme tatbikatının yerine geçmez.
+Başarılı bir dağıtım da tek başına geri yükleme veya rollback garantisi değildir; ters migration
+ya da veri geri yükleme kararı ayrıca hazırlanmış ve sınanmış bir runbook ile uygulanmalıdır.
+
 Yedekleri erişimi kısıtlı, şifreli ve sunucu dışında da tutulan bir dizine alın:
 
 ```bash
