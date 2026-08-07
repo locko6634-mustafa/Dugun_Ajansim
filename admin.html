@@ -128,11 +128,28 @@
               <section class="rail-block">
                 <div class="section-heading compact">
                   <div>
-                    <p class="section-index">Ekip</p>
-                    <h3>Bugün boşta</h3>
+                    <p class="section-index">Ekip uygunluğu</p>
+                    <h3>Personel durumu</h3>
                   </div>
                 </div>
-                <div class="js-idle-staff name-cloud"></div>
+                <div class="availability-filters js-availability-filters">
+                  <label>
+                    <span>Salon</span>
+                    <select class="js-availability-venue" name="venueId" aria-label="Salon seçin">
+                      <option value="">Tüm salonlar</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Tarih</span>
+                    <input
+                      class="js-availability-date"
+                      name="availabilityDate"
+                      type="date"
+                      required
+                    />
+                  </label>
+                </div>
+                <div class="js-idle-staff availability-list" aria-live="polite"></div>
               </section>
               <section class="rail-block alert-block">
                 <div class="section-heading compact">

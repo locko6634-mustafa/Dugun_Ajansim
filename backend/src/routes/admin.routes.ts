@@ -127,7 +127,10 @@ const throwCatalogError = (error: unknown): never => {
     throw new AppError("Katalog kaydı bulunamadı.", 404);
   }
   if (isPrismaError(error, "P2003")) {
-    throw new AppError("Bu katalog kaydı ilişkili veriler tarafından kullanıldığı için silinemez.", 409);
+    throw new AppError(
+      "Bu katalog kaydı ilişkili veriler tarafından kullanıldığı için silinemez.",
+      409
+    );
   }
   throw error;
 };
@@ -337,9 +340,14 @@ router.post(
       )
       .catch((error: unknown) => {
         if (isPrismaError(error, "P2034")) {
-          throw new AppError("Başvuru takvimi başka bir işlemde güncellendi. Tekrar deneyin.", 409, true, {
-            code: "VENUE_SCHEDULE_CONFLICT"
-          });
+          throw new AppError(
+            "Başvuru takvimi başka bir işlemde güncellendi. Tekrar deneyin.",
+            409,
+            true,
+            {
+              code: "VENUE_SCHEDULE_CONFLICT"
+            }
+          );
         }
         throw error;
       });
@@ -398,17 +406,24 @@ router.get(
     const dayAfterTomorrow = addCalendarDays(today, 2);
     const weekStart = mondayOf(req.query.weekStart ? String(req.query.weekStart) : today);
     const weekEnd = addCalendarDays(weekStart, 7);
+    const availabilityDate = req.query.availabilityDate
+      ? String(req.query.availabilityDate)
+      : today;
+    const availabilityDayEnd = addCalendarDays(availabilityDate, 1);
     const todayStart = atIstanbulTime(today, "00:00");
     const tomorrowStart = atIstanbulTime(tomorrow, "00:00");
     const dayAfterTomorrowStart = atIstanbulTime(dayAfterTomorrow, "00:00");
     const weekStartsAt = atIstanbulTime(weekStart, "00:00");
     const weekEndsAt = atIstanbulTime(weekEnd, "00:00");
+    const availabilityStartsAt = atIstanbulTime(availabilityDate, "00:00");
+    const availabilityEndsAt = atIstanbulTime(availabilityDayEnd, "00:00");
 
     const [
       weekWeddings,
       todayWeddings,
       tomorrowWeddings,
       activeStaff,
+      venues,
       pendingBookings,
       pendingMessages,
       readyDeliveries,
@@ -445,21 +460,41 @@ router.get(
         orderBy: { startsAt: "asc" }
       }),
       prisma.staff.findMany({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          ...(req.query.venueId ? { venueId: String(req.query.venueId) } : {})
+        },
         include: {
+          venue: { select: { id: true, name: true } },
           assignments: {
             where: {
               wedding: {
                 cancelledAt: null,
                 deletedAt: null,
-                startsAt: { lt: tomorrowStart },
-                endsAt: { gt: todayStart }
+                startsAt: { lt: availabilityEndsAt },
+                endsAt: { gt: availabilityStartsAt }
               }
             },
-            select: { id: true }
+            select: {
+              id: true,
+              wedding: {
+                select: {
+                  id: true,
+                  brideFirstName: true,
+                  groomFirstName: true,
+                  startsAt: true,
+                  endsAt: true
+                }
+              }
+            }
           }
         },
         orderBy: [{ lastName: "asc" }, { firstName: "asc" }]
+      }),
+      prisma.venue.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" }
       }),
       prisma.bookingApplication.count({ where: { status: "ONAY_BEKLIYOR", deletedAt: null } }),
       prisma.messageTask.count({ where: { status: "PENDING", wedding: { deletedAt: null } } }),
@@ -482,6 +517,11 @@ router.get(
         orderBy: { dueDate: "asc" }
       })
     ]);
+
+    const selectedVenue = req.query.venueId
+      ? venues.find((venue) => venue.id === String(req.query.venueId))
+      : null;
+    if (req.query.venueId && !selectedVenue) throw new AppError("Salon bulunamadı.", 404);
 
     const assignments = weekWeddings.flatMap((wedding) =>
       wedding.assignments.map((assignment) => ({ assignment, wedding }))
@@ -518,6 +558,9 @@ router.get(
       success: true,
       data: {
         today,
+        availabilityDate,
+        venues,
+        selectedVenue,
         weekStart,
         weekEnd: addCalendarDays(weekEnd, -1),
         metrics: {
@@ -532,6 +575,11 @@ router.get(
         idleStaff: activeStaff
           .filter((staff) => staff.assignments.length === 0)
           .map(({ assignments: _a, ...staff }) => staff),
+        staffAvailability: activeStaff.map(({ assignments, ...staff }) => ({
+          ...staff,
+          isAvailable: assignments.length === 0,
+          assignments
+        })),
         distribution,
         conflicts,
         upcomingDeliveries
@@ -1155,9 +1203,14 @@ router.post(
           throw new AppError("Düğün kaydı bulunamadı.", 404);
         if (!staff || !staff.isActive) throw new AppError("Aktif personel bulunamadı.", 404);
         if (staff.venueId !== wedding.venueId) {
-          throw new AppError("Personel yalnızca bağlı olduğu salondaki düğüne atanabilir.", 409, true, {
-            code: "VENUE_ASSIGNMENT_MISMATCH"
-          });
+          throw new AppError(
+            "Personel yalnızca bağlı olduğu salondaki düğüne atanabilir.",
+            409,
+            true,
+            {
+              code: "VENUE_ASSIGNMENT_MISMATCH"
+            }
+          );
         }
         if (!staff.specialties.includes(req.body.specialty)) {
           throw new AppError("Seçilen görev personelin uzmanlıkları arasında değil.", 400);
@@ -1325,217 +1378,220 @@ router.patch(
     }
 
     const updateWedding = () =>
-      prisma.$transaction(async (transaction) => {
-        await assertVenueScheduleAvailable(transaction, {
-          venueId: req.body.venueId,
-          startsAt,
-          endsAt,
-          excludeWeddingId: wedding.id,
-          excludeApplicationId: wedding.applicationId
-        });
-
-        if (req.body.venueId !== wedding.venueId) {
-          const incompatibleAssignments = await transaction.weddingAssignment.count({
-            where: {
-              weddingId: wedding.id,
-              staff: { venueId: { not: req.body.venueId } }
-            }
-          });
-          if (incompatibleAssignments > 0) {
-            throw new AppError(
-              "Salon değişmeden önce farklı salona bağlı personel atamalarını kaldırın.",
-              409,
-              true,
-              { code: "VENUE_ASSIGNMENT_MISMATCH" }
-            );
-          }
-        }
-
-        const claimedWedding = await transaction.wedding.updateMany({
-          where: {
-            id: wedding.id,
-            updatedAt: wedding.updatedAt,
-            cancelledAt: null,
-            deletedAt: null
-          },
-          data: {
-            brideFirstName: req.body.brideFirstName,
-            brideLastName: req.body.brideLastName,
-            bridePhone,
-            groomFirstName: req.body.groomFirstName,
-            groomLastName: req.body.groomLastName,
-            groomPhone,
-            primaryContact: req.body.primaryContact,
-            primaryEmail: req.body.primaryEmail,
-            startsAt,
-            endsAt,
-            venueId: req.body.venueId,
-            note: req.body.note || null
-          }
-        });
-        if (claimedWedding.count !== 1) {
-          throw new AppError("Düğün kaydı başka bir işlemde güncellendi.", 409);
-        }
-
-        await transaction.bookingApplication.update({
-          where: { id: wedding.applicationId },
-          data: {
-            brideFirstName: req.body.brideFirstName,
-            brideLastName: req.body.brideLastName,
-            bridePhone,
-            groomFirstName: req.body.groomFirstName,
-            groomLastName: req.body.groomLastName,
-            groomPhone,
-            primaryContact: req.body.primaryContact,
-            primaryEmail: req.body.primaryEmail,
-            weddingStartsAt: startsAt,
-            weddingEndsAt: endsAt,
-            venueId: req.body.venueId,
-            note: req.body.note || null
-          }
-        });
-
-        if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
-          const claimedUser = await transaction.user.updateMany({
-            where: {
-              id: wedding.customerUserId,
-              updatedAt: wedding.customerUser.updatedAt,
-              mustChangePassword: true,
-              passwordChangedAt: null
-            },
-            data: {
-              username: nextUsername,
-              passwordHash: nextPasswordHash,
-              activeAt: activationAt,
-              mustChangePassword: true,
-              temporaryPasswordExpiresAt,
-              passwordChangedAt: null
-            }
-          });
-          if (claimedUser.count !== 1) {
-            throw new AppError("Müşteri kimlik bilgileri başka bir işlemde güncellendi.", 409);
-          }
-          await transaction.authSession.updateMany({
-            where: { userId: wedding.customerUserId, revokedAt: null },
-            data: { revokedAt: now }
-          });
-        }
-
-        if (dateChanged) {
-          if (wedding.delivery && wedding.delivery.status !== "TESLIM_EDILDI") {
-            await transaction.delivery.updateMany({
-              where: {
-                id: wedding.delivery.id,
-                status: { not: "TESLIM_EDILDI" },
-                releasedAt: null
-              },
-              data: { dueDate }
+      prisma
+        .$transaction(
+          async (transaction) => {
+            await assertVenueScheduleAvailable(transaction, {
+              venueId: req.body.venueId,
+              startsAt,
+              endsAt,
+              excludeWeddingId: wedding.id,
+              excludeApplicationId: wedding.applicationId
             });
-          }
-        }
 
-        await transaction.messageTask.updateMany({
-          where: { weddingId: wedding.id, status: "PENDING" },
-          data: { recipientPhone }
-        });
-
-        if (dateChanged) {
-          await transaction.messageTask.updateMany({
-            where: {
-              weddingId: wedding.id,
-              kind: "PREPARATION_UPDATE",
-              status: "PENDING"
-            },
-            data: { dueAt: preparationAt }
-          });
-        }
-
-        if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
-          await transaction.messageTask.updateMany({
-            where: {
-              weddingId: wedding.id,
-              kind: "PASSWORD_RESET",
-              status: "PENDING"
-            },
-            data: {
-              status: "CANCELLED",
-              sentAt: null,
-              sentById: null,
-              secretCiphertext: null,
-              secretIv: null,
-              secretAuthTag: null
-            }
-          });
-          await transaction.messageTask.upsert({
-            where: {
-              weddingId_kind: {
-                weddingId: wedding.id,
-                kind: "ACCOUNT_ACTIVATION"
-              }
-            },
-            create: {
-              weddingId: wedding.id,
-              kind: "ACCOUNT_ACTIVATION",
-              dueAt: activationAt,
-              recipientPhone,
-              secretCiphertext: encryptedPassword.ciphertext,
-              secretIv: encryptedPassword.iv,
-              secretAuthTag: encryptedPassword.authTag,
-              encryptionVersion: 2
-            },
-            update: {
-              status: "PENDING",
-              dueAt: activationAt,
-              recipientPhone,
-              sentAt: null,
-              sentById: null,
-              secretCiphertext: encryptedPassword.ciphertext,
-              secretIv: encryptedPassword.iv,
-              secretAuthTag: encryptedPassword.authTag,
-              encryptionVersion: 2
-            }
-          });
-        }
-
-        await createAudit(transaction, {
-          actorUserId: req.auth!.userId,
-          action: "wedding.updated",
-          targetType: "Wedding",
-          targetId: wedding.id,
-          correlationId: req.correlationId,
-          metadata: {
-            dateChanged,
-            namesChanged,
-            credentialsRegenerated: regenerateCredentials
-          }
-        });
-
-        return transaction.wedding.findUniqueOrThrow({
-          where: { id: wedding.id },
-          include: {
-            venue: { select: { name: true } },
-            customerUser: {
-              select: { id: true, username: true, activeAt: true, mustChangePassword: true }
-            },
-            delivery: {
-              select: {
-                id: true,
-                status: true,
-                dueDate: true,
-                releasedAt: true,
-                updatedAt: true
+            if (req.body.venueId !== wedding.venueId) {
+              const incompatibleAssignments = await transaction.weddingAssignment.count({
+                where: {
+                  weddingId: wedding.id,
+                  staff: { venueId: { not: req.body.venueId } }
+                }
+              });
+              if (incompatibleAssignments > 0) {
+                throw new AppError(
+                  "Salon değişmeden önce farklı salona bağlı personel atamalarını kaldırın.",
+                  409,
+                  true,
+                  { code: "VENUE_ASSIGNMENT_MISMATCH" }
+                );
               }
             }
-          }
-        });
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }).catch(
-        (error: unknown) => {
+
+            const claimedWedding = await transaction.wedding.updateMany({
+              where: {
+                id: wedding.id,
+                updatedAt: wedding.updatedAt,
+                cancelledAt: null,
+                deletedAt: null
+              },
+              data: {
+                brideFirstName: req.body.brideFirstName,
+                brideLastName: req.body.brideLastName,
+                bridePhone,
+                groomFirstName: req.body.groomFirstName,
+                groomLastName: req.body.groomLastName,
+                groomPhone,
+                primaryContact: req.body.primaryContact,
+                primaryEmail: req.body.primaryEmail,
+                startsAt,
+                endsAt,
+                venueId: req.body.venueId,
+                note: req.body.note || null
+              }
+            });
+            if (claimedWedding.count !== 1) {
+              throw new AppError("Düğün kaydı başka bir işlemde güncellendi.", 409);
+            }
+
+            await transaction.bookingApplication.update({
+              where: { id: wedding.applicationId },
+              data: {
+                brideFirstName: req.body.brideFirstName,
+                brideLastName: req.body.brideLastName,
+                bridePhone,
+                groomFirstName: req.body.groomFirstName,
+                groomLastName: req.body.groomLastName,
+                groomPhone,
+                primaryContact: req.body.primaryContact,
+                primaryEmail: req.body.primaryEmail,
+                weddingStartsAt: startsAt,
+                weddingEndsAt: endsAt,
+                venueId: req.body.venueId,
+                note: req.body.note || null
+              }
+            });
+
+            if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
+              const claimedUser = await transaction.user.updateMany({
+                where: {
+                  id: wedding.customerUserId,
+                  updatedAt: wedding.customerUser.updatedAt,
+                  mustChangePassword: true,
+                  passwordChangedAt: null
+                },
+                data: {
+                  username: nextUsername,
+                  passwordHash: nextPasswordHash,
+                  activeAt: activationAt,
+                  mustChangePassword: true,
+                  temporaryPasswordExpiresAt,
+                  passwordChangedAt: null
+                }
+              });
+              if (claimedUser.count !== 1) {
+                throw new AppError("Müşteri kimlik bilgileri başka bir işlemde güncellendi.", 409);
+              }
+              await transaction.authSession.updateMany({
+                where: { userId: wedding.customerUserId, revokedAt: null },
+                data: { revokedAt: now }
+              });
+            }
+
+            if (dateChanged) {
+              if (wedding.delivery && wedding.delivery.status !== "TESLIM_EDILDI") {
+                await transaction.delivery.updateMany({
+                  where: {
+                    id: wedding.delivery.id,
+                    status: { not: "TESLIM_EDILDI" },
+                    releasedAt: null
+                  },
+                  data: { dueDate }
+                });
+              }
+            }
+
+            await transaction.messageTask.updateMany({
+              where: { weddingId: wedding.id, status: "PENDING" },
+              data: { recipientPhone }
+            });
+
+            if (dateChanged) {
+              await transaction.messageTask.updateMany({
+                where: {
+                  weddingId: wedding.id,
+                  kind: "PREPARATION_UPDATE",
+                  status: "PENDING"
+                },
+                data: { dueAt: preparationAt }
+              });
+            }
+
+            if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
+              await transaction.messageTask.updateMany({
+                where: {
+                  weddingId: wedding.id,
+                  kind: "PASSWORD_RESET",
+                  status: "PENDING"
+                },
+                data: {
+                  status: "CANCELLED",
+                  sentAt: null,
+                  sentById: null,
+                  secretCiphertext: null,
+                  secretIv: null,
+                  secretAuthTag: null
+                }
+              });
+              await transaction.messageTask.upsert({
+                where: {
+                  weddingId_kind: {
+                    weddingId: wedding.id,
+                    kind: "ACCOUNT_ACTIVATION"
+                  }
+                },
+                create: {
+                  weddingId: wedding.id,
+                  kind: "ACCOUNT_ACTIVATION",
+                  dueAt: activationAt,
+                  recipientPhone,
+                  secretCiphertext: encryptedPassword.ciphertext,
+                  secretIv: encryptedPassword.iv,
+                  secretAuthTag: encryptedPassword.authTag,
+                  encryptionVersion: 2
+                },
+                update: {
+                  status: "PENDING",
+                  dueAt: activationAt,
+                  recipientPhone,
+                  sentAt: null,
+                  sentById: null,
+                  secretCiphertext: encryptedPassword.ciphertext,
+                  secretIv: encryptedPassword.iv,
+                  secretAuthTag: encryptedPassword.authTag,
+                  encryptionVersion: 2
+                }
+              });
+            }
+
+            await createAudit(transaction, {
+              actorUserId: req.auth!.userId,
+              action: "wedding.updated",
+              targetType: "Wedding",
+              targetId: wedding.id,
+              correlationId: req.correlationId,
+              metadata: {
+                dateChanged,
+                namesChanged,
+                credentialsRegenerated: regenerateCredentials
+              }
+            });
+
+            return transaction.wedding.findUniqueOrThrow({
+              where: { id: wedding.id },
+              include: {
+                venue: { select: { name: true } },
+                customerUser: {
+                  select: { id: true, username: true, activeAt: true, mustChangePassword: true }
+                },
+                delivery: {
+                  select: {
+                    id: true,
+                    status: true,
+                    dueDate: true,
+                    releasedAt: true,
+                    updatedAt: true
+                  }
+                }
+              }
+            });
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+        )
+        .catch((error: unknown) => {
           if (isPrismaError(error, "P2034")) {
             throw new AppError("Düğün takvimi başka bir işlemde güncellendi. Tekrar deneyin.", 409);
           }
           throw error;
-        }
-      );
+        });
     const updated = regenerateCredentials
       ? await retryUsernameConflict(
           () => createUniqueCustomerUsername(req.body.brideLastName, req.body.groomLastName),
@@ -1752,15 +1808,15 @@ router.post(
   })
 );
 
-const catalogRoutes = (
-  path: "packages" | "services",
-  schema: z.ZodObject<any>
-) => {
+const catalogRoutes = (path: "packages" | "services", schema: z.ZodObject<any>) => {
   const targetType = path === "packages" ? "Package" : "Service";
   const actionPrefix = path === "packages" ? "package" : "service";
   const partialSchema = schema
     .partial()
-    .refine((value: Record<string, unknown>) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+    .refine(
+      (value: Record<string, unknown>) => Object.keys(value).length > 0,
+      "En az bir alan gönderin."
+    );
 
   router.get(
     `/${path}`,

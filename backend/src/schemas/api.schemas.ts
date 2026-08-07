@@ -254,7 +254,9 @@ export const assignmentBodySchema = z
 
 export const dashboardQuerySchema = z
   .object({
-    weekStart: dateSchema.optional()
+    weekStart: dateSchema.optional(),
+    availabilityDate: dateSchema.optional(),
+    venueId: z.string().uuid().optional()
   })
   .strict();
 

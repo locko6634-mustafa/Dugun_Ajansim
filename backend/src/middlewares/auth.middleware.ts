@@ -37,7 +37,9 @@ export const getCookie = (req: Request, name: string): string | undefined =>
 export const getSessionIdleTimeoutMs = (role: UserRole): number =>
   role === 'MUSTERI'
     ? env.CUSTOMER_SESSION_IDLE_HOURS * 60 * 60 * 1000
-    : env.ADMIN_SESSION_IDLE_MINUTES * 60 * 1000;
+    : role === 'ADMIN'
+      ? env.ADMIN_SESSION_IDLE_MINUTES * 60 * 1000
+      : env.SALON_SESSION_IDLE_MINUTES * 60 * 1000;
 
 export const calculateSessionTouchIntervalMs = (idleTimeoutMs: number): number =>
   Math.min(5 * 60 * 1000, Math.floor(idleTimeoutMs / 2));
@@ -46,7 +48,7 @@ export const getSessionTouchIntervalMs = (role: UserRole): number =>
   calculateSessionTouchIntervalMs(getSessionIdleTimeoutMs(role));
 
 export const getSessionAbsoluteTtlMs = (role: UserRole, remember: boolean): number =>
-  role === 'MUSTERI' && remember
+  remember
     ? env.REMEMBER_SESSION_TTL_DAYS * 24 * 60 * 60 * 1000
     : env.SESSION_TTL_HOURS * 60 * 60 * 1000;
 

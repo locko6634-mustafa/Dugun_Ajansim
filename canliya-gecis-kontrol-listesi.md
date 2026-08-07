@@ -3,7 +3,11 @@
 **Denetim tarihi:** 7 Ağustos 2026  
 **Denetlenen revizyon:** `5fc5216`  
 **Kapsam:** Kullanıcı deneyimi, responsive tasarım, erişilebilirlik, içerik, KVKK/gizlilik, frontend, backend, veritabanı, güvenlik, testler, Docker/dağıtım ve operasyon  
-**Mevcut karar:** **NO-GO — P0 maddeleri kapanmadan canlıya çıkılmamalı.**
+**Dağıtım modeli:** Uygulamanın tamamı farklı bir sunucuya taşınacak ve canlı yayın yeni sunucudan yapılacak.
+
+**Mevcut karar:** **NO-GO — P0-02–P0-07 kapanmadan ve yeni sunucudaki taşıma sonrası doğrulamalar geçmeden canlıya çıkılmamalı.**
+
+**Tamamlanan bloklayıcı:** **P0-01 — Ödeme ve WhatsApp akışı.**
 
 ## Öncelik tanımları
 
@@ -29,13 +33,15 @@
 
 ## P0 — Canlıya çıkış bloklayıcıları
 
-### P0-01 — Ödeme ve WhatsApp akışını gerçeğe uygun hale getir
+### P0-01 — Ödeme ve WhatsApp akışını gerçeğe uygun hale getir — TAMAMLANDI
 
-- [ ] Ürün kararını netleştir: akış ya gerçek ödeme/dekont akışı olacak ya da açıkça “başvuru gönder” akışına çevrilecek.
-- [ ] Ödeme kullanılacaksa banka adı, hesap sahibi, IBAN, ödeme bildirimi endpoint'i ve doğrulanmış WhatsApp hattını üretim ayarlarından sağla.
-- [ ] Ödeme kullanılmayacaksa “Siparişi tamamla”, “ödeme”, “dekont gönder” ve benzeri tüm vaatleri kaldır.
-- [ ] Başarı ekranında yalnızca gerçekten kullanılabilen sonraki adımı göster; eksik konfigürasyonda başarılı sipariş algısı oluşturma.
-- [ ] Başarı, eksik konfigürasyon, API hatası ve tekrar gönderim senaryolarını gerçek cihazda test et.
+- [x] Ürün kararını netleştir: akış ya gerçek ödeme/dekont akışı olacak ya da açıkça “başvuru gönder” akışına çevrilecek.
+- [x] Ödeme kullanılacaksa banka adı, hesap sahibi, IBAN, ödeme bildirimi endpoint'i ve doğrulanmış WhatsApp hattını üretim ayarlarından sağla.
+- [x] Ödeme kullanılmayacaksa “Siparişi tamamla”, “ödeme”, “dekont gönder” ve benzeri tüm vaatleri kaldır.
+- [x] Başarı ekranında yalnızca gerçekten kullanılabilen sonraki adımı göster; eksik konfigürasyonda başarılı sipariş algısı oluşturma.
+- [x] Başarı, eksik konfigürasyon, API hatası ve tekrar gönderim senaryolarını gerçek cihazda test et.
+
+**Durum:** Ürün sahibi beyanıyla 7 Ağustos 2026 tarihinde tamamlandı. Yeni sunucudaki taşıma sonrası smoke testinde yeniden doğrulanmalı.
 
 **Kapanış ölçütü:** Kullanıcı ödeme/başvuru sonrasında çalışan tek bir kanala ulaşabiliyor; gösterilen tutar ve talimat backend kaydıyla birebir eşleşiyor.  
 **Kanıt:** `js/package-builder/application.js:36-41,912-925`, `paketini-olustur.html:642-701,790-844`
@@ -174,11 +180,40 @@
 - [ ] Test envanteri, feature sahibi, alarm sahibi ve risk kabul kayıtlarını tek bir release dokümanında tut.
 - [ ] Üçüncü taraf medya için hata durumunda yerel poster/fallback ve içerik uygunluk kontrolü ekle.
 
-## Canlıya çıkış günü kontrolü
+## Sunucu taşıma öncesi kontrol listesi
+
+### Hedef sunucu ve taşıma planı
+
+- [ ] Yeni sunucunun sağlayıcısı, bölgesi, işletim sistemi, CPU/RAM/disk kapasitesi ve sorumlusu release kaydına yazıldı.
+- [ ] Bakım penceresi, beklenen kesinti, DNS geçiş zamanı, iletişim kanalı ve geri dönüş karar sahibi belirlendi.
+- [ ] Mevcut DNS TTL değeri geçişten yeterli süre önce düşürüldü; eski sunucunun ne kadar süre hazır tutulacağı belirlendi.
+- [ ] Yeni sunucuda güvenlik duvarı yalnızca gerekli portlara açıldı; SSH erişimi anahtar tabanlı ve en az yetkili kullanıcıyla sınırlandı.
+- [ ] Docker/Compose, disk alanı, saat senkronizasyonu, log rotasyonu ve otomatik güvenlik güncelleme politikası doğrulandı.
+- [ ] Üretim alan adı, e-posta/WhatsApp ve üçüncü taraf servislerin yeni sunucu/IP için gerektirdiği allowlist değişiklikleri hazırlandı.
+
+### Veri, sırlar ve geri dönüş hazırlığı
+
+- [ ] Taşıma başlamadan hemen önce şifreli Postgres yedeği alındı; checksum kaydedildi ve yedek sunucu dışında saklandı.
+- [ ] Ayrı ortamda geri yükleme provası tamamlandı; RPO/RTO sonucu ve geri yükleme süresi kaydedildi.
+- [ ] `APP_DOMAIN`, `CORS_ORIGIN`, `TRUST_PROXY`, veritabanı parolaları, `DATA_ENCRYPTION_KEY`, oturum ve deploy sırları yeni sunucuya güvenli kanaldan aktarıldı.
+- [ ] Sırlar kaynak kodda, shell geçmişinde, Compose çıktısında veya dünya tarafından okunabilir dosyalarda bulunmuyor.
+- [ ] Veritabanı owner ve runtime rolleri ayrıldı; runtime rolünün DDL/owner yetkisi olmadığı doğrulandı.
+- [ ] Eski sunucuya geri dönüş için uygulama sürümü, veritabanı uyumluluğu, komutlar ve karar eşiği yazılı hale getirildi.
+
+### Taşıma öncesi sürüm kapısı
+
+- [ ] P0-02–P0-07 maddeleri kapatıldı; P0-01’in yeni sunucuda yeniden doğrulanacak smoke senaryosu hazırlandı.
+- [ ] Temiz commit SHA'sından frontend, backend ve migration imajları üretildi; tag ve digestler release kaydına yazıldı.
+- [ ] Veritabanı entegrasyon testleri ve mocksuz kritik E2E akışı üretime yakın ortamda geçti.
+- [ ] Nginx yapılandırması, container non-root kullanıcıları, health check'ler ve migration sırası doğrulandı.
+- [ ] Hukuk, ürün ve operasyon onayları ile açık P1 risk kabulleri release kaydına eklendi.
+- [ ] Dış uptime kontrolü, 5xx/DB/disk/sertifika/yedek alarmları yeni sunucuyu izleyecek şekilde hazırlandı.
+
+## Sunucu taşıma sonrası ve canlıya alma kontrol listesi
 
 ### Altyapı ve sırlar
 
-- [ ] DNS A/AAAA kayıtları, TLS zinciri ve otomatik sertifika yenileme doğrulandı.
+- [ ] DNS A/AAAA kayıtları yeni sunucuyu gösteriyor; yayılım, TLS zinciri ve otomatik sertifika yenileme doğrulandı.
 - [ ] HSTS yalnızca HTTPS ve alt alan adı kararı doğrulandıktan sonra etkin.
 - [ ] `APP_DOMAIN`, `CORS_ORIGIN`, cookie domain/Secure/SameSite ve `TRUST_PROXY` gerçek proxy topolojisiyle doğrulandı.
 - [ ] Postgres owner/runtime parolaları, `DATA_ENCRYPTION_KEY`, oturum ve deploy sırları benzersiz; dosya izinleri en az yetkiyle sınırlandı.
@@ -193,6 +228,7 @@
 - [ ] Güvenlik başlıkları doğrulandı: CSP, HSTS, frame-ancestors/X-Frame-Options, nosniff, Referrer-Policy ve Permissions-Policy.
 - [ ] Production source map, `.env`, `.git`, backend kaynakları ve dizin listeleme internetten erişilemiyor.
 - [ ] Onaylı revision dışında manuel/yanlış SHA dağıtılamadığı doğrulandı.
+- [ ] Çalışan container imaj digestleri ve uygulama commit SHA'sı taşıma öncesi release kaydıyla eşleşiyor.
 
 ### İşlevsel smoke
 
@@ -201,6 +237,7 @@
 - [ ] Operasyon kaydı ve teslimat yayını oluşturuldu; müşteri yetkili içeriğe erişti.
 - [ ] Logout, yetkisiz rol, süresi dolmuş oturum ve CSRF reddi beklendiği gibi çalıştı.
 - [ ] Test kayıtları tanımlı prosedürle temizlendi veya anonimleştirildi.
+- [ ] P0-01 ödeme/başvuru ve WhatsApp akışı yeni sunucuda gerçek üretim ayarlarıyla yeniden doğrulandı.
 
 ### Gözlem ve geri dönüş
 
@@ -209,7 +246,7 @@
 - [ ] Rollback karar sahibi ve iletişim kanalı canlı dağıtım penceresinde hazır.
 - [ ] İlk 60 dakika log, hata oranı, başvuru başarısı ve gecikme panosu izlendi.
 
-## İlk 24 saat
+## Sunucu taşıma sonrası ilk 24 saat
 
 - [ ] Başvuru oluşturma başarı/hata oranı ve bekleyen başvuru yaşı izleniyor.
 - [ ] 401/403/429/5xx anomalileri ve şüpheli IP/iletişim tekrarları incelendi.
@@ -217,17 +254,20 @@
 - [ ] Ödeme/iletişim kanalına ulaşamama ve parola kurtarma geri bildirimleri kontrol edildi.
 - [ ] İlk otomatik yedek başarıyla alındı ve offsite kopyası doğrulandı.
 - [ ] P1/P2 kalanları için sahip ve hedef tarih atandı.
+- [ ] Eski sunucu, geri dönüş penceresi sona erene kadar değiştirilmeden hazır tutuldu; kapatma ve veri imha zamanı kayıt altına alındı.
 
 ## Go/No-Go çıkış ölçütü
 
 Canlıya geçiş için aşağıdaki koşulların tamamı sağlanmalı:
 
-- [ ] Tüm P0 maddeleri kanıt bağlantısıyla kapalı.
+- [x] P0-01 tamamlandı; yeni sunucudaki smoke testinde yeniden doğrulanacak.
+- [ ] P0-02–P0-07 maddeleri kanıt bağlantısıyla kapalı.
 - [ ] Açık yüksek/kritik güvenlik bulgusu yok; orta bulgular kapalı veya yazılı risk kabulüne sahip.
 - [ ] Üretim imajı, DB entegrasyonu ve mocksuz kritik E2E akışı yeşil.
 - [ ] Hukuk, ürün ve operasyon sahipleri kendi bölümlerini yazılı onayladı.
 - [ ] İzleme, yedek, restore ve rollback tatbikatı tamamlandı.
 - [ ] Dağıtılacak commit SHA'sı, imaj digestleri, migration ve geri dönüş sürümü release kaydında sabit.
+- [ ] DNS/TLS geçişi, yeni sunucu health kontrolleri, kritik smoke akışı ve sentetik alarm başarıyla tamamlandı.
 
 ## Denetim sınırlamaları
 

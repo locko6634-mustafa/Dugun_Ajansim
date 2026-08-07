@@ -147,8 +147,11 @@ const envSchema = z
     REMEMBER_SESSION_TTL_DAYS: boundedIntegerSchema('REMEMBER_SESSION_TTL_DAYS', 1, 90).default(
       '30',
     ),
-    ADMIN_SESSION_IDLE_MINUTES: boundedIntegerSchema('ADMIN_SESSION_IDLE_MINUTES', 5, 240).default(
-      '30',
+    ADMIN_SESSION_IDLE_MINUTES: boundedIntegerSchema('ADMIN_SESSION_IDLE_MINUTES', 5, 1440).default(
+      '720',
+    ),
+    SALON_SESSION_IDLE_MINUTES: boundedIntegerSchema('SALON_SESSION_IDLE_MINUTES', 5, 1440).default(
+      '720',
     ),
     CUSTOMER_SESSION_IDLE_HOURS: boundedIntegerSchema(
       'CUSTOMER_SESSION_IDLE_HOURS',

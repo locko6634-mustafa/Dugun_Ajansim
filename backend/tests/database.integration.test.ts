@@ -53,7 +53,8 @@ test('test veritabanı guard yalnızca açık yerel hedefi kabul eder', () => {
 });
 
 test('migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalışır', async (context) => {
-  assert.equal(env.ADMIN_SESSION_IDLE_MINUTES, 30);
+  assert.equal(env.ADMIN_SESSION_IDLE_MINUTES, 720);
+  assert.equal(env.SALON_SESSION_IDLE_MINUTES, 720);
   assert.equal(env.CUSTOMER_SESSION_IDLE_HOURS, 12);
   assert.equal(env.TEMPORARY_PASSWORD_TTL_HOURS, 72);
   const healthRecord = await prisma.systemHealth.create({

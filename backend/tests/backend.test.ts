@@ -100,7 +100,8 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   assert.deepEqual(parsed.CORS_ORIGIN, ['http://localhost:3000', 'https://example.com']);
   assert.equal(parsed.TRUST_PROXY, 0);
   assert.equal(parsed.HEALTHCHECK_TIMEOUT_MS, 3000);
-  assert.equal(parsed.ADMIN_SESSION_IDLE_MINUTES, 30);
+  assert.equal(parsed.ADMIN_SESSION_IDLE_MINUTES, 720);
+  assert.equal(parsed.SALON_SESSION_IDLE_MINUTES, 720);
   assert.equal(parsed.CUSTOMER_SESSION_IDLE_HOURS, 12);
   assert.equal(parsed.TEMPORARY_PASSWORD_TTL_HOURS, 72);
   assert.equal(parsed.PAYMENT_MODE, 'test');
@@ -282,14 +283,14 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   );
 });
 
-test('rol bazlı oturum süreleri ayrı uygulanır ve ayrıcalıklı rollerde remember yok sayılır', () => {
-  assert.equal(getSessionIdleTimeoutMs('ADMIN'), 30 * 60 * 1000);
-  assert.equal(getSessionIdleTimeoutMs('SALON_YETKILISI'), 30 * 60 * 1000);
+test('rol bazlı hareketsizlik süreleri uygulanır ve tüm roller remember tercihini destekler', () => {
+  assert.equal(getSessionIdleTimeoutMs('ADMIN'), 12 * 60 * 60 * 1000);
+  assert.equal(getSessionIdleTimeoutMs('SALON_YETKILISI'), 12 * 60 * 60 * 1000);
   assert.equal(getSessionIdleTimeoutMs('MUSTERI'), 12 * 60 * 60 * 1000);
-  assert.equal(getSessionAbsoluteTtlMs('ADMIN', true), getSessionAbsoluteTtlMs('ADMIN', false));
-  assert.equal(
-    getSessionAbsoluteTtlMs('SALON_YETKILISI', true),
-    getSessionAbsoluteTtlMs('SALON_YETKILISI', false),
+  assert.ok(getSessionAbsoluteTtlMs('ADMIN', true) > getSessionAbsoluteTtlMs('ADMIN', false));
+  assert.ok(
+    getSessionAbsoluteTtlMs('SALON_YETKILISI', true) >
+      getSessionAbsoluteTtlMs('SALON_YETKILISI', false),
   );
   assert.ok(getSessionAbsoluteTtlMs('MUSTERI', true) > getSessionAbsoluteTtlMs('MUSTERI', false));
   assert.ok(getSessionTouchIntervalMs('ADMIN') < getSessionIdleTimeoutMs('ADMIN'));

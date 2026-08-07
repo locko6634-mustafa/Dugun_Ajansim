@@ -255,6 +255,10 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
           tomorrowWeddings: [],
           weekWeddings: [wedding],
           idleStaff: [],
+          availabilityDate: "2026-08-10",
+          venues: [wedding.venue],
+          selectedVenue: null,
+          staffAvailability: [],
           distribution: {},
           conflicts: [],
           upcomingDeliveries: []

@@ -30,6 +30,8 @@ const MESSAGE_LABELS = {
 const state = {
   dashboard: null,
   weekStart: "",
+  availabilityDate: "",
+  availabilityVenueId: "",
   calendar: null,
   calendarMonth: "",
   calendarVenueId: "",
@@ -313,11 +315,32 @@ function renderDashboard() {
   document.querySelector(".js-tomorrow-weddings").innerHTML = data.tomorrowWeddings.length
     ? data.tomorrowWeddings.map(compactWedding).join("")
     : empty("Yarın için düğün yok.");
-  document.querySelector(".js-idle-staff").innerHTML = data.idleStaff.length
-    ? data.idleStaff
-        .map((staff) => `<span>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</span>`)
+  const venueSelect = document.querySelector(".js-availability-venue");
+  venueSelect.innerHTML = `<option value="">Tüm salonlar</option>${(data.venues || [])
+    .map(
+      (venue) =>
+        `<option value="${escapeHtml(venue.id)}" ${venue.id === state.availabilityVenueId ? "selected" : ""}>${escapeHtml(venue.name)}</option>`
+    )
+    .join("")}`;
+  document.querySelector(".js-availability-date").value = data.availabilityDate;
+  const staffAvailability =
+    data.staffAvailability ||
+    data.idleStaff.map((staff) => ({ ...staff, isAvailable: true, assignments: [] }));
+  document.querySelector(".js-idle-staff").innerHTML = staffAvailability.length
+    ? staffAvailability
+        .map((staff) => {
+          const assignmentText = staff.assignments.length
+            ? staff.assignments
+                .map(
+                  ({ wedding }) =>
+                    `${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)} · ${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}`
+                )
+                .join("<br>")
+            : escapeHtml(staff.venue?.name || "Salon atanmamış");
+          return `<article class="availability-person"><strong>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</strong><span class="availability-status ${staff.isAvailable ? "" : "is-busy"}">${staff.isAvailable ? "Müsait" : "Görevli"}</span><small>${assignmentText}</small></article>`;
+        })
         .join("")
-    : empty("Bugün tüm ekip görevde.");
+    : empty("Seçilen salon ve tarihte aktif personel bulunamadı.");
   document.querySelector(".js-conflicts").innerHTML = data.conflicts.length
     ? data.conflicts
         .map(
@@ -379,10 +402,14 @@ function renderWeek() {
 }
 
 async function loadDashboard(weekStart = state.weekStart) {
-  const query = weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : "";
-  const response = await apiRequest(`/admin/dashboard${query}`);
+  const query = new window.URLSearchParams();
+  if (weekStart) query.set("weekStart", weekStart);
+  if (state.availabilityDate) query.set("availabilityDate", state.availabilityDate);
+  if (state.availabilityVenueId) query.set("venueId", state.availabilityVenueId);
+  const response = await apiRequest(`/admin/dashboard${query.size ? `?${query}` : ""}`);
   state.dashboard = response.data;
   state.weekStart = response.data.weekStart;
+  state.availabilityDate = response.data.availabilityDate;
   renderDashboard();
 }
 
@@ -1158,6 +1185,13 @@ document.querySelectorAll("[data-week-move]").forEach((button) => {
 });
 document.querySelector("[data-week-today]").addEventListener("click", () => {
   state.weekStart = "";
+  void loadDashboard();
+});
+
+document.querySelector(".js-availability-filters").addEventListener("change", (event) => {
+  if (!event.target.matches("select, input")) return;
+  state.availabilityVenueId = document.querySelector(".js-availability-venue").value;
+  state.availabilityDate = document.querySelector(".js-availability-date").value;
   void loadDashboard();
 });
 
