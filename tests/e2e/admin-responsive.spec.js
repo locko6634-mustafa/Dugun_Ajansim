@@ -36,6 +36,7 @@ async function expectMinimumHeight(locator, minimum = 44) {
 test("admin paneli 320px ekranda taşmadan ve dokunma hedeflerini koruyarak çalışır", async ({
   page
 }) => {
+  let venueCreateBody = null;
   await page.setViewportSize({ width: 320, height: 568 });
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
@@ -64,12 +65,15 @@ test("admin paneli 320px ekranda taşmadan ve dokunma hedeflerini koruyarak çal
       body: JSON.stringify({ success: true, data: { packages: [], services: [] } })
     })
   );
-  await page.route(/\/api\/v1\/admin\/(packages|services)$/, (route) =>
-    route.fulfill({
+  await page.route(/\/api\/v1\/admin\/(packages|services|venues)$/, async (route) => {
+    if (route.request().method() === "POST") {
+      venueCreateBody = route.request().postDataJSON();
+    }
+    await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ success: true, data: [] })
-    })
-  );
+    });
+  });
 
   await page.goto("/admin.html");
   await expect(page.getByRole("heading", { name: "Günün akışı" })).toBeVisible();
@@ -121,6 +125,30 @@ test("admin paneli 320px ekranda taşmadan ve dokunma hedeflerini koruyarak çal
     }))
   ).toEqual({ fits: true, columns: 1 });
   await catalogDialog.getByRole("button", { name: "Kapat" }).click();
+  await page.locator('[data-add-catalog="venues"]').click();
+  await expect(catalogDialog.getByRole("heading", { name: "Yeni Mekân Oluştur" })).toBeVisible();
+  await expect(catalogDialog.locator(".js-venue-display-name")).toBeVisible();
+  await expect(catalogDialog.locator(".js-venue-image")).toBeVisible();
+  await expect(catalogDialog.locator(".js-venue-display-order")).toBeVisible();
+  await catalogDialog.locator(".js-venue-slug").fill("responsive-garden");
+  await catalogDialog.locator(".js-venue-name").fill("Responsive Garden");
+  await catalogDialog.locator(".js-venue-display-name").fill("Responsive");
+  await catalogDialog.locator(".js-venue-image").fill("assets/images/venues/rena.webp");
+  await catalogDialog.locator(".js-venue-display-order").fill("8");
+  await catalogDialog.locator(".js-venue-featured").check();
+  await catalogDialog.getByRole("button", { name: "Mekân Oluştur" }).click();
+  await expect
+    .poll(() => venueCreateBody)
+    .toEqual({
+      slug: "responsive-garden",
+      name: "Responsive Garden",
+      displayName: "Responsive",
+      imagePath: "assets/images/venues/rena.webp",
+      displayOrder: 8,
+      isFeatured: true,
+      isPartner: true,
+      isActive: true
+    });
 
   for (const viewport of [
     { width: 375, height: 812 },

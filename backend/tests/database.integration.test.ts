@@ -1226,6 +1226,121 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(archivedStaff.status, 200);
   assert.equal(archivedStaff.body.data.isActive, false);
 
+  const routeVenueSlug = `route-venue-${marker}`;
+  const invalidFeaturedVenue = await request(app)
+    .post("/api/v1/admin/venues")
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({
+      slug: `invalid-featured-${marker}`,
+      name: `Eksik Vitrin Mekânı ${marker}`,
+      displayName: null,
+      imagePath: null,
+      isFeatured: true
+    });
+  assert.equal(invalidFeaturedVenue.status, 400);
+  assert.equal(await prisma.venue.count({ where: { slug: `invalid-featured-${marker}` } }), 0);
+
+  const createdRouteVenue = await request(app)
+    .post("/api/v1/admin/venues")
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({
+      slug: routeVenueSlug,
+      name: `Route Test Mekânı ${marker}`,
+      displayName: "API Vitrin Mekânı",
+      imagePath: "assets/images/venues/rena.webp",
+      displayOrder: 23,
+      isFeatured: true,
+      isPartner: true,
+      isActive: true
+    });
+  assert.equal(createdRouteVenue.status, 201);
+  const routeVenueId = createdRouteVenue.body.data.id as string;
+  secondaryVenueIds.push(routeVenueId);
+
+  const publicVenues = await request(app).get("/api/v1/venues");
+  assert.equal(publicVenues.status, 200);
+  assert.deepEqual(
+    publicVenues.body.data.find((item: { id: string }) => item.id === routeVenueId),
+    {
+      id: routeVenueId,
+      slug: routeVenueSlug,
+      name: `Route Test Mekânı ${marker}`,
+      displayName: "API Vitrin Mekânı",
+      imagePath: "assets/images/venues/rena.webp",
+      displayOrder: 23,
+      isFeatured: true
+    }
+  );
+
+  const patchedRouteVenue = await request(app)
+    .patch(`/api/v1/admin/venues/${routeVenueId}`)
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({ displayName: "Güncel Vitrin Mekânı", displayOrder: 3 });
+  assert.equal(patchedRouteVenue.status, 200);
+  assert.equal(patchedRouteVenue.body.data.displayName, "Güncel Vitrin Mekânı");
+  assert.equal(patchedRouteVenue.body.data.displayOrder, 3);
+
+  const emptyRouteVenuePatch = await request(app)
+    .patch(`/api/v1/admin/venues/${routeVenueId}`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
+  assert.equal(emptyRouteVenuePatch.status, 400);
+
+  const referencedRouteVenue = await request(app)
+    .post("/api/v1/admin/venues")
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({
+      slug: `referenced-venue-${marker}`,
+      name: `İlişkili Test Mekânı ${marker}`,
+      displayName: "İlişkili Vitrin Mekânı",
+      imagePath: "assets/images/venues/bella.webp",
+      displayOrder: 24,
+      isFeatured: true,
+      isPartner: true,
+      isActive: true
+    });
+  assert.equal(referencedRouteVenue.status, 201);
+  const referencedRouteVenueId = referencedRouteVenue.body.data.id as string;
+  secondaryVenueIds.push(referencedRouteVenueId);
+  const referencedVenueStaff = await prisma.staff.create({
+    data: {
+      firstName: "İlişkili",
+      lastName: "Personel",
+      phone: `0555${Math.floor(10_000_000 + Math.random() * 89_999_999)}`,
+      specialties: [],
+      venueId: referencedRouteVenueId
+    }
+  });
+  staffIds.push(referencedVenueStaff.id);
+
+  const deactivatedReferencedVenue = await request(app)
+    .delete(`/api/v1/admin/venues/${referencedRouteVenueId}`)
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
+  assert.equal(deactivatedReferencedVenue.status, 200);
+  assert.equal(deactivatedReferencedVenue.body.data.isActive, false);
+  assert.equal(deactivatedReferencedVenue.body.data.isFeatured, false);
+  assert.equal(await prisma.venue.count({ where: { id: referencedRouteVenueId } }), 1);
+
+  const deletedRouteVenue = await request(app)
+    .delete(`/api/v1/admin/venues/${routeVenueId}`)
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
+  assert.equal(deletedRouteVenue.status, 200);
+  assert.equal(await prisma.venue.count({ where: { id: routeVenueId } }), 0);
+
   const routePackageCode = `route-${marker}`;
   const createdRoutePackage = await request(app)
     .post("/api/v1/admin/packages")

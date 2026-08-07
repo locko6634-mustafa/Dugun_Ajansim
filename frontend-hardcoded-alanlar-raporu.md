@@ -95,18 +95,18 @@ Frontenddeki hardcoded alanların büyük kısmı statik tasarım ve arayüz met
 
 **Doğrulama:** Backend testleri sözleşme ile Zod şemasının aynı kaynaktan geldiğini ve sınırları; E2E testleri ise public ve admin formlarındaki öznitelikleri ve uluslararası telefon kabulünü masaüstü/mobil tarayıcı akışında doğruluyor.
 
-### HC-06 — Referans mekânlar ve görünür adet statik (P2)
+### HC-06 — Referans mekânlar ve görünür adet statik (P2) — Çözüldü
 
-**Kanıt**
+**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
 
-- `index.html:1002-1093`: 7 referans mekân adı/görseli statik.
-- `index.html:1104` ve `js/home/venues.js:14`: “7 Mekân” sayısı iki yerde sabit.
-- `backend/prisma/seed.ts:5-13`: Aynı mekân ailesi backend başlangıç verisinde farklı sunum adlarıyla tekrar tanımlı (`Cess` / `Cess Wedding`, `Ömerli Mafsel` / `Mafsel Ömerli` gibi).
-- `css/home/shoots.css:174-182`: Talia, Bella ve Rena poster görselleri CSS içinde sabit URL olarak bağlı.
+**Uygulanan çözüm**
 
-**Risk:** Mekân ekleme, pasife alma, ad veya görsel değişikliği ana sayfaya yansımaz; adet metni kolayca yanlış kalır.
+- `backend/prisma/schema.prisma:87-105` içinde operasyon adından bağımsız vitrin adı, görsel, sıra ve görünürlük alanları eklendi; public sorguya uygun birleşik indeks oluşturuldu.
+- `backend/src/routes/admin.routes.ts:2064-2180` ve `admin.html:387-405` üzerinden mekân oluşturma, düzenleme, kaldırma, iş ortaklığı, aktiflik ve ana sayfa görünürlüğü yönetilebilir hale getirildi. İlişkili operasyon kaydı bulunan mekânlar silinmek yerine pasife alınıyor.
+- `backend/src/routes/public.routes.ts:116-134` aktif iş ortağı mekânlarını vitrin alanları ve yönetilen sıralarıyla döndürüyor.
+- `index.html:1001-1003` içindeki statik mekân kartları kaldırıldı. `js/home/venues.js:67-106` yalnız public API'de vitrine açılan mekânları render ediyor; görünür adet ve mobil “tümünü göster” davranışı veri sayısından hesaplanıyor.
 
-**Öneri:** Referans olarak gösterilme, sıralama, kısa sunum adı ve görsel alanları venue modeline veya ayrı içerik manifestine eklenmeli. Buton adedi DOM/veri listesinden hesaplanmalı.
+**Doğrulama:** Gerçek veritabanı entegrasyon testi admin CRUD, public sözleşme, fiziksel silme ve ilişkili mekânı güvenli pasifleştirme davranışını; E2E testi ise API sırası, görsel, gizli kayıt ve dinamik mobil adet davranışını doğruluyor.
 
 ### HC-07 — Galeri ve video içerikleri doğrudan markup/depolama adresine bağlı (P2)
 

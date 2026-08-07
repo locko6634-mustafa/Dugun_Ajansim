@@ -185,6 +185,19 @@ export const serviceBodySchema = z
   })
   .strict();
 
+export const venueBodySchema = z
+  .object({
+    slug: codeSchema.regex(/^[a-z0-9-]+$/),
+    name: nameSchema,
+    displayName: z.string().trim().min(2).max(140).optional().nullable(),
+    imagePath: z.string().trim().max(500).optional().nullable(),
+    displayOrder: z.number().int().min(0).max(10_000).default(0),
+    isFeatured: z.boolean().default(false),
+    isActive: z.boolean().default(true),
+    isPartner: z.boolean().default(true)
+  })
+  .strict();
+
 export const deliveryUpdateBodySchema = z
   .object({
     status: z.enum(["HAZIRLANIYOR", "MONTAJ", "KONTROL", "TESLIME_HAZIR"]).optional(),

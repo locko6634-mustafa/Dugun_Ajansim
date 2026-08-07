@@ -425,6 +425,125 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
   });
 }
 
+export function showVenueFormModal({ title = "", initialData = null } = {}) {
+  const dialog = getOrCreateDialog();
+  const isEdit = Boolean(initialData?.id);
+  const modalTitle = title || (isEdit ? "Mekân Bilgilerini Düzenle" : "Yeni Mekân Ekle");
+  const currentActive = initialData?.isActive !== undefined ? Boolean(initialData.isActive) : true;
+  const currentPartner =
+    initialData?.isPartner !== undefined ? Boolean(initialData.isPartner) : true;
+  const currentFeatured = Boolean(initialData?.isFeatured);
+
+  dialog.innerHTML = `
+    <form class="form-shell custom-dialog-shell" method="dialog" style="max-width: 680px; max-height: 85vh; overflow-y: auto;">
+      <div class="sheet-heading">
+        <div>
+          <p class="section-index custom-dialog-badge">${isEdit ? "DÜZENLEME MODU" : "YENİ KAYIT"}</p>
+          <h2 class="custom-dialog-title">${escapeHtml(modalTitle)}</h2>
+        </div>
+        <button class="dialog-close js-dialog-cancel" type="button" aria-label="Kapat">×</button>
+      </div>
+      <div class="form-grid custom-catalog-grid">
+        <label>
+          Benzersiz Kısa Kod *
+          <input class="js-venue-slug" type="text" pattern="[a-z0-9-]+" placeholder="Örn: rena-garden" value="${escapeHtml(initialData?.slug || "")}" ${isEdit ? "readonly" : "required"} />
+        </label>
+        <label>
+          Operasyon Adı *
+          <input class="js-venue-name" type="text" placeholder="Örn: Rena Garden" value="${escapeHtml(initialData?.name || "")}" required />
+        </label>
+        <label>
+          Vitrin Adı
+          <input class="js-venue-display-name" type="text" placeholder="Örn: Rena" value="${escapeHtml(initialData?.displayName || "")}" />
+        </label>
+        <label>
+          Vitrin Sırası
+          <input class="js-venue-display-order" type="number" min="0" max="10000" step="1" value="${Number(initialData?.displayOrder || 0)}" />
+        </label>
+        <label class="wide">
+          Mekân Görseli Yolu / URL
+          <input class="js-venue-image" type="text" placeholder="Örn: assets/images/venues/rena.webp" value="${escapeHtml(initialData?.imagePath || "")}" />
+          <small>Referans vitrininde yayınlanacak mekânlar için görsel zorunludur.</small>
+        </label>
+        <label class="switch-row wide">
+          <input class="js-venue-featured" type="checkbox" ${currentFeatured ? "checked" : ""} />
+          <span><strong>Ana sayfa vitrininde göster</strong> <small>Vitrin adı, görseli ve sırası kullanılır.</small></span>
+        </label>
+        <label class="switch-row wide">
+          <input class="js-venue-partner" type="checkbox" ${currentPartner ? "checked" : ""} />
+          <span><strong>İş ortağı mekân</strong> <small>Başvuru formundaki mekân seçeneklerine dahil edilir.</small></span>
+        </label>
+        <label class="switch-row wide">
+          <input class="js-venue-active" type="checkbox" ${currentActive ? "checked" : ""} />
+          <span><strong>Aktif</strong> <small>Pasif mekân yeni başvuru ve vitrin akışlarında gösterilmez.</small></span>
+        </label>
+      </div>
+      <p class="dialog-message js-dialog-error" role="status"></p>
+      <div class="dialog-actions" style="margin-top: 24px;">
+        <button class="secondary-button js-dialog-cancel" type="button">Vazgeç</button>
+        <button class="primary-button" type="submit">${isEdit ? "Değişiklikleri Kaydet" : "Mekân Oluştur"}</button>
+      </div>
+    </form>
+  `;
+
+  return new Promise((resolve) => {
+    dialog.showModal();
+    const form = dialog.querySelector("form");
+    const slugInput = dialog.querySelector(".js-venue-slug");
+    const nameInput = dialog.querySelector(".js-venue-name");
+    const displayNameInput = dialog.querySelector(".js-venue-display-name");
+    const imageInput = dialog.querySelector(".js-venue-image");
+    const orderInput = dialog.querySelector(".js-venue-display-order");
+    const featuredInput = dialog.querySelector(".js-venue-featured");
+    const partnerInput = dialog.querySelector(".js-venue-partner");
+    const activeInput = dialog.querySelector(".js-venue-active");
+    const errorEl = dialog.querySelector(".js-dialog-error");
+
+    const cleanup = (value) => {
+      dialog.close();
+      dialog.removeEventListener("close", onClose);
+      resolve(value);
+    };
+    const onClose = () => cleanup(null);
+    dialog.addEventListener("close", onClose, { once: true });
+    dialog.querySelectorAll(".js-dialog-cancel").forEach((button) => {
+      button.addEventListener("click", () => cleanup(null), { once: true });
+    });
+
+    setTimeout(() => (isEdit ? nameInput : slugInput)?.focus(), 50);
+
+    form.onsubmit = (event) => {
+      event.preventDefault();
+      const slug = slugInput.value.trim();
+      const name = nameInput.value.trim();
+      const displayName = displayNameInput.value.trim();
+      const imagePath = imageInput.value.trim();
+      const displayOrder = Number(orderInput.value);
+      const isFeatured = featuredInput.checked;
+
+      if (!slug || !name || !/^[a-z0-9-]+$/.test(slug) || !Number.isInteger(displayOrder)) {
+        errorEl.textContent = "Kısa kod, operasyon adı ve vitrin sırasını doğru doldurun.";
+        return;
+      }
+      if (isFeatured && (!displayName || !imagePath)) {
+        errorEl.textContent = "Vitrinde gösterilecek mekân için vitrin adı ve görsel gereklidir.";
+        return;
+      }
+
+      cleanup({
+        slug,
+        name,
+        displayName: displayName || null,
+        imagePath: imagePath || null,
+        displayOrder,
+        isFeatured,
+        isPartner: partnerInput.checked,
+        isActive: activeInput.checked
+      });
+    };
+  });
+}
+
 const escapeHtml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")

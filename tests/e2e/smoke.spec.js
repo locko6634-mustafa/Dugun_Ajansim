@@ -155,6 +155,96 @@ test("ana sayfa kartları ve detayları backend kataloğundan alır", async ({ p
   await expect(page.locator("#faq-answer-4")).toContainText("en geç 21 takvim günü");
 });
 
+test("ana sayfa referans mekânlarını public API sırasıyla gösterir", async ({ page, isMobile }) => {
+  await page.route("**/api/v1/venues", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: [
+          {
+            id: "1",
+            slug: "api-bir",
+            name: "API Bir Operasyon",
+            displayName: "API Bir",
+            imagePath: "assets/images/venues/talia.webp",
+            displayOrder: 1,
+            isFeatured: true
+          },
+          {
+            id: "2",
+            slug: "api-iki",
+            name: "API İki Operasyon",
+            displayName: "API İki",
+            imagePath: "assets/images/venues/bella.webp",
+            displayOrder: 2,
+            isFeatured: true
+          },
+          {
+            id: "3",
+            slug: "api-uc",
+            name: "API Üç Operasyon",
+            displayName: "API Üç",
+            imagePath: "assets/images/venues/rena.webp",
+            displayOrder: 3,
+            isFeatured: true
+          },
+          {
+            id: "4",
+            slug: "api-dort",
+            name: "API Dört Operasyon",
+            displayName: "API Dört",
+            imagePath: "assets/images/venues/cess.webp",
+            displayOrder: 4,
+            isFeatured: true
+          },
+          {
+            id: "5",
+            slug: "api-bes",
+            name: "API Beş Operasyon",
+            displayName: "API Beş",
+            imagePath: "assets/images/venues/green-house.webp",
+            displayOrder: 5,
+            isFeatured: true
+          },
+          {
+            id: "6",
+            slug: "gizli-mekan",
+            name: "Gizli Mekân",
+            displayName: "Gizli Mekân",
+            imagePath: "assets/images/venues/yesil-nesil.webp",
+            displayOrder: 6,
+            isFeatured: false
+          }
+        ]
+      })
+    })
+  );
+
+  await page.goto("/index.html");
+  await expect(page.locator(".venue-card__name")).toHaveText([
+    "API Bir",
+    "API İki",
+    "API Üç",
+    "API Dört",
+    "API Beş"
+  ]);
+  await expect(page.locator(".venue-card")).toHaveCount(5);
+  await expect(page.locator(".venue-card").first().locator("img")).toHaveAttribute(
+    "src",
+    "assets/images/venues/talia.webp"
+  );
+  await expect(page.getByText("Gizli Mekân", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".js-venues-toggle span")).toHaveText("Tüm Mekânları Gör (5 Mekân)");
+
+  if (isMobile) {
+    await expect(page.locator(".venue-card--extra")).toBeHidden();
+    await page.locator(".js-venues-toggle").click();
+    await expect(page.locator(".venue-card--extra")).toBeVisible();
+    await expect(page.locator(".js-venues-toggle span")).toHaveText("Daha Az Göster");
+  }
+});
+
 test("anasayfa butonuna basildiginda sayfanin en ustune kaydirir", async ({ page, isMobile }) => {
   await page.goto("/index.html");
   await page.evaluate(() => window.scrollTo(0, 1500));

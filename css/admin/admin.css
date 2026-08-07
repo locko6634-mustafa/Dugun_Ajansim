@@ -1029,6 +1029,12 @@ button:disabled {
 .catalog-card--services .catalog-card__heading {
   background: linear-gradient(125deg, hsl(15 55% 93% / 76%), hsl(42 28% 99%));
 }
+.catalog-card--venues {
+  grid-column: 1 / -1;
+}
+.catalog-card--venues .catalog-card__heading {
+  background: linear-gradient(125deg, hsl(205 34% 92% / 80%), hsl(42 28% 99%));
+}
 .catalog-card__eyebrow {
   display: block;
   margin-bottom: 8px;
@@ -1040,6 +1046,9 @@ button:disabled {
 }
 .catalog-card--services .catalog-card__eyebrow {
   color: var(--clay);
+}
+.catalog-card--venues .catalog-card__eyebrow {
+  color: hsl(205 38% 38%);
 }
 .catalog-card h3 {
   font-family: Inter, Manrope, sans-serif;
@@ -1064,7 +1073,8 @@ button:disabled {
   line-height: 0;
 }
 .js-packages,
-.js-services {
+.js-services,
+.js-venues-catalog {
   padding: 8px 26px 18px;
 }
 .catalog-row {
@@ -2811,7 +2821,8 @@ h6,
   }
 
   .admin-main .js-packages,
-  .admin-main .js-services {
+  .admin-main .js-services,
+  .admin-main .js-venues-catalog {
     padding: 6px 16px 14px;
   }
 

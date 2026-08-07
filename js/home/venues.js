@@ -1,7 +1,55 @@
+import { apiRequest } from "../shared/api-client.js";
+
+const COLLAPSED_VENUE_COUNT = 4;
+const FALLBACK_IMAGE = "assets/images/venue-pavilion.webp";
+
+const toggleText = (expanded, count) =>
+  expanded ? "Daha Az Göster" : `Tüm Mekânları Gör (${count} Mekân)`;
+
+function createVenueCard(venue, index, total) {
+  const card = document.createElement("a");
+  const name = venue.displayName || venue.name;
+  card.className = "venue-card";
+  if (index >= COLLAPSED_VENUE_COUNT) card.classList.add("venue-card--extra");
+  if (total % 2 === 1 && index === total - 1) card.classList.add("venue-card--last-odd");
+  card.href = "#iletisim";
+  card.setAttribute("aria-label", `${name} hakkında iletişime geç`);
+
+  const image = document.createElement("img");
+  image.className = "venue-card__image";
+  image.src = venue.imagePath;
+  image.alt = `${name} düğün mekânı`;
+  image.width = 1280;
+  image.height = 853;
+  image.loading = "lazy";
+  image.addEventListener("error", () => (image.src = FALLBACK_IMAGE), { once: true });
+
+  const label = document.createElement("span");
+  label.className = "venue-card__name";
+  label.textContent = name;
+  card.append(image, label);
+  return card;
+}
+
+function updateToggle(count) {
+  const toggleBtn = document.querySelector(".js-venues-toggle");
+  const grid = document.getElementById("venues-grid");
+  if (!toggleBtn || !grid) return;
+  const wrapper = toggleBtn.closest(".venues-toggle-wrapper");
+  const hasExtraVenues = count > COLLAPSED_VENUE_COUNT;
+  if (wrapper) wrapper.hidden = !hasExtraVenues;
+  grid.setAttribute("data-expanded", "false");
+  toggleBtn.setAttribute("aria-expanded", "false");
+  const btnText = toggleBtn.querySelector("span");
+  if (btnText) btnText.textContent = toggleText(false, count);
+}
+
 export function initVenuesToggle() {
   const toggleBtn = document.querySelector(".js-venues-toggle");
   const grid = document.getElementById("venues-grid");
   if (!toggleBtn || !grid) return;
+  const wrapper = toggleBtn.closest(".venues-toggle-wrapper");
+  if (wrapper) wrapper.hidden = true;
 
   toggleBtn.addEventListener("click", () => {
     const isExpanded = grid.getAttribute("data-expanded") === "true";
@@ -11,9 +59,48 @@ export function initVenuesToggle() {
 
     const btnText = toggleBtn.querySelector("span");
     if (btnText) {
-      btnText.textContent = nextState ? "Daha Az Göster" : "Tüm Mekânları Gör (7 Mekân)";
+      btnText.textContent = toggleText(nextState, Number(grid.dataset.venueCount || 0));
     }
   });
 }
 
+async function loadVenues() {
+  const grid = document.getElementById("venues-grid");
+  if (!grid) return;
+
+  try {
+    const response = await apiRequest("/venues");
+    if (!Array.isArray(response.data)) throw new Error("Mekân yanıtı geçersiz.");
+    const venues = response.data.filter(
+      (venue) =>
+        venue?.isFeatured === true &&
+        typeof venue.imagePath === "string" &&
+        venue.imagePath.trim() &&
+        (typeof venue.displayName === "string" || typeof venue.name === "string")
+    );
+
+    grid.replaceChildren();
+    grid.dataset.venueCount = String(venues.length);
+    if (!venues.length) {
+      const status = document.createElement("p");
+      status.className = "venues-status";
+      status.textContent = "Yayında olan referans mekân bulunmuyor.";
+      grid.append(status);
+      updateToggle(0);
+      return;
+    }
+
+    grid.append(...venues.map((venue, index) => createVenueCard(venue, index, venues.length)));
+    updateToggle(venues.length);
+  } catch {
+    grid.replaceChildren();
+    const status = document.createElement("p");
+    status.className = "venues-status";
+    status.textContent = "Referans mekânlarımız şu anda yüklenemedi.";
+    grid.append(status);
+    updateToggle(0);
+  }
+}
+
 initVenuesToggle();
+loadVenues();

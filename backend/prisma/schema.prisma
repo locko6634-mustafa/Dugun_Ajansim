@@ -88,6 +88,10 @@ model Venue {
   id           String               @id @default(uuid())
   slug         String               @unique
   name         String               @unique
+  displayName  String?
+  imagePath    String?
+  displayOrder Int                  @default(0)
+  isFeatured   Boolean              @default(false)
   isActive     Boolean              @default(true)
   isPartner    Boolean              @default(true)
   createdAt    DateTime             @default(now())
@@ -98,6 +102,7 @@ model Venue {
   staff        Staff[]
 
   @@index([isActive, name])
+  @@index([isActive, isPartner, isFeatured, displayOrder])
   @@map("venues")
 }
 

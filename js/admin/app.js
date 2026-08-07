@@ -2,7 +2,8 @@ import { apiRequest } from "../shared/api-client.js";
 import {
   showCustomConfirm,
   showCustomPrompt,
-  showCatalogFormModal
+  showCatalogFormModal,
+  showVenueFormModal
 } from "../shared/custom-dialogs.js";
 import {
   applyBookingFormConstraints,
@@ -43,6 +44,7 @@ const state = {
   staff: [],
   managers: [],
   venues: [],
+  catalogVenues: [],
   packages: [],
   services: [],
   currentWedding: null
@@ -1109,15 +1111,63 @@ function renderCatalogRows(container, rows, type) {
     .join("");
 }
 
+function renderVenueRows(container, rows) {
+  if (!rows?.length) {
+    container.innerHTML = empty("Henüz mekân kaydı bulunmuyor.");
+    return;
+  }
+
+  container.innerHTML = rows
+    .map((venue) => {
+      const imagePath = venue.imagePath || "assets/images/venue-pavilion.webp";
+      const visibility = [
+        `Kod: ${escapeHtml(venue.slug)}`,
+        venue.isPartner ? "İş ortağı" : "Müşteri mekânı",
+        venue.isFeatured ? "Ana sayfada" : "Vitrin dışı"
+      ].join(" • ");
+      return `
+        <article class="catalog-row" data-catalog-row="${venue.id}" data-catalog-type="venues" data-catalog-name="${escapeHtml(venue.name)}">
+          <div class="catalog-thumb">
+            <img src="${escapeHtml(imagePath)}" alt="" />
+          </div>
+          <div class="catalog-info">
+            <div class="catalog-title-row">
+              <strong class="catalog-title">${escapeHtml(venue.displayName || venue.name)}</strong>
+              <span class="catalog-status-badge ${venue.isActive ? "catalog-status-badge--active" : "catalog-status-badge--disabled"}">
+                ${venue.isActive ? "Aktif" : "Pasif"}
+              </span>
+            </div>
+            <small class="catalog-subinfo">${visibility}</small>
+            <p class="catalog-desc">Operasyon adı: ${escapeHtml(venue.name)}</p>
+          </div>
+          <div class="catalog-price">
+            <small>Vitrin sırası</small>
+            <strong>${venue.displayOrder}</strong>
+          </div>
+          <div class="catalog-actions">
+            <button class="mini-button mini-button--primary catalog-edit" type="button" data-edit-catalog="${venue.id}">Düzenle</button>
+            <button class="mini-button mini-button--danger catalog-delete" type="button" data-delete-catalog="${venue.id}">Kaldır</button>
+          </div>
+        </article>`;
+    })
+    .join("");
+}
+
 async function loadCatalogAdmin() {
-  const [packagesResponse, servicesResponse] = await Promise.all([
-    apiRequest("/admin/packages"),
-    apiRequest("/admin/services")
-  ]);
+  const [packagesResponse, servicesResponse, venuesResponse, publicVenuesResponse] =
+    await Promise.all([
+      apiRequest("/admin/packages"),
+      apiRequest("/admin/services"),
+      apiRequest("/admin/venues"),
+      apiRequest("/venues")
+    ]);
   state.packages = packagesResponse.data;
   state.services = servicesResponse.data;
+  state.catalogVenues = venuesResponse.data;
+  state.venues = publicVenuesResponse.data;
   renderCatalogRows(document.querySelector(".js-packages"), state.packages, "packages");
   renderCatalogRows(document.querySelector(".js-services"), state.services, "services");
+  renderVenueRows(document.querySelector(".js-venues-catalog"), state.catalogVenues);
 }
 
 const panelLoaders = {
@@ -1674,31 +1724,54 @@ document
       const row = editButton.closest("[data-catalog-row]");
       const type = row.dataset.catalogType;
       const itemId = row.dataset.catalogRow;
-      const itemsList = type === "packages" ? state.packages : state.services;
+      const itemsList =
+        type === "packages"
+          ? state.packages
+          : type === "services"
+            ? state.services
+            : state.catalogVenues;
       const currentItem = itemsList.find((i) => i.id === itemId);
 
       if (!currentItem) return;
 
-      const formData = await showCatalogFormModal({
-        type,
-        title: type === "packages" ? "Paket Bilgilerini Düzenle" : "Ek Hizmet Bilgilerini Düzenle",
-        initialData: currentItem
-      });
+      const formData =
+        type === "venues"
+          ? await showVenueFormModal({
+              title: "Mekân Bilgilerini Düzenle",
+              initialData: currentItem
+            })
+          : await showCatalogFormModal({
+              type,
+              title:
+                type === "packages" ? "Paket Bilgilerini Düzenle" : "Ek Hizmet Bilgilerini Düzenle",
+              initialData: currentItem
+            });
 
       if (!formData) return;
 
-      const body = {
-        name: formData.name,
-        priceCents: formData.priceCents,
-        imagePath: formData.imagePath,
-        description: formData.description,
-        features: formData.features,
-        isActive: formData.isActive
-      };
+      const body =
+        type === "venues"
+          ? {
+              name: formData.name,
+              displayName: formData.displayName,
+              imagePath: formData.imagePath,
+              displayOrder: formData.displayOrder,
+              isFeatured: formData.isFeatured,
+              isPartner: formData.isPartner,
+              isActive: formData.isActive
+            }
+          : {
+              name: formData.name,
+              priceCents: formData.priceCents,
+              imagePath: formData.imagePath,
+              description: formData.description,
+              features: formData.features,
+              isActive: formData.isActive
+            };
       if (type === "packages") {
         body.subtitle = formData.subtitle;
         body.deliveryText = formData.deliveryText;
-      } else {
+      } else if (type === "services") {
         body.category = formData.category;
         body.eyebrow = formData.eyebrow;
         body.delivery = formData.delivery;
@@ -1735,13 +1808,21 @@ document
       }
     } else if (deleteButton) {
       const row = deleteButton.closest("[data-catalog-row]");
-      const typeLabel = row.dataset.catalogType === "packages" ? "Temel paketi" : "Ek hizmeti";
+      const typeLabel =
+        row.dataset.catalogType === "packages"
+          ? "Temel paketi"
+          : row.dataset.catalogType === "services"
+            ? "Ek hizmeti"
+            : "Mekânı";
       const name = row.dataset.catalogName || "Katalog kaydı";
+      const isVenue = row.dataset.catalogType === "venues";
       const accepted = await showCustomConfirm({
-        title: `${typeLabel} Sil`,
-        message: `"${name}" seçeneğini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`,
-        badge: "SİLME ONAYI",
-        confirmText: "Sil",
+        title: `${typeLabel} ${isVenue ? "Kaldır" : "Sil"}`,
+        message: isVenue
+          ? `"${name}" mekânını kaldırmak istediğinizden emin misiniz? İlişkili operasyon kayıtları varsa mekân güvenli biçimde pasife alınır.`
+          : `"${name}" seçeneğini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`,
+        badge: isVenue ? "KALDIRMA ONAYI" : "SİLME ONAYI",
+        confirmText: isVenue ? "Kaldır" : "Sil",
         cancelText: "Vazgeç",
         isDanger: true
       });
@@ -1751,7 +1832,7 @@ document
           method: "DELETE"
         });
         await loadCatalogAdmin();
-        setMessage(`${typeLabel} silindi.`, true);
+        setMessage(`${typeLabel} ${isVenue ? "kaldırıldı" : "silindi"}.`, true);
       } catch (error) {
         setMessage(error.message);
       }
@@ -1761,11 +1842,25 @@ document
 document.querySelectorAll("[data-add-catalog]").forEach((button) => {
   button.addEventListener("click", async () => {
     const type = button.dataset.addCatalog;
-    const formData = await showCatalogFormModal({
-      type,
-      title: type === "packages" ? "Yeni Paket Oluştur" : "Yeni Ek Hizmet Oluştur"
-    });
+    const formData =
+      type === "venues"
+        ? await showVenueFormModal({ title: "Yeni Mekân Oluştur" })
+        : await showCatalogFormModal({
+            type,
+            title: type === "packages" ? "Yeni Paket Oluştur" : "Yeni Ek Hizmet Oluştur"
+          });
     if (!formData) return;
+
+    if (type === "venues") {
+      try {
+        await apiRequest("/admin/venues", { method: "POST", body: formData });
+        await loadCatalogAdmin();
+        setMessage("Yeni mekân oluşturuldu.", true);
+      } catch (error) {
+        setMessage(error.message);
+      }
+      return;
+    }
 
     const {
       code,

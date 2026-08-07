@@ -118,6 +118,16 @@
   gap: clamp(12px, 1.7vw, 24px);
 }
 
+.venues-status {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 34px;
+  border: 1px solid hsl(33 30% 82%);
+  color: var(--venues-muted);
+  background: hsl(0 0% 100% / 0.48);
+  text-align: center;
+}
+
 .venue-card {
   position: relative;
   display: flex;
@@ -262,7 +272,7 @@
     display: none;
   }
 
-  .venues-grid[data-expanded="true"] .venue-card--extra:last-child {
+  .venues-grid[data-expanded="true"] .venue-card--last-odd {
     grid-column: span 2;
   }
 }

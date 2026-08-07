@@ -60,7 +60,7 @@
           <button type="button" data-panel="messages">
             <span>07</span> Mesajlar <span class="nav-badge js-badge-messages" hidden>0</span>
           </button>
-          <button type="button" data-panel="catalog"><span>08</span> Paketler</button>
+          <button type="button" data-panel="catalog"><span>08</span> Katalog</button>
           <button type="button" data-panel="managers"><span>09</span> Salon Sorumluları</button>
         </nav>
         <div class="admin-sidebar__footer">
@@ -346,7 +346,7 @@
           <div class="section-heading">
             <div>
               <p class="section-index">Hizmet vitrini</p>
-              <h2>Paket ve hizmetler</h2>
+              <h2>Paket, hizmet ve mekânlar</h2>
             </div>
           </div>
           <div class="catalog-layout">
@@ -383,6 +383,23 @@
                 </button>
               </div>
               <div class="js-services"></div>
+            </section>
+            <section class="catalog-card catalog-card--venues">
+              <div class="catalog-card__heading">
+                <div>
+                  <span class="catalog-card__eyebrow">Referans vitrini</span>
+                  <h3>Mekânlar</h3>
+                  <p>Operasyon mekânlarını ve ana sayfadaki görünürlüklerini yönetin.</p>
+                </div>
+                <button
+                  class="mini-button catalog-card__add"
+                  type="button"
+                  data-add-catalog="venues"
+                >
+                  <span aria-hidden="true">+</span> Yeni mekân
+                </button>
+              </div>
+              <div class="js-venues-catalog"></div>
             </section>
           </div>
         </section>

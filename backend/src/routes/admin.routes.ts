@@ -25,6 +25,7 @@ import {
   staffBodySchema,
   staffUpdateBodySchema,
   uuidParamsSchema,
+  venueBodySchema,
   venueManagerBodySchema,
   venueManagerUpdateBodySchema,
   weddingUpdateBodySchema
@@ -134,6 +135,29 @@ const throwCatalogError = (error: unknown): never => {
     );
   }
   throw error;
+};
+
+const throwVenueError = (error: unknown): never => {
+  if (isPrismaError(error, "P2002")) {
+    throw new AppError("Aynı kısa kodu veya adı kullanan başka bir mekân var.", 409);
+  }
+  if (isPrismaError(error, "P2025")) {
+    throw new AppError("Mekân bulunamadı.", 404);
+  }
+  if (isPrismaError(error, "P2003")) {
+    throw new AppError("İlişkili kayıtları bulunan mekân silinemez; pasife alınabilir.", 409);
+  }
+  throw error;
+};
+
+const assertVenueShowcaseReady = (venue: {
+  isFeatured: boolean;
+  displayName: string | null;
+  imagePath: string | null;
+}): void => {
+  if (venue.isFeatured && (!venue.displayName || !venue.imagePath)) {
+    throw new AppError("Vitrinde gösterilecek mekân için vitrin adı ve görsel gereklidir.", 400);
+  }
 };
 
 router.get(
@@ -2032,6 +2056,126 @@ const catalogRoutes = (path: "packages" | "services", schema: z.ZodObject<any>) 
     })
   );
 };
+
+const venueUpdateBodySchema = venueBodySchema
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+
+router.get(
+  "/venues",
+  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
+  asyncHandler(async (req, res) => {
+    const venues = await prisma.venue.findMany({
+      orderBy: [{ isFeatured: "desc" }, { displayOrder: "asc" }, { name: "asc" }]
+    });
+    res.json({ success: true, data: venues, correlationId: req.correlationId });
+  })
+);
+
+router.post(
+  "/venues",
+  verifyCsrf,
+  validateRequest(z.object({ body: venueBodySchema, query: emptyQuery, params: z.object({}) })),
+  asyncHandler(async (req, res) => {
+    let venue;
+    try {
+      venue = await prisma.$transaction(async (transaction) => {
+        const created = await transaction.venue.create({ data: req.body });
+        assertVenueShowcaseReady(created);
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "venue.created",
+          targetType: "Venue",
+          targetId: created.id,
+          correlationId: req.correlationId
+        });
+        return created;
+      });
+    } catch (error) {
+      throwVenueError(error);
+    }
+    res.status(201).json({ success: true, data: venue, correlationId: req.correlationId });
+  })
+);
+
+router.patch(
+  "/venues/:id",
+  verifyCsrf,
+  validateRequest(
+    z.object({ body: venueUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema })
+  ),
+  asyncHandler(async (req, res) => {
+    let venue;
+    try {
+      venue = await prisma.$transaction(async (transaction) => {
+        const updated = await transaction.venue.update({
+          where: { id: req.params.id },
+          data: req.body
+        });
+        assertVenueShowcaseReady(updated);
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "venue.updated",
+          targetType: "Venue",
+          targetId: updated.id,
+          correlationId: req.correlationId
+        });
+        return updated;
+      });
+    } catch (error) {
+      throwVenueError(error);
+    }
+    res.json({ success: true, data: venue, correlationId: req.correlationId });
+  })
+);
+
+router.delete(
+  "/venues/:id",
+  verifyCsrf,
+  validateRequest(uuidRequest),
+  asyncHandler(async (req, res) => {
+    let venue;
+    try {
+      const id = req.params.id;
+      venue = await prisma.$transaction(async (transaction) => {
+        const lockedRows = await transaction.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "venues" WHERE "id" = ${id} FOR UPDATE
+        `;
+        if (lockedRows.length !== 1) throw new AppError("Mekân bulunamadı.", 404);
+
+        const referenceCounts = await Promise.all([
+          transaction.user.count({ where: { venueId: id } }),
+          transaction.bookingApplication.count({ where: { venueId: id } }),
+          transaction.wedding.count({ where: { venueId: id } }),
+          transaction.staff.count({ where: { venueId: id } })
+        ]);
+        const isReferenced = referenceCounts.some((count) => count > 0);
+        const result = isReferenced
+          ? await transaction.venue.update({
+              where: { id },
+              data: { isActive: false, isFeatured: false }
+            })
+          : {
+              ...(await transaction.venue.delete({ where: { id } })),
+              isActive: false,
+              isFeatured: false
+            };
+
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: `venue.${isReferenced ? "deactivated" : "deleted"}`,
+          targetType: "Venue",
+          targetId: result.id,
+          correlationId: req.correlationId
+        });
+        return result;
+      });
+    } catch (error) {
+      throwVenueError(error);
+    }
+    res.json({ success: true, data: venue, correlationId: req.correlationId });
+  })
+);
 
 catalogRoutes("packages", packageBodySchema);
 catalogRoutes("services", serviceBodySchema);

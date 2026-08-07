@@ -119,8 +119,16 @@ router.get(
   asyncHandler(async (req, res) => {
     const venues = await prisma.venue.findMany({
       where: { isActive: true, isPartner: true },
-      select: { id: true, slug: true, name: true },
-      orderBy: { name: "asc" }
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        displayName: true,
+        imagePath: true,
+        displayOrder: true,
+        isFeatured: true
+      },
+      orderBy: [{ displayOrder: "asc" }, { name: "asc" }]
     });
     res.json({ success: true, data: venues, correlationId: req.correlationId });
   })
