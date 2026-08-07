@@ -4,6 +4,10 @@ import {
   showCustomPrompt,
   showCatalogFormModal
 } from "../shared/custom-dialogs.js";
+import {
+  applyBookingFormConstraints,
+  parseBookingFormConstraints
+} from "../shared/booking-form-constraints.js";
 
 const SPECIALTIES = {
   PHOTOGRAPHY: "Fotoğraf",
@@ -2049,7 +2053,13 @@ document.querySelector(".js-current-date").textContent = `${new Intl.DateTimeFor
 }).format(new Date())} · İstanbul`;
 
 if (await ensureAdmin()) {
-  await loadDashboard().catch((error) => setMessage(error.message));
+  await Promise.all([
+    loadDashboard(),
+    apiRequest("/catalog").then((response) => {
+      const constraints = parseBookingFormConstraints(response.data?.bookingFormConstraints);
+      applyBookingFormConstraints(document, constraints);
+    })
+  ]).catch((error) => setMessage(error.message));
 }
 
 /* UX & Klavye Kısayolları */

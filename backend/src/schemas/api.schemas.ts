@@ -1,17 +1,39 @@
 import { z } from "zod";
 import { isStrictGregorianDate } from "../utils/domain.js";
 
-const nameSchema = z.string().trim().min(2).max(80);
+export const bookingFormConstraints = Object.freeze({
+  personName: {
+    minLength: 2,
+    maxLength: 80,
+    pattern: "^[\\p{L}\\p{M}][\\p{L}\\p{M} '’\\-]*$",
+    message: "Ad ve soyad yalnızca harf, boşluk, kesme işareti ve kısa çizgi içerebilir."
+  },
+  phone: {
+    minLength: 10,
+    maxLength: 24,
+    pattern: "^\\+?[\\d\\s()\\-]+$",
+    message: "Telefon yalnızca rakam ve telefon ayraçları içerebilir."
+  },
+  email: { maxLength: 254 },
+  customVenueName: { minLength: 2, maxLength: 140 },
+  note: { maxLength: 2_000 }
+});
+
+const nameSchema = z
+  .string()
+  .trim()
+  .min(bookingFormConstraints.personName.minLength)
+  .max(bookingFormConstraints.personName.maxLength);
 const personNameSchema = nameSchema.regex(
-  /^[\p{L}\p{M}][\p{L}\p{M} '’\-]*$/u,
-  "Ad ve soyad yalnızca harf, boşluk, kesme işareti ve kısa çizgi içerebilir."
+  new RegExp(bookingFormConstraints.personName.pattern, "u"),
+  bookingFormConstraints.personName.message
 );
 const phoneSchema = z
   .string()
   .trim()
-  .min(10)
-  .max(24)
-  .regex(/^\+?[\d\s()\-]+$/, "Telefon yalnızca rakam ve telefon ayraçları içerebilir.");
+  .min(bookingFormConstraints.phone.minLength)
+  .max(bookingFormConstraints.phone.maxLength)
+  .regex(new RegExp(bookingFormConstraints.phone.pattern), bookingFormConstraints.phone.message);
 const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -56,7 +78,12 @@ const bookingBodyBaseSchema = z
     groomLastName: personNameSchema,
     groomPhone: phoneSchema,
     primaryContact: z.enum(["GELIN", "DAMAT"]),
-    primaryEmail: z.string().trim().toLowerCase().email().max(254),
+    primaryEmail: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .email()
+      .max(bookingFormConstraints.email.maxLength),
     weddingDate: dateSchema,
     startTime: timeSchema,
     endTime: timeSchema,
@@ -65,8 +92,8 @@ const bookingBodyBaseSchema = z
     customVenueName: z
       .string()
       .trim()
-      .min(2)
-      .max(140)
+      .min(bookingFormConstraints.customVenueName.minLength)
+      .max(bookingFormConstraints.customVenueName.maxLength)
       .refine(
         (value) => !/[\u0000-\u001F\u007F]/.test(value),
         "Salon adı kontrol karakteri içeremez."
@@ -75,7 +102,7 @@ const bookingBodyBaseSchema = z
     packageCode: codeSchema,
     serviceCodes: z.array(codeSchema).max(20).default([]),
     paymentMethod: z.enum(["CASH", "DEPOSIT"]),
-    note: z.string().trim().max(2_000).optional().or(z.literal("")),
+    note: z.string().trim().max(bookingFormConstraints.note.maxLength).optional().or(z.literal("")),
     privacyConsent: z.literal(true),
     marketingConsent: z.boolean().default(false)
   })

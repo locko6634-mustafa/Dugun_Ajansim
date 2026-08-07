@@ -1,6 +1,10 @@
 // Paket olusturucu sayfasinin uygulama mantigi.
 import { basePackages, services } from "./catalog.js";
 import { apiRequest, createIdempotencyKey, hasApiEndpoint } from "../shared/api-client.js";
+import {
+  applyBookingFormConstraints,
+  parseBookingFormConstraints
+} from "../shared/booking-form-constraints.js";
 const moneyFormatter = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 });
 const formatPrice = (value) =>
   Number.isFinite(value) ? `${moneyFormatter.format(value)} TL` : "—";
@@ -54,6 +58,7 @@ const state = {
   confirmedPayment: null,
   paymentMode: null,
   paymentPolicy: null,
+  bookingFormConstraints: null,
   catalogReady: false
 };
 
@@ -181,6 +186,7 @@ function parseCatalogData(data) {
   const remoteServices = data?.services;
   const cashDiscountPercent = data?.paymentPolicy?.cashDiscountPercent;
   const depositMaximumCents = data?.paymentPolicy?.depositMaximumCents;
+  const constraints = parseBookingFormConstraints(data?.bookingFormConstraints);
   const hasValidPolicy =
     Number.isInteger(cashDiscountPercent) &&
     cashDiscountPercent >= 0 &&
@@ -192,15 +198,15 @@ function parseCatalogData(data) {
     remotePackages.every((item) => Number.isSafeInteger(item.priceCents) && item.priceCents >= 0) &&
     Array.isArray(remoteServices) &&
     remoteServices.every((item) => Number.isSafeInteger(item.priceCents) && item.priceCents >= 0);
-
   if (!hasValidPolicy || !hasValidPrices) {
-    throw new Error("Sunucudan geçerli katalog ve ödeme koşulları alınamadı.");
+    throw new Error("Sunucudan geçerli katalog, ödeme ve form koşulları alınamadı.");
   }
 
   return {
     remotePackages,
     remoteServices,
-    paymentPolicy: { cashDiscountPercent, depositMaximumCents }
+    paymentPolicy: { cashDiscountPercent, depositMaximumCents },
+    bookingFormConstraints: constraints
   };
 }
 
@@ -220,9 +226,12 @@ async function hydrateRemoteData() {
     const {
       remotePackages,
       remoteServices: remoteServiceItems,
-      paymentPolicy
+      paymentPolicy,
+      bookingFormConstraints
     } = parseCatalogData(catalogResponse.data);
     state.paymentPolicy = paymentPolicy;
+    state.bookingFormConstraints = bookingFormConstraints;
+    applyBookingFormConstraints(checkoutForm, bookingFormConstraints);
     state.catalogReady = true;
     const activePackageCodes = new Set(remotePackages.map((item) => item.code));
     Object.keys(basePackages).forEach((code) => {
@@ -840,15 +849,15 @@ function setFieldValidity(input, isValid, message) {
 }
 
 function validatePhone(input) {
-  const digits = input.value.replace(/\D/g, "");
-  const normalized = digits.startsWith("90")
-    ? digits.slice(2)
-    : digits.startsWith("0")
-      ? digits.slice(1)
-      : digits;
-  const isValid = /^[2-5]\d{9}$/.test(normalized);
+  const config = state.bookingFormConstraints?.phone;
+  const value = input.value.trim();
+  const isValid =
+    Boolean(config) &&
+    value.length >= config.minLength &&
+    value.length <= config.maxLength &&
+    new RegExp(config.pattern).test(value);
   input.setCustomValidity(
-    isValid || !input.value.trim() ? "" : "Geçerli bir telefon numarası yazın."
+    isValid || !value ? "" : config?.message || "Geçerli bir telefon numarası yazın."
   );
   return isValid;
 }

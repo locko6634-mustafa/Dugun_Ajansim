@@ -109,6 +109,9 @@ test("migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalış�
     cashDiscountPercent: 10,
     depositMaximumCents: 500_000
   });
+  assert.equal(catalogResponse.body.data.bookingFormConstraints.personName.maxLength, 80);
+  assert.equal(catalogResponse.body.data.bookingFormConstraints.phone.maxLength, 24);
+  assert.equal(catalogResponse.body.data.bookingFormConstraints.note.maxLength, 2_000);
 });
 
 test("expired, revoked, idle, disabled ve süresi dolmuş geçici kimlikler reddedilir", async (context) => {

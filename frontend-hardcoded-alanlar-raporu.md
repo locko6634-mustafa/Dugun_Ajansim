@@ -82,19 +82,18 @@ Frontenddeki hardcoded alanların büyük kısmı statik tasarım ve arayüz met
 
 **Doğrulama:** E2E testi API'den gelen yeni bir hizmetin kart adı, açıklaması, görseli ve modal alanlarıyla render edildiğini; statik katalogdaki API dışı hizmetin kaldırıldığını masaüstü ve mobil Chromium'da doğruluyor.
 
-### HC-05 — Frontend ve backend form doğrulamaları aynı sözleşmeyi paylaşmıyor (P1)
+### HC-05 — Frontend ve backend form doğrulamaları aynı sözleşmeyi paylaşmıyor (P1) — Çözüldü
 
-**Kanıt**
+**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
 
-- Telefon frontend kuralı `js/package-builder/application.js:725-736`: Türkiye formatına indirgenmiş, ilk hanesi 2–5 olan tam 10 hane kabul ediliyor.
-- Backend telefon kuralı `backend/src/schemas/api.schemas.ts:9-14`: 10–24 karakter ve daha genel uluslararası telefon ayraçları kabul ediyor.
-- Paket formundaki ad alanları `paketini-olustur.html:309-399` yalnız `required`; backend `backend/src/schemas/api.schemas.ts:4-7` içinde 2–80 karakter ve harf tabanlı regex uyguluyor.
-- Paket notu `paketini-olustur.html:611-617` için istemci üst sınırı yok; backend `backend/src/schemas/api.schemas.ts:78` içinde 2.000 karakter sınırı uyguluyor.
-- Admin düğün/personel formlarında da birçok alan yalnız `required` (`admin.html:429-433`, `admin.html:502-579`); ayrıntılı sınırlar yine backendde.
+**Uygulanan çözüm**
 
-**Risk:** Backendin kabul edeceği bazı telefonlar frontend tarafından engellenirken, backendin reddedeceği ad/not değerleri kullanıcıya ancak API çağrısından sonra hata verir. Kural değişiklikleri iki katmanı sessizce ayrıştırabilir.
+- Ad, telefon, e-posta, özel salon adı ve not sınırları `backend/src/schemas/api.schemas.ts` içindeki `bookingFormConstraints` kaynağında toplandı; Zod şemaları aynı değerlerle oluşturuluyor.
+- Public `/catalog` yanıtı bu doğrulama sözleşmesini frontend'e iletiyor.
+- `js/shared/booking-form-constraints.js` sözleşmeyi doğrulayıp paket oluşturucu ile admin personel, manuel başvuru ve düğün formlarına `minlength`, `maxlength` ve `pattern` kurallarını uyguluyor.
+- Eski yalnız Türkiye cep telefonu formatını kabul eden istemci kontrolü kaldırıldı; frontend artık backendin kabul ettiği 10–24 karakterlik uluslararası telefon ayraçları sözleşmesini kullanıyor.
 
-**Öneri:** Backend güvenlik otoritesi olarak kalmalı. Public bir form-sözleşme/config yanıtı veya paylaşılan, build sırasında üretilen frontend doğrulama sabitleri kullanılmalı. En azından `maxlength`, ad deseni ve telefon kapsamı ürün kararıyla eşitlenip E2E sözleşme testleri eklenmeli.
+**Doğrulama:** Backend testleri sözleşme ile Zod şemasının aynı kaynaktan geldiğini ve sınırları; E2E testleri ise public ve admin formlarındaki öznitelikleri ve uluslararası telefon kabulünü masaüstü/mobil tarayıcı akışında doğruluyor.
 
 ### HC-06 — Referans mekânlar ve görünür adet statik (P2)
 

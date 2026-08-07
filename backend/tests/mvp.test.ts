@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   bookingBodySchema,
+  bookingFormConstraints,
   deliveryUpdateBodySchema,
   passwordChangeBodySchema,
   strongPasswordSchema,
@@ -167,6 +168,44 @@ test("fiyat istemciden alınmaz ve ödeme kuralı backend hesabıyla uygulanır"
     totalPriceCents: 1
   };
   assert.equal(bookingBodySchema.safeParse(clientPricedPayload).success, false);
+});
+
+test("başvuru formu sınırları backend doğrulama şemasıyla aynı kaynaktan gelir", () => {
+  assert.equal(bookingFormConstraints.personName.maxLength, 80);
+  assert.equal(bookingFormConstraints.phone.maxLength, 24);
+  assert.equal(bookingFormConstraints.email.maxLength, 254);
+  assert.equal(bookingFormConstraints.note.maxLength, 2_000);
+
+  const validInternationalPhone = {
+    brideFirstName: "Ayşe",
+    brideLastName: "Yılmaz",
+    bridePhone: "+44 (20) 7946-0958",
+    groomFirstName: "Mehmet",
+    groomLastName: "Demir",
+    groomPhone: "+90 (555) 987-6543",
+    primaryContact: "GELIN",
+    primaryEmail: "ayse@example.com",
+    weddingDate: "2027-08-10",
+    startTime: "18:00",
+    endTime: "23:00",
+    endsNextDay: false,
+    customVenueName: "Yıldızlar Düğün Salonu",
+    packageCode: "mini",
+    serviceCodes: [],
+    paymentMethod: "CASH",
+    note: "",
+    privacyConsent: true,
+    marketingConsent: false
+  };
+  assert.equal(bookingBodySchema.safeParse(validInternationalPhone).success, true);
+  assert.equal(
+    bookingBodySchema.safeParse({ ...validInternationalPhone, brideFirstName: "A" }).success,
+    false
+  );
+  assert.equal(
+    bookingBodySchema.safeParse({ ...validInternationalPhone, note: "a".repeat(2_001) }).success,
+    false
+  );
 });
 
 test("parolalar Argon2id ile hashlenir ve hassas değerler AES-GCM ile şifrelenir", async () => {

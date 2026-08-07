@@ -6,6 +6,23 @@ const defaultPaymentPolicy = Object.freeze({
   cashDiscountPercent: 10,
   depositMaximumCents: 500_000
 });
+const defaultBookingFormConstraints = Object.freeze({
+  personName: {
+    minLength: 2,
+    maxLength: 80,
+    pattern: "^[\\p{L}\\p{M}][\\p{L}\\p{M} '’\\-]*$",
+    message: "Ad ve soyad yalnızca harf, boşluk, kesme işareti ve kısa çizgi içerebilir."
+  },
+  phone: {
+    minLength: 10,
+    maxLength: 24,
+    pattern: "^\\+?[\\d\\s()\\-]+$",
+    message: "Telefon yalnızca rakam ve telefon ayraçları içerebilir."
+  },
+  email: { maxLength: 254 },
+  customVenueName: { minLength: 2, maxLength: 140 },
+  note: { maxLength: 2_000 }
+});
 
 async function clickPanel(page, panelName, isOps = false) {
   const toggleSelector = isOps ? ".js-toggle-ops-sidebar" : ".js-toggle-sidebar";
@@ -93,6 +110,7 @@ test("ana sayfa kartları ve detayları backend kataloğundan alır", async ({ p
         success: true,
         data: {
           paymentPolicy: defaultPaymentPolicy,
+          bookingFormConstraints: defaultBookingFormConstraints,
           packages: [{ code: "mini", name: "Mini Paket", priceCents: 2_345_600 }],
           services: [
             {
@@ -179,6 +197,7 @@ test("paket formu çift, saat ve salon alanlarını backend kataloğuyla hazırl
         success: true,
         data: {
           paymentPolicy: defaultPaymentPolicy,
+          bookingFormConstraints: defaultBookingFormConstraints,
           packages: [
             {
               code: "mini",
@@ -409,6 +428,7 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
         success: true,
         data: {
           paymentPolicy: defaultPaymentPolicy,
+          bookingFormConstraints: defaultBookingFormConstraints,
           packages: [
             { code: "mini", name: "Mini Paket", priceCents: 2_000_000, isActive: true },
             { code: "hikaye", name: "Hikâye Paketi", priceCents: 3_500_000, isActive: true }
@@ -488,6 +508,18 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
   });
   await page.goto("/admin.html");
   await expect(page.getByRole("heading", { name: "Günün akışı" })).toBeVisible();
+  await expect(page.locator('.js-staff-form input[name="firstName"]')).toHaveAttribute(
+    "maxlength",
+    "80"
+  );
+  await expect(page.locator('.js-manual-form input[name="bridePhone"]')).toHaveAttribute(
+    "maxlength",
+    "24"
+  );
+  await expect(page.locator('.js-manual-form textarea[name="note"]')).toHaveAttribute(
+    "maxlength",
+    "2000"
+  );
   await clickPanel(page, "weddings");
   await page.getByRole("button", { name: "Ayrıntılar" }).click();
   await expect(
@@ -658,6 +690,7 @@ test("referans WhatsApp'tan önce oluşturulur ve yapılandırılmamış alıcı
             cashDiscountPercent: 20,
             depositMaximumCents: 3_000
           },
+          bookingFormConstraints: defaultBookingFormConstraints,
           packages: [
             {
               code: "mini",
@@ -770,6 +803,12 @@ test("referans WhatsApp'tan önce oluşturulur ve yapılandırılmamış alıcı
   await page.locator(".js-details-step").click();
 
   const form = page.locator("#checkout-form");
+  await expect(form.locator('input[name="brideFirstName"]')).toHaveAttribute("maxlength", "80");
+  await expect(form.locator('input[name="bridePhone"]')).toHaveAttribute("maxlength", "24");
+  await expect(form.locator('input[name="primaryEmail"]')).toHaveAttribute("maxlength", "254");
+  await expect(form.locator('textarea[name="note"]')).toHaveAttribute("maxlength", "2000");
+  await form.locator('input[name="bridePhone"]').fill("+44 (20) 7946-0958");
+  await expect(form.locator('input[name="bridePhone"]')).toHaveJSProperty("validationMessage", "");
   await form.locator('input[name="brideFirstName"]').fill("Ayşe");
   await form.locator('input[name="brideLastName"]').fill("Yılmaz");
   await form.locator('input[name="bridePhone"]').fill("05551234567");
@@ -882,6 +921,7 @@ test("geri yüklenen ödeme akışı WhatsApp geçişini kaydeder ve banka ekran
         success: true,
         data: {
           paymentPolicy: defaultPaymentPolicy,
+          bookingFormConstraints: defaultBookingFormConstraints,
           packages: [
             {
               code: "mini",
