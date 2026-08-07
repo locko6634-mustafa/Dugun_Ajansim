@@ -32,6 +32,7 @@ import {
 import {
   approveBookingApplication,
   assertVenueScheduleAvailable,
+  calculatePayment,
   createAudit,
   createBookingApplication,
   createUniqueCustomerUsername,
@@ -1322,7 +1323,7 @@ router.patch(
   asyncHandler(async (req, res) => {
     const wedding = await prisma.wedding.findUnique({
       where: { id: req.params.id },
-      include: { customerUser: true, delivery: true }
+      include: { customerUser: true, delivery: true, application: true }
     });
     if (!wedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
     if (wedding.cancelledAt || wedding.deletedAt)
@@ -1336,6 +1337,58 @@ router.patch(
     if (venue.id !== wedding.venueId && !venue.isActive) {
       throw new AppError("Pasif bir salona geçiş yapılamaz.", 409);
     }
+
+    const currentPackageSummary = wedding.packageSummary as {
+      code?: string;
+      services?: Array<{ code?: string }>;
+    };
+    const currentServiceCodes = new Set(
+      (currentPackageSummary.services ?? []).flatMap((service) =>
+        service.code ? [service.code] : []
+      )
+    );
+    const uniqueServiceCodes = [...new Set<string>(req.body.serviceCodes as string[])];
+    if (uniqueServiceCodes.length !== req.body.serviceCodes.length) {
+      throw new AppError("Aynı ek hizmet birden fazla seçilemez.", 400);
+    }
+    const [selectedPackage, selectedServices] = await Promise.all([
+      prisma.package.findUnique({ where: { code: req.body.packageCode } }),
+      prisma.service.findMany({ where: { code: { in: uniqueServiceCodes } } })
+    ]);
+    if (!selectedPackage) throw new AppError("Paket bulunamadı.", 404);
+    if (!selectedPackage.isActive && selectedPackage.code !== currentPackageSummary.code) {
+      throw new AppError("Pasif bir paket düğüne eklenemez.", 409);
+    }
+    if (selectedServices.length !== uniqueServiceCodes.length) {
+      throw new AppError("Seçilen ek hizmetlerden biri bulunamadı.", 404);
+    }
+    if (
+      selectedServices.some(
+        (service) => !service.isActive && !currentServiceCodes.has(service.code)
+      )
+    ) {
+      throw new AppError("Pasif bir ek hizmet düğüne eklenemez.", 409);
+    }
+    const subtotalCents =
+      selectedPackage.priceCents +
+      selectedServices.reduce((total, service) => total + service.priceCents, 0);
+    const { totalPriceCents, payableNowCents } = calculatePayment(
+      subtotalCents,
+      wedding.application.paymentMethod
+    );
+    const packageSummary = {
+      code: selectedPackage.code,
+      name: selectedPackage.name,
+      packagePriceCents: selectedPackage.priceCents,
+      totalPriceCents,
+      services: selectedServices
+        .sort((left, right) => left.name.localeCompare(right.name, "tr"))
+        .map((service) => ({
+          code: service.code,
+          name: service.name,
+          priceCents: service.priceCents
+        }))
+    };
 
     const bridePhone = normalizePhone(req.body.bridePhone);
     const groomPhone = normalizePhone(req.body.groomPhone);
@@ -1425,6 +1478,7 @@ router.patch(
                 startsAt,
                 endsAt,
                 venueId: req.body.venueId,
+                packageSummary,
                 note: req.body.note || null
               }
             });
@@ -1446,9 +1500,30 @@ router.patch(
                 weddingStartsAt: startsAt,
                 weddingEndsAt: endsAt,
                 venueId: req.body.venueId,
+                packageId: selectedPackage.id,
+                packageCodeSnapshot: selectedPackage.code,
+                packageNameSnapshot: selectedPackage.name,
+                packagePriceCents: selectedPackage.priceCents,
+                totalPriceCents,
+                payableNowCents,
                 note: req.body.note || null
               }
             });
+
+            await transaction.bookingApplicationService.deleteMany({
+              where: { applicationId: wedding.applicationId }
+            });
+            if (selectedServices.length) {
+              await transaction.bookingApplicationService.createMany({
+                data: selectedServices.map((service) => ({
+                  applicationId: wedding.applicationId,
+                  serviceId: service.id,
+                  codeSnapshot: service.code,
+                  nameSnapshot: service.name,
+                  priceCents: service.priceCents
+                }))
+              });
+            }
 
             if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
               const claimedUser = await transaction.user.updateMany({
@@ -1561,6 +1636,10 @@ router.patch(
               metadata: {
                 dateChanged,
                 namesChanged,
+                packageChanged: currentPackageSummary.code !== selectedPackage.code,
+                servicesChanged:
+                  currentServiceCodes.size !== uniqueServiceCodes.length ||
+                  uniqueServiceCodes.some((code) => !currentServiceCodes.has(code)),
                 credentialsRegenerated: regenerateCredentials
               }
             });

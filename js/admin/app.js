@@ -1885,11 +1885,38 @@ manualForm.addEventListener("submit", async (event) => {
 });
 
 async function openWeddingEditor(wedding) {
-  await ensureVenues();
+  const [, catalog] = await Promise.all([ensureVenues(), apiRequest("/catalog")]);
+  state.packages = catalog.data.packages;
+  state.services = catalog.data.services;
   weddingForm.querySelector(".js-wedding-venue").innerHTML = state.venues
     .map(
       (venue) =>
         `<option value="${venue.id}" ${venue.id === wedding.venueId ? "selected" : ""}>${escapeHtml(venue.name)}</option>`
+    )
+    .join("");
+  const currentPackage = wedding.packageSummary || {};
+  const currentServices = Array.isArray(currentPackage.services) ? currentPackage.services : [];
+  const packageOptions = [...state.packages];
+  if (currentPackage.code && !packageOptions.some((item) => item.code === currentPackage.code)) {
+    packageOptions.push({ code: currentPackage.code, name: currentPackage.name, isActive: false });
+  }
+  weddingForm.querySelector(".js-wedding-package").innerHTML = packageOptions
+    .map(
+      (item) =>
+        `<option value="${escapeHtml(item.code)}" ${item.code === currentPackage.code ? "selected" : ""}>${escapeHtml(item.name)}${item.isActive === false ? " (pasif)" : ""}</option>`
+    )
+    .join("");
+  const serviceOptions = [...state.services];
+  currentServices.forEach((current) => {
+    if (!serviceOptions.some((item) => item.code === current.code)) {
+      serviceOptions.push({ ...current, isActive: false });
+    }
+  });
+  const selectedServiceCodes = new Set(currentServices.map((service) => service.code));
+  weddingForm.querySelector(".js-wedding-services").innerHTML = serviceOptions
+    .map(
+      (item) =>
+        `<label><input type="checkbox" name="serviceCodes" value="${escapeHtml(item.code)}" ${selectedServiceCodes.has(item.code) ? "checked" : ""} /> ${escapeHtml(item.name)}${item.isActive === false ? " (pasif)" : ""}</label>`
     )
     .join("");
   const values = {
@@ -1914,8 +1941,52 @@ async function openWeddingEditor(wedding) {
   weddingForm.elements.endsNextDay.checked =
     datePartInIstanbul(wedding.startsAt) !== datePartInIstanbul(wedding.endsAt);
   weddingForm.querySelector(".dialog-message").textContent = "";
+  weddingForm.dataset.originalPackageCode = currentPackage.code || "";
+  weddingForm.dataset.originalPackageName = currentPackage.name || "Paket bilgisi yok";
+  weddingForm.dataset.originalServices = JSON.stringify(
+    currentServices.map(({ code, name }) => ({ code, name }))
+  );
+  weddingForm.dataset.generatedNote = "";
   weddingDialog.showModal();
 }
+
+function updateWeddingChangeNote() {
+  const note = weddingForm.elements.note;
+  const previousGenerated = weddingForm.dataset.generatedNote || "";
+  const suffix = previousGenerated ? `\n${previousGenerated}` : "";
+  const manualNote =
+    suffix && note.value.endsWith(suffix) ? note.value.slice(0, -suffix.length) : note.value;
+  const originalPackageCode = weddingForm.dataset.originalPackageCode || "";
+  const originalPackageName = weddingForm.dataset.originalPackageName || "Paket bilgisi yok";
+  const selectedPackage = state.packages.find(
+    (item) => item.code === weddingForm.elements.packageCode.value
+  );
+  const originalServices = JSON.parse(weddingForm.dataset.originalServices || "[]");
+  const originalByCode = new Map(originalServices.map((service) => [service.code, service.name]));
+  const selectedCodes = new Set(new FormData(weddingForm).getAll("serviceCodes"));
+  const selectedByCode = new Map(state.services.map((service) => [service.code, service.name]));
+  const changes = [];
+  if (selectedPackage && selectedPackage.code !== originalPackageCode) {
+    changes.push(`Paket değiştirildi: ${originalPackageName} → ${selectedPackage.name}.`);
+  }
+  originalByCode.forEach((name, code) => {
+    if (!selectedCodes.has(code)) changes.push(`Ek hizmet çıkarıldı: ${name}.`);
+  });
+  selectedCodes.forEach((code) => {
+    if (!originalByCode.has(code)) {
+      changes.push(`Ek hizmet eklendi: ${selectedByCode.get(code) || code}.`);
+    }
+  });
+  const generated = changes.length ? `[Paket / hizmet değişikliği]\n${changes.join("\n")}` : "";
+  note.value = [manualNote.trimEnd(), generated].filter(Boolean).join("\n");
+  weddingForm.dataset.generatedNote = generated;
+}
+
+weddingForm.addEventListener("change", (event) => {
+  if (event.target.name === "packageCode" || event.target.name === "serviceCodes") {
+    updateWeddingChangeNote();
+  }
+});
 
 weddingForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
   button.addEventListener("click", () => weddingDialog.close());
@@ -1943,6 +2014,8 @@ weddingForm.addEventListener("submit", async (event) => {
         endTime: data.get("endTime"),
         endsNextDay: data.has("endsNextDay"),
         venueId: data.get("venueId"),
+        packageCode: data.get("packageCode"),
+        serviceCodes: data.getAll("serviceCodes"),
         note: data.get("note") || undefined
       }
     });

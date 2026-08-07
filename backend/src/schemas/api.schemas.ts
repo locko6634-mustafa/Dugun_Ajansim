@@ -182,6 +182,8 @@ export const weddingUpdateBodySchema = z
     endTime: timeSchema,
     endsNextDay: z.boolean(),
     venueId: z.string().uuid(),
+    packageCode: codeSchema,
+    serviceCodes: z.array(codeSchema).max(20),
     note: z.string().trim().max(2_000).optional().or(z.literal(""))
   })
   .strict();

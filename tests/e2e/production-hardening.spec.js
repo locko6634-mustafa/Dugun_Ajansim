@@ -80,7 +80,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(exampleEnv).toMatch(/^POSTGRES_RUNTIME_PASSWORD=$/m);
   expect(exampleEnv).toMatch(/^DATA_ENCRYPTION_KEY=$/m);
   expect(exampleEnv).toMatch(/^TRUST_PROXY=$/m);
-  expect(exampleEnv).toContain("ADMIN_SESSION_IDLE_MINUTES=30");
+  expect(exampleEnv).toContain("ADMIN_SESSION_IDLE_MINUTES=720");
   expect(exampleEnv).toContain("CUSTOMER_SESSION_IDLE_HOURS=12");
   expect(exampleEnv).toContain("TEMPORARY_PASSWORD_TTL_HOURS=72");
 

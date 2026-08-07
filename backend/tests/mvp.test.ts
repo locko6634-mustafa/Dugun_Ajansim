@@ -202,6 +202,8 @@ test("admin düğün güncellemesinde çift, iletişim ve gerçek zaman aralığ
     endTime: "01:00",
     endsNextDay: true,
     venueId: "de305d54-75b4-431b-adb2-eb6b9e546014",
+    packageCode: "mini",
+    serviceCodes: ["drone"],
     note: ""
   });
   assert.equal(parsed.weddingDate, "2026-08-10");

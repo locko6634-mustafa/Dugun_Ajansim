@@ -226,7 +226,12 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
     endsAt: "2026-08-10T23:00:00.000Z",
     note: "",
     venue: { id: "de305d54-75b4-431b-adb2-eb6b9e546014", name: "Cess Wedding" },
-    packageSummary: { code: "mini", name: "Mini Paket", totalPriceCents: 2000000, services: [] },
+    packageSummary: {
+      code: "mini",
+      name: "Mini Paket",
+      totalPriceCents: 2_250_000,
+      services: [{ code: "baski", name: "Ek Baskı", priceCents: 250_000 }]
+    },
     assignments: [],
     customerUser: {
       id: "40c66ad5-b87a-4f0b-a4fa-1f3562329387",
@@ -337,6 +342,24 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
       })
     })
   );
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          packages: [
+            { code: "mini", name: "Mini Paket", priceCents: 2_000_000, isActive: true },
+            { code: "hikaye", name: "Hikâye Paketi", priceCents: 3_500_000, isActive: true }
+          ],
+          services: [
+            { code: "baski", name: "Ek Baskı", priceCents: 250_000, isActive: true },
+            { code: "drone", name: "Drone Çekimi", priceCents: 500_000, isActive: true }
+          ]
+        }
+      })
+    })
+  );
   await page.route("**/api/v1/admin/message-tasks**", (route) => {
     if (route.request().url().endsWith("/render")) {
       return route.fulfill({
@@ -383,6 +406,11 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
     }
     const body = route.request().postDataJSON();
     expect(body.brideLastName).toBe("Kaya");
+    expect(body.packageCode).toBe("hikaye");
+    expect(body.serviceCodes).toEqual(["drone"]);
+    expect(body.note).toContain("Paket değiştirildi: Mini Paket → Hikâye Paketi.");
+    expect(body.note).toContain("Ek hizmet çıkarıldı: Ek Baskı.");
+    expect(body.note).toContain("Ek hizmet eklendi: Drone Çekimi.");
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -406,6 +434,12 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
   await page.getByRole("button", { name: "Düğün bilgilerini düzenle" }).click();
   await expect(page.getByRole("heading", { name: "Bilgileri güncelle" })).toBeVisible();
   await page.locator('.js-wedding-form input[name="brideLastName"]').fill("Kaya");
+  await page.locator('.js-wedding-form select[name="packageCode"]').selectOption("hikaye");
+  await page.locator('.js-wedding-form input[value="baski"]').uncheck();
+  await page.locator('.js-wedding-form input[value="drone"]').check();
+  await expect(page.locator('.js-wedding-form textarea[name="note"]')).toHaveValue(
+    /Ek hizmet eklendi: Drone Çekimi\./
+  );
   await page.getByRole("button", { name: "Değişiklikleri kaydet" }).click();
   await expect(page.locator(".global-message")).toContainText("Yeni kullanıcı adı");
   await page.locator(".js-wedding-detail [data-close-dialog]").click();

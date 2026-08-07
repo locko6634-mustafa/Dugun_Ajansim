@@ -562,7 +562,16 @@
           ><label class="switch-row"
             ><input name="endsNextDay" type="checkbox" /> Bitiş ertesi gün</label
           ><label>Salon<select class="js-wedding-venue" name="venueId" required></select></label
-          ><label class="wide">Not<textarea name="note" rows="3"></textarea></label>
+          ><label
+            >Paket<select class="js-wedding-package" name="packageCode" required></select
+          ></label>
+          <fieldset class="wide specialty-choices wedding-service-choices">
+            <legend>Ek hizmetler</legend>
+            <div class="js-wedding-services"></div>
+          </fieldset>
+          ><label class="wide"
+            >Not<textarea name="note" rows="3" maxlength="2000"></textarea>
+          </label>
         </div>
         <p class="dialog-message" role="status"></p>
         <div class="dialog-actions">
