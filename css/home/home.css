@@ -226,14 +226,19 @@ button {
 }
 
 @media (min-width: 1181px) {
+  :root {
+    --header-height: 128px;
+  }
+
   .site-header {
     top: 10px;
     right: auto;
     left: 50%;
     grid-template-columns: max-content minmax(0, 1fr) max-content;
-    gap: clamp(18px, 2vw, 34px);
+    grid-template-rows: 48px auto;
+    gap: 4px clamp(18px, 2vw, 34px);
     width: min(1540px, calc(100% - 36px));
-    min-height: 68px;
+    min-height: 108px;
     padding: 7px clamp(12px, 1.4vw, 22px) 7px clamp(14px, 1.6vw, 26px);
     border: 1px solid hsl(34 38% 82% / 0.88);
     border-radius: 18px;
@@ -245,6 +250,8 @@ button {
   }
 
   .brand {
+    grid-column: 1;
+    grid-row: 1;
     gap: 8px;
   }
 
@@ -262,20 +269,28 @@ button {
   }
 
   .desktop-nav {
-    justify-self: center;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: repeat(10, max-content);
+    justify-content: space-between;
+    justify-self: stretch;
     gap: 2px;
+    width: 100%;
     padding: 4px;
     border: 1px solid hsl(34 34% 86% / 0.9);
     border-radius: 14px;
     background: hsl(36 34% 94% / 0.72);
-    font-size: 12.5px;
+    font-size: clamp(10.5px, 0.78vw, 12px);
   }
 
   .desktop-nav a {
-    padding: 10px clamp(10px, 1vw, 15px) 12px;
+    min-width: 0;
+    padding: 9px clamp(6px, 0.8vw, 12px) 11px;
     border-radius: 10px;
     font-weight: 600;
     letter-spacing: -0.01em;
+    text-align: center;
     transition:
       color 220ms ease,
       background-color 220ms ease,
@@ -308,6 +323,8 @@ button {
   }
 
   .header-actions {
+    grid-column: 3;
+    grid-row: 1;
     gap: 7px;
   }
 

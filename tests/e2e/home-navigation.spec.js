@@ -25,6 +25,23 @@ test("mobil navigasyon sayfa bolumlerini dogru sirada listeler", async ({ page }
   expect(mobileSectionOrder).toEqual(expectedSectionOrder);
 });
 
+test("masaustu ve mobil navigasyon ayni bolumleri ayni sirada kullanir", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/index.html");
+
+  const [desktopSectionOrder, mobileSectionOrder] = await Promise.all([
+    page
+      .locator(".desktop-nav a")
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href"))),
+    page
+      .locator(".mobile-menu nav a")
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href")))
+  ]);
+
+  expect(desktopSectionOrder).toEqual(expectedSectionOrder);
+  expect(mobileSectionOrder).toEqual(expectedSectionOrder);
+});
+
 test("masaustu header sayfadan ayrisan navigasyon seridi kullanir", async ({ page }) => {
   await page.setViewportSize({ width: 1220, height: 800 });
   await page.goto("/index.html");
@@ -46,9 +63,9 @@ test("scroll konumu masaustu navigasyonunun ust basligini gunceller", async ({ p
 
   await page.locator("#cekimler").scrollIntoViewIfNeeded();
   await page.waitForFunction(() =>
-    document.querySelector('.desktop-nav a[href="#galeri"]')?.matches(".is-active")
+    document.querySelector('.desktop-nav a[href="#cekimler"]')?.matches(".is-active")
   );
-  await expect(page.locator('.desktop-nav a[href="#galeri"]')).toHaveAttribute(
+  await expect(page.locator('.desktop-nav a[href="#cekimler"]')).toHaveAttribute(
     "aria-current",
     "location"
   );
