@@ -10,10 +10,11 @@
 
 ```bash
 install -m 600 .env.production.example .env.production
-# .env.production içindeki alan adını düzenleyin; boş üç sırrı benzersiz değerlerle doldurun.
+# .env.production içindeki alan adını, boş sırları ve canlı ödeme bilgilerini doldurun.
 # İki veritabanı parolası birbirinden farklı, URL-güvenli ve en az 20 karakter olmalıdır.
 # DATA_ENCRYPTION_KEY için: openssl rand -hex 32
 # TRUST_PROXY değerini edge_proxy ağındaki sabit Traefik container IP'si olarak ayarlayın.
+# PAYMENT_MODE=live kullanın; banka, hesap sahibi, IBAN ve WhatsApp alanlarının beşi de zorunludur.
 docker compose --env-file .env.production -f compose.production.yaml config -q
 docker compose --env-file .env.production -f compose.production.yaml up -d --build
 docker compose --env-file .env.production -f compose.production.yaml --profile bootstrap run --rm seed

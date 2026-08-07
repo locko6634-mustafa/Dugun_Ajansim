@@ -558,6 +558,23 @@ test("paket başvurusu sunucu tutarını kullanır ve yapılandırılmamış Wha
       })
     })
   );
+  await page.route("**/api/v1/payment-instructions", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          mode: "test",
+          enabled: true,
+          bankName: "Test Bankası",
+          accountHolder: "Düğünajansım",
+          iban: "TR000000000000000000000000",
+          whatsappPhone: "",
+          notice: "Test ödeme bilgileri — gerçek para göndermeyin."
+        }
+      })
+    })
+  );
   await page.route("**/api/v1/venues*", (route) => {
     if (route.request().url().includes("/availability")) {
       return route.fulfill({
