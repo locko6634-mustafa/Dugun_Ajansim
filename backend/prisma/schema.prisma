@@ -89,6 +89,7 @@ model Venue {
   slug         String               @unique
   name         String               @unique
   isActive     Boolean              @default(true)
+  isPartner    Boolean              @default(true)
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   managers     User[]

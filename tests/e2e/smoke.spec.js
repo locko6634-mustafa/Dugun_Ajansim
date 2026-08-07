@@ -592,7 +592,8 @@ test("paket başvurusu sunucu tutarını kullanır ve yapılandırılmamış Wha
   await form.locator('input[name="groomLastName"]').fill("Demir");
   await form.locator('input[name="groomPhone"]').fill("05559876543");
   await form.locator('input[name="primaryEmail"]').fill("ayse@example.com");
-  await form.locator('select[name="venueId"]').selectOption("de305d54-75b4-431b-adb2-eb6b9e546014");
+  await form.locator('select[name="venueId"]').selectOption("__custom_venue__");
+  await form.locator('input[name="customVenueName"]').fill("Yıldızlar Düğün Salonu");
   await form.locator('input[name="weddingDate"]').fill("2027-08-10");
   await form.locator('input[name="startTime"]').fill("18:00");
   await form.locator('input[name="endTime"]').fill("23:00");
@@ -611,6 +612,8 @@ test("paket başvurusu sunucu tutarını kullanır ve yapılandırılmamış Wha
   ).toHaveText("Doğrulanmış toplam");
   await expect(page.locator(".js-order-payable")).toHaveText("94,51 TL");
   expect(bookingRequest.body.paymentMethod).toBe("CASH");
+  expect(bookingRequest.body.venueId).toBeUndefined();
+  expect(bookingRequest.body.customVenueName).toBe("Yıldızlar Düğün Salonu");
   expect(bookingRequest.idempotencyKey).toBeTruthy();
 
   const whatsappUrls = await page.evaluate(() => window.__whatsappUrls);

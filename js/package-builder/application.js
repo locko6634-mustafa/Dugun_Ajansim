@@ -85,6 +85,7 @@ const summaryFocusSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 let summaryReturnFocus = null;
 const venueNames = new Map();
+const CUSTOM_VENUE_VALUE = "__custom_venue__";
 
 function bindBaseInputs() {
   baseInputs = [...document.querySelectorAll('input[name="base-package"]')];
@@ -207,6 +208,10 @@ async function hydrateRemoteData() {
       option.textContent = venue.name;
       venueSelect.append(option);
     });
+    const customOption = document.createElement("option");
+    customOption.value = CUSTOM_VENUE_VALUE;
+    customOption.textContent = "Listede yok — salon adını kendim yazacağım";
+    venueSelect.append(customOption);
 
     renderServices();
     if (remotePackages.length) {
@@ -540,6 +545,8 @@ function validatePhone(input) {
 }
 
 const venueSelect = document.querySelector(".js-venue-select");
+const customVenueNameInput = document.querySelector(".js-custom-venue-name");
+const customVenueField = document.querySelector(".js-custom-venue-field");
 const weddingDateInput = document.querySelector(".js-wedding-date");
 const startTimeInput = checkoutForm ? checkoutForm.querySelector('input[name="startTime"]') : null;
 const endTimeInput = checkoutForm ? checkoutForm.querySelector('input[name="endTime"]') : null;
@@ -548,8 +555,167 @@ const endsNextDayCheckbox = checkoutForm
   : null;
 const dateHint = document.querySelector(".js-date-hint");
 const availabilityBanner = document.querySelector(".js-availability-banner");
+const datePicker = document.querySelector(".js-date-picker");
+const dateTrigger = document.querySelector(".js-date-trigger");
+const datePopover = document.querySelector(".js-date-popover");
+const dateValue = document.querySelector(".js-date-value");
+const calendarTitle = document.querySelector(".js-calendar-title");
+const calendarDays = document.querySelector(".js-calendar-days");
+const timePickers = [...document.querySelectorAll(".js-time-picker")];
+let calendarView = new Date();
 
 let currentOccupiedSlots = [];
+
+const pickerDateFormatter = new Intl.DateTimeFormat("tr-TR", {
+  day: "numeric",
+  month: "long",
+  year: "numeric"
+});
+const calendarFormatter = new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" });
+const dateToValue = (date) =>
+  [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+const valueToDate = (value) => {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+
+function setPickerOpen(picker, isOpen) {
+  const popover = picker.querySelector(".picker-popover");
+  const trigger = picker.querySelector(".picker-trigger");
+  popover.hidden = !isOpen;
+  trigger.setAttribute("aria-expanded", String(isOpen));
+}
+
+function setPickerDisabled(input, isDisabled) {
+  input.disabled = isDisabled;
+  input
+    .closest(".form-field")
+    ?.querySelector(".picker-trigger")
+    ?.toggleAttribute("disabled", isDisabled);
+  if (isDisabled) setPickerOpen(input.closest(".form-field"), false);
+}
+
+function closePickers(except = null) {
+  [datePicker, ...timePickers].filter(Boolean).forEach((picker) => {
+    if (picker !== except) setPickerOpen(picker, false);
+  });
+}
+
+function renderCalendar() {
+  if (!calendarDays || !calendarTitle) return;
+  calendarTitle.textContent = calendarFormatter.format(calendarView);
+  calendarDays.replaceChildren();
+  const year = calendarView.getFullYear();
+  const month = calendarView.getMonth();
+  const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayValue = dateToValue(new Date());
+  for (let index = 0; index < firstWeekday + daysInMonth; index += 1) {
+    if (index < firstWeekday) {
+      calendarDays.append(document.createElement("span"));
+      continue;
+    }
+    const day = index - firstWeekday + 1;
+    const value = dateToValue(new Date(year, month, day));
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "date-picker__day";
+    button.textContent = String(day);
+    button.dataset.dateValue = value;
+    button.disabled = value < todayValue;
+    button.classList.toggle("is-today", value === todayValue);
+    button.classList.toggle("is-selected", value === weddingDateInput?.value);
+    button.setAttribute("aria-label", pickerDateFormatter.format(valueToDate(value)));
+    calendarDays.append(button);
+  }
+}
+
+function setDateValue(value) {
+  if (!weddingDateInput) return;
+  weddingDateInput.value = value;
+  dateValue.textContent = pickerDateFormatter.format(valueToDate(value));
+  dateTrigger.classList.add("is-selected");
+  setFieldValidity(weddingDateInput, true);
+  weddingDateInput.dispatchEvent(new window.Event("change", { bubbles: true }));
+}
+
+function renderTimeOptions(picker) {
+  const input = picker.querySelector('input[type="hidden"]');
+  const options = picker.querySelector(".js-time-options");
+  options.replaceChildren();
+  for (let minutes = 9 * 60; minutes <= 23 * 60 + 30; minutes += 30) {
+    const value = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "time-picker__option";
+    button.textContent = value;
+    button.dataset.timeValue = value;
+    button.classList.toggle("is-selected", input.value === value);
+    options.append(button);
+  }
+}
+
+function setTimeValue(picker, value) {
+  const input = picker.querySelector('input[type="hidden"]');
+  input.value = value;
+  picker.querySelector(".js-time-value").textContent = value;
+  picker.querySelector(".picker-trigger").classList.add("is-selected");
+  setFieldValidity(input, true);
+  input.dispatchEvent(new window.Event("change", { bubbles: true }));
+  validateTimeSlots();
+}
+
+dateTrigger?.addEventListener("click", () => {
+  closePickers(datePicker);
+  calendarView = weddingDateInput?.value ? valueToDate(weddingDateInput.value) : new Date();
+  renderCalendar();
+  setPickerOpen(datePicker, datePopover.hidden);
+});
+document.querySelector(".js-calendar-prev")?.addEventListener("click", () => {
+  calendarView.setMonth(calendarView.getMonth() - 1);
+  renderCalendar();
+});
+document.querySelector(".js-calendar-next")?.addEventListener("click", () => {
+  calendarView.setMonth(calendarView.getMonth() + 1);
+  renderCalendar();
+});
+document.querySelector(".js-calendar-today")?.addEventListener("click", () => {
+  calendarView = new Date();
+  renderCalendar();
+});
+calendarDays?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-date-value]");
+  if (!button) return;
+  setDateValue(button.dataset.dateValue);
+  setPickerOpen(datePicker, false);
+  dateTrigger.focus();
+});
+timePickers.forEach((picker) => {
+  const trigger = picker.querySelector(".js-time-trigger");
+  trigger.addEventListener("click", () => {
+    closePickers(picker);
+    renderTimeOptions(picker);
+    setPickerOpen(picker, picker.querySelector(".js-time-popover").hidden);
+  });
+  picker.querySelector(".js-time-options").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-time-value]");
+    if (!button) return;
+    setTimeValue(picker, button.dataset.timeValue);
+    setPickerOpen(picker, false);
+    trigger.focus();
+  });
+});
+document.addEventListener("click", (event) => {
+  if (![datePicker, ...timePickers].filter(Boolean).some((picker) => picker.contains(event.target)))
+    closePickers();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closePickers();
+});
 
 const timeToMinutes = (timeStr, isNextDay = false) => {
   if (!timeStr) return 0;
@@ -561,7 +727,7 @@ async function fetchVenueAvailability() {
   const venueId = venueSelect?.value;
   const date = weddingDateInput?.value;
 
-  if (!venueId || !date) {
+  if (!venueId || venueId === CUSTOM_VENUE_VALUE || !date) {
     currentOccupiedSlots = [];
     if (availabilityBanner) availabilityBanner.hidden = true;
     return;
@@ -584,6 +750,72 @@ async function fetchVenueAvailability() {
       availabilityBanner.hidden = false;
     }
   }
+}
+
+function isCustomVenueSelected() {
+  return venueSelect?.value === CUSTOM_VENUE_VALUE;
+}
+
+function getVenueDisplayName() {
+  return isCustomVenueSelected()
+    ? state.customer.customVenueName?.trim() || "—"
+    : venueNames.get(state.customer.venueId) || "—";
+}
+
+function updateVenueDependentFields() {
+  const isCustomVenue = isCustomVenueSelected();
+  if (customVenueField) customVenueField.hidden = !isCustomVenue;
+  if (customVenueNameInput) {
+    customVenueNameInput.disabled = !isCustomVenue;
+    customVenueNameInput.required = isCustomVenue;
+  }
+
+  const hasVenue = isCustomVenue
+    ? Boolean(customVenueNameInput?.value.trim())
+    : Boolean(venueSelect?.value);
+  if (weddingDateInput) {
+    setPickerDisabled(weddingDateInput, !hasVenue);
+    if (!hasVenue) {
+      weddingDateInput.value = "";
+      dateValue.textContent = "Tarih seçin";
+      dateTrigger.classList.remove("is-selected");
+    }
+  }
+  if (dateHint) {
+    dateHint.textContent = isCustomVenue
+      ? "Salon adını yazdıktan sonra düğün tarihinizi seçin."
+      : hasVenue
+        ? "Lütfen düğün tarihinizi seçin."
+        : "Tarih seçebilmek için lütfen önce salon seçiniz.";
+  }
+  if (!hasVenue) {
+    if (startTimeInput) {
+      startTimeInput.value = "";
+      setPickerDisabled(startTimeInput, true);
+      startTimeInput.closest(".form-field").querySelector(".js-time-value").textContent =
+        "Saat seçin";
+      startTimeInput
+        .closest(".form-field")
+        .querySelector(".picker-trigger")
+        .classList.remove("is-selected");
+    }
+    if (endTimeInput) {
+      endTimeInput.value = "";
+      setPickerDisabled(endTimeInput, true);
+      endTimeInput.closest(".form-field").querySelector(".js-time-value").textContent =
+        "Saat seçin";
+      endTimeInput
+        .closest(".form-field")
+        .querySelector(".picker-trigger")
+        .classList.remove("is-selected");
+    }
+    if (endsNextDayCheckbox) {
+      endsNextDayCheckbox.checked = false;
+      endsNextDayCheckbox.disabled = true;
+    }
+  }
+  currentOccupiedSlots = [];
+  if (availabilityBanner) availabilityBanner.hidden = true;
 }
 
 function renderAvailabilityBanner() {
@@ -662,46 +894,33 @@ function validateTimeSlots() {
 
 if (venueSelect) {
   venueSelect.addEventListener("change", () => {
-    const hasVenue = Boolean(venueSelect.value);
-    if (weddingDateInput) {
-      weddingDateInput.disabled = !hasVenue;
-      if (!hasVenue) weddingDateInput.value = "";
-    }
-    if (dateHint) {
-      dateHint.textContent = hasVenue
-        ? "Lütfen düğün tarihinizi seçin."
-        : "Tarih seçebilmek için lütfen önce salon seçiniz.";
-    }
-    if (!hasVenue) {
-      if (startTimeInput) {
-        startTimeInput.value = "";
-        startTimeInput.disabled = true;
-      }
-      if (endTimeInput) {
-        endTimeInput.value = "";
-        endTimeInput.disabled = true;
-      }
-      if (endsNextDayCheckbox) {
-        endsNextDayCheckbox.checked = false;
-        endsNextDayCheckbox.disabled = true;
-      }
-      currentOccupiedSlots = [];
-      if (availabilityBanner) availabilityBanner.hidden = true;
-    } else {
+    updateVenueDependentFields();
+    if (isCustomVenueSelected()) {
+      customVenueNameInput?.focus();
+    } else if (venueSelect.value) {
       fetchVenueAvailability();
     }
   });
 }
 
+if (customVenueNameInput) {
+  customVenueNameInput.addEventListener("input", updateVenueDependentFields);
+}
+
 if (weddingDateInput) {
   weddingDateInput.addEventListener("change", () => {
     const hasDate = Boolean(weddingDateInput.value);
-    if (startTimeInput) startTimeInput.disabled = !hasDate;
-    if (endTimeInput) endTimeInput.disabled = !hasDate;
+    if (startTimeInput) setPickerDisabled(startTimeInput, !hasDate);
+    if (endTimeInput) setPickerDisabled(endTimeInput, !hasDate);
     if (endsNextDayCheckbox) endsNextDayCheckbox.disabled = !hasDate;
 
     if (hasDate) {
-      fetchVenueAvailability();
+      if (isCustomVenueSelected()) {
+        currentOccupiedSlots = [];
+        if (availabilityBanner) availabilityBanner.hidden = true;
+      } else {
+        fetchVenueAvailability();
+      }
     } else {
       currentOccupiedSlots = [];
       if (availabilityBanner) availabilityBanner.hidden = true;
@@ -735,18 +954,29 @@ checkoutForm.addEventListener("change", (event) => {
 checkoutForm.addEventListener("submit", (event) => {
   event.preventDefault();
   phoneInputs.forEach(validatePhone);
-  const requiredFields = [...checkoutForm.querySelectorAll("[required]")];
+  const requiredFields = [
+    ...checkoutForm.querySelectorAll("[required]"),
+    weddingDateInput,
+    startTimeInput,
+    endTimeInput
+  ].filter(Boolean);
 
   requiredFields.forEach((input) => {
-    setFieldValidity(input, input.validity.valid);
+    const isPickerField = input.matches('input[type="hidden"]');
+    setFieldValidity(input, isPickerField ? Boolean(input.value) : input.validity.valid);
   });
 
   const isTimeValid = validateTimeSlots();
 
-  const firstInvalid = requiredFields.find((input) => !input.validity.valid);
+  const firstInvalid = requiredFields.find((input) =>
+    input.matches('input[type="hidden"]') ? !input.value : !input.validity.valid
+  );
   if (firstInvalid || !isTimeValid) {
-    if (firstInvalid) firstInvalid.focus();
-    else if (startTimeInput) startTimeInput.focus();
+    if (firstInvalid) {
+      firstInvalid.closest(".form-field")?.querySelector(".picker-trigger")?.focus() ||
+        firstInvalid.focus();
+    } else if (startTimeInput)
+      startTimeInput.closest(".form-field")?.querySelector(".picker-trigger")?.focus();
     return;
   }
 
@@ -825,7 +1055,7 @@ function generateWhatsAppMessage() {
     state.customer.primaryContact === "DAMAT"
       ? state.customer.groomPhone
       : state.customer.bridePhone;
-  return `Merhaba Düğünajansım Ekibi,\n\nPaket başvurumu oluşturdum. Dekontumu paylaşmak istiyorum.\n\n📋 *Başvuru Kodu:* ${refNo}\n💍 *Çift:* ${couple}\n📞 *Birincil Telefon:* ${primaryPhone || "—"}\n📅 *Düğün Tarihi:* ${formatWeddingDate(state.customer.weddingDate)}\n⏰ *Saat:* ${state.customer.startTime || "—"} - ${state.customer.endTime || "—"}${state.customer.endsNextDay ? " (ertesi gün)" : ""}\n📍 *Salon:* ${venueNames.get(state.customer.venueId) || "—"}\n\n🎁 *Paket:* ${base?.name || "Mini Paket"}\n➕ *Ek Hizmetler:* ${extras}\n💰 *Ödenecek Tutar:* ${formatPrice(payment.payable)} (${payment.payableLabel})\n\nDekontumu bu mesaja ekliyorum.`;
+  return `Merhaba Düğünajansım Ekibi,\n\nPaket başvurumu oluşturdum. Dekontumu paylaşmak istiyorum.\n\n📋 *Başvuru Kodu:* ${refNo}\n💍 *Çift:* ${couple}\n📞 *Birincil Telefon:* ${primaryPhone || "—"}\n📅 *Düğün Tarihi:* ${formatWeddingDate(state.customer.weddingDate)}\n⏰ *Saat:* ${state.customer.startTime || "—"} - ${state.customer.endTime || "—"}${state.customer.endsNextDay ? " (ertesi gün)" : ""}\n📍 *Salon:* ${getVenueDisplayName()}\n\n🎁 *Paket:* ${base?.name || "Mini Paket"}\n➕ *Ek Hizmetler:* ${extras}\n💰 *Ödenecek Tutar:* ${formatPrice(payment.payable)} (${payment.payableLabel})\n\nDekontumu bu mesaja ekliyorum.`;
 }
 
 function getWhatsAppUrl() {
@@ -883,7 +1113,10 @@ if (paymentNotificationForm) {
           startTime: state.customer.startTime,
           endTime: state.customer.endTime,
           endsNextDay: Boolean(state.customer.endsNextDay),
-          venueId: state.customer.venueId,
+          venueId: isCustomVenueSelected() ? undefined : state.customer.venueId,
+          customVenueName: isCustomVenueSelected()
+            ? state.customer.customVenueName?.trim()
+            : undefined,
           packageCode: state.base,
           serviceCodes: [...state.extras],
           paymentMethod: state.payment.toUpperCase(),
@@ -1130,8 +1363,7 @@ function renderOrderReview() {
   document.querySelector(".js-review-date").textContent = formatWeddingDate(
     state.customer.weddingDate
   );
-  document.querySelector(".js-review-venue").textContent =
-    venueNames.get(state.customer.venueId) || "—";
+  document.querySelector(".js-review-venue").textContent = getVenueDisplayName();
   updateTransferUI();
 }
 

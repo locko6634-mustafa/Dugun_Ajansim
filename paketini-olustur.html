@@ -435,50 +435,167 @@
                   >Lütfen düğün salonunuzu seçin.</small
                 >
               </label>
+              <div class="form-field form-field--wide js-custom-venue-field" hidden>
+                <label for="custom-venue-name">Salon adı</label>
+                <input
+                  class="js-custom-venue-name"
+                  id="custom-venue-name"
+                  type="text"
+                  name="customVenueName"
+                  maxlength="140"
+                  placeholder="Düğün salonunun adını yazın"
+                  autocomplete="organization"
+                  disabled
+                  aria-describedby="custom-venue-hint venue-error"
+                />
+                <small class="form-field__hint js-custom-venue-hint" id="custom-venue-hint"
+                  >Salon adını yazın; ekibimiz bu mekân için planlamayı sizinle
+                  netleştirecek.</small
+                >
+              </div>
 
-              <label class="form-field">
-                <span>Düğün Tarihi</span>
+              <div class="form-field date-picker js-date-picker">
+                <span id="wedding-date-label">Düğün Tarihi</span>
                 <input
                   class="js-wedding-date"
-                  type="date"
+                  type="hidden"
                   name="weddingDate"
-                  required
                   disabled
                   aria-describedby="wedding-date-error"
                 />
+                <button
+                  class="picker-trigger js-date-trigger"
+                  type="button"
+                  disabled
+                  aria-haspopup="dialog"
+                  aria-expanded="false"
+                  aria-labelledby="wedding-date-label"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+                    <path d="M16 3v4M8 3v4M3 10h18"></path>
+                  </svg>
+                  <span class="js-date-value">Tarih seçin</span>
+                  <svg class="picker-trigger__chevron" aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="m7 10 5 5 5-5"></path>
+                  </svg>
+                </button>
+                <div
+                  class="picker-popover date-picker__popover js-date-popover"
+                  hidden
+                  role="dialog"
+                  aria-label="Düğün tarihi seçimi"
+                >
+                  <div class="date-picker__header">
+                    <button
+                      class="date-picker__nav js-calendar-prev"
+                      type="button"
+                      aria-label="Önceki ay"
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="m15 18-6-6 6-6"></path>
+                      </svg>
+                    </button>
+                    <strong class="js-calendar-title" aria-live="polite"></strong>
+                    <button
+                      class="date-picker__nav js-calendar-next"
+                      type="button"
+                      aria-label="Sonraki ay"
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="m9 18 6-6-6-6"></path>
+                      </svg>
+                    </button>
+                  </div>
+                  <div class="date-picker__weekdays" aria-hidden="true">
+                    <span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span
+                    ><span>Cmt</span><span>Paz</span>
+                  </div>
+                  <div class="date-picker__days js-calendar-days"></div>
+                  <button class="date-picker__today js-calendar-today" type="button">
+                    Bugüne dön
+                  </button>
+                </div>
                 <small class="form-field__hint js-date-hint"
                   >Tarih seçmek için lütfen önce salon seçiniz.</small
                 >
                 <small class="form-field__error" id="wedding-date-error"
                   >Lütfen düğün tarihinizi seçin.</small
                 >
-              </label>
+              </div>
 
-              <label class="form-field">
-                <span>Başlangıç Saati</span>
+              <div class="form-field time-picker js-time-picker" data-time-picker="start">
+                <span id="start-time-label">Başlangıç Saati</span>
                 <input
-                  type="time"
+                  type="hidden"
                   name="startTime"
-                  required
                   disabled
                   aria-describedby="start-time-error"
                 />
+                <button
+                  class="picker-trigger js-time-trigger"
+                  type="button"
+                  disabled
+                  aria-haspopup="dialog"
+                  aria-expanded="false"
+                  aria-labelledby="start-time-label"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path d="M12 7v5l3.5 2"></path></svg
+                  ><span class="js-time-value">Saat seçin</span
+                  ><svg class="picker-trigger__chevron" aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="m7 10 5 5 5-5"></path>
+                  </svg>
+                </button>
+                <div
+                  class="picker-popover time-picker__popover js-time-popover"
+                  hidden
+                  role="dialog"
+                  aria-label="Başlangıç saati seçimi"
+                >
+                  <div class="time-picker__head">
+                    <strong>Saat seçin</strong><span>30 dk aralıklarla</span>
+                  </div>
+                  <div class="time-picker__options js-time-options"></div>
+                </div>
                 <small class="form-field__error" id="start-time-error"
                   >Başlangıç saatini seçin.</small
                 >
-              </label>
+              </div>
 
-              <label class="form-field">
-                <span>Bitiş Saati</span>
-                <input
-                  type="time"
-                  name="endTime"
-                  required
+              <div class="form-field time-picker js-time-picker" data-time-picker="end">
+                <span id="end-time-label">Bitiş Saati</span>
+                <input type="hidden" name="endTime" disabled aria-describedby="end-time-error" />
+                <button
+                  class="picker-trigger js-time-trigger"
+                  type="button"
                   disabled
-                  aria-describedby="end-time-error"
-                />
+                  aria-haspopup="dialog"
+                  aria-expanded="false"
+                  aria-labelledby="end-time-label"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path d="M12 7v5l3.5 2"></path></svg
+                  ><span class="js-time-value">Saat seçin</span
+                  ><svg class="picker-trigger__chevron" aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="m7 10 5 5 5-5"></path>
+                  </svg>
+                </button>
+                <div
+                  class="picker-popover time-picker__popover js-time-popover"
+                  hidden
+                  role="dialog"
+                  aria-label="Bitiş saati seçimi"
+                >
+                  <div class="time-picker__head">
+                    <strong>Saat seçin</strong><span>30 dk aralıklarla</span>
+                  </div>
+                  <div class="time-picker__options js-time-options"></div>
+                </div>
                 <small class="form-field__error" id="end-time-error">Bitiş saatini seçin.</small>
-              </label>
+              </div>
 
               <label class="consent-field form-field--wide">
                 <input type="checkbox" name="endsNextDay" disabled />

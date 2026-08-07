@@ -1,10 +1,10 @@
-import { Prisma, type BookingSource, type User } from '@prisma/client';
-import { prisma } from '../config/prisma.js';
-import { env } from '../config/env.config.js';
-import type { z } from 'zod';
-import type { bookingBodySchema } from '../schemas/api.schemas.js';
-import { AppError } from '../utils/appError.js';
-import { encryptValue, hashPassword, hashToken } from '../utils/crypto.js';
+import { Prisma, type BookingSource, type User } from "@prisma/client";
+import { prisma } from "../config/prisma.js";
+import { env } from "../config/env.config.js";
+import type { z } from "zod";
+import type { bookingBodySchema } from "../schemas/api.schemas.js";
+import { AppError } from "../utils/appError.js";
+import { encryptValue, hashPassword, hashToken } from "../utils/crypto.js";
 import {
   addCalendarDays,
   atIstanbulTime,
@@ -18,30 +18,29 @@ import {
   normalizeUsername,
   randomFourDigitCode,
   randomReferenceCode,
-  randomTemporaryPassword,
-} from '../utils/domain.js';
+  randomTemporaryPassword
+} from "../utils/domain.js";
 
-export type BookingInput = Omit<z.infer<typeof bookingBodySchema>, 'privacyConsent'> & {
+export type BookingInput = Omit<z.infer<typeof bookingBodySchema>, "privacyConsent"> & {
   privacyConsent: boolean;
 };
 
 type CreateBookingOptions = {
   source: BookingSource;
   idempotencyKey?: string;
-  actor?: Pick<User, 'id'>;
+  actor?: Pick<User, "id">;
   correlationId: string;
 };
 
 export const calculatePayment = (
   subtotalCents: number,
-  paymentMethod: 'CASH' | 'DEPOSIT',
+  paymentMethod: "CASH" | "DEPOSIT"
 ): { totalPriceCents: number; payableNowCents: number } => {
   const totalPriceCents =
-    paymentMethod === 'CASH' ? Math.round(subtotalCents * 0.9) : subtotalCents;
+    paymentMethod === "CASH" ? Math.round(subtotalCents * 0.9) : subtotalCents;
   return {
     totalPriceCents,
-    payableNowCents:
-      paymentMethod === 'CASH' ? totalPriceCents : Math.min(500_000, totalPriceCents),
+    payableNowCents: paymentMethod === "CASH" ? totalPriceCents : Math.min(500_000, totalPriceCents)
   };
 };
 
@@ -54,7 +53,7 @@ const createAudit = (
     targetId?: string;
     correlationId: string;
     metadata?: Prisma.InputJsonValue;
-  },
+  }
 ) =>
   transaction.auditLog.create({
     data: {
@@ -63,8 +62,8 @@ const createAudit = (
       targetType: input.targetType,
       targetId: input.targetId,
       correlationId: input.correlationId,
-      metadata: input.metadata,
-    },
+      metadata: input.metadata
+    }
   });
 
 const idempotencySelect = {
@@ -73,17 +72,17 @@ const idempotencySelect = {
   status: true,
   totalPriceCents: true,
   payableNowCents: true,
-  idempotencyFingerprint: true,
+  idempotencyFingerprint: true
 } satisfies Prisma.BookingApplicationSelect;
 
 const assertIdempotencyFingerprint = (
   existing: {
     idempotencyFingerprint: string | null;
   },
-  fingerprint: string,
+  fingerprint: string
 ): void => {
   if (existing.idempotencyFingerprint !== fingerprint) {
-    throw new AppError('Idempotency anahtarı farklı bir başvuru için kullanılmış.', 409);
+    throw new AppError("Idempotency anahtarı farklı bir başvuru için kullanılmış.", 409);
   }
 };
 
@@ -97,7 +96,7 @@ type VenueScheduleAvailabilityInput = {
 
 export const assertVenueScheduleAvailable = async (
   transaction: Prisma.TransactionClient,
-  input: VenueScheduleAvailabilityInput,
+  input: VenueScheduleAvailabilityInput
 ): Promise<void> => {
   const [conflictingWedding, conflictingApplication] = await Promise.all([
     transaction.wedding.findFirst({
@@ -107,29 +106,29 @@ export const assertVenueScheduleAvailable = async (
         cancelledAt: null,
         deletedAt: null,
         startsAt: { lt: input.endsAt },
-        endsAt: { gt: input.startsAt },
+        endsAt: { gt: input.startsAt }
       },
-      select: { id: true },
+      select: { id: true }
     }),
     transaction.bookingApplication.findFirst({
       where: {
         venueId: input.venueId,
         ...(input.excludeApplicationId ? { id: { not: input.excludeApplicationId } } : {}),
-        status: { in: ['ONAY_BEKLIYOR', 'ONAYLANDI'] },
+        status: { in: ["ONAY_BEKLIYOR", "ONAYLANDI"] },
         deletedAt: null,
         weddingStartsAt: { lt: input.endsAt },
-        weddingEndsAt: { gt: input.startsAt },
+        weddingEndsAt: { gt: input.startsAt }
       },
-      select: { id: true },
-    }),
+      select: { id: true }
+    })
   ]);
 
   if (conflictingWedding || conflictingApplication) {
     throw new AppError(
-      'Seçilen salonda bu saat aralığında başka bir düğün veya aktif başvuru bulunuyor.',
+      "Seçilen salonda bu saat aralığında başka bir düğün veya aktif başvuru bulunuyor.",
       409,
       true,
-      { code: 'VENUE_SCHEDULE_CONFLICT' },
+      { code: "VENUE_SCHEDULE_CONFLICT" }
     );
   }
 };
@@ -141,7 +140,7 @@ export const createBookingFingerprint = (
   endsAt: Date,
   bridePhone: string,
   groomPhone: string,
-  serviceCodes: string[],
+  serviceCodes: string[]
 ): string =>
   hashToken(
     JSON.stringify({
@@ -162,22 +161,22 @@ export const createBookingFingerprint = (
       paymentMethod: input.paymentMethod,
       note: input.note || null,
       privacyConsent: input.privacyConsent,
-      marketingConsent: input.marketingConsent,
-    }),
+      marketingConsent: input.marketingConsent
+    })
   );
 
 export const createBookingApplication = async (
   input: BookingInput,
-  options: CreateBookingOptions,
+  options: CreateBookingOptions
 ) => {
   const { startsAt, endsAt } = createWeddingRange(
     input.weddingDate,
     input.startTime,
     input.endTime,
-    input.endsNextDay,
+    input.endsNextDay
   );
-  if (options.source === 'PUBLIC_FORM' && input.weddingDate < getIstanbulDate(new Date())) {
-    throw new AppError('Geçmiş tarihli düğün başvurusu oluşturulamaz.', 400);
+  if (options.source === "PUBLIC_FORM" && input.weddingDate < getIstanbulDate(new Date())) {
+    throw new AppError("Geçmiş tarihli düğün başvurusu oluşturulamaz.", 400);
   }
 
   const bridePhone = normalizePhone(input.bridePhone);
@@ -190,7 +189,7 @@ export const createBookingApplication = async (
     endsAt,
     bridePhone,
     groomPhone,
-    serviceCodes,
+    serviceCodes
   );
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -201,7 +200,7 @@ export const createBookingApplication = async (
           if (options.idempotencyKey) {
             const existing = await transaction.bookingApplication.findUnique({
               where: { idempotencyKey: options.idempotencyKey },
-              select: idempotencySelect,
+              select: idempotencySelect
             });
             if (existing) {
               assertIdempotencyFingerprint(existing, idempotencyFingerprint);
@@ -210,21 +209,42 @@ export const createBookingApplication = async (
             }
           }
 
+          const customVenueName = input.customVenueName?.trim();
+          const venuePromise = input.venueId
+            ? transaction.venue.findFirst({ where: { id: input.venueId, isActive: true } })
+            : transaction.venue
+                .findFirst({
+                  where: {
+                    name: { equals: customVenueName, mode: "insensitive" },
+                    isActive: true
+                  }
+                })
+                .then(
+                  (existing) =>
+                    existing ||
+                    transaction.venue.create({
+                      data: {
+                        name: customVenueName!,
+                        slug: `musteri-salonu-${randomReferenceCode().toLowerCase()}`,
+                        isPartner: false
+                      }
+                    })
+                );
           const [venue, selectedPackage, selectedServices] = await Promise.all([
-            transaction.venue.findFirst({ where: { id: input.venueId, isActive: true } }),
+            venuePromise,
             transaction.package.findFirst({
-              where: { code: input.packageCode, isActive: true },
+              where: { code: input.packageCode, isActive: true }
             }),
             transaction.service.findMany({
               where: { code: { in: serviceCodes }, isActive: true },
-              orderBy: { code: 'asc' },
-            }),
+              orderBy: { code: "asc" }
+            })
           ]);
 
-          if (!venue) throw new AppError('Seçilen salon artık aktif değil.', 400);
-          if (!selectedPackage) throw new AppError('Seçilen paket artık aktif değil.', 400);
+          if (!venue) throw new AppError("Seçilen salon artık aktif değil.", 400);
+          if (!selectedPackage) throw new AppError("Seçilen paket artık aktif değil.", 400);
           if (selectedServices.length !== serviceCodes.length) {
-            throw new AppError('Seçilen hizmetlerden biri artık aktif değil.', 400);
+            throw new AppError("Seçilen hizmetlerden biri artık aktif değil.", 400);
           }
 
           const conflictingWedding = await transaction.wedding.findFirst({
@@ -233,34 +253,34 @@ export const createBookingApplication = async (
               cancelledAt: null,
               deletedAt: null,
               startsAt: { lt: endsAt },
-              endsAt: { gt: startsAt },
+              endsAt: { gt: startsAt }
             },
-            select: { startsAt: true, endsAt: true },
+            select: { startsAt: true, endsAt: true }
           });
 
           const conflictingApp = !conflictingWedding
             ? await transaction.bookingApplication.findFirst({
                 where: {
                   venueId: venue.id,
-                  status: { in: ['ONAY_BEKLIYOR', 'ONAYLANDI'] },
+                  status: { in: ["ONAY_BEKLIYOR", "ONAYLANDI"] },
                   deletedAt: null,
                   weddingStartsAt: { lt: endsAt },
-                  weddingEndsAt: { gt: startsAt },
+                  weddingEndsAt: { gt: startsAt }
                 },
-                select: { weddingStartsAt: true, weddingEndsAt: true },
+                select: { weddingStartsAt: true, weddingEndsAt: true }
               })
             : null;
 
           if (conflictingWedding || conflictingApp) {
             const conflStart = formatIstanbulTime(
-              conflictingWedding?.startsAt || conflictingApp!.weddingStartsAt,
+              conflictingWedding?.startsAt || conflictingApp!.weddingStartsAt
             );
             const conflEnd = formatIstanbulTime(
-              conflictingWedding?.endsAt || conflictingApp!.weddingEndsAt,
+              conflictingWedding?.endsAt || conflictingApp!.weddingEndsAt
             );
             throw new AppError(
               `Seçilen salonda bu saat aralığında (${conflStart} - ${conflEnd}) dolu olan bir etkinlik/başvuru bulunmaktadır. Lütfen farklı bir saat seçin.`,
-              400,
+              400
             );
           }
 
@@ -269,7 +289,7 @@ export const createBookingApplication = async (
             selectedServices.reduce((sum, service) => sum + service.priceCents, 0);
           const { totalPriceCents, payableNowCents } = calculatePayment(
             subtotalCents,
-            input.paymentMethod,
+            input.paymentMethod
           );
           const now = new Date();
           const application = await transaction.bookingApplication.create({
@@ -304,26 +324,26 @@ export const createBookingApplication = async (
                   serviceId: service.id,
                   codeSnapshot: service.code,
                   nameSnapshot: service.name,
-                  priceCents: service.priceCents,
-                })),
-              },
+                  priceCents: service.priceCents
+                }))
+              }
             },
             select: {
               id: true,
               referenceCode: true,
               status: true,
               totalPriceCents: true,
-              payableNowCents: true,
-            },
+              payableNowCents: true
+            }
           });
 
           await createAudit(transaction, {
             actorUserId: options.actor?.id,
-            action: 'booking.created',
-            targetType: 'BookingApplication',
+            action: "booking.created",
+            targetType: "BookingApplication",
             targetId: application.id,
             correlationId: options.correlationId,
-            metadata: { source: options.source, referenceCode },
+            metadata: { source: options.source, referenceCode }
           });
 
           return application;
@@ -331,13 +351,13 @@ export const createBookingApplication = async (
         {
           isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
           maxWait: 5_000,
-          timeout: 10_000,
-        },
+          timeout: 10_000
+        }
       );
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
-        (error.code === 'P2002' || error.code === 'P2034')
+        (error.code === "P2002" || error.code === "P2034")
       ) {
         continue;
       }
@@ -348,7 +368,7 @@ export const createBookingApplication = async (
   if (options.idempotencyKey) {
     const existing = await prisma.bookingApplication.findUnique({
       where: { idempotencyKey: options.idempotencyKey },
-      select: idempotencySelect,
+      select: idempotencySelect
     });
     if (existing) {
       assertIdempotencyFingerprint(existing, idempotencyFingerprint);
@@ -357,23 +377,23 @@ export const createBookingApplication = async (
     }
   }
 
-  throw new AppError('Başvuru referansı üretilemedi. Lütfen tekrar deneyin.', 503);
+  throw new AppError("Başvuru referansı üretilemedi. Lütfen tekrar deneyin.", 503);
 };
 
 export const createUniqueCustomerUsername = async (
   brideLastName: string,
-  groomLastName: string,
+  groomLastName: string
 ): Promise<string> => {
   const normalizedParts = [normalizeUsername(brideLastName), normalizeUsername(groomLastName)]
     .filter(Boolean)
-    .join('-');
-  const prefix = (normalizedParts || 'musteri').slice(0, 59).replace(/-+$/g, '') || 'musteri';
+    .join("-");
+  const prefix = (normalizedParts || "musteri").slice(0, 59).replace(/-+$/g, "") || "musteri";
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const username = `${prefix}-${randomFourDigitCode()}`;
     const exists = await prisma.user.findUnique({ where: { username }, select: { id: true } });
     if (!exists) return username;
   }
-  throw new AppError('Benzersiz müşteri kullanıcı adı üretilemedi.', 503);
+  throw new AppError("Benzersiz müşteri kullanıcı adı üretilemedi.", 503);
 };
 
 type ApprovalDependencies = {
@@ -381,18 +401,18 @@ type ApprovalDependencies = {
 };
 
 const isUsernameUniqueConflict = (error: unknown): boolean => {
-  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
     return false;
   }
   const target = error.meta?.target;
-  const fields = Array.isArray(target) ? target.map(String) : [String(target ?? '')];
-  return fields.some((field) => field.toLowerCase().includes('username'));
+  const fields = Array.isArray(target) ? target.map(String) : [String(target ?? "")];
+  return fields.some((field) => field.toLowerCase().includes("username"));
 };
 
 export const retryUsernameConflict = async <Result>(
   createUsername: () => Promise<string>,
   operation: (username: string) => Promise<Result>,
-  maxAttempts = 4,
+  maxAttempts = 4
 ): Promise<Result> => {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const username = await createUsername();
@@ -404,22 +424,22 @@ export const retryUsernameConflict = async <Result>(
     }
   }
 
-  throw new AppError('Benzersiz müşteri kullanıcı adı üretilemedi.', 503);
+  throw new AppError("Benzersiz müşteri kullanıcı adı üretilemedi.", 503);
 };
 
 export const approveBookingApplication = async (
   applicationId: string,
   actorUserId: string,
   correlationId: string,
-  dependencies: ApprovalDependencies = {},
+  dependencies: ApprovalDependencies = {}
 ) => {
   const applicationIdentity = await prisma.bookingApplication.findFirst({
     where: { id: applicationId, deletedAt: null },
-    select: { brideLastName: true, groomLastName: true, status: true },
+    select: { brideLastName: true, groomLastName: true, status: true }
   });
-  if (!applicationIdentity) throw new AppError('Başvuru bulunamadı.', 404);
-  if (applicationIdentity.status !== 'ONAY_BEKLIYOR') {
-    throw new AppError('Yalnızca onay bekleyen başvurular onaylanabilir.', 409);
+  if (!applicationIdentity) throw new AppError("Başvuru bulunamadı.", 404);
+  if (applicationIdentity.status !== "ONAY_BEKLIYOR") {
+    throw new AppError("Yalnızca onay bekleyen başvurular onaylanabilir.", 409);
   }
 
   const temporaryPassword = randomTemporaryPassword();
@@ -432,48 +452,48 @@ export const approveBookingApplication = async (
         async (transaction) => {
           const application = await transaction.bookingApplication.findFirst({
             where: { id: applicationId, deletedAt: null },
-            include: { services: true },
+            include: { services: true }
           });
-          if (!application) throw new AppError('Başvuru bulunamadı.', 404);
-          if (application.status !== 'ONAY_BEKLIYOR') {
-            throw new AppError('Yalnızca onay bekleyen başvurular onaylanabilir.', 409);
+          if (!application) throw new AppError("Başvuru bulunamadı.", 404);
+          if (application.status !== "ONAY_BEKLIYOR") {
+            throw new AppError("Yalnızca onay bekleyen başvurular onaylanabilir.", 409);
           }
 
           await assertVenueScheduleAvailable(transaction, {
             venueId: application.venueId,
             startsAt: application.weddingStartsAt,
             endsAt: application.weddingEndsAt,
-            excludeApplicationId: application.id,
+            excludeApplicationId: application.id
           });
 
           const claimed = await transaction.bookingApplication.updateMany({
             where: {
               id: application.id,
-              status: 'ONAY_BEKLIYOR',
+              status: "ONAY_BEKLIYOR",
               deletedAt: null,
-              updatedAt: application.updatedAt,
+              updatedAt: application.updatedAt
             },
             data: {
-              status: 'ONAYLANDI',
+              status: "ONAYLANDI",
               reviewedAt: new Date(),
-              reviewedById: actorUserId,
-            },
+              reviewedById: actorUserId
+            }
           });
           if (claimed.count !== 1) {
-            throw new AppError('Başvuru başka bir işlemde güncellendi.', 409);
+            throw new AppError("Başvuru başka bir işlemde güncellendi.", 409);
           }
 
           const weddingDate = getIstanbulDate(application.weddingStartsAt);
-          const activeAt = atIstanbulTime(addCalendarDays(weddingDate, 1), '09:00');
+          const activeAt = atIstanbulTime(addCalendarDays(weddingDate, 1), "09:00");
           const now = new Date();
           const temporaryPasswordExpiresAt = createTemporaryPasswordExpiry(
             env.TEMPORARY_PASSWORD_TTL_HOURS,
-            activeAt > now ? activeAt : now,
+            activeAt > now ? activeAt : now
           );
-          const preparationDueAt = atIstanbulTime(addCalendarDays(weddingDate, 2), '10:00');
+          const preparationDueAt = atIstanbulTime(addCalendarDays(weddingDate, 2), "10:00");
           const dueDate = new Date(`${addCalendarDays(weddingDate, 21)}T00:00:00.000Z`);
           const recipientPhone =
-            application.primaryContact === 'GELIN'
+            application.primaryContact === "GELIN"
               ? application.bridePhone
               : application.groomPhone;
 
@@ -481,11 +501,11 @@ export const approveBookingApplication = async (
             data: {
               username,
               passwordHash,
-              role: 'MUSTERI',
+              role: "MUSTERI",
               mustChangePassword: true,
               temporaryPasswordExpiresAt,
-              activeAt,
-            },
+              activeAt
+            }
           });
           const wedding = await transaction.wedding.create({
             data: {
@@ -510,50 +530,50 @@ export const approveBookingApplication = async (
                 services: application.services.map((service) => ({
                   code: service.codeSnapshot,
                   name: service.nameSnapshot,
-                  priceCents: service.priceCents,
-                })),
+                  priceCents: service.priceCents
+                }))
               },
               note: application.note,
               delivery: {
                 create: {
                   dueDate,
-                  history: { create: { toStatus: 'HAZIRLANIYOR', actorUserId } },
-                },
-              },
-            },
+                  history: { create: { toStatus: "HAZIRLANIYOR", actorUserId } }
+                }
+              }
+            }
           });
 
           const encryptedPassword = encryptValue(
             temporaryPassword,
-            messageSecretEncryptionAad(wedding.id, 'ACCOUNT_ACTIVATION'),
+            messageSecretEncryptionAad(wedding.id, "ACCOUNT_ACTIVATION")
           );
           await transaction.messageTask.createMany({
             data: [
               {
                 weddingId: wedding.id,
-                kind: 'ACCOUNT_ACTIVATION',
+                kind: "ACCOUNT_ACTIVATION",
                 dueAt: activeAt,
                 recipientPhone,
                 secretCiphertext: encryptedPassword.ciphertext,
                 secretIv: encryptedPassword.iv,
                 secretAuthTag: encryptedPassword.authTag,
-                encryptionVersion: 2,
+                encryptionVersion: 2
               },
               {
                 weddingId: wedding.id,
-                kind: 'PREPARATION_UPDATE',
+                kind: "PREPARATION_UPDATE",
                 dueAt: preparationDueAt,
-                recipientPhone,
-              },
-            ],
+                recipientPhone
+              }
+            ]
           });
           await createAudit(transaction, {
             actorUserId,
-            action: 'booking.approved',
-            targetType: 'BookingApplication',
+            action: "booking.approved",
+            targetType: "BookingApplication",
             targetId: application.id,
             correlationId,
-            metadata: { weddingId: wedding.id },
+            metadata: { weddingId: wedding.id }
           });
 
           return { applicationId: application.id, weddingId: wedding.id, username, activeAt };
@@ -561,14 +581,19 @@ export const approveBookingApplication = async (
         {
           isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
           maxWait: 5_000,
-          timeout: 10_000,
-        },
-      ),
+          timeout: 10_000
+        }
+      )
   ).catch((error: unknown) => {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
-      throw new AppError('Başvuru takvimi başka bir işlemde güncellendi. Tekrar deneyin.', 409, true, {
-        code: 'VENUE_SCHEDULE_CONFLICT',
-      });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      throw new AppError(
+        "Başvuru takvimi başka bir işlemde güncellendi. Tekrar deneyin.",
+        409,
+        true,
+        {
+          code: "VENUE_SCHEDULE_CONFLICT"
+        }
+      );
     }
     throw error;
   });
@@ -578,38 +603,38 @@ export const rejectBookingApplication = async (
   applicationId: string,
   reason: string,
   actorUserId: string,
-  correlationId: string,
+  correlationId: string
 ) =>
   prisma.$transaction(async (transaction) => {
     const updated = await transaction.bookingApplication.updateMany({
-      where: { id: applicationId, status: 'ONAY_BEKLIYOR', deletedAt: null },
+      where: { id: applicationId, status: "ONAY_BEKLIYOR", deletedAt: null },
       data: {
-        status: 'REDDEDILDI',
+        status: "REDDEDILDI",
         rejectionReason: reason,
         reviewedAt: new Date(),
-        reviewedById: actorUserId,
-      },
+        reviewedById: actorUserId
+      }
     });
     if (updated.count !== 1) {
-      throw new AppError('Başvuru bulunamadı veya artık onay beklemiyor.', 409);
+      throw new AppError("Başvuru bulunamadı veya artık onay beklemiyor.", 409);
     }
     await createAudit(transaction, {
       actorUserId,
-      action: 'booking.rejected',
-      targetType: 'BookingApplication',
+      action: "booking.rejected",
+      targetType: "BookingApplication",
       targetId: applicationId,
       correlationId,
-      metadata: { reason },
+      metadata: { reason }
     });
-    return { id: applicationId, status: 'REDDEDILDI' as const };
+    return { id: applicationId, status: "REDDEDILDI" as const };
   });
 
 export const getVenueAvailability = async (
   venueId: string,
-  dateStr: string,
+  dateStr: string
 ): Promise<{ date: string; occupiedSlots: Array<{ startTime: string; endTime: string }> }> => {
   if (!isStrictGregorianDate(dateStr)) {
-    throw new AppError('Geçersiz tarih formatı (YYYY-MM-DD olmalıdır).', 400);
+    throw new AppError("Geçersiz tarih formatı (YYYY-MM-DD olmalıdır).", 400);
   }
 
   const dayStartsAt = new Date(`${dateStr}T00:00:00+03:00`);
@@ -622,22 +647,22 @@ export const getVenueAvailability = async (
         cancelledAt: null,
         deletedAt: null,
         startsAt: { lt: dayEndsAt },
-        endsAt: { gt: dayStartsAt },
+        endsAt: { gt: dayStartsAt }
       },
       select: { startsAt: true, endsAt: true },
-      orderBy: { startsAt: 'asc' },
+      orderBy: { startsAt: "asc" }
     }),
     prisma.bookingApplication.findMany({
       where: {
         venueId,
-        status: { in: ['ONAY_BEKLIYOR', 'ONAYLANDI'] },
+        status: { in: ["ONAY_BEKLIYOR", "ONAYLANDI"] },
         deletedAt: null,
         weddingStartsAt: { lt: dayEndsAt },
-        weddingEndsAt: { gt: dayStartsAt },
+        weddingEndsAt: { gt: dayStartsAt }
       },
       select: { weddingStartsAt: true, weddingEndsAt: true },
-      orderBy: { weddingStartsAt: 'asc' },
-    }),
+      orderBy: { weddingStartsAt: "asc" }
+    })
   ]);
 
   const slotsMap = new Map<string, { startTime: string; endTime: string }>();
@@ -655,7 +680,7 @@ export const getVenueAvailability = async (
   });
 
   const occupiedSlots = Array.from(slotsMap.values()).sort((a, b) =>
-    a.startTime.localeCompare(b.startTime),
+    a.startTime.localeCompare(b.startTime)
   );
 
   return { date: dateStr, occupiedSlots };

@@ -1,0 +1,2 @@
+ALTER TABLE "venues"
+ADD COLUMN "isPartner" BOOLEAN NOT NULL DEFAULT true;

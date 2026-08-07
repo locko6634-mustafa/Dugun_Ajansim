@@ -47,7 +47,7 @@ export const strongPasswordSchema = z
     "Daha az yaygın bir parola seçin."
   );
 
-export const bookingBodySchema = z
+const bookingBodyBaseSchema = z
   .object({
     brideFirstName: personNameSchema,
     brideLastName: personNameSchema,
@@ -61,7 +61,17 @@ export const bookingBodySchema = z
     startTime: timeSchema,
     endTime: timeSchema,
     endsNextDay: z.boolean(),
-    venueId: z.string().uuid(),
+    venueId: z.string().uuid().optional(),
+    customVenueName: z
+      .string()
+      .trim()
+      .min(2)
+      .max(140)
+      .refine(
+        (value) => !/[\u0000-\u001F\u007F]/.test(value),
+        "Salon adı kontrol karakteri içeremez."
+      )
+      .optional(),
     packageCode: codeSchema,
     serviceCodes: z.array(codeSchema).max(20).default([]),
     paymentMethod: z.enum(["CASH", "DEPOSIT"]),
@@ -71,9 +81,31 @@ export const bookingBodySchema = z
   })
   .strict();
 
-export const adminBookingBodySchema = bookingBodySchema.extend({
-  privacyConsent: z.boolean().default(false)
-});
+const validateVenueChoice = (
+  value: { venueId?: string; customVenueName?: string },
+  context: z.RefinementCtx
+) => {
+  if (!value.venueId && !value.customVenueName) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["venueId"],
+      message: "Bir salon seçin veya salon adını yazın."
+    });
+  }
+  if (value.venueId && value.customVenueName) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["customVenueName"],
+      message: "Salon seçimi ve özel salon adı birlikte gönderilemez."
+    });
+  }
+};
+
+export const bookingBodySchema = bookingBodyBaseSchema.superRefine(validateVenueChoice);
+
+export const adminBookingBodySchema = bookingBodyBaseSchema
+  .extend({ privacyConsent: z.boolean().default(false) })
+  .superRefine(validateVenueChoice);
 
 export const loginBodySchema = z
   .object({
