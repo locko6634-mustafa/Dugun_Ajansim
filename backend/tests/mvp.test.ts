@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import nodeTest from "node:test";
 import {
   bookingBodySchema,
   bookingFormConstraints,
@@ -21,6 +21,9 @@ import {
   normalizeUsername,
   randomTemporaryPassword
 } from "../src/utils/domain.js";
+
+const test: typeof nodeTest = ((name: string, ...args: unknown[]) =>
+  nodeTest(`[backend-unit] ${name}`, ...(args as [never]))) as typeof nodeTest;
 
 test("gece yarısını aşan düğün aralığı İstanbul saatine göre oluşturulur", () => {
   const range = createWeddingRange("2026-08-10", "20:00", "02:00", true);

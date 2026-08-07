@@ -82,7 +82,8 @@ Testler ürün sözleşmesidir. Bir özelliği düzeltmek yerine testi etkisizle
 - Sırf test geçsin diye timeout/retry artırmak, worker/tarayıcı matrisi azaltmak veya testi koşula bağlamak.
 - Test runner, Playwright config, test environment, Docker Compose veya CI dosyasını kullanıcı talebi olmadan geçiş kapısını gevşetecek şekilde değiştirmek.
 - Başarısız, atlanmış, çalışmamış, zaman aşımına uğramış veya rapor üretmemiş testi “geçti” saymak.
-- Yalnız hedefli test geçince, zorunlu tam kalite kapısını çalıştırmadan işi tamamlamak.
+- Hedefli veya hızlı yerel kontrolü çalıştırmadan değişikliği push etmek.
+- GitHub Actions tam kalite kapıları yeşil olmadan işi tamamlanmış saymak.
 
 `tests/e2e/production-hardening.spec.js` içindeki Chromium dışı proje için mevcut, gerekçeli tek-proje istisnası yeni skip kullanımı için emsal değildir. Bu istisna genişletilemez veya başka testlere kopyalanamaz. Yeni bir test atlama ihtiyacı varsa agent değişiklik yapmadan önce kullanıcıdan açık onay alır.
 
@@ -102,52 +103,59 @@ Her başarısız sonuç şu sınıflardan biriyle raporlanır:
 3. **Altyapı/ortam hatası:** Tarayıcı, port, Docker, ağ, izin veya runner sorunu; test “geçmedi” olarak kalır.
 4. **Başlangıç tabanı hatası:** Değişiklik öncesi aynı komutla yeniden üretildi; yine de gizlenmez ve teslim notunda açıkça belirtilir.
 
-Kök neden belirlenmeden test veya kaynak kod üzerinde rastgele değişiklik yapma. Bir komut zaman aşımına uğrarsa alt sürecin kapanıp kapanmadığını ve artefaktları kontrol et; zaman aşımını yükseltmek ilk çözüm değildir.
+Kök neden belirlenmeden test veya kaynak kod üzerinde rastgele değişiklik yapma. Bir komut zaman aşımına uğrarsa alt sürecin kapanıp kapanmadığını, portları ve artefaktları kontrol et; zaman aşımını yükseltmek ilk çözüm değildir. Altyapı nedenine dair kanıt varsa aynı hedefli komut yalnız bir kez kontrollü tekrar edilebilir. İkinci zaman aşımı başarısızlıktır.
 
-## 6. Değişiklik Kapsamına Göre Zorunlu Kalite Kapıları
+## 6. Kademeli Doğrulama ve Kalite Kapıları
 
-Agent önce hedefli testlerle hızlı geri bildirim alır, sonra aşağıdaki kapsam kapısını eksiksiz çalıştırır.
+Doğrulama üç aşamalıdır:
+
+1. Geliştirme sırasında yalnız değişen davranışın `test:targeted` komutu veya kararlı test etiketi çalıştırılır.
+2. Push öncesinde kökte `npm run test:quick` çalıştırılır. Bu komut `git diff` üzerinden etki alanını belirler; yerel statik, hedefli frontend ve/veya hedefli backend kontrollerini seçer.
+3. Push sonrasında GitHub Actions üzerindeki `quality` ve `backend-integration` işleri izlenir. Tam frontend, iki cihazlı E2E, backend ve veritabanı entegrasyon kapsamı yalnız CI'da zorunludur.
+
+Yerel hızlı kontrolün başarılı sonucu push iznidir; teslim kanıtı değildir. İş ancak güncel push SHA'sı için iki CI işi de yeşil olduğunda tamamlanır. CI erişilemez veya sonucu okunamazsa durum açıkça raporlanır ve iş tamamlanmış sayılmaz.
+
+`tools/agent-check.mjs` aynı commit SHA, aynı çalışma ağacı içeriği ve aynı komut için başarılı sonucu önbellekten kullanabilir. İlgili kaynak veya test içeriği değiştiğinde anahtar değişir ve kontrol yeniden çalışır. Belirsiz dosya veya katmanlar arası değişiklik güvenli geniş yerel gruba yönlendirilir.
 
 ### Yalnız dokümantasyon
 
 ```powershell
-npx prettier --check AGENT.md
+npm run test:quick
 ```
 
 Değişen dokümanda komut, dosya yolu veya mimari iddia varsa depodan ayrıca doğrulanır.
 
-### Frontend HTML/CSS/JavaScript veya frontend testleri
+### Frontend HTML/CSS/JavaScript veya frontend testleri — yerel hızlı kontrol
+
+```powershell
+npm run test:quick
+```
+
+Çalıştırıcı statik doğrulamayı ve `@frontend-smoke`, `@responsive` veya `@admin` etiketli ilgili Playwright grubunu seçer. Responsive değişikliklerde Chromium masaüstü ve mobil projeleri yerelde birlikte çalışır.
+
+### Backend TypeScript — yerel hızlı kontrol
+
+```powershell
+npm run test:quick
+```
+
+Çalıştırıcı backend build, test typecheck ve `backend-unit`/`auth` hedefli grubunu veritabanı başlatmadan çalıştırır.
+
+### Tam kalite kapıları — yalnız GitHub Actions
 
 ```powershell
 npm run validate
 npm run audit:performance
 npm run test:e2e
-```
-
-`npm test`, `validate` ve `test:e2e` adımlarını birlikte çalıştırır; performans bütçesi ayrıca zorunludur. Responsive veya etkileşim değişikliklerinde Chromium masaüstü ve mobil proje sonuçları ayrı ayrı kontrol edilir.
-
-### Backend TypeScript
-
-```powershell
 cd backend
 npm test
-```
-
-Bu komut build, test typecheck ve birim/MVP testlerini kapsar.
-
-### Backend route, auth, güvenlik, Prisma veya veritabanı değişikliği
-
-```powershell
-cd backend
-npm test
-npm run test:db:up
 npm run test:integration
-npm run test:db:down
 ```
 
-- Test veritabanı yalnız `backend/tests/test.env` ve guard ile kullanılmalıdır.
-- `test:db:down`, entegrasyon testi başarısız olsa bile güvenli temizlik adımı olarak çalıştırılır.
-- Migration değişikliğinde temiz veritabanına tüm migrationların sırayla uygulandığı doğrulanır.
+- Bu komutlar `.github/workflows/quality.yml` içinde tam kapsamla korunur; yerel ajan akışında topluca çalıştırılmaz.
+- CI test veritabanı yalnız sentetik değerlerle ve guard ile kullanılır.
+- Migration değişikliğinde CI temiz veritabanına tüm migrationları sırayla uygular.
+- CI hatasında önce yalnız başarısız komut veya ilgili hedefli grup yerelde yeniden üretilir; kök neden bulunmadan tüm paket tekrar tekrar çalıştırılmaz.
 
 ### Docker, Nginx, deploy veya üretim environment sözleşmesi
 
@@ -158,9 +166,7 @@ npm run test:db:down
 
 ### Katmanlar arası veya yayın etkili değişiklik
 
-Frontend, backend, entegrasyon ve üretim yapılandırmasıyla ilgili yukarıdaki tüm kapılar çalıştırılır. CI'nın çalışacak olması yerel doğrulamanın yerine geçmez.
-
-Gerekli bir kapı ortam/izin nedeniyle çalıştırılamazsa agent bunu sessizce atlamaz. Komutu, hata sınıfını ve eksik doğrulamayı bildirir; testi geçti saymaz. Kod değişikliği için zorunlu kapı başarısızken commit/push yapmaz ve kullanıcıdan yönlendirme ister.
+`npm run test:quick` güvenli geniş yerel grupları seçer. Push sonrasında tüm tam kalite kapıları CI'da çalışır. Yerel hızlı kapı başarısızken commit/push yapılmaz. CI kapısı başarısız veya okunamazken teslim tamamlanmış sayılmaz.
 
 ## 7. Git, Commit ve Push — Her Tamamlanan İşlemde Zorunlu
 
@@ -175,7 +181,8 @@ Bu depoda teslim, yerel dosya değişikliğiyle bitmez. Başarıyla tamamlanan h
 5. `git diff --cached --check` ve `git diff --cached` ile staged kapsamı doğrula.
 6. Anlamlı, tek amacı anlatan bir commit oluştur.
 7. Commiti hemen `git push origin HEAD` ile mevcut upstream dala gönder.
-8. `git status --short --branch`, `git log -1 --oneline` ve yerel/uzak SHA karşılaştırmasıyla teslimi doğrula.
+8. Güncel push SHA'sı için GitHub Actions `quality` ve `backend-integration` işlerini izle; başarısızsa ilgili hedefli kontrolle kök nedeni düzeltip yeni commit ve push oluştur.
+9. İki CI işi de yeşil olduğunda `git status --short --branch`, `git log -1 --oneline` ve yerel/uzak SHA karşılaştırmasıyla teslimi doğrula.
 
 ### Git güvenlik kuralları
 
@@ -219,11 +226,11 @@ Bir iş ancak aşağıdakilerin tamamı sağlandığında tamamlanmıştır:
 
 - Kullanıcı talebi ve kabul ölçütleri karşılandı.
 - Değişen davranış için uygun regresyon testi mevcut.
-- Zorunlu kapsam testleri geçti; skip/only/todo veya yutulmuş hata yok.
+- Değişiklik odaklı yerel hızlı kontrol ve güncel push SHA'sının tam CI kapıları geçti; skip/only/todo veya yutulmuş hata yok.
 - Diff yalnız amaçlanan dosyaları içeriyor ve sır/kişisel veri içermiyor.
 - Dokümantasyon ve environment örnekleri davranışla uyumlu.
 - Değişiklik anlamlı bir commit olarak oluşturuldu.
-- Commit mevcut uzak dala push edildi ve yerel/uzak SHA doğrulandı.
+- Commit mevcut uzak dala push edildi, iki CI işi yeşil oldu ve yerel/uzak SHA doğrulandı.
 - Son raporda değişen dosyalar, çalıştırılan testler, sonuçlar, commit SHA, push dalı ve varsa açık riskler belirtildi.
 
 “Kod hazır ama test edilmedi”, “testler CI'da çalışır”, “commit yerelde kaldı” veya “push denenmedi” bu proje için tamamlanmış teslim değildir.

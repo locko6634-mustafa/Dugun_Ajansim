@@ -13,7 +13,7 @@ const expectedSectionOrder = [
   "#iletisim"
 ];
 
-test("mobil navigasyon sayfa bolumlerini dogru sirada listeler", async ({ page }) => {
+test("@responsive mobil navigasyon sayfa bolumlerini dogru sirada listeler", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/index.html");
   await page.locator(".menu-toggle").click();
@@ -25,7 +25,9 @@ test("mobil navigasyon sayfa bolumlerini dogru sirada listeler", async ({ page }
   expect(mobileSectionOrder).toEqual(expectedSectionOrder);
 });
 
-test("masaustu ve mobil navigasyon ayni bolumleri ayni sirada kullanir", async ({ page }) => {
+test("@responsive masaustu ve mobil navigasyon ayni bolumleri ayni sirada kullanir", async ({
+  page
+}) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/index.html");
 
@@ -42,7 +44,7 @@ test("masaustu ve mobil navigasyon ayni bolumleri ayni sirada kullanir", async (
   expect(mobileSectionOrder).toEqual(expectedSectionOrder);
 });
 
-test("masaustu header klasik tam genislikte ve tek satirda kalir", async ({ page }) => {
+test("@responsive masaustu header klasik tam genislikte ve tek satirda kalir", async ({ page }) => {
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: '{"success":false}' })
   );
@@ -68,7 +70,7 @@ test("masaustu header klasik tam genislikte ve tek satirda kalir", async ({ page
   expect(navigationBox.x + navigationBox.width).toBeLessThanOrEqual(actionsBox.x + 2);
 });
 
-test("masaustu navigasyon tiklamasi tek bir kaydirma baslatir", async ({ page }) => {
+test("@responsive masaustu navigasyon tiklamasi tek bir kaydirma baslatir", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/index.html");
   await page.evaluate(() => {
@@ -86,7 +88,9 @@ test("masaustu navigasyon tiklamasi tek bir kaydirma baslatir", async ({ page })
   expect(await page.evaluate(() => window.__navigationScrollCalls)).toHaveLength(1);
 });
 
-test("scroll konumu masaustu navigasyonunun ust basligini gunceller", async ({ page }) => {
+test("@responsive scroll konumu masaustu navigasyonunun ust basligini gunceller", async ({
+  page
+}) => {
   await page.goto("/index.html");
 
   await page.locator("#cekimler").scrollIntoViewIfNeeded();
@@ -108,7 +112,7 @@ test("scroll konumu masaustu navigasyonunun ust basligini gunceller", async ({ p
   );
 });
 
-test("pazarlama metinleri doğrulanmamış iddialar içermez ve copyright yılı günceldir", async ({
+test("@responsive pazarlama metinleri doğrulanmamış iddialar içermez ve copyright yılı günceldir", async ({
   page
 }) => {
   await page.goto("/index.html");

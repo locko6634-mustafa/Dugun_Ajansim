@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import test from 'node:test';
+import nodeTest from 'node:test';
 import type { PrismaClient } from '@prisma/client';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
@@ -40,6 +40,11 @@ import {
   createUncaughtExceptionHandler,
 } from '../src/utils/processLifecycle.js';
 import type { GracefulShutdown } from '../src/utils/processLifecycle.js';
+
+const test: typeof nodeTest = ((name: string, ...args: unknown[]) =>
+  nodeTest(`[backend-unit] ${name}`, ...(args as [never]))) as typeof nodeTest;
+const authTest: typeof nodeTest = ((name: string, ...args: unknown[]) =>
+  nodeTest(`[backend-unit] [auth] ${name}`, ...(args as [never]))) as typeof nodeTest;
 
 const validEnvironment: NodeJS.ProcessEnv = {
   PORT: '5000',
@@ -283,7 +288,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   );
 });
 
-test('rol bazlı hareketsizlik süreleri uygulanır ve tüm roller remember tercihini destekler', () => {
+authTest('rol bazlı hareketsizlik süreleri uygulanır ve tüm roller remember tercihini destekler', () => {
   assert.equal(getSessionIdleTimeoutMs('ADMIN'), 12 * 60 * 60 * 1000);
   assert.equal(getSessionIdleTimeoutMs('SALON_YETKILISI'), 12 * 60 * 60 * 1000);
   assert.equal(getSessionIdleTimeoutMs('MUSTERI'), 12 * 60 * 60 * 1000);
@@ -878,7 +883,7 @@ test('CORS preflight CSRF, idempotency, ödeme akışı ve correlation başlıkl
   assert.equal(String(response.headers['access-control-allow-methods']).includes('PUT'), false);
 });
 
-test('bozuk cookie auth endpointini 500 hatasına düşürmez ve cookie temizler', async () => {
+authTest('bozuk cookie auth endpointini 500 hatasına düşürmez ve cookie temizler', async () => {
   const response = await request(createApp())
     .get('/api/v1/auth/session')
     .set('Cookie', 'dugunajansim_session=%ZZ; unrelated=value');
@@ -893,7 +898,7 @@ test('bozuk cookie auth endpointini 500 hatasına düşürmez ve cookie temizler
   );
 });
 
-test('yinelenen session cookie HTTP parameter pollution olarak reddedilir', async () => {
+authTest('yinelenen session cookie HTTP parameter pollution olarak reddedilir', async () => {
   const response = await request(createApp())
     .get('/api/v1/auth/session')
     .set('Cookie', 'dugunajansim_session=ilk; dugunajansim_session=ikinci');

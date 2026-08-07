@@ -50,14 +50,14 @@ async function selectWeddingTime(page, pickerName, value) {
 }
 
 for (const pagePath of pages) {
-  test(`${pagePath} temel sayfa kontrolleri`, async ({ page }) => {
+  test(`@frontend-smoke @responsive ${pagePath} temel sayfa kontrolleri`, async ({ page }) => {
     await page.goto(pagePath);
     await expect(page.locator("html")).toHaveAttribute("lang", "tr");
     await expect(page.locator("h1:visible")).toHaveCount(1);
     await expect(page).toHaveTitle(/.+/);
   });
 
-  test(`${pagePath} yatay tasma uretmiyor`, async ({ page }) => {
+  test(`@frontend-smoke @responsive ${pagePath} yatay tasma uretmiyor`, async ({ page }) => {
     await page.goto(pagePath);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth
@@ -65,14 +65,14 @@ for (const pagePath of pages) {
     expect(overflow).toBe(false);
   });
 
-  test(`${pagePath} axe kritik ihlal icermiyor`, async ({ page }) => {
+  test(`@frontend-smoke @responsive ${pagePath} axe kritik ihlal icermiyor`, async ({ page }) => {
     await page.goto(pagePath);
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
   });
 }
 
-test("ana sayfa mobil menu acilip kapanir", async ({ page }) => {
+test("@frontend-smoke ana sayfa mobil menu acilip kapanir", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/index.html");
   const menuButton = page.locator("[aria-controls]").first();
@@ -83,7 +83,10 @@ test("ana sayfa mobil menu acilip kapanir", async ({ page }) => {
   }
 });
 
-test("ana sayfa header navigasyon linkleri aktif durumu gunceller", async ({ page, isMobile }) => {
+test("@frontend-smoke ana sayfa header navigasyon linkleri aktif durumu gunceller", async ({
+  page,
+  isMobile
+}) => {
   await page.goto("/index.html");
   if (isMobile) {
     const menuButton = page.locator("[aria-controls]").first();
@@ -102,7 +105,9 @@ test("ana sayfa header navigasyon linkleri aktif durumu gunceller", async ({ pag
   }
 });
 
-test("ana sayfa kartları ve detayları backend kataloğundan alır", async ({ page }) => {
+test("@frontend-smoke ana sayfa kartları ve detayları backend kataloğundan alır", async ({
+  page
+}) => {
   await page.route("**/api/v1/catalog", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -155,7 +160,10 @@ test("ana sayfa kartları ve detayları backend kataloğundan alır", async ({ p
   await expect(page.locator("#faq-answer-4")).toContainText("en geç 21 takvim günü");
 });
 
-test("ana sayfa referans mekânlarını public API sırasıyla gösterir", async ({ page, isMobile }) => {
+test("@frontend-smoke ana sayfa referans mekânlarını public API sırasıyla gösterir", async ({
+  page,
+  isMobile
+}) => {
   await page.route("**/api/v1/venues", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -245,7 +253,10 @@ test("ana sayfa referans mekânlarını public API sırasıyla gösterir", async
   }
 });
 
-test("anasayfa butonuna basildiginda sayfanin en ustune kaydirir", async ({ page, isMobile }) => {
+test("@frontend-smoke anasayfa butonuna basildiginda sayfanin en ustune kaydirir", async ({
+  page,
+  isMobile
+}) => {
   await page.goto("/index.html");
   await page.evaluate(() => window.scrollTo(0, 1500));
   await page.waitForFunction(() => window.scrollY > 500);
@@ -263,7 +274,10 @@ test("anasayfa butonuna basildiginda sayfanin en ustune kaydirir", async ({ page
   expect(scrollY).toBeLessThan(50);
 });
 
-test("paketini olustur sayfasinda masaustunde sepet acilip kapanir", async ({ page, isMobile }) => {
+test("@frontend-smoke paketini olustur sayfasinda masaustunde sepet acilip kapanir", async ({
+  page,
+  isMobile
+}) => {
   if (!isMobile) {
     await page.goto("/paketini-olustur.html");
     const bagButton = page.locator(".builder-bag");
@@ -277,7 +291,7 @@ test("paketini olustur sayfasinda masaustunde sepet acilip kapanir", async ({ pa
   }
 });
 
-test("paket formu çift, saat ve salon alanlarını backend kataloğuyla hazırlar", async ({
+test("@frontend-smoke paket formu çift, saat ve salon alanlarını backend kataloğuyla hazırlar", async ({
   page
 }) => {
   await page.route("**/api/v1/catalog", (route) =>
@@ -346,7 +360,7 @@ test("paket formu çift, saat ve salon alanlarını backend kataloğuyla hazırl
   await expect(page.locator('input[name="endTime"]')).toHaveAttribute("aria-invalid", "true");
 });
 
-test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açılır", async ({
+test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açılır", async ({
   page,
   isMobile
 }) => {
@@ -424,7 +438,12 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
           today: "2026-08-10",
           weekStart: "2026-08-10",
           weekEnd: "2026-08-16",
-          metrics: { pendingBookings: 2, pendingMessages: 3, readyDeliveries: 1, todayWeddings: 1 },
+          metrics: {
+            pendingBookings: 2,
+            pendingMessages: 3,
+            readyDeliveries: 1,
+            todayWeddings: 1
+          },
           todayWeddings: [wedding],
           tomorrowWeddings: [],
           weekWeddings: [wedding],
@@ -660,7 +679,9 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
   expect(openedWhatsAppUrl).not.toContain("yalnız-panoda");
 });
 
-test("müşteri teslimat paneli linki teslim öncesinde göstermiyor", async ({ page }) => {
+test("@frontend-smoke müşteri teslimat paneli linki teslim öncesinde göstermiyor", async ({
+  page
+}) => {
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -695,7 +716,9 @@ test("müşteri teslimat paneli linki teslim öncesinde göstermiyor", async ({ 
   await expect(page.getByText("Montaj Aşamasında").first()).toBeVisible();
 });
 
-test("müşteri teslimat penceresini geciken API yanıtından önce güvenli açar", async ({ page }) => {
+test("@frontend-smoke müşteri teslimat penceresini geciken API yanıtından önce güvenli açar", async ({
+  page
+}) => {
   await page.addInitScript(() => {
     window.__deliveryUrls = [];
     window.open = () => ({
@@ -754,7 +777,7 @@ test("müşteri teslimat penceresini geciken API yanıtından önce güvenli aç
     .toBe("https://drive.google.com/file/d/e2e-test");
 });
 
-test("referans WhatsApp'tan önce oluşturulur ve yapılandırılmamış alıcıya veri gönderilmez", async ({
+test("@frontend-smoke referans WhatsApp'tan önce oluşturulur ve yapılandırılmamış alıcıya veri gönderilmez", async ({
   page
 }) => {
   await page.addInitScript(() => {
@@ -947,7 +970,7 @@ test("referans WhatsApp'tan önce oluşturulur ve yapılandırılmamış alıcı
   );
 });
 
-test("geri yüklenen ödeme akışı WhatsApp geçişini kaydeder ve banka ekranını açık tutar", async ({
+test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydeder ve banka ekranını açık tutar", async ({
   page
 }) => {
   const applicationId = "4a68ef8c-65df-4899-a560-e4c79b47b455";
@@ -1082,7 +1105,9 @@ test("geri yüklenen ödeme akışı WhatsApp geçişini kaydeder ve banka ekran
   );
 });
 
-test("zorunlu parola değişim ekranı 15–128 karakter sözleşmesini uygular", async ({ page }) => {
+test("@frontend-smoke zorunlu parola değişim ekranı 15–128 karakter sözleşmesini uygular", async ({
+  page
+}) => {
   let passwordChangeRequestCount = 0;
   await page.route("**/api/v1/auth/login", (route) =>
     route.fulfill({
@@ -1122,7 +1147,7 @@ test("zorunlu parola değişim ekranı 15–128 karakter sözleşmesini uygular"
   expect(passwordChangeRequestCount).toBe(0);
 });
 
-test("oturum acilmis kullanici anasayfada role uygun paneli ve cikis butonunu gorur", async ({
+test("@frontend-smoke oturum acilmis kullanici anasayfada role uygun paneli ve cikis butonunu gorur", async ({
   page,
   isMobile
 }) => {
@@ -1156,7 +1181,9 @@ test("oturum acilmis kullanici anasayfada role uygun paneli ve cikis butonunu go
   }
 });
 
-test("salon sorumlusu yalniz kendi salon takvimi ve ekibini yonetir", async ({ page }) => {
+test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yonetir", async ({
+  page
+}) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   const venueId = "de305d54-75b4-431b-adb2-eb6b9e546014";
@@ -1260,7 +1287,7 @@ test("salon sorumlusu yalniz kendi salon takvimi ve ekibini yonetir", async ({ p
   expect(results.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
 });
 
-test("oturum acilmis kullanici login.html sayfasina gittiginde otomatik panele yonlendirilir", async ({
+test("@frontend-smoke oturum acilmis kullanici login.html sayfasina gittiginde otomatik panele yonlendirilir", async ({
   page
 }) => {
   await page.route("**/api/v1/auth/session", (route) =>

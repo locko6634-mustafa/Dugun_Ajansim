@@ -33,7 +33,7 @@ async function expectMinimumHeight(locator, minimum = 44) {
   expect(box?.height).toBeGreaterThanOrEqual(minimum - 0.01);
 }
 
-test("admin paneli 320px ekranda taşmadan ve dokunma hedeflerini koruyarak çalışır", async ({
+test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedeflerini koruyarak çalışır", async ({
   page
 }) => {
   let venueCreateBody = null;
