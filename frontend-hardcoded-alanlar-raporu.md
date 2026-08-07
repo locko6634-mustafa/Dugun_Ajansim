@@ -149,14 +149,15 @@ Frontenddeki hardcoded alanların büyük kısmı statik tasarım ve arayüz met
 
 ### HC-10 — Manuel cache-busting sürümleri tutarsız yönetiliyor (P2)
 
-**Kanıt**
+**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
 
-- `index.html:69-73`, `paketini-olustur.html:39-40`, `login.html:36-37`: Dosya URL'lerinde elle yazılmış tarih/sürüm sorguları var.
-- Admin, operasyon ve müşteri paneli girişleri (`admin.html:16-17`, `operasyon-paneli.html:16-17`, `musteri-paneli.html:16-17`) sürümsüz asset URL'leri kullanıyor.
+**Uygulanan çözüm**
 
-**Risk:** Bir dosyada sürüm artırmayı unutmak eski asset sunabilir; diğer sayfalarda cache davranışı deploy/header ayarlarına bağlı ve farklıdır.
+- `index.html`, `paketini-olustur.html`, `login.html` ve `js/package-builder/main.js` içindeki elle yönetilen `?v=` sorguları kaldırıldı.
+- Tüm sayfalar aynı üretim cache sözleşmesine bağlandı: HTML yanıtları `no-store`, CSS/JS/görsel/font yanıtları `public, max-age=3600, must-revalidate` kullanıyor.
+- `tools/check-asset-cache-policy.mjs`, yerel HTML ve JavaScript kaynaklarına manuel `?v=` eklenmesini engelliyor ve `npm run validate` kalite kapısında çalışıyor.
 
-**Öneri:** Build sırasında content hash üreten manifest kullanın veya Nginx cache politikasını dosya türüne göre açıkça yönetin. Elle yazılan `?v=` değerlerini kaldırın.
+**Doğrulama:** Üretim yapılandırma testi HTML ve statik asset cache başlıklarını koruyor; asset cache sözleşmesi kontrolü manuel sürüm sorgularının yeniden eklenmediğini doğruluyor.
 
 ### HC-11 — Locale, para birimi ve saat dilimi dağınık sabitler (P3)
 

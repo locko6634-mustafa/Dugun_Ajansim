@@ -71,6 +71,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
 
   expect(nginx).toContain("listen 8080 default_server");
   expect(nginx).toContain("max-age=3600, must-revalidate");
+  expect(nginx).toContain('Cache-Control "no-store"');
   expect(nginx).toContain("Content-Security-Policy");
   expect(nginx).not.toContain("immutable");
   expect(nginx).not.toContain("expires 1y");
