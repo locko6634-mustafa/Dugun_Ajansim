@@ -3927,6 +3927,31 @@ body.is-completion-open {
   margin: 0;
 }
 
+.payment-flow-expiry {
+  color: hsl(35deg 78% 35%);
+  font-weight: 700;
+}
+
+.payment-flow-expired {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 760px;
+  margin: 0 auto 2rem;
+  padding: 1.25rem;
+  border: 1px solid hsl(6deg 55% 80%);
+  border-radius: 1rem;
+  background: hsl(6deg 65% 97%);
+  color: hsl(6deg 45% 28%);
+}
+
+.payment-flow-expired[hidden] {
+  display: none;
+}
+
+.payment-flow-expired .builder-primary {
+  justify-self: start;
+}
+
 .payment-notification-form {
   margin-top: 26px;
   padding: clamp(24px, 4vw, 38px);

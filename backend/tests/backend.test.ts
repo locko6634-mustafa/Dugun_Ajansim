@@ -853,7 +853,7 @@ test('public başvuru limiter IPv6 /56 ağını tek istemci sayar ve ortak 429 s
   assert.equal(limited.headers['cache-control'], 'no-store');
 });
 
-test('CORS preflight CSRF, idempotency ve correlation başlıklarına izin verir', async () => {
+test('CORS preflight CSRF, idempotency, ödeme akışı ve correlation başlıklarına izin verir', async () => {
   const integrationApp = createApp((application) => {
     application.post('/api/test', (_req, res) => {
       res.json({ success: true });
@@ -863,12 +863,16 @@ test('CORS preflight CSRF, idempotency ve correlation başlıklarına izin verir
     .options('/api/test')
     .set('Origin', 'http://localhost:3000')
     .set('Access-Control-Request-Method', 'POST')
-    .set('Access-Control-Request-Headers', 'x-csrf-token,idempotency-key,x-correlation-id');
+    .set(
+      'Access-Control-Request-Headers',
+      'x-csrf-token,idempotency-key,payment-flow-key,x-correlation-id',
+    );
 
   assert.equal(response.status, 204);
   const allowedHeaders = String(response.headers['access-control-allow-headers']).toLowerCase();
   assert.ok(allowedHeaders.includes('x-csrf-token'));
   assert.ok(allowedHeaders.includes('idempotency-key'));
+  assert.ok(allowedHeaders.includes('payment-flow-key'));
   assert.ok(allowedHeaders.includes('x-correlation-id'));
   assert.equal(String(response.headers['access-control-allow-methods']).includes('PUT'), false);
 });

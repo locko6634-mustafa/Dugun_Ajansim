@@ -6,12 +6,34 @@ import { env } from './config/env.config.js';
 import { prisma } from './config/prisma.js';
 // Graceful shutdown oluşturucusunu ve tipini içe aktar
 import { createGracefulShutdown, type GracefulShutdown } from './utils/processLifecycle.js';
+import { expireStalePaymentFlows } from './services/booking.service.js';
 
 // Kapanış süreci için maksimum bekleme süresi (10 saniye)
 const SHUTDOWN_TIMEOUT_MS = 10_000;
+const PAYMENT_FLOW_SWEEP_INTERVAL_MS = 60_000;
 
 // Sunucuyu başlatan ve sinyal dinleyicilerini kuran ana bootstrap fonksiyonu
 export const startServer = (): GracefulShutdown => {
+  let paymentFlowSweepRunning = false;
+  const sweepExpiredPaymentFlows = async (): Promise<void> => {
+    if (paymentFlowSweepRunning) return;
+    paymentFlowSweepRunning = true;
+    try {
+      await expireStalePaymentFlows();
+    } catch (error) {
+      console.error('❌ Süresi dolan ödeme akışları temizlenemedi.');
+      if (env.NODE_ENV === 'development') console.error(error);
+    } finally {
+      paymentFlowSweepRunning = false;
+    }
+  };
+  void sweepExpiredPaymentFlows();
+  const paymentFlowSweepTimer = setInterval(
+    () => void sweepExpiredPaymentFlows(),
+    PAYMENT_FLOW_SWEEP_INTERVAL_MS,
+  );
+  paymentFlowSweepTimer.unref();
+
   // HTTP sunucusunu belirtilen PORT üzerinden dinlemeye başla
   const server = app.listen(env.PORT, () => {
     console.log(`🚀 Düğün Ajansım Backend Sunucusu Çalışıyor: http://localhost:${env.PORT}`);
@@ -49,7 +71,7 @@ export const startServer = (): GracefulShutdown => {
     });
 
   // Sunucu yaşam döngüsü güvenli kapanış mekanizmasını örnekle
-  const gracefulShutdown = createGracefulShutdown({
+  const baseGracefulShutdown = createGracefulShutdown({
     closeHttpServer,
     forceCloseHttpConnections: () => server.closeAllConnections(),
     disconnectDatabase: () => prisma.$disconnect(),
@@ -57,6 +79,10 @@ export const startServer = (): GracefulShutdown => {
     logError: logShutdownError,
     timeoutMs: SHUTDOWN_TIMEOUT_MS,
   });
+  const gracefulShutdown: GracefulShutdown = (signal, exitCode) => {
+    clearInterval(paymentFlowSweepTimer);
+    return baseGracefulShutdown(signal, exitCode);
+  };
 
   // İşlenmeyen asenkron Promise hatalarını (Unhandled Rejection) dinle ve güvenli kapanışı başlat
   process.on('unhandledRejection', (error: unknown) => {
@@ -73,4 +99,3 @@ export const startServer = (): GracefulShutdown => {
   // Oluşturulan Graceful Shutdown kontrolcüsünü döndür
   return gracefulShutdown;
 };
-

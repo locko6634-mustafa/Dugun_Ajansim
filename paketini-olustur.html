@@ -698,7 +698,18 @@
             </p>
           </header>
 
-          <div class="transfer-layout">
+          <section class="payment-flow-expired js-payment-flow-expired" role="alert" hidden>
+            <strong>WhatsApp ödeme bildirimi süresi doldu.</strong>
+            <p>
+              Bu referans pasifleştirildi. Yeni bir referans oluşturmak için başvuruyu yeniden
+              başlatın.
+            </p>
+            <button class="builder-primary js-restart-payment-flow" type="button">
+              <span>Yeni başvuru oluştur</span>
+            </button>
+          </section>
+
+          <div class="transfer-layout js-transfer-layout">
             <div class="transfer-layout__review">
               <div class="order-review js-order-review">
                 <section class="order-review__panel">
@@ -768,6 +779,7 @@
               <div class="transfer-preview-notice" role="status">
                 <strong class="js-payment-instruction-title">Ödeme talimatları yükleniyor.</strong>
                 <p class="js-payment-instruction-copy">Lütfen kısa bir süre bekleyin.</p>
+                <p class="payment-flow-expiry js-payment-flow-expiry" hidden></p>
               </div>
               <dl class="transfer-details" aria-label="Havale ve EFT bilgileri">
                 <div>
@@ -808,7 +820,7 @@
                 <div class="payment-notification-form__heading">
                   <span>02</span>
                   <div>
-                    <strong class="js-payment-submit-heading">Başvuruyu Kaydet</strong>
+                    <strong class="js-payment-submit-heading">Dekontunuzu gönderin</strong>
                     <small
                       >Havalenizi yaptıktan sonra WhatsApp üzerinden dekontunuzu
                       iletebilirsiniz.</small

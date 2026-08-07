@@ -161,6 +161,11 @@ const envSchema = z
       168,
     ).default('72'),
     PAYMENT_MODE: z.enum(['test', 'live']).default('test'),
+    PAYMENT_HANDOFF_TTL_MINUTES: boundedIntegerSchema(
+      'PAYMENT_HANDOFF_TTL_MINUTES',
+      5,
+      1440,
+    ).default('60'),
     PAYMENT_BANK_NAME: z.string().trim().min(2).max(120).default(TEST_PAYMENT_BANK_NAME),
     PAYMENT_ACCOUNT_HOLDER: z.string().trim().min(2).max(160).default(TEST_PAYMENT_ACCOUNT_HOLDER),
     PAYMENT_IBAN: z

@@ -9,6 +9,9 @@ import { assertSafeLocalTestDatabase } from '../src/scripts/testDatabaseGuard.js
 import {
   approveBookingApplication,
   createBookingApplication,
+  expireStalePaymentFlows,
+  getVenueAvailability,
+  markWhatsappHandoff,
   rejectBookingApplication,
 } from '../src/services/booking.service.js';
 import { decryptValue, hashPassword, hashToken, verifyPassword } from '../src/utils/crypto.js';
@@ -88,7 +91,10 @@ test('migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalış�
     ORDER BY table_name, column_name
   `;
   assert.equal(catalogArrayColumns.length, 3);
-  assert.equal(catalogArrayColumns.every((column) => column.is_nullable === 'NO'), true);
+  assert.equal(
+    catalogArrayColumns.every((column) => column.is_nullable === 'NO'),
+    true,
+  );
 
   const response = await request(createApp()).get('/api/v1/health');
 
@@ -326,14 +332,17 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     privacyConsent: true,
     marketingConsent: false,
   };
+  const paymentFlowKey = `${marker}-payment-flow-key-1234567890`;
   const firstApplication = await createBookingApplication(applicationInput, {
     source: 'PUBLIC_FORM',
     idempotencyKey: `${marker}-idempotent`,
+    paymentFlowKey,
     correlationId,
   });
   const duplicateApplication = await createBookingApplication(applicationInput, {
     source: 'PUBLIC_FORM',
     idempotencyKey: `${marker}-idempotent`,
+    paymentFlowKey,
     correlationId,
   });
   assert.equal(duplicateApplication.id, firstApplication.id);
@@ -362,6 +371,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       {
         source: 'PUBLIC_FORM',
         idempotencyKey: concurrentIdempotencyKey,
+        paymentFlowKey: `${marker}-concurrent-flow-key-1234567890`,
         correlationId,
       },
     ),
@@ -374,6 +384,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       {
         source: 'PUBLIC_FORM',
         idempotencyKey: concurrentIdempotencyKey,
+        paymentFlowKey: `${marker}-concurrent-flow-key-1234567890`,
         correlationId,
       },
     ),
@@ -394,6 +405,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       {
         source: 'PUBLIC_FORM',
         idempotencyKey: `${marker}-idempotent`,
+        paymentFlowKey,
         correlationId,
       },
     ),
@@ -413,6 +425,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       {
         source: 'PUBLIC_FORM',
         idempotencyKey: `${marker}-conflicting-test`,
+        paymentFlowKey: `${marker}-conflicting-flow-key-1234567890`,
         correlationId,
       },
     ),
@@ -471,10 +484,7 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       'statusCode' in error &&
       (error as { statusCode: number }).statusCode === 409,
   );
-  assert.equal(
-    await prisma.wedding.count({ where: { applicationId: archivedApplication.id } }),
-    0,
-  );
+  assert.equal(await prisma.wedding.count({ where: { applicationId: archivedApplication.id } }), 0);
   const replacementApplication = await createBookingApplication(
     {
       ...applicationInput,
@@ -519,6 +529,8 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   );
   assert.equal(usernameAttempts, 2);
   assert.equal(retriedApproval.username, retryUsername);
+
+  await markWhatsappHandoff(firstApplication.id, paymentFlowKey, correlationId);
 
   const concurrentApprovals = await Promise.allSettled([
     approveBookingApplication(firstApplication.id, admin.id, correlationId),
@@ -590,10 +602,12 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     },
   });
   const app = createApp();
+  const routePaymentFlowKey = `${marker}-route-payment-flow-key-1234567890`;
   const publicRouteApplication = await request(app)
     .post('/api/v1/booking-applications')
     .set('X-Correlation-ID', correlationId)
     .set('Idempotency-Key', `${marker}-public-route-key`)
+    .set('Payment-Flow-Key', routePaymentFlowKey)
     .send({
       ...applicationInput,
       weddingDate: addCalendarDays(weddingDate, 4),
@@ -604,6 +618,108 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(publicRouteApplication.status, 201);
   assert.equal(publicRouteApplication.headers['cache-control'], 'no-store');
   assert.equal('idempotencyKey' in publicRouteApplication.body.data, false);
+  assert.ok(publicRouteApplication.body.data.paymentFlowExpiresAt);
+  const publicRouteApplicationId = publicRouteApplication.body.data.id as string;
+  const originalPaymentFlowExpiry = publicRouteApplication.body.data.paymentFlowExpiresAt as string;
+
+  const unauthorizedPaymentFlow = await request(app)
+    .get(`/api/v1/booking-applications/${publicRouteApplicationId}/payment-flow`)
+    .set('Payment-Flow-Key', `${marker}-wrong-payment-flow-key-1234567890`);
+  assert.equal(unauthorizedPaymentFlow.status, 404);
+
+  const restoredPaymentFlow = await request(app)
+    .get(`/api/v1/booking-applications/${publicRouteApplicationId}/payment-flow`)
+    .set('Payment-Flow-Key', routePaymentFlowKey);
+  assert.equal(restoredPaymentFlow.status, 200);
+  assert.equal(
+    restoredPaymentFlow.body.data.referenceCode,
+    publicRouteApplication.body.data.referenceCode,
+  );
+  assert.equal(restoredPaymentFlow.body.data.primaryEmail, `route-${marker}@example.com`);
+
+  const updatedPaymentFlow = await request(app)
+    .patch(`/api/v1/booking-applications/${publicRouteApplicationId}/payment-flow`)
+    .set('Payment-Flow-Key', routePaymentFlowKey)
+    .send({
+      ...applicationInput,
+      weddingDate: addCalendarDays(weddingDate, 4),
+      brideFirstName: 'Route',
+      groomFirstName: 'Public',
+      primaryEmail: `route-${marker}@example.com`,
+      paymentMethod: 'DEPOSIT',
+      note: 'Ödeme akışı güncellendi',
+    });
+  assert.equal(updatedPaymentFlow.status, 200);
+  assert.equal(
+    updatedPaymentFlow.body.data.referenceCode,
+    publicRouteApplication.body.data.referenceCode,
+  );
+  assert.equal(updatedPaymentFlow.body.data.paymentFlowExpiresAt, originalPaymentFlowExpiry);
+  assert.equal(updatedPaymentFlow.body.data.paymentMethod, 'DEPOSIT');
+
+  await assert.rejects(
+    approveBookingApplication(publicRouteApplicationId, admin.id, correlationId),
+    (error: unknown) =>
+      error instanceof Error &&
+      'statusCode' in error &&
+      (error as { statusCode: number }).statusCode === 409,
+  );
+  const firstHandoff = await request(app)
+    .post(`/api/v1/booking-applications/${publicRouteApplicationId}/whatsapp-handoff`)
+    .set('Payment-Flow-Key', routePaymentFlowKey)
+    .send({});
+  const repeatedHandoff = await request(app)
+    .post(`/api/v1/booking-applications/${publicRouteApplicationId}/whatsapp-handoff`)
+    .set('Payment-Flow-Key', routePaymentFlowKey)
+    .send({});
+  assert.equal(firstHandoff.status, 200);
+  assert.equal(repeatedHandoff.status, 200);
+  assert.equal(
+    repeatedHandoff.body.data.whatsappHandoffAt,
+    firstHandoff.body.data.whatsappHandoffAt,
+  );
+
+  const expiringDate = addCalendarDays(weddingDate, 5);
+  const expiringFlowKey = `${marker}-expiring-payment-flow-key-1234567890`;
+  const expiringApplication = await createBookingApplication(
+    {
+      ...applicationInput,
+      weddingDate: expiringDate,
+      startTime: '10:00',
+      endTime: '12:00',
+      endsNextDay: false,
+      primaryEmail: `expiring-${marker}@example.com`,
+    },
+    {
+      source: 'PUBLIC_FORM',
+      idempotencyKey: `${marker}-expiring-payment-flow`,
+      paymentFlowKey: expiringFlowKey,
+      correlationId,
+    },
+  );
+  await prisma.bookingApplication.update({
+    where: { id: expiringApplication.id },
+    data: { paymentFlowExpiresAt: new Date(Date.now() - 1_000) },
+  });
+  assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 1);
+  const expiredApplication = await prisma.bookingApplication.findUniqueOrThrow({
+    where: { id: expiringApplication.id },
+  });
+  assert.equal(expiredApplication.status, 'IPTAL_EDILDI');
+  assert.ok(expiredApplication.paymentFlowExpiredAt);
+  const expiredAvailability = await getVenueAvailability(venue.id, expiringDate);
+  assert.equal(
+    expiredAvailability.occupiedSlots.some(
+      (slot) => slot.startTime === '10:00' && slot.endTime === '12:00',
+    ),
+    false,
+  );
+  assert.equal(
+    await prisma.auditLog.count({
+      where: { targetId: expiringApplication.id, action: 'booking.payment_flow_expired' },
+    }),
+    1,
+  );
 
   const beforeActivation = await request(app)
     .get('/api/v1/customer/dashboard')
@@ -1239,7 +1355,10 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     where: { id: wedding.applicationId },
   });
   assert.equal(applicationAfterAdminUpdate.groomPhone, '+905550001122');
-  assert.equal(applicationAfterAdminUpdate.weddingStartsAt.toISOString(), weddingUpdate.body.data.startsAt);
+  assert.equal(
+    applicationAfterAdminUpdate.weddingStartsAt.toISOString(),
+    weddingUpdate.body.data.startsAt,
+  );
   assert.equal(applicationAfterAdminUpdate.venueId, wedding.venueId);
   const customerAfterWeddingUpdate = await prisma.user.findUniqueOrThrow({
     where: { id: wedding.customerUserId },
@@ -1392,7 +1511,10 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(passwordReset.headers['cache-control'], 'no-store');
   assert.equal(typeof passwordReset.body.data.message, 'string');
   assert.equal(new URL(passwordReset.body.data.whatsappUrl).search, '');
-  assert.equal(passwordReset.body.data.whatsappUrl.includes(passwordReset.body.data.message), false);
+  assert.equal(
+    passwordReset.body.data.whatsappUrl.includes(passwordReset.body.data.message),
+    false,
+  );
   const resetTaskId = passwordReset.body.data.taskId as string;
   const pendingResetTask = await prisma.messageTask.findUniqueOrThrow({
     where: { id: resetTaskId },
@@ -1423,7 +1545,10 @@ test('başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(renderedReset.headers['cache-control'], 'no-store');
   assert.equal(renderedReset.body.data.message.includes('Geçici parolanız'), true);
   assert.equal(new URL(renderedReset.body.data.whatsappUrl).search, '');
-  assert.equal(renderedReset.body.data.whatsappUrl.includes(renderedReset.body.data.message), false);
+  assert.equal(
+    renderedReset.body.data.whatsappUrl.includes(renderedReset.body.data.message),
+    false,
+  );
   const expectedUpdatedAt = renderedReset.body.data.expectedUpdatedAt as string;
   const markedSent = await request(app)
     .post(`/api/v1/admin/message-tasks/${resetTaskId}/mark-sent`)

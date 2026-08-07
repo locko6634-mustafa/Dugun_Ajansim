@@ -160,8 +160,12 @@ router.get(
       take: 200
     });
     const safeApplications = applications.map(
-      ({ idempotencyKey: _key, idempotencyFingerprint: _fingerprint, ...application }) =>
-        application
+      ({
+        idempotencyKey: _key,
+        idempotencyFingerprint: _fingerprint,
+        paymentFlowTokenHash: _paymentFlowTokenHash,
+        ...application
+      }) => application
     );
     res.json({ success: true, data: safeApplications, correlationId: req.correlationId });
   })
@@ -196,6 +200,7 @@ router.get(
     const {
       idempotencyKey: _key,
       idempotencyFingerprint: _fingerprint,
+      paymentFlowTokenHash: _paymentFlowTokenHash,
       ...safeApplication
     } = application;
     res.json({ success: true, data: safeApplication, correlationId: req.correlationId });
@@ -263,12 +268,15 @@ router.post(
         where: {
           id: req.params.id,
           deletedAt: null,
-          status: { in: ["ONAY_BEKLIYOR", "REDDEDILDI"] }
+          status: { in: ["ONAY_BEKLIYOR", "REDDEDILDI", "IPTAL_EDILDI"] }
         },
         data: { deletedAt: new Date(), deletedById: req.auth!.userId }
       });
       if (updated.count !== 1)
-        throw new AppError("Yalnızca bekleyen veya reddedilmiş başvurular arşivlenebilir.", 409);
+        throw new AppError(
+          "Yalnızca bekleyen, reddedilmiş veya iptal edilmiş başvurular arşivlenebilir.",
+          409
+        );
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
         action: "booking_application.archived",
@@ -278,7 +286,8 @@ router.post(
       });
       return transaction.bookingApplication.findUniqueOrThrow({ where: { id: req.params.id } });
     });
-    res.json({ success: true, data: application, correlationId: req.correlationId });
+    const { paymentFlowTokenHash: _paymentFlowTokenHash, ...safeApplication } = application;
+    res.json({ success: true, data: safeApplication, correlationId: req.correlationId });
   })
 );
 
@@ -334,7 +343,8 @@ router.post(
         }
         throw error;
       });
-    res.json({ success: true, data: application, correlationId: req.correlationId });
+    const { paymentFlowTokenHash: _paymentFlowTokenHash, ...safeApplication } = application;
+    res.json({ success: true, data: safeApplication, correlationId: req.correlationId });
   })
 );
 

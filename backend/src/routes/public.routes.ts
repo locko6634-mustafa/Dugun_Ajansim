@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
@@ -9,7 +9,13 @@ import {
 } from "../middlewares/rateLimit.middleware.js";
 import { validateRequest } from "../middlewares/validate.middleware.js";
 import { bookingBodySchema } from "../schemas/api.schemas.js";
-import { createBookingApplication, getVenueAvailability } from "../services/booking.service.js";
+import {
+  createBookingApplication,
+  getPaymentFlowApplication,
+  getVenueAvailability,
+  markWhatsappHandoff,
+  updatePaymentFlowApplication
+} from "../services/booking.service.js";
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -38,6 +44,30 @@ const availabilitySchema = z.object({
     venueId: z.string().uuid("Geçerli bir salon IDsi girilmelidir.")
   })
 });
+
+const paymentFlowParamsSchema = z.object({
+  id: z.string().uuid("Geçerli bir başvuru IDsi girilmelidir.")
+});
+
+const paymentFlowReadSchema = z.object({
+  body: z.object({}).strict().optional().default({}),
+  query: z.object({}).strict(),
+  params: paymentFlowParamsSchema
+});
+
+const paymentFlowUpdateSchema = z.object({
+  body: bookingBodySchema,
+  query: z.object({}).strict(),
+  params: paymentFlowParamsSchema
+});
+
+const getPaymentFlowKey = (req: Request): string => {
+  const key = req.get("Payment-Flow-Key");
+  if (!key || !/^[A-Za-z0-9._~-]{32,128}$/.test(key)) {
+    throw new AppError("Ödeme akışı anahtarı geçersiz.", 400);
+  }
+  return key;
+};
 
 router.get(
   "/payment-instructions",
@@ -122,9 +152,11 @@ router.post(
       throw new AppError("Idempotency-Key biçimi geçersiz.", 400);
     }
     const idempotencyKey = rawKey;
+    const paymentFlowKey = getPaymentFlowKey(req);
     const application = await createBookingApplication(req.body, {
       source: "PUBLIC_FORM",
       idempotencyKey,
+      paymentFlowKey,
       correlationId: req.correlationId
     });
     res.set("Cache-Control", "no-store");
@@ -133,6 +165,51 @@ router.post(
       data: application,
       correlationId: req.correlationId
     });
+  })
+);
+
+router.get(
+  "/booking-applications/:id/payment-flow",
+  validateRequest(paymentFlowReadSchema),
+  asyncHandler(async (req, res) => {
+    const application = await getPaymentFlowApplication(
+      req.params.id,
+      getPaymentFlowKey(req),
+      req.correlationId
+    );
+    res.set("Cache-Control", "no-store");
+    res.json({ success: true, data: application, correlationId: req.correlationId });
+  })
+);
+
+router.patch(
+  "/booking-applications/:id/payment-flow",
+  publicBookingLimiter,
+  validateRequest(paymentFlowUpdateSchema),
+  asyncHandler(async (req, res) => {
+    const application = await updatePaymentFlowApplication(
+      req.params.id,
+      req.body,
+      getPaymentFlowKey(req),
+      req.correlationId
+    );
+    res.set("Cache-Control", "no-store");
+    res.json({ success: true, data: application, correlationId: req.correlationId });
+  })
+);
+
+router.post(
+  "/booking-applications/:id/whatsapp-handoff",
+  publicBookingLimiter,
+  validateRequest(paymentFlowReadSchema),
+  asyncHandler(async (req, res) => {
+    const application = await markWhatsappHandoff(
+      req.params.id,
+      getPaymentFlowKey(req),
+      req.correlationId
+    );
+    res.set("Cache-Control", "no-store");
+    res.json({ success: true, data: application, correlationId: req.correlationId });
   })
 );
 

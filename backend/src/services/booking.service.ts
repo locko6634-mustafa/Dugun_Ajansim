@@ -4,7 +4,7 @@ import { env } from "../config/env.config.js";
 import type { z } from "zod";
 import type { bookingBodySchema } from "../schemas/api.schemas.js";
 import { AppError } from "../utils/appError.js";
-import { encryptValue, hashPassword, hashToken } from "../utils/crypto.js";
+import { encryptValue, hashPassword, hashToken, tokenHashesMatch } from "../utils/crypto.js";
 import {
   addCalendarDays,
   atIstanbulTime,
@@ -28,6 +28,7 @@ export type BookingInput = Omit<z.infer<typeof bookingBodySchema>, "privacyConse
 type CreateBookingOptions = {
   source: BookingSource;
   idempotencyKey?: string;
+  paymentFlowKey?: string;
   actor?: Pick<User, "id">;
   correlationId: string;
 };
@@ -73,7 +74,10 @@ const idempotencySelect = {
   totalPriceCents: true,
   payableNowCents: true,
   paymentNotificationChannel: true,
-  paymentNotificationRequestedAt: true,
+  paymentFlowExpiresAt: true,
+  whatsappHandoffAt: true,
+  paymentFlowExpiredAt: true,
+  paymentFlowTokenHash: true,
   idempotencyFingerprint: true
 } satisfies Prisma.BookingApplicationSelect;
 
@@ -118,6 +122,12 @@ export const assertVenueScheduleAvailable = async (
         ...(input.excludeApplicationId ? { id: { not: input.excludeApplicationId } } : {}),
         status: { in: ["ONAY_BEKLIYOR", "ONAYLANDI"] },
         deletedAt: null,
+        OR: [
+          { status: "ONAYLANDI" },
+          { whatsappHandoffAt: { not: null } },
+          { paymentFlowExpiresAt: null },
+          { paymentFlowExpiresAt: { gt: new Date() } }
+        ],
         weddingStartsAt: { lt: input.endsAt },
         weddingEndsAt: { gt: input.startsAt }
       },
@@ -171,6 +181,9 @@ export const createBookingApplication = async (
   input: BookingInput,
   options: CreateBookingOptions
 ) => {
+  if (options.source === "PUBLIC_FORM" && !options.paymentFlowKey) {
+    throw new AppError("Ödeme akışı anahtarı zorunludur.", 400);
+  }
   const { startsAt, endsAt } = createWeddingRange(
     input.weddingDate,
     input.startTime,
@@ -206,7 +219,18 @@ export const createBookingApplication = async (
             });
             if (existing) {
               assertIdempotencyFingerprint(existing, idempotencyFingerprint);
-              const { idempotencyFingerprint: _fingerprint, ...response } = existing;
+              if (
+                options.source === "PUBLIC_FORM" &&
+                (!existing.paymentFlowTokenHash ||
+                  !tokenHashesMatch(options.paymentFlowKey!, existing.paymentFlowTokenHash))
+              ) {
+                throw new AppError("Idempotency anahtarı farklı bir ödeme akışına ait.", 409);
+              }
+              const {
+                idempotencyFingerprint: _fingerprint,
+                paymentFlowTokenHash: _flowTokenHash,
+                ...response
+              } = existing;
               return response;
             }
           }
@@ -266,6 +290,12 @@ export const createBookingApplication = async (
                   venueId: venue.id,
                   status: { in: ["ONAY_BEKLIYOR", "ONAYLANDI"] },
                   deletedAt: null,
+                  OR: [
+                    { status: "ONAYLANDI" },
+                    { whatsappHandoffAt: { not: null } },
+                    { paymentFlowExpiresAt: null },
+                    { paymentFlowExpiresAt: { gt: new Date() } }
+                  ],
                   weddingStartsAt: { lt: endsAt },
                   weddingEndsAt: { gt: startsAt }
                 },
@@ -294,6 +324,10 @@ export const createBookingApplication = async (
             input.paymentMethod
           );
           const now = new Date();
+          const paymentFlowExpiresAt =
+            options.source === "PUBLIC_FORM"
+              ? new Date(now.valueOf() + env.PAYMENT_HANDOFF_TTL_MINUTES * 60_000)
+              : null;
           const application = await transaction.bookingApplication.create({
             data: {
               referenceCode,
@@ -318,8 +352,11 @@ export const createBookingApplication = async (
               totalPriceCents,
               paymentMethod: input.paymentMethod,
               payableNowCents,
-              paymentNotificationChannel: options.source === "PUBLIC_FORM" ? "WHATSAPP" : null,
-              paymentNotificationRequestedAt: options.source === "PUBLIC_FORM" ? now : null,
+              paymentNotificationChannel: null,
+              paymentFlowTokenHash: options.paymentFlowKey
+                ? hashToken(options.paymentFlowKey)
+                : null,
+              paymentFlowExpiresAt,
               note: input.note || null,
               privacyConsentAt: input.privacyConsent ? now : null,
               marketingConsentAt: input.marketingConsent ? now : null,
@@ -337,7 +374,9 @@ export const createBookingApplication = async (
               referenceCode: true,
               status: true,
               totalPriceCents: true,
-              payableNowCents: true
+              payableNowCents: true,
+              paymentFlowExpiresAt: true,
+              whatsappHandoffAt: true
             }
           });
 
@@ -350,7 +389,7 @@ export const createBookingApplication = async (
             metadata: {
               source: options.source,
               referenceCode,
-              paymentNotificationChannel: options.source === "PUBLIC_FORM" ? "WHATSAPP" : undefined
+              paymentFlowExpiresAt: paymentFlowExpiresAt?.toISOString()
             }
           });
 
@@ -380,12 +419,341 @@ export const createBookingApplication = async (
     });
     if (existing) {
       assertIdempotencyFingerprint(existing, idempotencyFingerprint);
-      const { idempotencyFingerprint: _fingerprint, ...response } = existing;
+      if (
+        options.source === "PUBLIC_FORM" &&
+        (!existing.paymentFlowTokenHash ||
+          !tokenHashesMatch(options.paymentFlowKey!, existing.paymentFlowTokenHash))
+      ) {
+        throw new AppError("Idempotency anahtarı farklı bir ödeme akışına ait.", 409);
+      }
+      const {
+        idempotencyFingerprint: _fingerprint,
+        paymentFlowTokenHash: _flowTokenHash,
+        ...response
+      } = existing;
       return response;
     }
   }
 
   throw new AppError("Başvuru referansı üretilemedi. Lütfen tekrar deneyin.", 503);
+};
+
+const paymentFlowInclude = {
+  venue: { select: { id: true, name: true, isPartner: true } },
+  services: { select: { codeSnapshot: true, nameSnapshot: true, priceCents: true } }
+} satisfies Prisma.BookingApplicationInclude;
+
+type PaymentFlowApplication = Prisma.BookingApplicationGetPayload<{
+  include: typeof paymentFlowInclude;
+}>;
+
+const assertPaymentFlowAccess = (
+  application: Pick<PaymentFlowApplication, "source" | "paymentFlowTokenHash">,
+  paymentFlowKey: string
+): void => {
+  if (
+    application.source !== "PUBLIC_FORM" ||
+    !application.paymentFlowTokenHash ||
+    !tokenHashesMatch(paymentFlowKey, application.paymentFlowTokenHash)
+  ) {
+    throw new AppError("Ödeme akışı bulunamadı.", 404);
+  }
+};
+
+const toPaymentFlowResponse = (application: PaymentFlowApplication) => {
+  const weddingDate = getIstanbulDate(application.weddingStartsAt);
+  return {
+    id: application.id,
+    referenceCode: application.referenceCode,
+    status: application.status,
+    brideFirstName: application.brideFirstName,
+    brideLastName: application.brideLastName,
+    bridePhone: application.bridePhone,
+    groomFirstName: application.groomFirstName,
+    groomLastName: application.groomLastName,
+    groomPhone: application.groomPhone,
+    primaryContact: application.primaryContact,
+    primaryEmail: application.primaryEmail,
+    weddingDate,
+    startTime: formatIstanbulTime(application.weddingStartsAt),
+    endTime: formatIstanbulTime(application.weddingEndsAt),
+    endsNextDay: getIstanbulDate(application.weddingEndsAt) !== weddingDate,
+    venueId: application.venue.isPartner ? application.venue.id : undefined,
+    customVenueName: application.venue.isPartner ? undefined : application.venue.name,
+    venueName: application.venue.name,
+    packageCode: application.packageCodeSnapshot,
+    packageName: application.packageNameSnapshot,
+    packagePriceCents: application.packagePriceCents,
+    serviceCodes: application.services.map((service) => service.codeSnapshot),
+    services: application.services,
+    paymentMethod: application.paymentMethod,
+    totalPriceCents: application.totalPriceCents,
+    payableNowCents: application.payableNowCents,
+    note: application.note || "",
+    privacyConsent: application.privacyConsentAt !== null,
+    marketingConsent: application.marketingConsentAt !== null,
+    paymentFlowExpiresAt: application.paymentFlowExpiresAt,
+    whatsappHandoffAt: application.whatsappHandoffAt,
+    paymentFlowExpiredAt: application.paymentFlowExpiredAt
+  };
+};
+
+export const expireStalePaymentFlows = async (
+  now = new Date(),
+  correlationId = `payment-expiry-${now.toISOString()}`
+): Promise<number> =>
+  prisma.$transaction(async (transaction) => {
+    const expiredCandidates = await transaction.bookingApplication.findMany({
+      where: {
+        source: "PUBLIC_FORM",
+        status: "ONAY_BEKLIYOR",
+        deletedAt: null,
+        whatsappHandoffAt: null,
+        paymentFlowExpiredAt: null,
+        paymentFlowExpiresAt: { lte: now }
+      },
+      select: { id: true, referenceCode: true, paymentFlowExpiresAt: true },
+      orderBy: [{ paymentFlowExpiresAt: "asc" }, { id: "asc" }],
+      take: 100
+    });
+
+    let expiredCount = 0;
+    for (const candidate of expiredCandidates) {
+      const claimed = await transaction.bookingApplication.updateMany({
+        where: {
+          id: candidate.id,
+          status: "ONAY_BEKLIYOR",
+          whatsappHandoffAt: null,
+          paymentFlowExpiredAt: null,
+          paymentFlowExpiresAt: { lte: now }
+        },
+        data: { status: "IPTAL_EDILDI", paymentFlowExpiredAt: now }
+      });
+      if (claimed.count !== 1) continue;
+      expiredCount += 1;
+      await createAudit(transaction, {
+        action: "booking.payment_flow_expired",
+        targetType: "BookingApplication",
+        targetId: candidate.id,
+        correlationId,
+        metadata: {
+          referenceCode: candidate.referenceCode,
+          paymentFlowExpiresAt: candidate.paymentFlowExpiresAt?.toISOString()
+        }
+      });
+    }
+    return expiredCount;
+  });
+
+export const getPaymentFlowApplication = async (
+  applicationId: string,
+  paymentFlowKey: string,
+  correlationId: string
+) => {
+  await expireStalePaymentFlows(new Date(), correlationId);
+  const application = await prisma.bookingApplication.findUnique({
+    where: { id: applicationId },
+    include: paymentFlowInclude
+  });
+  if (!application) throw new AppError("Ödeme akışı bulunamadı.", 404);
+  assertPaymentFlowAccess(application, paymentFlowKey);
+  if (application.status === "IPTAL_EDILDI" && application.paymentFlowExpiredAt) {
+    throw new AppError("WhatsApp ödeme bildirimi süresi doldu.", 410, true, {
+      code: "PAYMENT_FLOW_EXPIRED"
+    });
+  }
+  return toPaymentFlowResponse(application);
+};
+
+export const updatePaymentFlowApplication = async (
+  applicationId: string,
+  input: BookingInput,
+  paymentFlowKey: string,
+  correlationId: string
+) => {
+  const now = new Date();
+  await expireStalePaymentFlows(now, correlationId);
+  const { startsAt, endsAt } = createWeddingRange(
+    input.weddingDate,
+    input.startTime,
+    input.endTime,
+    input.endsNextDay
+  );
+  if (input.weddingDate < getIstanbulDate(now)) {
+    throw new AppError("Geçmiş tarihli düğün başvurusu oluşturulamaz.", 400);
+  }
+  const bridePhone = normalizePhone(input.bridePhone);
+  const groomPhone = normalizePhone(input.groomPhone);
+  const serviceCodes = [...new Set(input.serviceCodes)].sort();
+
+  return prisma.$transaction(
+    async (transaction) => {
+      const current = await transaction.bookingApplication.findUnique({
+        where: { id: applicationId },
+        include: paymentFlowInclude
+      });
+      if (!current) throw new AppError("Ödeme akışı bulunamadı.", 404);
+      assertPaymentFlowAccess(current, paymentFlowKey);
+      if (current.status === "IPTAL_EDILDI" && current.paymentFlowExpiredAt) {
+        throw new AppError("WhatsApp ödeme bildirimi süresi doldu.", 410, true, {
+          code: "PAYMENT_FLOW_EXPIRED"
+        });
+      }
+      if (current.status !== "ONAY_BEKLIYOR" || current.whatsappHandoffAt) {
+        throw new AppError("WhatsApp aşamasına geçilen başvuru artık düzenlenemez.", 409);
+      }
+
+      const customVenueName = input.customVenueName?.trim();
+      const venue = input.venueId
+        ? await transaction.venue.findFirst({ where: { id: input.venueId, isActive: true } })
+        : (await transaction.venue.findFirst({
+            where: { name: { equals: customVenueName, mode: "insensitive" }, isActive: true }
+          })) ||
+          (await transaction.venue.create({
+            data: {
+              name: customVenueName!,
+              slug: `musteri-salonu-${randomReferenceCode().toLowerCase()}`,
+              isPartner: false
+            }
+          }));
+      if (!venue) throw new AppError("Seçilen salon artık aktif değil.", 400);
+      const [selectedPackage, selectedServices] = await Promise.all([
+        transaction.package.findFirst({ where: { code: input.packageCode, isActive: true } }),
+        transaction.service.findMany({
+          where: { code: { in: serviceCodes }, isActive: true },
+          orderBy: { code: "asc" }
+        })
+      ]);
+      if (!selectedPackage) throw new AppError("Seçilen paket artık aktif değil.", 400);
+      if (selectedServices.length !== serviceCodes.length) {
+        throw new AppError("Seçilen hizmetlerden biri artık aktif değil.", 400);
+      }
+      await assertVenueScheduleAvailable(transaction, {
+        venueId: venue.id,
+        startsAt,
+        endsAt,
+        excludeApplicationId: current.id
+      });
+
+      const subtotalCents =
+        selectedPackage.priceCents +
+        selectedServices.reduce((sum, service) => sum + service.priceCents, 0);
+      const { totalPriceCents, payableNowCents } = calculatePayment(
+        subtotalCents,
+        input.paymentMethod
+      );
+      const fingerprint = createBookingFingerprint(
+        input,
+        "PUBLIC_FORM",
+        startsAt,
+        endsAt,
+        bridePhone,
+        groomPhone,
+        serviceCodes
+      );
+      const updated = await transaction.bookingApplication.update({
+        where: { id: current.id },
+        data: {
+          idempotencyFingerprint: fingerprint,
+          brideFirstName: input.brideFirstName,
+          brideLastName: input.brideLastName,
+          bridePhone,
+          groomFirstName: input.groomFirstName,
+          groomLastName: input.groomLastName,
+          groomPhone,
+          primaryContact: input.primaryContact,
+          primaryEmail: input.primaryEmail,
+          weddingStartsAt: startsAt,
+          weddingEndsAt: endsAt,
+          venueId: venue.id,
+          packageId: selectedPackage.id,
+          packageCodeSnapshot: selectedPackage.code,
+          packageNameSnapshot: selectedPackage.name,
+          packagePriceCents: selectedPackage.priceCents,
+          totalPriceCents,
+          paymentMethod: input.paymentMethod,
+          payableNowCents,
+          note: input.note || null,
+          privacyConsentAt: input.privacyConsent ? current.privacyConsentAt || now : null,
+          marketingConsentAt: input.marketingConsent ? current.marketingConsentAt || now : null,
+          services: {
+            deleteMany: {},
+            create: selectedServices.map((service) => ({
+              serviceId: service.id,
+              codeSnapshot: service.code,
+              nameSnapshot: service.name,
+              priceCents: service.priceCents
+            }))
+          }
+        },
+        include: paymentFlowInclude
+      });
+      await createAudit(transaction, {
+        action: "booking.payment_flow_updated",
+        targetType: "BookingApplication",
+        targetId: current.id,
+        correlationId,
+        metadata: { referenceCode: current.referenceCode }
+      });
+      return toPaymentFlowResponse(updated);
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 5_000,
+      timeout: 10_000
+    }
+  );
+};
+
+export const markWhatsappHandoff = async (
+  applicationId: string,
+  paymentFlowKey: string,
+  correlationId: string
+) => {
+  const now = new Date();
+  await expireStalePaymentFlows(now, correlationId);
+  return prisma.$transaction(async (transaction) => {
+    const application = await transaction.bookingApplication.findUnique({
+      where: { id: applicationId },
+      include: paymentFlowInclude
+    });
+    if (!application) throw new AppError("Ödeme akışı bulunamadı.", 404);
+    assertPaymentFlowAccess(application, paymentFlowKey);
+    if (application.whatsappHandoffAt) return toPaymentFlowResponse(application);
+    if (
+      application.status !== "ONAY_BEKLIYOR" ||
+      !application.paymentFlowExpiresAt ||
+      application.paymentFlowExpiresAt <= now
+    ) {
+      throw new AppError("WhatsApp ödeme bildirimi süresi doldu.", 410, true, {
+        code: "PAYMENT_FLOW_EXPIRED"
+      });
+    }
+    const claimed = await transaction.bookingApplication.updateMany({
+      where: {
+        id: application.id,
+        status: "ONAY_BEKLIYOR",
+        whatsappHandoffAt: null,
+        paymentFlowExpiresAt: { gt: now }
+      },
+      data: { whatsappHandoffAt: now, paymentNotificationChannel: "WHATSAPP" }
+    });
+    if (claimed.count !== 1) {
+      throw new AppError("Ödeme akışı başka bir işlemde güncellendi.", 409);
+    }
+    await createAudit(transaction, {
+      action: "booking.whatsapp_handoff_started",
+      targetType: "BookingApplication",
+      targetId: application.id,
+      correlationId,
+      metadata: { referenceCode: application.referenceCode }
+    });
+    const updated = await transaction.bookingApplication.findUniqueOrThrow({
+      where: { id: application.id },
+      include: paymentFlowInclude
+    });
+    return toPaymentFlowResponse(updated);
+  });
 };
 
 export const createUniqueCustomerUsername = async (
@@ -441,13 +809,29 @@ export const approveBookingApplication = async (
   correlationId: string,
   dependencies: ApprovalDependencies = {}
 ) => {
+  await expireStalePaymentFlows(new Date(), correlationId);
   const applicationIdentity = await prisma.bookingApplication.findFirst({
     where: { id: applicationId, deletedAt: null },
-    select: { brideLastName: true, groomLastName: true, status: true }
+    select: {
+      brideLastName: true,
+      groomLastName: true,
+      status: true,
+      source: true,
+      whatsappHandoffAt: true,
+      paymentFlowExpiresAt: true,
+      paymentFlowExpiredAt: true
+    }
   });
   if (!applicationIdentity) throw new AppError("Başvuru bulunamadı.", 404);
   if (applicationIdentity.status !== "ONAY_BEKLIYOR") {
     throw new AppError("Yalnızca onay bekleyen başvurular onaylanabilir.", 409);
+  }
+  if (
+    applicationIdentity.source === "PUBLIC_FORM" &&
+    applicationIdentity.paymentFlowExpiresAt &&
+    !applicationIdentity.whatsappHandoffAt
+  ) {
+    throw new AppError("WhatsApp dekont bildirimi başlatılmamış başvuru onaylanamaz.", 409);
   }
 
   const temporaryPassword = randomTemporaryPassword();
@@ -465,6 +849,13 @@ export const approveBookingApplication = async (
           if (!application) throw new AppError("Başvuru bulunamadı.", 404);
           if (application.status !== "ONAY_BEKLIYOR") {
             throw new AppError("Yalnızca onay bekleyen başvurular onaylanabilir.", 409);
+          }
+          if (
+            application.source === "PUBLIC_FORM" &&
+            application.paymentFlowExpiresAt &&
+            !application.whatsappHandoffAt
+          ) {
+            throw new AppError("WhatsApp dekont bildirimi başlatılmamış başvuru onaylanamaz.", 409);
           }
 
           await assertVenueScheduleAvailable(transaction, {
@@ -665,6 +1056,12 @@ export const getVenueAvailability = async (
         venueId,
         status: { in: ["ONAY_BEKLIYOR", "ONAYLANDI"] },
         deletedAt: null,
+        OR: [
+          { status: "ONAYLANDI" },
+          { whatsappHandoffAt: { not: null } },
+          { paymentFlowExpiresAt: null },
+          { paymentFlowExpiresAt: { gt: new Date() } }
+        ],
         weddingStartsAt: { lt: dayEndsAt },
         weddingEndsAt: { gt: dayStartsAt }
       },

@@ -523,7 +523,7 @@ test("müşteri teslimat penceresini geciken API yanıtından önce güvenli aç
     .toBe("https://drive.google.com/file/d/e2e-test");
 });
 
-test("paket başvurusu sunucu tutarını kullanır ve yapılandırılmamış WhatsApp'a veri göndermez", async ({
+test("referans WhatsApp'tan önce oluşturulur ve yapılandırılmamış alıcıya veri gönderilmez", async ({
   page
 }) => {
   await page.addInitScript(() => {
@@ -595,25 +595,61 @@ test("paket başvurusu sunucu tutarını kullanır ve yapılandırılmamış Wha
   });
 
   let bookingRequest;
+  const paymentFlowData = {
+    id: "4a68ef8c-65df-4899-a560-e4c79b47b455",
+    referenceCode: "DA-2026-654321",
+    status: "ONAY_BEKLIYOR",
+    brideFirstName: "Ayşe",
+    brideLastName: "Yılmaz",
+    bridePhone: "+905551234567",
+    groomFirstName: "Mehmet",
+    groomLastName: "Demir",
+    groomPhone: "+905559876543",
+    primaryContact: "GELIN",
+    primaryEmail: "ayse@example.com",
+    weddingDate: "2027-08-10",
+    startTime: "18:00",
+    endTime: "23:00",
+    endsNextDay: false,
+    customVenueName: "Yıldızlar Düğün Salonu",
+    venueName: "Yıldızlar Düğün Salonu",
+    packageCode: "mini",
+    packageName: "Mini Paket",
+    packagePriceCents: 10_500,
+    serviceCodes: [],
+    services: [],
+    paymentMethod: "CASH",
+    totalPriceCents: 9_451,
+    payableNowCents: 9_451,
+    note: "",
+    privacyConsent: true,
+    marketingConsent: false,
+    paymentFlowExpiresAt: "2027-08-10T20:00:00.000Z",
+    whatsappHandoffAt: null,
+    paymentFlowExpiredAt: null
+  };
   await page.route("**/api/v1/booking-applications", async (route) => {
     bookingRequest = {
       body: route.request().postDataJSON(),
-      idempotencyKey: route.request().headers()["idempotency-key"]
+      idempotencyKey: route.request().headers()["idempotency-key"],
+      paymentFlowKey: route.request().headers()["payment-flow-key"]
     };
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
         success: true,
-        data: {
-          id: "4a68ef8c-65df-4899-a560-e4c79b47b455",
-          referenceCode: "DA-2026-654321",
-          status: "ONAY_BEKLIYOR",
-          totalPriceCents: 9_451,
-          payableNowCents: 9_451
-        }
+        data: paymentFlowData
       })
     });
   });
+  await page.route(
+    "**/api/v1/booking-applications/4a68ef8c-65df-4899-a560-e4c79b47b455/payment-flow",
+    (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: paymentFlowData })
+      })
+  );
 
   await page.goto("/paketini-olustur.html");
   await expect(page.locator('input[name="base-package"]')).toHaveCount(1);
@@ -638,10 +674,14 @@ test("paket başvurusu sunucu tutarını kullanır ve yapılandırılmamış Wha
 
   await expect(page.locator(".js-cash-total")).toHaveText("94,5 TL");
   await page.locator(".js-summary-step").click();
-  await expect(page.locator(".js-order-payable")).toHaveText("94,5 TL");
+  await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-654321");
+  await expect(page.locator(".js-order-payable")).toHaveText("94,51 TL");
+  await page.reload();
+  await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-654321");
+  await expect(page.locator(".js-transfer-layout")).toBeVisible();
   await page.locator(".js-complete-with-whatsapp").click();
 
-  await expect(page.locator(".js-booking-completion")).toBeVisible();
+  await expect(page.locator(".js-transfer-layout")).toBeVisible();
   await expect(page.locator(".js-order-subtotal")).toHaveText("94,51 TL");
   await expect(
     page.locator(".js-order-subtotal").locator("xpath=preceding-sibling::dt")
@@ -651,11 +691,145 @@ test("paket başvurusu sunucu tutarını kullanır ve yapılandırılmamış Wha
   expect(bookingRequest.body.venueId).toBeUndefined();
   expect(bookingRequest.body.customVenueName).toBe("Yıldızlar Düğün Salonu");
   expect(bookingRequest.idempotencyKey).toBeTruthy();
+  expect(bookingRequest.paymentFlowKey).toBeTruthy();
 
   const whatsappUrls = await page.evaluate(() => window.__whatsappUrls);
   expect(whatsappUrls).toEqual([]);
   await expect(page.locator(".js-payment-notification-status")).toContainText(
-    "WhatsApp alıcısı henüz yapılandırılmadığı için yönlendirme yapılmadı"
+    "WhatsApp alıcısı henüz yapılandırılmadığı için yönlendirme yapılamıyor"
+  );
+});
+
+test("geri yüklenen ödeme akışı WhatsApp geçişini kaydeder ve banka ekranını açık tutar", async ({
+  page
+}) => {
+  const applicationId = "4a68ef8c-65df-4899-a560-e4c79b47b455";
+  const paymentFlowKey = "payment-flow-key-1234567890-abcdef";
+  const paymentFlowData = {
+    id: applicationId,
+    referenceCode: "DA-2026-777888",
+    status: "ONAY_BEKLIYOR",
+    brideFirstName: "Ayşe",
+    brideLastName: "Yılmaz",
+    bridePhone: "+905551234567",
+    groomFirstName: "Mehmet",
+    groomLastName: "Demir",
+    groomPhone: "+905559876543",
+    primaryContact: "GELIN",
+    primaryEmail: "ayse@example.com",
+    weddingDate: "2027-08-10",
+    startTime: "18:00",
+    endTime: "23:00",
+    endsNextDay: false,
+    customVenueName: "Yıldızlar Düğün Salonu",
+    venueName: "Yıldızlar Düğün Salonu",
+    packageCode: "mini",
+    packageName: "Mini Paket",
+    packagePriceCents: 10_500,
+    serviceCodes: [],
+    services: [],
+    paymentMethod: "CASH",
+    totalPriceCents: 9_451,
+    payableNowCents: 9_451,
+    note: "",
+    privacyConsent: true,
+    marketingConsent: false,
+    paymentFlowExpiresAt: "2027-08-10T20:00:00.000Z",
+    whatsappHandoffAt: null,
+    paymentFlowExpiredAt: null
+  };
+  await page.addInitScript(
+    ({ id, key }) => {
+      window.sessionStorage.setItem(
+        "dugunajansim_payment_flow",
+        JSON.stringify({ applicationId: id, paymentFlowKey: key })
+      );
+      window.__whatsappUrls = [];
+      window.open = () => ({
+        opener: null,
+        close() {},
+        location: {
+          set href(value) {
+            window.__whatsappUrls.push(String(value));
+          }
+        }
+      });
+    },
+    { id: applicationId, key: paymentFlowKey }
+  );
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          packages: [
+            {
+              code: "mini",
+              name: "Mini Paket",
+              priceCents: 10_500,
+              imagePath: "assets/images/hero-couple.webp"
+            }
+          ],
+          services: []
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/venues*", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: route.request().url().includes("/availability")
+          ? { date: "2027-08-10", occupiedSlots: [] }
+          : []
+      })
+    })
+  );
+  await page.route("**/api/v1/payment-instructions", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          mode: "live",
+          enabled: true,
+          bankName: "Test Bankası",
+          accountHolder: "Düğünajansım",
+          iban: "TR000000000000000000000000",
+          whatsappPhone: "905551112233",
+          notice: "Test ödeme bilgileri"
+        }
+      })
+    })
+  );
+  await page.route(`**/api/v1/booking-applications/${applicationId}/payment-flow`, (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: paymentFlowData })
+    })
+  );
+  await page.route(`**/api/v1/booking-applications/${applicationId}/whatsapp-handoff`, (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { ...paymentFlowData, whatsappHandoffAt: "2026-08-07T13:00:00.000Z" }
+      })
+    })
+  );
+
+  await page.goto("/paketini-olustur.html");
+  await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-777888");
+  await page.locator(".js-complete-with-whatsapp").click();
+  await expect
+    .poll(() => page.evaluate(() => window.__whatsappUrls[0]))
+    .toContain("https://wa.me/905551112233?text=");
+  await expect(page.locator(".js-transfer-layout")).toBeVisible();
+  await expect(page.locator(".js-edit-package")).toBeDisabled();
+  await expect(page.locator(".js-payment-notification-status")).toContainText(
+    "WhatsApp aşamasına geçildi"
   );
 });
 

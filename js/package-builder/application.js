@@ -34,9 +34,7 @@ const createImage = (src, alt, loading) => {
 };
 
 let transferAccount = null;
-
-const createTransferReference = () =>
-  `DA-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+const PAYMENT_FLOW_SESSION_KEY = "dugunajansim_payment_flow";
 
 const state = {
   step: 1,
@@ -46,11 +44,41 @@ const state = {
   activeService: null,
   payment: "cash",
   customer: {},
-  transferReference: createTransferReference(),
+  transferReference: "",
   idempotencyKey: createIdempotencyKey(),
+  paymentFlowKey: createIdempotencyKey(),
+  applicationId: null,
+  paymentFlowExpiresAt: null,
+  whatsappHandoffAt: null,
   confirmedPayment: null,
   paymentMode: null
 };
+
+let paymentFlowCountdownTimer = null;
+
+function persistPaymentFlowSession() {
+  if (!state.applicationId || !state.paymentFlowKey) return;
+  try {
+    window.sessionStorage.setItem(
+      PAYMENT_FLOW_SESSION_KEY,
+      JSON.stringify({ applicationId: state.applicationId, paymentFlowKey: state.paymentFlowKey })
+    );
+  } catch {
+    // Akış açık sekmede çalışmaya devam eder; yalnız yenileme geri yüklemesi kullanılamaz.
+  }
+}
+
+function clearPaymentFlowSession() {
+  try {
+    window.sessionStorage.removeItem(PAYMENT_FLOW_SESSION_KEY);
+  } catch {
+    // Depolama kapalıysa temizlenecek kalıcı bir oturum yoktur.
+  }
+}
+
+function invalidateConfirmedPayment() {
+  if (!state.whatsappHandoffAt) state.confirmedPayment = null;
+}
 
 const stepPanels = [...document.querySelectorAll(".builder-step")];
 const progressItems = [...document.querySelectorAll(".builder-progress__item")];
@@ -71,7 +99,6 @@ const detailAddButton = document.querySelector(".js-detail-add");
 const paymentInputs = [...document.querySelectorAll('input[name="payment-method"]')];
 const checkoutForm = document.querySelector("#checkout-form");
 const orderItemsContainer = document.querySelector(".js-order-items");
-const bookingCompletion = document.querySelector(".js-booking-completion");
 const paymentNotificationForm = document.querySelector("#payment-notification-form");
 const paymentNotificationStatus = document.querySelector(".js-payment-notification-status");
 const paymentSubmitButton = paymentNotificationForm?.querySelector('button[type="submit"]');
@@ -89,6 +116,7 @@ function bindBaseInputs() {
   baseInputs.forEach((input) => {
     input.addEventListener("change", () => {
       state.base = input.value;
+      invalidateConfirmedPayment();
       updateBaseSelection();
     });
   });
@@ -462,13 +490,14 @@ function setPaymentInstructionsStatus(message, { enabled = false, mode = null } 
     paymentSubmitButton.disabled = !enabled;
     paymentSubmitButton.querySelector("span").textContent =
       mode === "test"
-        ? "Test başvurusu oluştur ve WhatsApp mesajını hazırla"
+        ? "Test WhatsApp mesajını hazırla"
         : enabled
-          ? "Başvuruyu kaydet ve WhatsApp'tan dekont gönder"
+          ? "WhatsApp'tan dekont gönder"
           : "Ödeme talimatları kullanılamıyor";
   }
   const heading = document.querySelector(".js-payment-submit-heading");
-  if (heading) heading.textContent = mode === "test" ? "Test başvurusu" : "Başvuruyu kaydet";
+  if (heading)
+    heading.textContent = mode === "test" ? "Test dekont bildirimi" : "Dekontunuzu gönderin";
 }
 
 async function hydratePaymentInstructions() {
@@ -497,6 +526,7 @@ function formatWeddingDate(value) {
 }
 
 function toggleService(serviceId) {
+  invalidateConfirmedPayment();
   if (state.extras.has(serviceId)) {
     state.extras.delete(serviceId);
   } else {
@@ -534,10 +564,137 @@ function closeServiceDetail() {
   }
 }
 
+function getBookingRequestBody() {
+  return {
+    brideFirstName: state.customer.brideFirstName,
+    brideLastName: state.customer.brideLastName,
+    bridePhone: state.customer.bridePhone,
+    groomFirstName: state.customer.groomFirstName,
+    groomLastName: state.customer.groomLastName,
+    groomPhone: state.customer.groomPhone,
+    primaryContact: state.customer.primaryContact,
+    primaryEmail: state.customer.primaryEmail,
+    weddingDate: state.customer.weddingDate,
+    startTime: state.customer.startTime,
+    endTime: state.customer.endTime,
+    endsNextDay: Boolean(state.customer.endsNextDay),
+    venueId: isCustomVenueSelected() ? undefined : state.customer.venueId,
+    customVenueName: isCustomVenueSelected() ? state.customer.customVenueName?.trim() : undefined,
+    packageCode: state.base,
+    serviceCodes: [...state.extras],
+    paymentMethod: state.payment.toUpperCase(),
+    note: state.customer.note || undefined,
+    privacyConsent: Boolean(state.customer.privacyConsent),
+    marketingConsent: Boolean(state.customer.marketingConsent)
+  };
+}
+
+function applyPaymentFlowSummary(data) {
+  setConfirmedPayment(data);
+  state.applicationId = data.id;
+  state.transferReference = data.referenceCode;
+  state.paymentFlowExpiresAt = data.paymentFlowExpiresAt;
+  state.whatsappHandoffAt = data.whatsappHandoffAt;
+  persistPaymentFlowSession();
+  updateTransferUI();
+  updatePaymentFlowState();
+}
+
+function showPaymentFlowExpired() {
+  if (paymentFlowCountdownTimer) window.clearInterval(paymentFlowCountdownTimer);
+  clearPaymentFlowSession();
+  document.querySelector(".js-payment-flow-expired").hidden = false;
+  document.querySelector(".js-transfer-layout").hidden = true;
+  goToStep(5);
+}
+
+function updatePaymentFlowState() {
+  const expiry = document.querySelector(".js-payment-flow-expiry");
+  const editButtons = [
+    document.querySelector(".js-edit-package"),
+    document.querySelector(".js-edit-details"),
+    paymentNotificationForm?.querySelector(".js-step-back"),
+    ...document.querySelectorAll("[data-remove-service]")
+  ].filter(Boolean);
+  editButtons.forEach((button) => {
+    button.disabled = Boolean(state.whatsappHandoffAt);
+  });
+  if (state.whatsappHandoffAt) {
+    if (paymentFlowCountdownTimer) window.clearInterval(paymentFlowCountdownTimer);
+    expiry.hidden = false;
+    expiry.textContent = "WhatsApp dekont bildirimi başlatıldı; yönetici kontrolü bekleniyor.";
+    setPaymentNotificationStatus(
+      "WhatsApp aşamasına geçildi. Banka ve referans bilgilerinizi bu ekrandan kontrol edebilirsiniz.",
+      "success"
+    );
+    return;
+  }
+  const renderCountdown = () => {
+    const remainingMs = new Date(state.paymentFlowExpiresAt).valueOf() - Date.now();
+    if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+      showPaymentFlowExpired();
+      return;
+    }
+    const minutes = Math.floor(remainingMs / 60_000);
+    const seconds = Math.floor((remainingMs % 60_000) / 1000);
+    expiry.hidden = false;
+    expiry.textContent = `WhatsApp bildirimi için kalan süre: ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  };
+  if (paymentFlowCountdownTimer) window.clearInterval(paymentFlowCountdownTimer);
+  renderCountdown();
+  paymentFlowCountdownTimer = window.setInterval(renderCountdown, 1000);
+}
+
+async function savePaymentFlow() {
+  if (!hasApiEndpoint()) throw new Error("Başvuru oluşturmak için sunucu bağlantısı gerekli.");
+  const isUpdate = Boolean(state.applicationId);
+  const response = await apiRequest(
+    isUpdate
+      ? `/booking-applications/${state.applicationId}/payment-flow`
+      : "/booking-applications",
+    {
+      method: isUpdate ? "PATCH" : "POST",
+      headers: {
+        "Payment-Flow-Key": state.paymentFlowKey,
+        ...(!isUpdate ? { "Idempotency-Key": state.idempotencyKey } : {})
+      },
+      body: getBookingRequestBody()
+    }
+  );
+  applyPaymentFlowSummary(response.data);
+  return response.data;
+}
+
+async function openPaymentSummary() {
+  const button = document.querySelector(".js-summary-step");
+  const label = button.querySelector("span");
+  const originalLabel = label.textContent;
+  button.disabled = true;
+  label.textContent = state.applicationId ? "Başvuru güncelleniyor" : "Referans oluşturuluyor";
+  setPaymentNotificationStatus("Başvurunuz güvenli şekilde hazırlanıyor...", "pending");
+  try {
+    await savePaymentFlow();
+    document.querySelector(".js-payment-flow-expired").hidden = true;
+    document.querySelector(".js-transfer-layout").hidden = false;
+    goToStep(5);
+  } catch (error) {
+    if (error.status === 410) {
+      showPaymentFlowExpired();
+    } else {
+      setPaymentNotificationStatus(error.message);
+    }
+  } finally {
+    button.disabled = false;
+    label.textContent = originalLabel;
+  }
+}
+
 document.querySelector(".js-next-step").addEventListener("click", () => goToStep(2));
 document.querySelector(".js-prev-step").addEventListener("click", () => goToStep(1));
 document.querySelector(".js-details-step").addEventListener("click", () => goToStep(3));
-document.querySelector(".js-summary-step").addEventListener("click", () => goToStep(5));
+document
+  .querySelector(".js-summary-step")
+  .addEventListener("click", () => void openPaymentSummary());
 
 document.querySelectorAll(".js-step-back").forEach((button) => {
   button.addEventListener("click", () => goToStep(Number(button.dataset.targetStep)));
@@ -546,6 +703,7 @@ document.querySelectorAll(".js-step-back").forEach((button) => {
 paymentInputs.forEach((input) => {
   input.addEventListener("change", () => {
     state.payment = input.value;
+    invalidateConfirmedPayment();
     updatePaymentUI();
   });
 });
@@ -1021,7 +1179,7 @@ checkoutForm.addEventListener("submit", (event) => {
 document.querySelector(".js-edit-package").addEventListener("click", () => goToStep(2));
 document.querySelector(".js-edit-details").addEventListener("click", () => goToStep(3));
 
-orderItemsContainer.addEventListener("click", (event) => {
+orderItemsContainer.addEventListener("click", async (event) => {
   const removeButton = event.target.closest("[data-remove-service]");
   if (!removeButton) return;
 
@@ -1029,8 +1187,18 @@ orderItemsContainer.addEventListener("click", (event) => {
   if (!state.extras.has(serviceId)) return;
 
   state.extras.delete(serviceId);
+  invalidateConfirmedPayment();
   renderServices();
   updateSummary();
+  try {
+    await savePaymentFlow();
+    renderOrderReview();
+  } catch (error) {
+    state.extras.add(serviceId);
+    renderServices();
+    updateSummary();
+    setPaymentNotificationStatus(error.message);
+  }
 });
 
 function setCopyFeedback(message) {
@@ -1079,8 +1247,7 @@ function generateWhatsAppMessage() {
     getSelectedExtras()
       .map((s) => s.name)
       .join(", ") || "Yok";
-  const refNo = state.transferReference || `DA-${Math.floor(100000 + Math.random() * 900000)}`;
-  state.transferReference = refNo;
+  const refNo = state.transferReference || "—";
 
   const couple = `${state.customer.brideFirstName || "—"} ${
     state.customer.brideLastName || ""
@@ -1120,6 +1287,16 @@ if (paymentNotificationForm) {
       setPaymentNotificationStatus("Ödeme talimatları henüz yüklenmedi. Lütfen tekrar deneyin.");
       return;
     }
+    if (!state.applicationId || !state.transferReference) {
+      setPaymentNotificationStatus("Ödeme referansı henüz oluşturulmadı. Lütfen tekrar deneyin.");
+      return;
+    }
+    if (!transferAccount.whatsappPhone) {
+      setPaymentNotificationStatus(
+        "WhatsApp alıcısı henüz yapılandırılmadığı için yönlendirme yapılamıyor."
+      );
+      return;
+    }
     const firstInvalid = validatePaymentNotificationForm();
     if (firstInvalid) {
       firstInvalid.focus();
@@ -1127,92 +1304,44 @@ if (paymentNotificationForm) {
     }
 
     const submitButton = paymentNotificationForm.querySelector('button[type="submit"]');
-    const whatsappWindow = transferAccount?.whatsappPhone
-      ? window.open("about:blank", "_blank")
-      : null;
+    const whatsappWindow = window.open("about:blank", "_blank");
+    if (!whatsappWindow) {
+      setPaymentNotificationStatus(
+        "WhatsApp penceresi engellendi. Açılır pencerelere izin verip tekrar deneyin."
+      );
+      return;
+    }
     if (whatsappWindow) whatsappWindow.opener = null;
     submitButton.disabled = true;
-    setPaymentNotificationStatus("Başvurunuz güvenli şekilde kaydediliyor...", "pending");
+    setPaymentNotificationStatus("WhatsApp yönlendirmesi hazırlanıyor...", "pending");
 
     try {
-      const response = await apiRequest("/booking-applications", {
-        method: "POST",
-        headers: { "Idempotency-Key": state.idempotencyKey },
-        body: {
-          brideFirstName: state.customer.brideFirstName,
-          brideLastName: state.customer.brideLastName,
-          bridePhone: state.customer.bridePhone,
-          groomFirstName: state.customer.groomFirstName,
-          groomLastName: state.customer.groomLastName,
-          groomPhone: state.customer.groomPhone,
-          primaryContact: state.customer.primaryContact,
-          primaryEmail: state.customer.primaryEmail,
-          weddingDate: state.customer.weddingDate,
-          startTime: state.customer.startTime,
-          endTime: state.customer.endTime,
-          endsNextDay: Boolean(state.customer.endsNextDay),
-          venueId: isCustomVenueSelected() ? undefined : state.customer.venueId,
-          customVenueName: isCustomVenueSelected()
-            ? state.customer.customVenueName?.trim()
-            : undefined,
-          packageCode: state.base,
-          serviceCodes: [...state.extras],
-          paymentMethod: state.payment.toUpperCase(),
-          note: state.customer.note || undefined,
-          privacyConsent: Boolean(state.customer.privacyConsent),
-          marketingConsent: Boolean(state.customer.marketingConsent)
+      const response = await apiRequest(
+        `/booking-applications/${state.applicationId}/whatsapp-handoff`,
+        {
+          method: "POST",
+          headers: { "Payment-Flow-Key": state.paymentFlowKey },
+          body: {}
         }
-      });
-      setConfirmedPayment(response.data);
-      state.transferReference = response.data.referenceCode;
+      );
+      applyPaymentFlowSummary(response.data);
       renderOrderReview();
       const waUrl = getWhatsAppUrl();
-
-      const refElement = document.querySelector(".js-booking-reference");
-      if (refElement) refElement.textContent = state.transferReference;
-
-      const isTest = state.paymentMode === "test";
-      document.querySelector(".js-completion-eyebrow").textContent = isTest
-        ? "Test Başvurunuz Kaydedildi"
-        : "Başvurunuz Kaydedildi";
-      document.querySelector(".js-completion-status").textContent = isTest
-        ? "Test başvurunuz oluşturuldu; gerçek ödeme alınmadı."
-        : "Başvurunuz oluşturuldu; dekont bildiriminiz bekleniyor.";
-      document.querySelector(".js-completion-copy").textContent = isTest
-        ? "Bu bir test akışıdır. Test hesabına gerçek para göndermeyin; DA referansınızı WhatsApp mesajında kontrol edin."
-        : `Havale/EFT açıklamasına ${state.transferReference} referansını yazın; ardından dekontunuzu WhatsApp hattımızdan paylaşın.`;
-
-      if (waUrl && whatsappWindow) {
+      if (waUrl) {
         whatsappWindow.location.href = waUrl;
-      } else if (waUrl) {
-        const fallbackWindow = window.open(waUrl, "_blank", "noopener,noreferrer");
-        if (!fallbackWindow) {
-          setPaymentNotificationStatus(
-            "Başvurunuz kaydedildi; WhatsApp penceresi tarayıcı tarafından engellendi."
-          );
-        }
       } else {
+        whatsappWindow.close();
         setPaymentNotificationStatus(
-          "Başvurunuz kaydedildi. WhatsApp alıcısı henüz yapılandırılmadığı için yönlendirme yapılmadı.",
-          "success"
+          "WhatsApp alıcısı henüz yapılandırılmadığı için yönlendirme yapılamıyor."
         );
       }
-
-      bookingCompletion.hidden = false;
-      document.body.classList.add("is-completion-open");
-      document
-        .querySelectorAll(".builder-header, .builder-progress, .builder-layout")
-        .forEach((element) => {
-          element.inert = true;
-          element.setAttribute("aria-hidden", "true");
-        });
-
-      const completionTitle = document.querySelector(".js-completion-title");
-      if (completionTitle) completionTitle.focus({ preventScroll: true });
     } catch (error) {
       whatsappWindow?.close();
-      setPaymentNotificationStatus(error.message);
+      if (error.status === 410) showPaymentFlowExpired();
+      else setPaymentNotificationStatus(error.message);
+    } finally {
       submitButton.disabled = false;
+      if (!document.querySelector(".js-payment-flow-expired").hidden) return;
       paymentNotificationStatus.focus();
     }
   });
@@ -1325,13 +1454,134 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
+function restoreFormFieldValues(data) {
+  const values = {
+    ...data,
+    venueId: data.customVenueName ? CUSTOM_VENUE_VALUE : data.venueId,
+    privacyConsent: data.privacyConsent,
+    marketingConsent: data.marketingConsent,
+    endsNextDay: data.endsNextDay
+  };
+  checkoutForm.querySelectorAll("[name]").forEach((field) => {
+    const value = values[field.name];
+    if (field.type === "checkbox") {
+      field.checked = Boolean(value);
+    } else if (field.type === "radio") {
+      field.checked = field.value === value;
+    } else if (value !== undefined && field.type !== "hidden") {
+      field.value = value;
+    }
+  });
+  venueSelect.value = data.customVenueName ? CUSTOM_VENUE_VALUE : data.venueId || "";
+  if (data.customVenueName) customVenueNameInput.value = data.customVenueName;
+  updateVenueDependentFields();
+  setDateValue(data.weddingDate);
+  timePickers.forEach((picker) => {
+    const input = picker.querySelector('input[type="hidden"]');
+    if (input.name === "startTime") setTimeValue(picker, data.startTime);
+    if (input.name === "endTime") setTimeValue(picker, data.endTime);
+  });
+}
+
+function applyRestoredPaymentFlow(data) {
+  if (!basePackages[data.packageCode]) {
+    basePackages[data.packageCode] = {
+      name: data.packageName,
+      price: fromCents(data.packagePriceCents),
+      image: "assets/images/hero-couple.webp"
+    };
+  }
+  data.services.forEach((item) => {
+    if (services.some((service) => service.id === item.codeSnapshot)) return;
+    services.push({
+      id: item.codeSnapshot,
+      category: "restored",
+      name: item.nameSnapshot,
+      price: fromCents(item.priceCents),
+      image: "assets/images/hero-couple.webp",
+      gallery: ["assets/images/hero-couple.webp"],
+      description: "Başvurunuzda kayıtlı ek hizmet.",
+      features: [],
+      delivery: "Paket teslim planına göre"
+    });
+  });
+  state.base = data.packageCode;
+  state.extras = new Set(data.serviceCodes);
+  state.payment = data.paymentMethod.toLowerCase();
+  state.customer = {
+    brideFirstName: data.brideFirstName,
+    brideLastName: data.brideLastName,
+    bridePhone: data.bridePhone,
+    groomFirstName: data.groomFirstName,
+    groomLastName: data.groomLastName,
+    groomPhone: data.groomPhone,
+    primaryContact: data.primaryContact,
+    primaryEmail: data.primaryEmail,
+    weddingDate: data.weddingDate,
+    startTime: data.startTime,
+    endTime: data.endTime,
+    endsNextDay: data.endsNextDay,
+    venueId: data.customVenueName ? CUSTOM_VENUE_VALUE : data.venueId,
+    customVenueName: data.customVenueName,
+    note: data.note,
+    privacyConsent: data.privacyConsent,
+    marketingConsent: data.marketingConsent
+  };
+  baseInputs.forEach((input) => {
+    input.checked = input.value === state.base;
+  });
+  paymentInputs.forEach((input) => {
+    input.checked = input.value === state.payment;
+  });
+  restoreFormFieldValues(data);
+  renderServices();
+  updateBaseSelection();
+  updatePaymentUI();
+  applyPaymentFlowSummary(data);
+  document.querySelector(".js-payment-flow-expired").hidden = true;
+  document.querySelector(".js-transfer-layout").hidden = false;
+  goToStep(5);
+}
+
+async function restorePaymentFlowSession() {
+  let saved;
+  try {
+    saved = JSON.parse(window.sessionStorage.getItem(PAYMENT_FLOW_SESSION_KEY) || "null");
+  } catch {
+    clearPaymentFlowSession();
+    return;
+  }
+  if (!saved?.applicationId || !saved?.paymentFlowKey) return;
+  state.applicationId = saved.applicationId;
+  state.paymentFlowKey = saved.paymentFlowKey;
+  try {
+    const response = await apiRequest(`/booking-applications/${saved.applicationId}/payment-flow`, {
+      headers: { "Payment-Flow-Key": saved.paymentFlowKey }
+    });
+    applyRestoredPaymentFlow(response.data);
+  } catch (error) {
+    if (error.status === 410) showPaymentFlowExpired();
+    else {
+      clearPaymentFlowSession();
+      state.applicationId = null;
+      setPaymentNotificationStatus(error.message);
+    }
+  }
+}
+
+document.querySelector(".js-restart-payment-flow")?.addEventListener("click", () => {
+  clearPaymentFlowSession();
+  window.location.reload();
+});
+
 renderServices();
 bindBaseInputs();
 updateSummary();
 updateProgress();
 setSummaryOpen(false, { returnFocus: false });
-void hydrateRemoteData();
-void hydratePaymentInstructions();
+void Promise.all([hydrateRemoteData(), hydratePaymentInstructions()]).then(() =>
+  restorePaymentFlowSession()
+);
 
 const today = new Date();
 const localToday = [

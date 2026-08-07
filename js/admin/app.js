@@ -501,6 +501,14 @@ function renderApplicationCard(item) {
       : item.paymentMethod === "DEPOSIT"
         ? "Kapora"
         : item.paymentMethod;
+  const canApprove = item.source === "ADMIN" || Boolean(item.whatsappHandoffAt);
+  const paymentStage = item.paymentFlowExpiredAt
+    ? "Bildirim süresi doldu"
+    : item.source === "ADMIN"
+      ? "Yönetici başvurusu"
+      : item.whatsappHandoffAt
+        ? "Dekont kontrolü bekleniyor"
+        : "WhatsApp geçişi bekleniyor";
 
   const statusLabel =
     item.status === "ONAY_BEKLIYOR"
@@ -509,7 +517,9 @@ function renderApplicationCard(item) {
         ? "Onaylandı"
         : item.status === "REDDEDILDI"
           ? "Reddedildi"
-          : item.status;
+          : item.status === "IPTAL_EDILDI"
+            ? "İptal Edildi"
+            : item.status;
 
   const statusClass =
     item.status === "ONAYLANDI"
@@ -531,8 +541,8 @@ function renderApplicationCard(item) {
           item.deletedAt
             ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button><button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>`
             : item.status === "ONAY_BEKLIYOR"
-              ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button><button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
-              : item.status === "REDDEDILDI"
+              ? `${canApprove ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button>` : ""}<button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
+              : ["REDDEDILDI", "IPTAL_EDILDI"].includes(item.status)
                 ? `<button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
                 : `<small>${escapeHtml(item.status.replaceAll("_", " "))}</small>`
         }
@@ -544,6 +554,7 @@ function renderApplicationCard(item) {
         <small>Paket &amp; Tutar</small>
         <strong>${escapeHtml(item.packageNameSnapshot)}</strong>
         <div class="app-card__price">${formatMoney(item.totalPriceCents)} <small>(${escapeHtml(paymentLabel)})</small></div>
+        <small>${escapeHtml(paymentStage)}</small>
       </div>
 
       <div class="app-card__meta-item">
@@ -601,6 +612,14 @@ function renderApplicationDetailModal(item) {
       : item.paymentMethod === "DEPOSIT"
         ? "Kapora Ödeme"
         : item.paymentMethod;
+  const canApprove = item.source === "ADMIN" || Boolean(item.whatsappHandoffAt);
+  const paymentStage = item.paymentFlowExpiredAt
+    ? `Bildirim süresi doldu (${formatDate(item.paymentFlowExpiredAt, true)})`
+    : item.source === "ADMIN"
+      ? "Yönetici başvurusu"
+      : item.whatsappHandoffAt
+        ? `Dekont kontrolü bekleniyor (${formatDate(item.whatsappHandoffAt, true)})`
+        : `WhatsApp geçişi bekleniyor${item.paymentFlowExpiresAt ? ` — son süre ${formatDate(item.paymentFlowExpiresAt, true)}` : ""}`;
 
   const statusLabel =
     item.status === "ONAY_BEKLIYOR"
@@ -609,7 +628,9 @@ function renderApplicationDetailModal(item) {
         ? "Onaylandı"
         : item.status === "REDDEDILDI"
           ? "Reddedildi"
-          : item.status;
+          : item.status === "IPTAL_EDILDI"
+            ? "İptal Edildi"
+            : item.status;
   const statusClass =
     item.status === "ONAYLANDI"
       ? "status-tag--approved"
@@ -705,11 +726,7 @@ function renderApplicationDetailModal(item) {
               <small>Ödeme Yöntemi: <strong>${escapeHtml(paymentLabel)}</strong></small>
               <br><small>Hemen Ödenecek Tutar: <strong>${formatMoney(item.payableNowCents)}</strong></small>
               <br><small>Havale Referansı: <strong>${escapeHtml(item.referenceCode)}</strong></small>
-              <br><small>Ödeme Bildirimi: <strong>${
-                item.paymentNotificationRequestedAt
-                  ? `${escapeHtml(item.paymentNotificationChannel || "WHATSAPP")} dekont bildirimi bekleniyor (${escapeHtml(formatDate(item.paymentNotificationRequestedAt, true))})`
-                  : "Bildirim beklenmiyor"
-              }</strong></small>
+              <br><small>Ödeme Bildirimi: <strong>${escapeHtml(paymentStage)}</strong></small>
             </div>
             <div class="total-amount">
               <small>Toplam Tutar</small>
@@ -746,8 +763,8 @@ function renderApplicationDetailModal(item) {
           item.deletedAt
             ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button><button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>`
             : item.status === "ONAY_BEKLIYOR"
-              ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button><button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
-              : item.status === "REDDEDILDI"
+              ? `${canApprove ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button>` : ""}<button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
+              : ["REDDEDILDI", "IPTAL_EDILDI"].includes(item.status)
                 ? `<button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
                 : ``
         }

@@ -72,6 +72,7 @@ export const configureSecurityMiddleware = (app: Express): void => {
         'X-Requested-With',
         'X-CSRF-Token',
         'Idempotency-Key',
+        'Payment-Flow-Key',
         'X-Correlation-ID',
       ],
       exposedHeaders: ['X-Correlation-ID', 'RateLimit', 'RateLimit-Policy', 'Retry-After'],
