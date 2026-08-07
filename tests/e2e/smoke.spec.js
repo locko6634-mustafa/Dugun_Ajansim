@@ -13,6 +13,21 @@ async function clickPanel(page, panelName, isOps = false) {
   await page.locator(`[data-panel="${panelName}"]`).first().click();
 }
 
+async function selectWeddingDate(page, value) {
+  const dateTrigger = page.locator(".js-date-trigger");
+  await dateTrigger.click();
+  for (let month = 0; month < 12; month += 1) {
+    await page.locator(".js-calendar-next").click();
+  }
+  await page.locator(`[data-date-value="${value}"]`).click();
+}
+
+async function selectWeddingTime(page, pickerName, value) {
+  const picker = page.locator(`.js-time-picker[data-time-picker="${pickerName}"]`);
+  await picker.locator(".js-time-trigger").click();
+  await picker.locator(`[data-time-value="${value}"]`).click();
+}
+
 for (const pagePath of pages) {
   test(`${pagePath} temel sayfa kontrolleri`, async ({ page }) => {
     await page.goto(pagePath);
@@ -151,13 +166,17 @@ test("paket formu çift, saat ve salon alanlarını backend kataloğuyla hazırl
   await page.locator(".js-details-step").click();
   await expect(page.locator('input[name="brideFirstName"]')).toBeVisible();
   await expect(page.locator('input[name="groomFirstName"]')).toBeVisible();
-  await expect(page.locator('input[name="startTime"]')).toBeVisible();
+  await expect(
+    page.locator('.js-time-picker[data-time-picker="start"] .js-time-trigger')
+  ).toBeVisible();
   await expect(page.locator(".js-venue-select")).toContainText("Cess Wedding");
   await page.locator('select[name="venueId"]').selectOption("de305d54-75b4-431b-adb2-eb6b9e546014");
-  await page.locator('input[name="weddingDate"]').fill("2027-08-10");
-  await expect(page.locator('input[name="startTime"]')).toBeEnabled();
-  await page.locator('input[name="startTime"]').fill("20:00");
-  await page.locator('input[name="endTime"]').fill("19:00");
+  await selectWeddingDate(page, "2027-08-10");
+  await expect(
+    page.locator('.js-time-picker[data-time-picker="start"] .js-time-trigger')
+  ).toBeEnabled();
+  await selectWeddingTime(page, "start", "20:00");
+  await selectWeddingTime(page, "end", "19:00");
   await expect(page.locator('input[name="endTime"]')).toHaveAttribute("aria-invalid", "true");
 });
 
@@ -594,9 +613,9 @@ test("paket başvurusu sunucu tutarını kullanır ve yapılandırılmamış Wha
   await form.locator('input[name="primaryEmail"]').fill("ayse@example.com");
   await form.locator('select[name="venueId"]').selectOption("__custom_venue__");
   await form.locator('input[name="customVenueName"]').fill("Yıldızlar Düğün Salonu");
-  await form.locator('input[name="weddingDate"]').fill("2027-08-10");
-  await form.locator('input[name="startTime"]').fill("18:00");
-  await form.locator('input[name="endTime"]').fill("23:00");
+  await selectWeddingDate(page, "2027-08-10");
+  await selectWeddingTime(page, "start", "18:00");
+  await selectWeddingTime(page, "end", "23:00");
   await form.locator('input[name="privacyConsent"]').check();
   await form.getByRole("button", { name: "Ödemeye Geç" }).click();
 

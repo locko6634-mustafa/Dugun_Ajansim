@@ -1,7 +1,6 @@
 const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 const motionHeadings = [
   document.querySelector("#hero-title"),
-  document.querySelector("#legacy-title"),
   document.querySelector("#gallery-title"),
   document.querySelector("#shoots-title"),
   document.querySelector("#services-title"),
@@ -117,11 +116,6 @@ function initNonHeroMotion() {
   motionHeadings.forEach(splitHeadingIntoLines);
 
   registerMotionGroup(".benefit-card", { stagger: 80 });
-  registerMotionGroup(".legacy-kicker, .legacy-flourish, .legacy-lead", { stagger: 85 });
-  registerMotionGroup(".legacy-photo", {
-    direction: (index) => ["left", "right", "up"][index] || "up",
-    stagger: 90
-  });
   registerMotionGroup(".legacy-value", { stagger: 85 });
   registerMotionGroup(".gallery-kicker, .gallery-heading > p:last-of-type", { stagger: 85 });
   registerMotionGroup(".gallery-track, .gallery-cta", { stagger: 110 });
@@ -185,10 +179,7 @@ function initNonHeroMotion() {
 
 runIdle(initNonHeroMotion);
 
-const parallaxImages = [
-  document.querySelector(".hero-collage .photo--main img"),
-  document.querySelector(".legacy-photo--center img")
-].filter(Boolean);
+const parallaxImages = [document.querySelector(".hero-collage .photo--main img")].filter(Boolean);
 let parallaxFrame;
 
 function updateParallax() {
