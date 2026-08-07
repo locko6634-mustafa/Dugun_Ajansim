@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
 const pages = ["/index.html", "/login.html", "/paketini-olustur.html"];
+const defaultPaymentPolicy = Object.freeze({
+  cashDiscountPercent: 10,
+  depositMaximumCents: 500_000
+});
 
 async function clickPanel(page, panelName, isOps = false) {
   const toggleSelector = isOps ? ".js-toggle-ops-sidebar" : ".js-toggle-sidebar";
@@ -81,6 +85,27 @@ test("ana sayfa header navigasyon linkleri aktif durumu gunceller", async ({ pag
   }
 });
 
+test("ana sayfa fiyatları backend kataloğundan alır", async ({ page }) => {
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          paymentPolicy: defaultPaymentPolicy,
+          packages: [{ code: "mini", name: "Mini Paket", priceCents: 2_345_600 }],
+          services: [{ code: "fotograf", name: "Fotoğraf", priceCents: 765_400 }]
+        }
+      })
+    })
+  );
+
+  await page.goto("/index.html");
+  await expect(page.locator(".js-starting-price")).toContainText("23.456");
+  await page.locator('[data-open-service="fotograf"]').click();
+  await expect(page.locator("#home-service-detail .js-detail-price")).toContainText("7.654");
+});
+
 test("anasayfa butonuna basildiginda sayfanin en ustune kaydirir", async ({ page, isMobile }) => {
   await page.goto("/index.html");
   await page.evaluate(() => window.scrollTo(0, 1500));
@@ -122,6 +147,7 @@ test("paket formu çift, saat ve salon alanlarını backend kataloğuyla hazırl
       body: JSON.stringify({
         success: true,
         data: {
+          paymentPolicy: defaultPaymentPolicy,
           packages: [
             {
               code: "mini",
@@ -351,6 +377,7 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
       body: JSON.stringify({
         success: true,
         data: {
+          paymentPolicy: defaultPaymentPolicy,
           packages: [
             { code: "mini", name: "Mini Paket", priceCents: 2_000_000, isActive: true },
             { code: "hikaye", name: "Hikâye Paketi", priceCents: 3_500_000, isActive: true }
@@ -596,6 +623,10 @@ test("referans WhatsApp'tan önce oluşturulur ve yapılandırılmamış alıcı
       body: JSON.stringify({
         success: true,
         data: {
+          paymentPolicy: {
+            cashDiscountPercent: 20,
+            depositMaximumCents: 3_000
+          },
           packages: [
             {
               code: "mini",
@@ -723,7 +754,12 @@ test("referans WhatsApp'tan önce oluşturulur ve yapılandırılmamış alıcı
   await form.locator('input[name="privacyConsent"]').check();
   await form.getByRole("button", { name: "Ödemeye Geç" }).click();
 
-  await expect(page.locator(".js-cash-total")).toHaveText("94,5 TL");
+  await expect(page.locator(".js-cash-total")).toHaveText("84 TL");
+  await expect(page.locator(".js-cash-discount-copy")).toHaveText("%20 erken ödeme indirimi");
+  await page.locator('label.payment-option:has(input[value="deposit"])').click();
+  await expect(page.locator(".js-deposit-total")).toHaveText("30 TL");
+  await expect(page.locator(".js-payment-assurance-title")).toHaveText("30 TL kapora ödemesi");
+  await page.locator('label.payment-option:has(input[value="cash"])').click();
   await page.locator(".js-summary-step").click();
   await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-654321");
   await expect(page.locator(".js-order-payable")).toHaveText("94,51 TL");
@@ -814,6 +850,7 @@ test("geri yüklenen ödeme akışı WhatsApp geçişini kaydeder ve banka ekran
       body: JSON.stringify({
         success: true,
         data: {
+          paymentPolicy: defaultPaymentPolicy,
           packages: [
             {
               code: "mini",

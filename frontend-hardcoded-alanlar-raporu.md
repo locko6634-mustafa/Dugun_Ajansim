@@ -40,27 +40,21 @@ Frontenddeki hardcoded alanların büyük kısmı statik tasarım ve arayüz met
 
 **Öneri:** Yayın öncesinde hukuk/onay sahibi tarafından doğrulanmış ticari unvan, veri sorumlusu bilgisi, adres, e-posta/KEP veya tanımlı başvuru kanalı girilmeli. Bu bilgiler tek bir `site-config` kaynağından footer ve üç yasal sayfaya dağıtılmalı; yasal metnin kendisi otomatik üretilmemeli, onaylı sürüm olarak tutulmalı.
 
-### HC-02 — Fiyat, indirim ve kapora dört ayrı katmanda tanımlı (P1)
+### HC-02 — Fiyat, indirim ve kapora dört ayrı katmanda tanımlı (P1) — Çözüldü
 
-**Kanıt**
+**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
 
-- Ana sayfa başlangıç fiyatı: `index.html:974-978` — 20.000 TL.
-- Paket oluşturucu ilk HTML durumu: `paketini-olustur.html:121-141`, `paketini-olustur.html:219-270`, `paketini-olustur.html:724-740` ve `paketini-olustur.html:883-903` — paket fiyatı, %10 indirim, 18.000 TL sonuç ve 5.000 TL kapora.
-- Frontend katalog yedeği: `js/shared/service-catalog.js:2-186` — 1 temel paket ve 8 hizmetin fiyatları.
-- Frontend hesaplama: `js/package-builder/application.js:272-310` ve `js/package-builder/application.js:430-437` — `0.9`, `500_000` kuruş ve `5000` TL sabitleri.
-- Backend otoritesi: `backend/src/services/booking.service.ts:36-45` — aynı %10 ve 500.000 kuruş kuralı.
-- Başlangıç verisi: `backend/prisma/seed.ts:15-85` — paket ve hizmet fiyatları tekrar tanımlı.
+**Uygulanan çözüm**
 
-**Mevcut olumlu kontrol:** Başvuru kaydedilirken backend toplamı yeniden hesaplıyor; frontend `js/package-builder/application.js:313-325` ile sunucudan gelen tutarı doğrulayıp kullanıyor. Bu nedenle istemci tutarı ödeme otoritesi değil.
+- İndirim oranı ve kapora üst sınırı `backend/src/services/booking.service.ts:36-54` içinde tek `paymentPolicy` kaynağında toplandı; backend nihai ödeme tutarını aynı politika ile hesaplıyor.
+- Public katalog `backend/src/routes/public.routes.ts:96-112` üzerinden paket/hizmet fiyatlarıyla birlikte ödeme politikasını döndürüyor.
+- Paket oluşturucu `js/package-builder/application.js:179-207` içinde katalog ve politika sözleşmesini doğruluyor; `js/package-builder/application.js:361-421` içinde yalnız sunucudan gelen politika ile istemci önizlemesi üretiyor.
+- `index.html:974-977` ve `paketini-olustur.html:120-270` içindeki gerçek sayısal başlangıç değerleri yükleme metinlerine dönüştürüldü. API yüklenmeden paket akışında ilerleme kapalıdır.
+- `js/shared/service-catalog.js` içindeki paket/hizmet fiyat yedekleri kaldırıldı. Ana sayfa fiyatları `js/home/services.js:31-66` üzerinden katalog API'sinden geliyor.
 
-**Risk:** Backend/admin kataloğu değiştiğinde ana sayfa ve ilk yüklenen paket ekranı eski fiyat gösterebilir. Müşteri backend doğrulamasından önce farklı bir teklif algılayabilir. Ödeme politikası değişikliği birden fazla dosyanın eş zamanlı güncellenmesine bağlıdır.
+**Doğrulama:** Backend birim testleri ödeme politikasının tek kaynağını; gerçek veritabanı entegrasyon testi `/catalog` sözleşmesini; E2E testleri ise backendin gönderdiği varsayılandan farklı `%20` indirim ve 30 TL kapora değerlerinin masaüstü/mobil frontend önizlemesine aynen yansıdığını doğruluyor.
 
-**Öneri:**
-
-- İndirim oranı ve kapora üst sınırı yalnız backendde tutulsun.
-- Public katalog yanıtı, müşteriye gösterilecek `totalPriceCents`, `payableNowCents`, ödeme yöntemi etiketi ve açıklamasını içersin veya ayrı bir fiyat önizleme endpointi sağlansın.
-- HTML'deki sayısal alanlar yükleme iskeleti olsun; API sonucu gelmeden gerçek fiyat gibi gösterilmesin.
-- Ana sayfa başlangıç fiyatı da katalog API'sinden veya build sırasında aynı katalog kaynağından üretilsin.
+**Kalan not:** `backend/prisma/seed.ts` fiyatların ayrı bir çalışma zamanı kaynağı değil, veritabanının ilk kurulum verisidir. Üretimde güncel katalog otoritesi veritabanıdır ve admin/API üzerinden yönetilir.
 
 ### HC-03 — Teslim süresi “takvim günü / iş günü” olarak çelişiyor (P1)
 

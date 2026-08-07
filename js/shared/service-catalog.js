@@ -2,7 +2,6 @@
 export const basePackages = {
   mini: {
     name: "Mini Paket",
-    price: 20000,
     image: "assets/images/hero-couple.webp"
   }
 };
@@ -13,7 +12,6 @@ export const services = [
     category: "photo",
     name: "Düğün Fotoğrafçılığı",
     eyebrow: "Zamansız Kareler",
-    price: 7000,
     image: "assets/images/services/fotograf-cekimi.webp",
     gallery: [
       "assets/images/services/fotograf-cekimi.webp",
@@ -35,7 +33,6 @@ export const services = [
     category: "production",
     name: "Sinematik Düğün Filmi",
     eyebrow: "Sinematik Anlatı",
-    price: 9000,
     image: "assets/images/services/video-cekimi.webp",
     gallery: [
       "assets/images/services/video-cekimi.webp",
@@ -57,7 +54,6 @@ export const services = [
     category: "production",
     name: "Drone Çekimi",
     eyebrow: "Havadan Hikâye",
-    price: 8000,
     image: "assets/images/services/drone-cekimi.webp",
     gallery: [
       "assets/images/services/drone-cekimi.webp",
@@ -79,7 +75,6 @@ export const services = [
     category: "production",
     name: "Jimmy Jib Çekimi",
     eyebrow: "Akıcı Perspektif",
-    price: 12000,
     image: "assets/images/services/klip-cekimi.webp",
     gallery: [
       "assets/images/services/klip-cekimi.webp",
@@ -101,7 +96,6 @@ export const services = [
     category: "photo",
     name: "Dış Çekim",
     eyebrow: "Doğal Işık",
-    price: 7000,
     image: "assets/images/hero-couple.webp",
     gallery: [
       "assets/images/hero-couple.webp",
@@ -123,7 +117,6 @@ export const services = [
     category: "experience",
     name: "Organizasyon Hizmetleri",
     eyebrow: "Misafir Deneyimi",
-    price: 5500,
     image: "assets/images/services/360-video.webp",
     gallery: [
       "assets/images/services/360-video.webp",
@@ -145,7 +138,6 @@ export const services = [
     category: "experience",
     name: "Premium Albüm Tasarımı",
     eyebrow: "Basılı Hatıra",
-    price: 7000,
     image: "assets/images/services/album-tasarimi.webp",
     gallery: [
       "assets/images/services/album-tasarimi.webp",
@@ -167,7 +159,6 @@ export const services = [
     category: "experience",
     name: "Anında Fotoğraf Baskısı",
     eyebrow: "Düğün Günü Hatırası",
-    price: 5000,
     image: "assets/images/bride-portrait.webp",
     gallery: [
       "assets/images/bride-portrait.webp",

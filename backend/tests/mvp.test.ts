@@ -7,7 +7,7 @@ import {
   strongPasswordSchema,
   weddingUpdateBodySchema
 } from "../src/schemas/api.schemas.js";
-import { calculatePayment } from "../src/services/booking.service.js";
+import { calculatePayment, paymentPolicy } from "../src/services/booking.service.js";
 import { decryptValue, encryptValue, hashPassword, verifyPassword } from "../src/utils/crypto.js";
 import {
   addCalendarDays,
@@ -132,6 +132,10 @@ test("teslimat PATCH boş body ve geçersiz takvim tarihi kabul etmez", () => {
 });
 
 test("fiyat istemciden alınmaz ve ödeme kuralı backend hesabıyla uygulanır", () => {
+  assert.deepEqual(paymentPolicy, {
+    cashDiscountPercent: 10,
+    depositMaximumCents: 500_000
+  });
   assert.deepEqual(calculatePayment(3_000_000, "CASH"), {
     totalPriceCents: 2_700_000,
     payableNowCents: 2_700_000

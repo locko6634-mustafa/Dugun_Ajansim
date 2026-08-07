@@ -2,7 +2,8 @@
 import { basePackages, services } from "./catalog.js";
 import { apiRequest, createIdempotencyKey, hasApiEndpoint } from "../shared/api-client.js";
 const moneyFormatter = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 });
-const formatPrice = (value) => `${moneyFormatter.format(value)} TL`;
+const formatPrice = (value) =>
+  Number.isFinite(value) ? `${moneyFormatter.format(value)} TL` : "—";
 const toCents = (value) => Math.round(value * 100);
 const fromCents = (value) => value / 100;
 const escapeHtml = (value) =>
@@ -51,7 +52,9 @@ const state = {
   paymentFlowExpiresAt: null,
   whatsappHandoffAt: null,
   confirmedPayment: null,
-  paymentMode: null
+  paymentMode: null,
+  paymentPolicy: null,
+  catalogReady: false
 };
 
 let paymentFlowCountdownTimer = null;
@@ -122,14 +125,25 @@ function bindBaseInputs() {
   });
 }
 
-function renderBasePackages(packages) {
+function renderBasePackages(
+  packages,
+  emptyMessage = "Şu anda başvuruya açık bir paket bulunmuyor. Lütfen daha sonra tekrar deneyin."
+) {
   const container = document.querySelector(".base-packages");
   const nextButton = document.querySelector(".js-next-step");
-  if (nextButton) nextButton.disabled = packages.length === 0;
+  if (nextButton) nextButton.disabled = !state.catalogReady || packages.length === 0;
   if (!packages.length) {
     state.base = "";
     baseInputs = [];
-    container.replaceChildren();
+    const message = document.createElement("div");
+    message.className = "builder-tip";
+    const icon = document.createElement("span");
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "✦";
+    const copy = document.createElement("p");
+    copy.textContent = emptyMessage;
+    message.append(icon, copy);
+    container.replaceChildren(message);
     return;
   }
   if (!packages.some((item) => item.code === state.base)) {
@@ -162,8 +176,40 @@ function renderBasePackages(packages) {
   bindBaseInputs();
 }
 
+function parseCatalogData(data) {
+  const remotePackages = data?.packages;
+  const remoteServices = data?.services;
+  const cashDiscountPercent = data?.paymentPolicy?.cashDiscountPercent;
+  const depositMaximumCents = data?.paymentPolicy?.depositMaximumCents;
+  const hasValidPolicy =
+    Number.isInteger(cashDiscountPercent) &&
+    cashDiscountPercent >= 0 &&
+    cashDiscountPercent < 100 &&
+    Number.isSafeInteger(depositMaximumCents) &&
+    depositMaximumCents >= 0;
+  const hasValidPrices =
+    Array.isArray(remotePackages) &&
+    remotePackages.every((item) => Number.isSafeInteger(item.priceCents) && item.priceCents >= 0) &&
+    Array.isArray(remoteServices) &&
+    remoteServices.every((item) => Number.isSafeInteger(item.priceCents) && item.priceCents >= 0);
+
+  if (!hasValidPolicy || !hasValidPrices) {
+    throw new Error("Sunucudan geçerli katalog ve ödeme koşulları alınamadı.");
+  }
+
+  return {
+    remotePackages,
+    remoteServices,
+    paymentPolicy: { cashDiscountPercent, depositMaximumCents }
+  };
+}
+
 async function hydrateRemoteData() {
-  if (!hasApiEndpoint()) return;
+  if (!hasApiEndpoint()) {
+    renderBasePackages([], "Güncel paketleri yüklemek için sunucu bağlantısı gerekli.");
+    updateSummary();
+    return;
+  }
 
   try {
     const [catalogResponse, venuesResponse] = await Promise.all([
@@ -171,7 +217,13 @@ async function hydrateRemoteData() {
       apiRequest("/venues")
     ]);
 
-    const remotePackages = catalogResponse.data.packages;
+    const {
+      remotePackages,
+      remoteServices: remoteServiceItems,
+      paymentPolicy
+    } = parseCatalogData(catalogResponse.data);
+    state.paymentPolicy = paymentPolicy;
+    state.catalogReady = true;
     const activePackageCodes = new Set(remotePackages.map((item) => item.code));
     Object.keys(basePackages).forEach((code) => {
       if (!activePackageCodes.has(code)) delete basePackages[code];
@@ -190,7 +242,7 @@ async function hydrateRemoteData() {
     });
     renderBasePackages(remotePackages);
 
-    const remoteServices = catalogResponse.data.services.map((item) => {
+    const remoteServices = remoteServiceItems.map((item) => {
       const current = services.find((service) => service.id === item.code);
       const parsedFeatures =
         Array.isArray(item.features) && item.features.length > 0
@@ -239,34 +291,117 @@ async function hydrateRemoteData() {
     venueSelect.append(customOption);
 
     renderServices();
+    updateSummary();
     if (remotePackages.length) {
-      updateSummary();
+      openRequestedService();
     } else {
       setPaymentNotificationStatus(
         "Şu anda başvuruya açık bir paket bulunmuyor. Lütfen daha sonra tekrar deneyin."
       );
     }
   } catch {
+    state.catalogReady = false;
+    state.paymentPolicy = null;
+    services.forEach((service) => {
+      delete service.price;
+    });
+    renderBasePackages(
+      [],
+      "Güncel paket ve ödeme koşulları alınamadı. Lütfen bağlantınızı kontrol edip sayfayı yenileyin."
+    );
+    renderServices();
+    updateSummary();
     setPaymentNotificationStatus(
       "Güncel paket ve salon bilgileri alınamadı. Lütfen bağlantınızı kontrol edip sayfayı yenileyin."
     );
   }
 }
 
-const paymentMethods = {
-  cash: {
-    title: "Peşin ödeme avantajı",
-    copy: "Toplam paket tutarınıza %10 indirim uygulanır."
-  },
-  deposit: {
-    title: "5.000 TL kapora ödemesi",
-    copy: "Kalan paket tutarını ekibimizle planlayacağınız tarihte tamamlayabilirsiniz."
-  }
-};
-
 function getOrderSubtotal() {
   const base = basePackages[state.base];
-  return getSelectedExtras().reduce((sum, service) => sum + service.price, base.price);
+  const extras = getSelectedExtras();
+  if (!Number.isFinite(base?.price) || extras.some((service) => !Number.isFinite(service.price))) {
+    return null;
+  }
+  return extras.reduce((sum, service) => sum + service.price, base.price);
+}
+
+function getPaymentMethodContent(paymentMethod) {
+  const policy = state.paymentPolicy;
+  if (!policy) {
+    return {
+      title: "Ödeme koşulları yükleniyor",
+      copy: "Güncel koşullar sunucudan alınacaktır.",
+      optionCopy:
+        paymentMethod === "cash" ? "Güncel indirim yükleniyor" : "Güncel kapora tutarı yükleniyor"
+    };
+  }
+
+  if (paymentMethod === "cash") {
+    return {
+      title: policy.cashDiscountPercent > 0 ? "Peşin ödeme avantajı" : "Peşin ödeme",
+      copy:
+        policy.cashDiscountPercent > 0
+          ? `Toplam paket tutarınıza %${moneyFormatter.format(policy.cashDiscountPercent)} indirim uygulanır.`
+          : "Peşin ödeme tutarı güncel katalog üzerinden hesaplanır.",
+      optionCopy:
+        policy.cashDiscountPercent > 0
+          ? `%${moneyFormatter.format(policy.cashDiscountPercent)} erken ödeme indirimi`
+          : "Güncel peşin ödeme tutarı"
+    };
+  }
+
+  return {
+    title: `${formatPrice(fromCents(policy.depositMaximumCents))} kapora ödemesi`,
+    copy: "Kalan paket tutarını ekibimizle planlayacağınız tarihte tamamlayabilirsiniz.",
+    optionCopy: "Güncel kapora üst sınırı"
+  };
+}
+
+function calculatePaymentPreview(paymentMethod) {
+  const subtotal = getOrderSubtotal();
+  const policy = state.paymentPolicy;
+  if (!Number.isFinite(subtotal) || !policy) {
+    return {
+      subtotal: null,
+      subtotalLabel: "Ara toplam",
+      payable: null,
+      adjustment: 0,
+      adjustmentLabel: "",
+      payableLabel:
+        paymentMethod === "cash" ? "Bugün havale edilecek" : "Bugün havale edilecek kapora",
+      benefit: "Güncel fiyat ve ödeme koşulları sunucudan yükleniyor."
+    };
+  }
+
+  const subtotalCents = toCents(subtotal);
+  if (paymentMethod === "cash") {
+    const totalPriceCents = Math.round((subtotalCents * (100 - policy.cashDiscountPercent)) / 100);
+    const discountCents = subtotalCents - totalPriceCents;
+    return {
+      subtotal,
+      subtotalLabel: "Ara toplam",
+      payable: fromCents(totalPriceCents),
+      adjustment: fromCents(-discountCents),
+      adjustmentLabel: "Peşin ödeme indirimi",
+      payableLabel: "Bugün havale edilecek",
+      benefit:
+        discountCents > 0
+          ? `Peşin ödeme seçeneğiyle ${formatPrice(fromCents(discountCents))} avantaj kazandınız.`
+          : "Peşin ödeme tutarı güncel katalog üzerinden hesaplandı."
+    };
+  }
+
+  const payableNowCents = Math.min(policy.depositMaximumCents, subtotalCents);
+  return {
+    subtotal,
+    subtotalLabel: "Ara toplam",
+    payable: fromCents(payableNowCents),
+    adjustment: 0,
+    adjustmentLabel: "",
+    payableLabel: "Bugün havale edilecek kapora",
+    benefit: `${formatPrice(fromCents(payableNowCents))} kapora ödemesinin ardından kalan tutarı ekibimizle planlayabilirsiniz.`
+  };
 }
 
 function getPaymentDetails() {
@@ -283,31 +418,7 @@ function getPaymentDetails() {
     };
   }
 
-  const subtotalCents = toCents(getOrderSubtotal());
-  if (state.payment === "cash") {
-    const totalPriceCents = Math.round(subtotalCents * 0.9);
-    const discountCents = subtotalCents - totalPriceCents;
-    return {
-      subtotal: fromCents(subtotalCents),
-      subtotalLabel: "Ara toplam",
-      payable: fromCents(totalPriceCents),
-      adjustment: fromCents(-discountCents),
-      adjustmentLabel: "Peşin ödeme indirimi",
-      payableLabel: "Bugün havale edilecek",
-      benefit: `Peşin ödeme seçeneğiyle ${formatPrice(fromCents(discountCents))} avantaj kazandınız.`
-    };
-  }
-
-  const payableNowCents = Math.min(500_000, subtotalCents);
-  return {
-    subtotal: fromCents(subtotalCents),
-    subtotalLabel: "Ara toplam",
-    payable: fromCents(payableNowCents),
-    adjustment: 0,
-    adjustmentLabel: "",
-    payableLabel: "Bugün havale edilecek kapora",
-    benefit: `${formatPrice(fromCents(payableNowCents))} kapora ödemesinin ardından kalan tutarı ekibimizle planlayabilirsiniz.`
-  };
+  return calculatePaymentPreview(state.payment);
 }
 
 function setConfirmedPayment(responseData) {
@@ -400,16 +511,18 @@ function updateSummary() {
   const base = basePackages[state.base];
   const extras = getSelectedExtras();
   const total = getOrderSubtotal();
-
-  document.querySelector(".js-summary-base-name").textContent = base.name;
-  document.querySelector(".js-summary-base-price").textContent = formatPrice(base.price);
-  document.querySelector(".package-summary__base img").src = base.image;
-  document.querySelector(".js-summary-total").textContent = formatPrice(total);
-  document.querySelector(".js-extra-count").textContent = `${extras.length} seçim`;
-  document.querySelector(".builder-bag__count").textContent = String(1 + extras.length);
-
   const emptyState = document.querySelector(".js-summary-empty");
   const summaryList = document.querySelector(".js-summary-list");
+
+  document.querySelector(".js-summary-base-name").textContent = base?.name || "Paket yükleniyor";
+  document.querySelector(".js-summary-base-price").textContent = formatPrice(base?.price);
+  if (base?.image) document.querySelector(".package-summary__base img").src = base.image;
+  document.querySelector(".js-summary-total").textContent = formatPrice(total);
+  document.querySelector(".js-extra-count").textContent = `${extras.length} seçim`;
+  document.querySelector(".builder-bag__count").textContent = String(
+    (base ? 1 : 0) + extras.length
+  );
+
   emptyState.hidden = extras.length > 0;
   summaryList.replaceChildren(
     ...extras.map((service) => {
@@ -428,13 +541,17 @@ function updateSummary() {
 }
 
 function updatePaymentUI() {
-  const subtotal = getOrderSubtotal();
-  const cashTotal = fromCents(Math.round(toCents(subtotal) * 0.9));
-  const method = paymentMethods[state.payment];
+  const cashPayment = calculatePaymentPreview("cash");
+  const depositPayment = calculatePaymentPreview("deposit");
+  const method = getPaymentMethodContent(state.payment);
 
-  document.querySelector(".js-cash-original").textContent = formatPrice(subtotal);
-  document.querySelector(".js-cash-total").textContent = formatPrice(cashTotal);
-  document.querySelector(".js-deposit-total").textContent = formatPrice(Math.min(5000, subtotal));
+  document.querySelector(".js-cash-original").textContent = formatPrice(cashPayment.subtotal);
+  document.querySelector(".js-cash-total").textContent = formatPrice(cashPayment.payable);
+  document.querySelector(".js-deposit-total").textContent = formatPrice(depositPayment.payable);
+  document.querySelector(".js-cash-discount-copy").textContent =
+    getPaymentMethodContent("cash").optionCopy;
+  document.querySelector(".js-deposit-copy").textContent =
+    getPaymentMethodContent("deposit").optionCopy;
   document.querySelector(".js-payment-assurance-title").textContent = method.title;
   document.querySelector(".js-payment-assurance-copy").textContent = method.copy;
 
@@ -1574,6 +1691,14 @@ document.querySelector(".js-restart-payment-flow")?.addEventListener("click", ()
   window.location.reload();
 });
 
+function openRequestedService() {
+  const requestedService = new URL(window.location.href).searchParams.get("hizmet");
+  if (requestedService && services.some((service) => service.id === requestedService)) {
+    goToStep(2);
+    openServiceDetail(requestedService);
+  }
+}
+
 renderServices();
 bindBaseInputs();
 updateSummary();
@@ -1591,12 +1716,6 @@ const localToday = [
 ].join("-");
 if (weddingDateInput) weddingDateInput.min = localToday;
 if (transferDateInput) transferDateInput.max = localToday;
-
-const requestedService = new URL(window.location.href).searchParams.get("hizmet");
-if (requestedService && services.some((service) => service.id === requestedService)) {
-  goToStep(2);
-  openServiceDetail(requestedService);
-}
 
 function renderOrderReview() {
   const base = basePackages[state.base];

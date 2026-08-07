@@ -98,11 +98,17 @@ test("migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalış�
   );
 
   const response = await request(createApp()).get("/api/v1/health");
+  const catalogResponse = await request(createApp()).get("/api/v1/catalog");
 
   assert.equal(response.status, 200);
   assert.equal(response.body.success, true);
   assert.equal(response.body.database, "connected");
   assert.equal(response.headers["cache-control"], "no-store");
+  assert.equal(catalogResponse.status, 200);
+  assert.deepEqual(catalogResponse.body.data.paymentPolicy, {
+    cashDiscountPercent: 10,
+    depositMaximumCents: 500_000
+  });
 });
 
 test("expired, revoked, idle, disabled ve süresi dolmuş geçici kimlikler reddedilir", async (context) => {

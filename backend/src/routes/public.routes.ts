@@ -14,6 +14,7 @@ import {
   getPaymentFlowApplication,
   getVenueAvailability,
   markWhatsappHandoff,
+  paymentPolicy,
   updatePaymentFlowApplication
 } from "../services/booking.service.js";
 import { AppError } from "../utils/appError.js";
@@ -106,7 +107,7 @@ router.get(
     ]);
     res.json({
       success: true,
-      data: { packages, services },
+      data: { packages, services, paymentPolicy },
       correlationId: req.correlationId
     });
   })

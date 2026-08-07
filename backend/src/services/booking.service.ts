@@ -33,15 +33,25 @@ type CreateBookingOptions = {
   correlationId: string;
 };
 
+export const paymentPolicy = Object.freeze({
+  cashDiscountPercent: 10,
+  depositMaximumCents: 500_000
+});
+
 export const calculatePayment = (
   subtotalCents: number,
   paymentMethod: "CASH" | "DEPOSIT"
 ): { totalPriceCents: number; payableNowCents: number } => {
   const totalPriceCents =
-    paymentMethod === "CASH" ? Math.round(subtotalCents * 0.9) : subtotalCents;
+    paymentMethod === "CASH"
+      ? Math.round((subtotalCents * (100 - paymentPolicy.cashDiscountPercent)) / 100)
+      : subtotalCents;
   return {
     totalPriceCents,
-    payableNowCents: paymentMethod === "CASH" ? totalPriceCents : Math.min(500_000, totalPriceCents)
+    payableNowCents:
+      paymentMethod === "CASH"
+        ? totalPriceCents
+        : Math.min(paymentPolicy.depositMaximumCents, totalPriceCents)
   };
 };
 
