@@ -110,18 +110,6 @@ function scrollToTarget(targetElement) {
     top: initialY,
     behavior: "smooth"
   });
-
-  [250, 550, 900, 1300].forEach((delay) => {
-    setTimeout(() => {
-      const desired = getDesiredY();
-      if (Math.abs(window.scrollY - desired) > 15) {
-        window.scrollTo({
-          top: desired,
-          behavior: "smooth"
-        });
-      }
-    }, delay);
-  });
 }
 
 document.addEventListener("click", (event) => {

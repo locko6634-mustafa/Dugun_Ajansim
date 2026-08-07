@@ -68,6 +68,24 @@ test("masaustu header klasik tam genislikte ve tek satirda kalir", async ({ page
   expect(navigationBox.x + navigationBox.width).toBeLessThanOrEqual(actionsBox.x + 2);
 });
 
+test("masaustu navigasyon tiklamasi tek bir kaydirma baslatir", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/index.html");
+  await page.evaluate(() => {
+    const originalScrollTo = window.scrollTo.bind(window);
+    window.__navigationScrollCalls = [];
+    window.scrollTo = (...args) => {
+      window.__navigationScrollCalls.push(args);
+      originalScrollTo(...args);
+    };
+  });
+
+  await page.locator('.desktop-nav a[href="#hizmetler"]').click();
+  await page.waitForTimeout(1500);
+
+  expect(await page.evaluate(() => window.__navigationScrollCalls)).toHaveLength(1);
+});
+
 test("scroll konumu masaustu navigasyonunun ust basligini gunceller", async ({ page }) => {
   await page.goto("/index.html");
 
