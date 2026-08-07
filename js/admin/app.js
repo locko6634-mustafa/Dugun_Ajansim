@@ -1977,7 +1977,7 @@ function updateWeddingChangeNote() {
       changes.push(`Ek hizmet eklendi: ${selectedByCode.get(code) || code}.`);
     }
   });
-  const generated = changes.length ? `[Paket / hizmet değişikliği]\n${changes.join("\n")}` : "";
+  const generated = changes.join("\n");
   note.value = [manualNote.trimEnd(), generated].filter(Boolean).join("\n");
   weddingForm.dataset.generatedNote = generated;
 }

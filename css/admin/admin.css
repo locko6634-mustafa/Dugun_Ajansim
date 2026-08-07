@@ -447,6 +447,76 @@ button:disabled {
   font: inherit;
   text-transform: none;
 }
+.availability-date-control {
+  position: relative;
+  display: grid;
+  align-items: center;
+  border-radius: 12px;
+  background: var(--paper);
+  transition:
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+.availability-date-control > svg {
+  position: absolute;
+  z-index: 1;
+  left: 13px;
+  width: 18px;
+  fill: none;
+  stroke: var(--olive);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  pointer-events: none;
+}
+.availability-filters .availability-date-control input {
+  min-height: 48px;
+  padding: 9px 12px 9px 42px;
+  border-color: hsl(78 18% 35% / 22%);
+  border-radius: 12px;
+  background: hsl(42 35% 98%);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color-scheme: light;
+  cursor: pointer;
+  outline: none;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+.availability-filters .availability-date-control input:hover {
+  border-color: hsl(78 23% 35% / 45%);
+  background: white;
+}
+.availability-filters .availability-date-control input:focus-visible {
+  border-color: var(--olive);
+  background: white;
+  box-shadow: 0 0 0 3px hsl(78 23% 35% / 10%);
+}
+.availability-date-control:focus-within {
+  box-shadow: 0 10px 24px hsl(30 18% 25% / 8%);
+  transform: translateY(-1px);
+}
+.availability-date-control input::-webkit-calendar-picker-indicator {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .availability-date-control,
+  .availability-date-control input {
+    transition: none;
+  }
+  .availability-date-control:focus-within {
+    transform: none;
+  }
+}
 .availability-list {
   display: grid;
   gap: 8px;
@@ -1755,6 +1825,27 @@ body.sidebar-open {
   .specialty-choices label {
     font-size: 12px !important;
     white-space: nowrap !important;
+  }
+  .wedding-service-choices > div {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 6px !important;
+  }
+  .wedding-service-choices label {
+    display: grid !important;
+    min-width: 0;
+    padding: 8px 9px;
+    border-radius: 8px;
+    background: hsl(42 30% 95% / 55%);
+    grid-template-columns: 16px minmax(0, 1fr);
+    gap: 9px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    white-space: normal !important;
+  }
+  .wedding-service-choices input {
+    width: 16px !important;
+    height: 16px;
+    margin: 0;
   }
   .filter-bar {
     flex-direction: column !important;

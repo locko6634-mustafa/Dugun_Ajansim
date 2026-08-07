@@ -180,7 +180,10 @@ test("paket formu çift, saat ve salon alanlarını backend kataloğuyla hazırl
   await expect(page.locator('input[name="endTime"]')).toHaveAttribute("aria-invalid", "true");
 });
 
-test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açılır", async ({ page }) => {
+test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açılır", async ({
+  page,
+  isMobile
+}) => {
   await page.addInitScript(() => {
     window.__adminWhatsAppUrls = [];
     window.__copiedAdminMessages = [];
@@ -411,6 +414,7 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
     expect(body.note).toContain("Paket değiştirildi: Mini Paket → Hikâye Paketi.");
     expect(body.note).toContain("Ek hizmet çıkarıldı: Ek Baskı.");
     expect(body.note).toContain("Ek hizmet eklendi: Drone Çekimi.");
+    expect(body.note).not.toContain("[Paket / hizmet değişikliği]");
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -433,6 +437,15 @@ test("admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açıl�
   ).toBeVisible();
   await page.getByRole("button", { name: "Düğün bilgilerini düzenle" }).click();
   await expect(page.getByRole("heading", { name: "Bilgileri güncelle" })).toBeVisible();
+  if (isMobile) {
+    const serviceLabels = page.locator(".js-wedding-services label");
+    await expect(serviceLabels).toHaveCount(2);
+    expect(
+      await serviceLabels.evaluateAll((labels) =>
+        labels.every((label) => label.scrollWidth <= label.clientWidth)
+      )
+    ).toBe(true);
+  }
   await page.locator('.js-wedding-form input[name="brideLastName"]').fill("Kaya");
   await page.locator('.js-wedding-form select[name="packageCode"]').selectOption("hikaye");
   await page.locator('.js-wedding-form input[value="baski"]').uncheck();

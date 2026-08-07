@@ -82,7 +82,8 @@ test("admin paneli 320px ekranda taşmadan ve dokunma hedeflerini koruyarak çal
   await expectMinimumHeight(page.locator('.admin-nav [data-panel="overview"]'));
   await page.getByRole("button", { name: /Menüyü Kapat/i }).click();
 
-  await page.locator('[data-panel="plan"]').click({ force: true });
+  await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
+  await page.locator('[data-panel="plan"]').click();
   await expect(page.locator('[data-panel-content="plan"]')).toBeVisible();
   await expectNoPageOverflow(page);
   for (const button of await page.locator(".plan-heading .plan-controls button").all()) {
