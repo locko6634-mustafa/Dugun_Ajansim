@@ -62,3 +62,22 @@ test("scroll konumu masaustu navigasyonunun ust basligini gunceller", async ({ p
     "location"
   );
 });
+
+test("pazarlama metinleri doğrulanmamış iddialar içermez ve copyright yılı günceldir", async ({
+  page
+}) => {
+  await page.goto("/index.html");
+
+  await expect(page).toHaveTitle("Düğünajansım | Düğün Fotoğrafı ve Video Prodüksiyonu");
+  await expect(page.locator(".proof-pill")).toContainText("Fotoğraf");
+  await expect(page.locator(".proof-pill")).toContainText("Sinematik Film");
+  await expect(page.locator(".site-footer__bottom [data-current-year]")).toHaveText(
+    String(new Date().getFullYear())
+  );
+  await expect(page.locator("body")).not.toContainText(/70\+|1500\+|2018’den beri|2027 itibarıyla/);
+
+  await page.goto("/paketini-olustur.html");
+  await expect(page.locator(".showcase-footer [data-current-year]")).toHaveText(
+    String(new Date().getFullYear())
+  );
+});

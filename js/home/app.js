@@ -6,8 +6,10 @@ import "./services.js";
 import "./venues.js";
 import "./motion.js";
 import { initHeaderAuth } from "../shared/auth-session.js";
+import { initCurrentYear } from "../shared/site-content.js";
 
 initHeaderAuth();
+initCurrentYear();
 
 const preloader = document.getElementById("app-preloader");
 if (preloader) {

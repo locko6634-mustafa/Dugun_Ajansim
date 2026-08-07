@@ -134,18 +134,18 @@ Frontenddeki hardcoded alanların büyük kısmı statik tasarım ve arayüz met
 
 **Doğrulama:** Sözleşme kontrolü yeni veya sırası değişen backend enum değerlerinde başarısız olarak eksik frontend etiketini yayın öncesinde görünür kılıyor.
 
-### HC-09 — Tarih, yıl ve doğrulanması gereken pazarlama iddiaları statik (P2)
+### HC-09 — Tarih, yıl ve doğrulanması gereken pazarlama iddiaları statik (P2) — Çözüldü
 
-**Kanıt**
+**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
 
-- Copyright: `index.html:1451` ve `paketini-olustur.html:1130` — 2026.
-- Üç yasal sayfanın tarihi: `kvkk-aydinlatma.html:15`, `gizlilik-politikasi.html:15`, `kullanim-sartlari.html:15` — 27 Temmuz 2026.
-- Referans çekim tarihleri: `index.html:596`, `:634`, `:672`.
-- Pazarlama/faktüel iddialar: `index.html:11`, `:172`, `:181-182`, `:995`, `:1232-1234`, `:1401` — “Türkiye'nin En Kapsamlı”, yüzlerce organizasyon, 2018'den beri ve 2027 uluslararası hedefi.
+**Uygulanan çözüm**
 
-**Risk:** Yıllık bakım unutulur; doğrulanmayan veya zamanı geçen iddialar SEO, marka güveni ve hukuki inceleme riski yaratır.
+- Ana sayfadaki “Türkiye'nin En Kapsamlı”, 70+ ekip, yılda 1500+ düğün, yüzlerce organizasyon, 2018'den beri ve 2027 uluslararası hedefi gibi doğrulama kaynağı bulunmayan iddialar kaldırıldı. Yerlerine mevcut hizmet kataloğu ve başvuru akışıyla uyumlu, ölçülemeyen nötr anlatımlar getirildi.
+- `js/shared/site-content.js` iki public sayfadaki copyright yılını çalışma zamanında güncel yıldan üretiyor.
+- `tools/check-site-content.mjs` sabit copyright yılının veya kaldırılan iddiaların yeniden eklenmesini engelliyor ve `npm run validate` kalite kapısında çalışıyor.
+- Referans çekim tarihleri gerçek içerik verisi olarak korundu. Yasal sayfaların revizyon tarihleri otomatikleştirilmedi; onaylı belge değiştiğinde bilinçli olarak güncellenecek.
 
-**Öneri:** Copyright yılı çalışma zamanında üretilebilir. Yasal “son güncelleme” tarihi yalnız onaylı doküman revizyonunda değişmeli. Pazarlama iddiaları içerik sahibi, kanıt bağlantısı ve gözden geçirme tarihi bulunan bir manifest/CMS kaydı olmalı.
+**Doğrulama:** E2E testi ana sayfa ve paket oluşturucuda güncel copyright yılını, güvenli SEO başlığını ve eski sayısal iddiaların görünmediğini doğruluyor. İçerik sözleşmesi kontrolü yasal belge tarihlerinin makinece okunabilir ve belgeye bağlı kalmasını denetliyor.
 
 ### HC-10 — Manuel cache-busting sürümleri tutarsız yönetiliyor (P2)
 
