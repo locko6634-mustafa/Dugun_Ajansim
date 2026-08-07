@@ -121,18 +121,18 @@ Frontenddeki hardcoded alanların büyük kısmı statik tasarım ve arayüz met
 
 **Öneri:** Galeri/video kayıtlarını `media-manifest.json`, CMS veya public içerik API'sine taşıyın. Her kayıt için `id`, başlık, tarih, venue, poster, video URL, alt metin ve yayın durumu tutun. Storage hostname deploy/config katmanında yönetilsin.
 
-### HC-08 — Rol, durum ve uzmanlık eşlemeleri kopyalanmış (P2)
+### HC-08 — Rol, durum ve uzmanlık eşlemeleri kopyalanmış (P2) — Çözüldü
 
-**Kanıt**
+**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
 
-- Uzmanlık etiketleri hem `js/admin/app.js:8-16` hem `js/operations/app.js:3-11` içinde aynı 7 değerle tanımlı; enum kaynağı `backend/prisma/schema.prisma:69-77` içinde backendde.
-- Teslimat sırası/etiketleri `js/customer-panel/app.js:3-10`, admin etiketleri `js/admin/app.js:17-23` içinde ayrı.
-- Mesaj türleri `js/admin/app.js:24-29`, backend enumu `backend/prisma/schema.prisma:51-56` içinde ayrı.
-- Rol → panel yolu hem `js/shared/auth-session.js:25-40` hem `js/login/login.js:46-52` içinde tekrar ediyor.
+**Uygulanan çözüm**
 
-**Risk:** Yeni enum değeri veya etiket değişikliği bazı ekranlarda `undefined`, yanlış sıralama ya da farklı yönlendirme üretebilir.
+- Rol/panel hedefleri, rol etiketleri, personel uzmanlıkları, teslimat durum sırası ve etiketleri ile mesaj türü etiketleri `js/shared/domain-labels.js` içinde tek kaynağa alındı.
+- Admin, operasyon, müşteri ve giriş/oturum modüllerindeki yerel kopyalar kaldırıldı; tüm tüketiciler ortak modülü kullanıyor.
+- Admin ve müşteri teslimat ekranları aynı açıklayıcı durum etiketlerini gösteriyor.
+- `tools/check-domain-contract.mjs`; ortak frontend anahtarlarını Prisma `UserRole`, `DeliveryStatus`, `MessageKind` ve `StaffSpecialty` enumlarıyla, teslimat adımlarını ayrıca sıra bakımından doğruluyor. Kontrol `npm run validate` kalite kapısına eklendi.
 
-**Öneri:** Rol/panel yolu ve tüm kullanıcıya dönük enum etiketlerini `js/shared/domain-labels.js` benzeri tek frontend modülünde toplayın. Enum değerlerini mümkünse OpenAPI/JSON Schema gibi backend sözleşmesinden build sırasında doğrulayın; yetkilendirme yine backendde kalmalı.
+**Doğrulama:** Sözleşme kontrolü yeni veya sırası değişen backend enum değerlerinde başarısız olarak eksik frontend etiketini yayın öncesinde görünür kılıyor.
 
 ### HC-09 — Tarih, yıl ve doğrulanması gereken pazarlama iddiaları statik (P2)
 

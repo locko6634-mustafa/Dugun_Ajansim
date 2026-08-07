@@ -9,29 +9,15 @@ import {
   applyBookingFormConstraints,
   parseBookingFormConstraints
 } from "../shared/booking-form-constraints.js";
+import {
+  DELIVERY_STATUS_LABELS,
+  MESSAGE_KIND_LABELS,
+  STAFF_SPECIALTY_LABELS
+} from "../shared/domain-labels.js";
 
-const SPECIALTIES = {
-  PHOTOGRAPHY: "Fotoğraf",
-  VIDEO: "Video",
-  DRONE: "Drone",
-  JIMMY_JIB: "Jimmy Jib",
-  ASSISTANT: "Asistan",
-  EDITING: "Kurgu / Montaj",
-  ALBUM: "Albüm"
-};
-const STATUS_LABELS = {
-  HAZIRLANIYOR: "Hazırlanıyor",
-  MONTAJ: "Montaj",
-  KONTROL: "Kontrol",
-  TESLIME_HAZIR: "Teslime Hazır",
-  TESLIM_EDILDI: "Teslim Edildi"
-};
-const MESSAGE_LABELS = {
-  ACCOUNT_ACTIVATION: "Hesap aktivasyonu",
-  PREPARATION_UPDATE: "Hazırlık bilgisi",
-  DELIVERY_READY: "Teslimat hazır",
-  PASSWORD_RESET: "Parola sıfırlama"
-};
+const SPECIALTIES = STAFF_SPECIALTY_LABELS;
+const STATUS_LABELS = DELIVERY_STATUS_LABELS;
+const MESSAGE_LABELS = MESSAGE_KIND_LABELS;
 const state = {
   dashboard: null,
   weekStart: "",

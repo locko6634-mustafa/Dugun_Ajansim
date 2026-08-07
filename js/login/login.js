@@ -1,5 +1,5 @@
 import { apiRequest } from "../shared/api-client.js";
-import { fetchSession } from "../shared/auth-session.js";
+import { fetchSession, getPanelUrlForRole } from "../shared/auth-session.js";
 
 const loginForm = document.querySelector(".login-form");
 const changeForm = document.querySelector(".password-change-form");
@@ -44,12 +44,7 @@ function validatePassword() {
 }
 
 function redirectForRole(role) {
-  const targets = {
-    ADMIN: "admin.html",
-    MUSTERI: "musteri-paneli.html",
-    SALON_YETKILISI: "operasyon-paneli.html"
-  };
-  window.location.href = targets[role] || "index.html";
+  window.location.href = getPanelUrlForRole(role);
 }
 
 function showPasswordChange(role, currentPassword = "") {

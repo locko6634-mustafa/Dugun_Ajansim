@@ -1,14 +1,7 @@
 import { apiRequest } from "../shared/api-client.js";
+import { STAFF_SPECIALTY_LABELS } from "../shared/domain-labels.js";
 
-const SPECIALTIES = {
-  PHOTOGRAPHY: "Fotoğraf",
-  VIDEO: "Video",
-  DRONE: "Drone",
-  JIMMY_JIB: "Jimmy Jib",
-  ASSISTANT: "Asistan",
-  EDITING: "Kurgu / Montaj",
-  ALBUM: "Albüm"
-};
+const SPECIALTIES = STAFF_SPECIALTY_LABELS;
 const PANEL_TITLES = {
   overview: "Bugünün akışı",
   calendar: "Salon takvimi",

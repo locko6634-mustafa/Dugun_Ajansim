@@ -1,4 +1,7 @@
 import { apiRequest } from "./api-client.js";
+import { getPanelUrlForRole, getRoleLabel } from "./domain-labels.js";
+
+export { getPanelUrlForRole, getRoleLabel } from "./domain-labels.js";
 
 export async function fetchSession() {
   try {
@@ -20,24 +23,6 @@ export async function logoutUser() {
   } finally {
     window.location.href = "index.html";
   }
-}
-
-export function getPanelUrlForRole(role) {
-  const targets = {
-    ADMIN: "admin.html",
-    MUSTERI: "musteri-paneli.html",
-    SALON_YETKILISI: "operasyon-paneli.html"
-  };
-  return targets[role] || "index.html";
-}
-
-export function getRoleLabel(role) {
-  const labels = {
-    ADMIN: "Admin Paneli",
-    MUSTERI: "Müşteri Paneli",
-    SALON_YETKILISI: "Salon Sorumlusu Paneli"
-  };
-  return labels[role] || "Hesabım";
 }
 
 export async function initHeaderAuth() {

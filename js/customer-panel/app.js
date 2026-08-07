@@ -1,13 +1,8 @@
 import { apiRequest } from "../shared/api-client.js";
+import { DELIVERY_STATUS_LABELS, DELIVERY_STATUS_ORDER } from "../shared/domain-labels.js";
 
-const statusOrder = ["HAZIRLANIYOR", "MONTAJ", "KONTROL", "TESLIME_HAZIR", "TESLIM_EDILDI"];
-const statusLabels = {
-  HAZIRLANIYOR: "Hazırlanıyor",
-  MONTAJ: "Montaj Aşamasında",
-  KONTROL: "Kontrol Ediliyor",
-  TESLIME_HAZIR: "Teslime Hazır",
-  TESLIM_EDILDI: "Teslim Edildi"
-};
+const statusOrder = DELIVERY_STATUS_ORDER;
+const statusLabels = DELIVERY_STATUS_LABELS;
 
 const formatDate = (value) =>
   new Intl.DateTimeFormat("tr-TR", { dateStyle: "long" }).format(new Date(value));
