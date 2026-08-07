@@ -943,6 +943,10 @@ button {
 .time-picker {
   position: relative;
 }
+
+.date-picker {
+  grid-column: 1 / -1;
+}
 .picker-popover {
   position: absolute;
   z-index: 12;
@@ -1095,7 +1099,7 @@ button {
   background: var(--gold-dark);
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .picker-popover {
     position: fixed;
     right: 16px;
@@ -2538,7 +2542,7 @@ body.is-summary-open .package-summary__close svg {
   }
 }
 
-@media (max-width: 430px) {
+@media (max-width: 640px) {
   .builder-progress {
     padding-inline: 10px;
   }
@@ -2587,6 +2591,10 @@ body.is-summary-open .package-summary__close svg {
   }
 
   .form-field--wide {
+    grid-column: auto;
+  }
+
+  .date-picker {
     grid-column: auto;
   }
 
