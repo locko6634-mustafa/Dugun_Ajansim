@@ -25,6 +25,22 @@ test("mobil navigasyon sayfa bolumlerini dogru sirada listeler", async ({ page }
   expect(mobileSectionOrder).toEqual(expectedSectionOrder);
 });
 
+test("masaustu header sayfadan ayrisan navigasyon seridi kullanir", async ({ page }) => {
+  await page.setViewportSize({ width: 1220, height: 800 });
+  await page.goto("/index.html");
+
+  const headerBox = await page.locator(".site-header").boundingBox();
+  expect(headerBox?.x).toBeGreaterThan(0);
+  expect(headerBox?.y).toBeGreaterThan(0);
+  expect(headerBox?.width).toBeLessThan(1220);
+
+  const activeLink = page.locator('.desktop-nav a[href="#anasayfa"]');
+  await expect(activeLink).toBeVisible();
+  await expect(activeLink).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(activeLink).toHaveAttribute("aria-current", "location");
+  await expect(page.locator(".header-cta")).toHaveCSS("white-space", "nowrap");
+});
+
 test("scroll konumu masaustu navigasyonunun ust basligini gunceller", async ({ page }) => {
   await page.goto("/index.html");
 

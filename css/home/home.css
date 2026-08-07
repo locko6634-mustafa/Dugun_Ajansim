@@ -123,6 +123,7 @@ button {
   box-shadow: 0 9px 24px hsl(32 54% 42% / 0.16);
   cursor: pointer;
   font-weight: 600;
+  white-space: nowrap;
   transition:
     transform 220ms var(--ease),
     box-shadow 220ms ease;
@@ -222,6 +223,118 @@ button {
 .menu-toggle,
 .mobile-menu {
   display: none;
+}
+
+@media (min-width: 1181px) {
+  .site-header {
+    top: 10px;
+    right: auto;
+    left: 50%;
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    gap: clamp(18px, 2vw, 34px);
+    width: min(1540px, calc(100% - 36px));
+    min-height: 68px;
+    padding: 7px clamp(12px, 1.4vw, 22px) 7px clamp(14px, 1.6vw, 26px);
+    border: 1px solid hsl(34 38% 82% / 0.88);
+    border-radius: 18px;
+    background: hsl(40 45% 98% / 0.94);
+    box-shadow:
+      0 16px 42px hsl(28 24% 22% / 0.1),
+      inset 0 1px hsl(0 0% 100% / 0.9);
+    transform: translateX(-50%);
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand__mark {
+    width: 38px;
+    height: 38px;
+  }
+
+  .brand__name {
+    font-size: clamp(25px, 1.8vw, 31px);
+  }
+
+  .brand__year {
+    font-size: clamp(21px, 1.5vw, 26px);
+  }
+
+  .desktop-nav {
+    justify-self: center;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid hsl(34 34% 86% / 0.9);
+    border-radius: 14px;
+    background: hsl(36 34% 94% / 0.72);
+    font-size: 12.5px;
+  }
+
+  .desktop-nav a {
+    padding: 10px clamp(10px, 1vw, 15px) 12px;
+    border-radius: 10px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    transition:
+      color 220ms ease,
+      background-color 220ms ease,
+      box-shadow 220ms ease;
+  }
+
+  .desktop-nav a::after {
+    right: auto;
+    bottom: 5px;
+    left: 50%;
+    width: 14px;
+    height: 1.5px;
+    transform: translateX(-50%) scaleX(0);
+  }
+
+  .desktop-nav a:hover,
+  .desktop-nav a:focus-visible {
+    background: hsl(0 0% 100% / 0.58);
+  }
+
+  .desktop-nav a.is-active {
+    background: var(--white);
+    box-shadow: 0 5px 14px hsl(31 25% 35% / 0.09);
+  }
+
+  .desktop-nav a:hover::after,
+  .desktop-nav a:focus-visible::after,
+  .desktop-nav a.is-active::after {
+    transform: translateX(-50%) scaleX(1);
+  }
+
+  .header-actions {
+    gap: 7px;
+  }
+
+  .header-login,
+  .header-logout,
+  .header-cta {
+    min-height: 44px;
+    border-radius: 12px;
+    font-size: 12px;
+  }
+
+  .header-login {
+    padding-inline: 13px;
+  }
+
+  .header-logout {
+    padding-inline: 11px;
+  }
+
+  .header-cta {
+    padding-inline: 17px;
+  }
+
+  .header-login svg,
+  .header-cta svg {
+    width: 18px;
+  }
 }
 
 .hero {
@@ -882,7 +995,10 @@ button {
     top: 0;
     right: 0;
     left: 0;
+    width: 100%;
     min-height: var(--header-height);
+    border-radius: 0;
+    transform: none;
   }
 
   .desktop-nav,
