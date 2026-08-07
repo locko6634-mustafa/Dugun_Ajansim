@@ -56,7 +56,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("resize", () => {
-  if (window.innerWidth > 1060) setMenu(false, { restoreFocus: false });
+  if (window.innerWidth > 1180) setMenu(false, { restoreFocus: false });
 });
 
 setMenu(false, { restoreFocus: false });
@@ -65,25 +65,30 @@ const sectionIds = [
   "anasayfa",
   "hakkimizda",
   "konseptler",
-  "hizmetler",
   "galeri",
+  "cekimler",
+  "hizmetler",
   "paket-olustur",
+  "mekanlar",
+  "sss",
   "iletisim"
 ];
+const navLinks = document.querySelectorAll(
+  ".desktop-nav a[data-nav-sections], .mobile-menu nav a[data-nav-sections]"
+);
+const sectionsToTrack = sectionIds.map((id) => document.getElementById(id)).filter(Boolean);
 let isManualClick = false;
 let manualClickTimer = null;
+let scrollFrame = null;
 
 function setActiveNav(targetId) {
   if (!targetId) return;
-  const navLinks = document.querySelectorAll(
-    ".desktop-nav a[href^='#'], .mobile-menu nav a[href^='#']"
-  );
   navLinks.forEach((link) => {
-    const href = link.getAttribute("href");
-    const isActive = href === `#${targetId}`;
+    const linkedSections = link.dataset.navSections.split(" ");
+    const isActive = linkedSections.includes(targetId);
     link.classList.toggle("is-active", isActive);
     if (isActive) {
-      link.setAttribute("aria-current", "page");
+      link.setAttribute("aria-current", "location");
     } else {
       link.removeAttribute("aria-current");
     }
@@ -156,6 +161,30 @@ function initActiveNav() {
   }
 }
 
+function getActiveSectionId() {
+  if (window.scrollY < 80) return "anasayfa";
+
+  const pageBottom = window.innerHeight + window.scrollY;
+  if (pageBottom >= document.documentElement.scrollHeight - 50) return "iletisim";
+
+  const headerHeight = document.querySelector(".site-header")?.getBoundingClientRect().height ?? 80;
+  const activationLine = headerHeight + Math.min(window.innerHeight * 0.28, 180);
+  let activeSectionId = "anasayfa";
+
+  sectionsToTrack.forEach((section) => {
+    if (section.getBoundingClientRect().top <= activationLine) {
+      activeSectionId = section.id;
+    }
+  });
+
+  return activeSectionId;
+}
+
+function syncActiveNav() {
+  scrollFrame = null;
+  if (!isManualClick) setActiveNav(getActiveSectionId());
+}
+
 initActiveNav();
 
 window.addEventListener("hashchange", () => {
@@ -165,37 +194,14 @@ window.addEventListener("hashchange", () => {
   }
 });
 
-const sectionsToObserve = sectionIds.map((id) => document.getElementById(id)).filter(Boolean);
-
-if ("IntersectionObserver" in window && sectionsToObserve.length > 0) {
-  const navObserver = new IntersectionObserver(
-    (entries) => {
-      if (isManualClick) return;
-
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          setActiveNav(entry.target.id);
-        }
-      });
-    },
-    {
-      rootMargin: "-25% 0px -50% 0px",
-      threshold: 0.05
-    }
-  );
-
-  sectionsToObserve.forEach((section) => navObserver.observe(section));
-}
-
 window.addEventListener(
   "scroll",
   () => {
-    if (isManualClick) return;
-    if (window.scrollY < 80) {
-      setActiveNav("anasayfa");
-    } else if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 50) {
-      setActiveNav("iletisim");
-    }
+    if (!scrollFrame) scrollFrame = window.requestAnimationFrame(syncActiveNav);
   },
   { passive: true }
 );
+
+window.addEventListener("resize", () => {
+  if (!scrollFrame) scrollFrame = window.requestAnimationFrame(syncActiveNav);
+});

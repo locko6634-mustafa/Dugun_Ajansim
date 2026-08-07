@@ -73,7 +73,7 @@ button {
 .desktop-nav {
   display: flex;
   align-items: center;
-  gap: clamp(25px, 2.6vw, 48px);
+  gap: clamp(22px, 2.2vw, 40px);
   font-size: 14px;
 }
 
@@ -868,7 +868,7 @@ button {
   }
 }
 
-@media (max-width: 1060px) {
+@media (max-width: 1180px) {
   :root {
     --header-height: 92px;
   }
@@ -936,11 +936,13 @@ button {
     left: 0;
     display: grid;
     gap: 28px;
+    max-height: calc(100dvh - var(--header-height));
     padding: 30px clamp(25px, 6vw, 60px) 38px;
     border-bottom: 1px solid var(--line);
     background: hsl(39 38% 98% / 0.98);
     box-shadow: 0 25px 40px hsl(27 24% 20% / 0.12);
     opacity: 0;
+    overflow-y: auto;
     pointer-events: none;
     transform: translateY(-18px);
     transition:
@@ -960,14 +962,40 @@ button {
   }
 
   .mobile-menu nav a {
-    padding: 12px 0;
+    position: relative;
+    padding: 12px 18px;
     border-bottom: 1px solid var(--line);
     font-family: var(--serif);
     font-size: 24px;
+    transition:
+      color 220ms ease,
+      background-color 220ms ease;
+  }
+
+  .mobile-menu nav a::before {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 2px;
+    height: 22px;
+    border-radius: 99px;
+    background: var(--gold);
+    content: "";
+    opacity: 0;
+    transform: translateY(-50%) scaleY(0.35);
+    transition:
+      opacity 220ms ease,
+      transform 220ms var(--ease);
   }
 
   .mobile-menu nav a.is-active {
     color: var(--gold-dark);
+    background: linear-gradient(90deg, hsl(35 58% 93% / 0.72), transparent 72%);
+  }
+
+  .mobile-menu nav a.is-active::before {
+    opacity: 1;
+    transform: translateY(-50%) scaleY(1);
   }
 
   .mobile-menu .button {
@@ -984,6 +1012,13 @@ button {
     border: 1px solid hsl(33 45% 79%);
     color: var(--gold-dark);
     background: var(--white);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-menu nav a,
+    .mobile-menu nav a::before {
+      transition: none;
+    }
   }
 
   .hero {
