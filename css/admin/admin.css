@@ -2846,3 +2846,199 @@ h6,
     font-size: 13px;
   }
 }
+
+/* Mobile operational hardening: keep primary actions thumb-friendly and
+   recompose dense desktop controls instead of squeezing them. */
+@media (max-width: 900px) {
+  .admin-main .primary-button,
+  .admin-main .secondary-button,
+  .admin-main .mini-button,
+  .admin-topbar .primary-button,
+  .form-dialog .primary-button,
+  .form-dialog .secondary-button,
+  .form-dialog .mini-button,
+  .sheet-dialog .primary-button,
+  .sheet-dialog .secondary-button,
+  .sheet-dialog .mini-button,
+  .mobile-sidebar-close,
+  .dialog-close {
+    min-height: 44px;
+  }
+
+  .mobile-sidebar-close,
+  .dialog-close {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (max-width: 560px) {
+  .admin-main {
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+      max(32px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+
+  .admin-topbar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .topbar-brand-wrap,
+  .topbar-actions {
+    width: 100%;
+  }
+
+  .topbar-brand-wrap {
+    align-items: flex-start;
+  }
+
+  .topbar-brand-wrap > div {
+    min-width: 0;
+  }
+
+  .admin-topbar h1 {
+    white-space: normal;
+  }
+
+  .admin-topbar .kicker {
+    max-width: none;
+  }
+
+  .admin-topbar .primary-button {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .plan-heading,
+  .calendar-heading {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  .plan-controls {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+
+  .plan-controls .mini-button {
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: 8px;
+  }
+
+  .admin-main .availability-filters select,
+  .admin-main .availability-filters input,
+  .admin-main .venue-switcher button,
+  .admin-main .filter-bar input,
+  .admin-main .filter-bar select,
+  .admin-main .filter-bar button,
+  .form-grid input,
+  .form-grid select,
+  .form-grid textarea,
+  .custom-dialog-input,
+  .custom-catalog-grid input,
+  .custom-catalog-grid select {
+    min-height: 44px;
+  }
+
+  .admin-main .compact-card,
+  .admin-main .delivery-card,
+  .admin-main .day-event,
+  .admin-main .calendar-event,
+  .admin-main .contact-link,
+  .admin-main .staff-card .staff-phone {
+    min-height: 44px;
+  }
+
+  .admin-main .staff-card .staff-phone,
+  .admin-main .contact-link {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .specialty-choices label {
+    min-height: 44px;
+    padding: 8px;
+    border-radius: var(--radius-sm);
+    background: hsl(42 30% 95% / 55%);
+    line-height: 1.35;
+    white-space: normal !important;
+  }
+
+  .specialty-choices input,
+  .switch-row input {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    margin: 0;
+  }
+
+  .data-row__actions,
+  .detail-actions,
+  .app-detail-footer-actions {
+    width: 100%;
+  }
+
+  .data-row__actions > button,
+  .detail-actions > button,
+  .app-detail-footer-actions > button {
+    flex: 1 1 120px;
+  }
+
+  .catalog-card__heading,
+  .app-detail-header-card,
+  .package-main-line,
+  .package-total-line,
+  .contact-line {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .catalog-card__add {
+    width: 100%;
+  }
+
+  .app-detail-header-left,
+  .package-main-line > *,
+  .package-total-line > *,
+  .service-item-row > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .app-detail-header-left {
+    flex-wrap: wrap;
+  }
+
+  .total-amount {
+    text-align: left;
+  }
+
+  .custom-catalog-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .custom-dialog-shell {
+    width: 100%;
+    max-width: none !important;
+    max-height: 100dvh !important;
+  }
+
+  .sheet-heading {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    padding-top: 2px;
+    background: var(--paper);
+  }
+
+  .sheet-shell,
+  .form-shell {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .dialog-actions {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
