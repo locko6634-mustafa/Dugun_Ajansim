@@ -69,18 +69,18 @@ Frontenddeki hardcoded alanların büyük kısmı statik tasarım ve arayüz met
 
 **Doğrulama:** E2E testi ana sayfadaki hizmet detayının ve FAQ yanıtının “21 takvim günü” gösterdiğini doğruluyor.
 
-### HC-04 — Ana sayfa hizmet kataloğu admin/API kataloğundan kopuk (P1)
+### HC-04 — Ana sayfa hizmet kataloğu admin/API kataloğundan kopuk (P1) — Çözüldü
 
-**Kanıt**
+**Durum:** 7 Ağustos 2026 tarihinde ana sayfa kartları ile hizmet detay modalı aynı public `/catalog` yanıtına bağlanarak çözüldü.
 
-- `index.html:680-927`: 8 hizmet kartının adları, açıklamaları, görselleri ve sırası statik HTML.
-- `js/home/services.js:1-84`: Detay modalı `js/shared/service-catalog.js` içindeki ayrı statik katalogdan besleniyor.
-- `js/package-builder/application.js:165-253`: Paket oluşturucu `/catalog` yanıtıyla kendi verisini güncelliyor; ana sayfada eşdeğer bir hydration yok.
-- `js/shared/service-catalog.js:2-186` ile `backend/prisma/seed.ts:15-85` aynı kod/ad/fiyatları ayrı ayrı barındırıyor.
+**Uygulanan çözüm**
 
-**Risk:** Admin panelinden hizmet adı, aktiflik, görsel, açıklama veya fiyat değiştirildiğinde ana sayfa kartı ve modalı eski kalır. Kart ile modal dahi farklı kaynaklardan geldiği için kendi içinde ayrışabilir.
+- `js/home/services.js`, API'deki aktif hizmet listesini adı, açıklaması, görseli, sırası, fiyatı, teslim bilgisi, özellikleri ve galerisiyle normalize edip kartları yeniden render ediyor.
+- Ana sayfa kartı ve detay modalı aynı normalize edilmiş katalog nesnesini kullanıyor; admin panelinden eklenen yeni hizmetler görünürken pasife alınan hizmetler kaldırılıyor.
+- `index.html` içindeki statik kartlar API erişilemediğinde dayanıklı başlangıç/SEO içeriği olarak korunuyor; API başarıyla geldiğinde görüntülenen kataloğun otoritesi backend oluyor.
+- Boş aktif katalog için kullanıcıya açıklayıcı durum mesajı gösteriliyor ve API'de karşılığı olmayan yerel kartlar yayınlanmıyor.
 
-**Öneri:** Ana sayfa kartları ile modal aynı public katalog kaynağından render edilmeli. SEO için sunucu tarafı render yoksa build-time katalog snapshotı üretilebilir; bu snapshot tek komutla API/DB kaynağından türetilmeli ve CI tutarlılık kontrolü eklenmeli.
+**Doğrulama:** E2E testi API'den gelen yeni bir hizmetin kart adı, açıklaması, görseli ve modal alanlarıyla render edildiğini; statik katalogdaki API dışı hizmetin kaldırıldığını masaüstü ve mobil Chromium'da doğruluyor.
 
 ### HC-05 — Frontend ve backend form doğrulamaları aynı sözleşmeyi paylaşmıyor (P1)
 

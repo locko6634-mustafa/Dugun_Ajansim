@@ -85,7 +85,7 @@ test("ana sayfa header navigasyon linkleri aktif durumu gunceller", async ({ pag
   }
 });
 
-test("ana sayfa fiyatları backend kataloğundan alır", async ({ page }) => {
+test("ana sayfa kartları ve detayları backend kataloğundan alır", async ({ page }) => {
   await page.route("**/api/v1/catalog", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -94,7 +94,20 @@ test("ana sayfa fiyatları backend kataloğundan alır", async ({ page }) => {
         data: {
           paymentPolicy: defaultPaymentPolicy,
           packages: [{ code: "mini", name: "Mini Paket", priceCents: 2_345_600 }],
-          services: [{ code: "fotograf", name: "Fotoğraf", priceCents: 765_400 }]
+          services: [
+            {
+              code: "yeni-hizmet",
+              category: "experience",
+              name: "API Katalog Hizmeti",
+              eyebrow: "API Kaynağı",
+              description: "Admin panelinden yönetilen güncel hizmet açıklaması.",
+              imagePath: "assets/images/services/360-video.webp",
+              gallery: ["assets/images/services/360-video.webp"],
+              features: ["API üzerinden gelen özellik"],
+              delivery: "7 iş günü",
+              priceCents: 765_400
+            }
+          ]
         }
       })
     })
@@ -102,11 +115,25 @@ test("ana sayfa fiyatları backend kataloğundan alır", async ({ page }) => {
 
   await page.goto("/index.html");
   await expect(page.locator(".js-starting-price")).toContainText("23.456");
-  await page.locator('[data-open-service="fotograf"]').click();
-  await expect(page.locator("#home-service-detail .js-detail-price")).toContainText("7.654");
-  await expect(page.locator("#home-service-detail .js-detail-delivery")).toHaveText(
-    "En geç 21 takvim günü"
+  await expect(page.locator(".service-card")).toHaveCount(1);
+  await expect(page.locator(".service-card h3")).toHaveText("API Katalog Hizmeti");
+  await expect(page.locator(".service-card p")).toHaveText(
+    "Admin panelinden yönetilen güncel hizmet açıklaması."
   );
+  await expect(page.locator(".service-card img")).toHaveAttribute(
+    "src",
+    "assets/images/services/360-video.webp"
+  );
+  await expect(page.locator('[data-open-service="fotograf"]')).toHaveCount(0);
+  await page.locator('[data-open-service="yeni-hizmet"]').click();
+  await expect(page.locator("#home-service-detail .js-detail-title")).toHaveText(
+    "API Katalog Hizmeti"
+  );
+  await expect(page.locator("#home-service-detail .js-detail-price")).toContainText("7.654");
+  await expect(page.locator("#home-service-detail .js-detail-delivery")).toHaveText("7 iş günü");
+  await expect(page.locator("#home-service-detail .js-detail-features li")).toHaveText([
+    "API üzerinden gelen özellik"
+  ]);
   await expect(page.locator("#faq-answer-4")).toContainText("en geç 21 takvim günü");
 });
 

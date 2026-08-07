@@ -80,6 +80,17 @@
   gap: clamp(16px, 1.45vw, 28px);
 }
 
+.services-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: clamp(32px, 6vw, 64px);
+  border: 1px solid var(--services-border);
+  border-radius: 24px;
+  color: hsl(28 7% 32%);
+  background: hsl(42 33% 99% / 0.92);
+  text-align: center;
+}
+
 .service-card {
   min-width: 0;
   overflow: hidden;
