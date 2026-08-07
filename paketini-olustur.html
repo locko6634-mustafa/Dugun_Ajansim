@@ -766,26 +766,49 @@
                 >
               </div>
               <div class="transfer-preview-notice" role="status">
-                <strong>Ödeme bilgileri henüz tanımlanmadı.</strong>
-                <p>
-                  Bu önizlemede banka, IBAN ve ödeme bildirimi alanları güvenliğiniz için devre
-                  dışıdır. Lütfen bu ekrandaki herhangi bir hesaba ödeme göndermeyin.
-                </p>
+                <strong class="js-payment-instruction-title">Ödeme talimatları yükleniyor.</strong>
+                <p class="js-payment-instruction-copy">Lütfen kısa bir süre bekleyin.</p>
               </div>
+              <dl class="transfer-details" aria-label="Havale ve EFT bilgileri">
+                <div>
+                  <dt>Banka</dt>
+                  <dd class="js-transfer-bank">—</dd>
+                </div>
+                <div>
+                  <dt>Hesap sahibi</dt>
+                  <dd class="js-transfer-account-holder">—</dd>
+                </div>
+                <div>
+                  <dt>IBAN</dt>
+                  <dd>
+                    <span class="js-transfer-iban">—</span>
+                    <button class="js-copy-transfer" data-copy="iban" type="button">Kopyala</button>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Havale/EFT açıklaması</dt>
+                  <dd>
+                    <span class="js-transfer-reference">Başvuru kaydedildiğinde oluşturulur</span>
+                    <button class="js-copy-transfer" data-copy="reference" type="button">
+                      Kopyala
+                    </button>
+                  </dd>
+                </div>
+              </dl>
               <p
                 class="transfer-copy-feedback js-copy-feedback"
                 role="status"
                 aria-live="polite"
               ></p>
               <p class="transfer-panel__note">
-                Ödeme altyapısı hazır olduğunda bu alanda güvenli ödeme talimatları gösterilecektir.
+                Havale/EFT açıklamasına size özel <strong>DA-...</strong> referans numarasını yazın.
               </p>
 
               <form class="payment-notification-form" id="payment-notification-form" novalidate>
                 <div class="payment-notification-form__heading">
                   <span>02</span>
                   <div>
-                    <strong>Siparişi Tamamla</strong>
+                    <strong class="js-payment-submit-heading">Başvuruyu Kaydet</strong>
                     <small
                       >Havalenizi yaptıktan sonra WhatsApp üzerinden dekontunuzu
                       iletebilirsiniz.</small
@@ -810,8 +833,8 @@
                       <path d="m15 5-7 7 7 7M8 12h12" /></svg
                     ><span>Geri</span>
                   </button>
-                  <button class="builder-primary js-complete-with-whatsapp" type="submit">
-                    <span>Siparişi Tamamla &amp; WhatsApp'tan Dekont Gönder</span>
+                  <button class="builder-primary js-complete-with-whatsapp" type="submit" disabled>
+                    <span>Ödeme talimatları yükleniyor</span>
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M5 12h14M13 6l6 6-6 6" />
                     </svg>
@@ -904,10 +927,8 @@
 
         <div class="completion-success__body">
           <div class="completion-success__heading">
-            <p>Siparişiniz Alındı</p>
-            <h1 class="js-completion-title" tabindex="-1">
-              Tebrikler! Siparişinizi <em>aldık.</em>
-            </h1>
+            <p class="js-completion-eyebrow">Başvurunuz Kaydedildi</p>
+            <h1 class="js-completion-title" tabindex="-1">Başvurunuzu <em>aldık.</em></h1>
           </div>
 
           <span class="completion-check" aria-hidden="true">
@@ -918,10 +939,10 @@
           </span>
 
           <div class="completion-success__message" role="status">
-            <strong>Siparişiniz başarıyla oluşturuldu.</strong>
-            <p>
-              Ödemenizi tamamladıktan sonra dekontunuzu WhatsApp hattımız üzerinden
-              paylaşabilirsiniz. Ekibimiz en kısa sürede sizinle iletişime geçecektir.
+            <strong class="js-completion-status">Başvurunuz başarıyla oluşturuldu.</strong>
+            <p class="js-completion-copy">
+              Havale/EFT açıklamasına referans numaranızı yazın; ardından dekontunuzu WhatsApp
+              hattımızdan paylaşın.
             </p>
           </div>
 

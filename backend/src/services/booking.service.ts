@@ -72,6 +72,8 @@ const idempotencySelect = {
   status: true,
   totalPriceCents: true,
   payableNowCents: true,
+  paymentNotificationChannel: true,
+  paymentNotificationRequestedAt: true,
   idempotencyFingerprint: true
 } satisfies Prisma.BookingApplicationSelect;
 
@@ -316,6 +318,8 @@ export const createBookingApplication = async (
               totalPriceCents,
               paymentMethod: input.paymentMethod,
               payableNowCents,
+              paymentNotificationChannel: options.source === "PUBLIC_FORM" ? "WHATSAPP" : null,
+              paymentNotificationRequestedAt: options.source === "PUBLIC_FORM" ? now : null,
               note: input.note || null,
               privacyConsentAt: input.privacyConsent ? now : null,
               marketingConsentAt: input.marketingConsent ? now : null,
@@ -343,7 +347,11 @@ export const createBookingApplication = async (
             targetType: "BookingApplication",
             targetId: application.id,
             correlationId: options.correlationId,
-            metadata: { source: options.source, referenceCode }
+            metadata: {
+              source: options.source,
+              referenceCode,
+              paymentNotificationChannel: options.source === "PUBLIC_FORM" ? "WHATSAPP" : undefined
+            }
           });
 
           return application;

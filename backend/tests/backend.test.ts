@@ -103,6 +103,8 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   assert.equal(parsed.ADMIN_SESSION_IDLE_MINUTES, 30);
   assert.equal(parsed.CUSTOMER_SESSION_IDLE_HOURS, 12);
   assert.equal(parsed.TEMPORARY_PASSWORD_TTL_HOURS, 72);
+  assert.equal(parsed.PAYMENT_MODE, 'test');
+  assert.equal(parsed.PAYMENT_IBAN, 'TR000000000000000000000000');
   assert.throws(() => parseEnvironment({ ...validEnvironment, PORT: '5000abc' }));
   assert.throws(() => parseEnvironment({ ...validEnvironment, CORS_ORIGIN: '*' }));
   assert.throws(() =>
@@ -180,15 +182,33 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     }),
   );
 
-  const productionEnvironment = parseEnvironment({
+  const productionEnvironmentInput: NodeJS.ProcessEnv = {
     ...validEnvironment,
     NODE_ENV: 'production',
     TRUST_PROXY: '172.30.0.2',
     DATA_ENCRYPTION_KEY: validProductionEncryptionKey,
     DATABASE_URL:
       'postgresql://app_user:Guclu-Production-Parolasi-2026%21@db.example.com:5432/dugun_ajansim?sslmode=require&sslaccept=strict',
-  });
+  };
+  const productionEnvironment = parseEnvironment(productionEnvironmentInput);
   assert.equal(productionEnvironment.NODE_ENV, 'production');
+  assert.throws(() =>
+    parseEnvironment({
+      ...productionEnvironmentInput,
+      PAYMENT_MODE: 'live',
+    }),
+  );
+  const livePaymentEnvironment = parseEnvironment({
+    ...productionEnvironmentInput,
+    PAYMENT_MODE: 'live',
+    PAYMENT_BANK_NAME: 'Örnek Banka A.Ş.',
+    PAYMENT_ACCOUNT_HOLDER: 'Düğün Ajansım Turizm Ltd. Şti.',
+    PAYMENT_IBAN: 'TR12 0006 1005 1978 6457 8413 26',
+    PAYMENT_WHATSAPP_PHONE: '+90 (555) 123 45 67',
+  });
+  assert.equal(livePaymentEnvironment.PAYMENT_MODE, 'live');
+  assert.equal(livePaymentEnvironment.PAYMENT_IBAN, 'TR120006100519786457841326');
+  assert.equal(livePaymentEnvironment.PAYMENT_WHATSAPP_PHONE, '905551234567');
   assert.throws(() =>
     parseEnvironment({
       ...validEnvironment,
@@ -940,4 +960,17 @@ test('tüm GET rotaları tanım dışı query parametrelerini 400 ile reddeder',
   assert.equal(response.status, 400);
   assert.equal(response.body.success, false);
   assert.equal(response.body.message, 'Girdi doğrulama hatası');
+});
+
+test('ödeme talimatları test modunda açık uyarı ve yalnız gerekli bilgileri döndürür', async () => {
+  const app = createApp();
+  const response = await request(app).get('/api/v1/payment-instructions');
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['cache-control'], 'no-store');
+  assert.equal(response.body.data.mode, 'test');
+  assert.equal(response.body.data.enabled, true);
+  assert.equal(response.body.data.iban, 'TR000000000000000000000000');
+  assert.match(response.body.data.notice, /gerçek para göndermeyin/i);
+  assert.equal('idempotencyKey' in response.body.data, false);
 });

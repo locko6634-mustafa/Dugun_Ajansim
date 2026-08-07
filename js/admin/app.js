@@ -704,6 +704,12 @@ function renderApplicationDetailModal(item) {
             <div>
               <small>Ödeme Yöntemi: <strong>${escapeHtml(paymentLabel)}</strong></small>
               <br><small>Hemen Ödenecek Tutar: <strong>${formatMoney(item.payableNowCents)}</strong></small>
+              <br><small>Havale Referansı: <strong>${escapeHtml(item.referenceCode)}</strong></small>
+              <br><small>Ödeme Bildirimi: <strong>${
+                item.paymentNotificationRequestedAt
+                  ? `${escapeHtml(item.paymentNotificationChannel || "WHATSAPP")} dekont bildirimi bekleniyor (${escapeHtml(formatDate(item.paymentNotificationRequestedAt, true))})`
+                  : "Bildirim beklenmiyor"
+              }</strong></small>
             </div>
             <div class="total-amount">
               <small>Toplam Tutar</small>

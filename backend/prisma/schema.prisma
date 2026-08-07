@@ -214,6 +214,8 @@ model BookingApplication {
   totalPriceCents        Int
   paymentMethod          PaymentMethod
   payableNowCents        Int
+  paymentNotificationChannel String?
+  paymentNotificationRequestedAt DateTime?
   note                   String?
   privacyConsentAt       DateTime?
   marketingConsentAt     DateTime?
@@ -235,6 +237,7 @@ model BookingApplication {
   @@index([reviewedById])
   @@index([primaryEmail])
   @@index([deletedAt])
+  @@index([paymentNotificationRequestedAt])
   @@map("booking_applications")
 }
 

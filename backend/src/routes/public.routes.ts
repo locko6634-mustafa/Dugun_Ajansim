@@ -2,6 +2,7 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
+import { env } from "../config/env.config.js";
 import {
   createRateLimitHandler,
   rateLimitKeyGenerator
@@ -37,6 +38,30 @@ const availabilitySchema = z.object({
     venueId: z.string().uuid("Geçerli bir salon IDsi girilmelidir.")
   })
 });
+
+router.get(
+  "/payment-instructions",
+  validateRequest(emptyRequestSchema),
+  asyncHandler(async (req, res) => {
+    const isTest = env.PAYMENT_MODE === "test";
+    res.set("Cache-Control", "no-store");
+    res.json({
+      success: true,
+      data: {
+        mode: env.PAYMENT_MODE,
+        enabled: true,
+        bankName: env.PAYMENT_BANK_NAME,
+        accountHolder: env.PAYMENT_ACCOUNT_HOLDER,
+        iban: env.PAYMENT_IBAN,
+        whatsappPhone: env.PAYMENT_WHATSAPP_PHONE,
+        notice: isTest
+          ? "Test ödeme bilgileri — gerçek para göndermeyin."
+          : "Havale/EFT açıklamasına size özel DA referans numaranızı yazın."
+      },
+      correlationId: req.correlationId
+    });
+  })
+);
 
 router.get(
   "/catalog",

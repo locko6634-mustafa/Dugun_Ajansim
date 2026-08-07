@@ -111,6 +111,10 @@ const booleanStringSchema = (name: string) =>
 const DEVELOPMENT_ENCRYPTION_KEY =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const CSRF_COOKIE_NAME = 'dugunajansim_csrf';
+const TEST_PAYMENT_BANK_NAME = 'TEST BANKASI';
+const TEST_PAYMENT_ACCOUNT_HOLDER = 'Düğün Ajansım Test Hesabı';
+const TEST_PAYMENT_IBAN = 'TR000000000000000000000000';
+const TEST_PAYMENT_WHATSAPP_PHONE = '905555555555';
 
 const isKnownExampleOrWeakEncryptionKey = (value: string): boolean =>
   value === DEVELOPMENT_ENCRYPTION_KEY ||
@@ -156,6 +160,25 @@ const envSchema = z
       1,
       168,
     ).default('72'),
+    PAYMENT_MODE: z.enum(['test', 'live']).default('test'),
+    PAYMENT_BANK_NAME: z.string().trim().min(2).max(120).default(TEST_PAYMENT_BANK_NAME),
+    PAYMENT_ACCOUNT_HOLDER: z.string().trim().min(2).max(160).default(TEST_PAYMENT_ACCOUNT_HOLDER),
+    PAYMENT_IBAN: z
+      .string()
+      .trim()
+      .regex(/^TR(?:\s?\d){24}$/i, 'PAYMENT_IBAN Türkiye IBAN biçiminde olmalıdır')
+      .transform((value) => value.replace(/\s+/g, '').toUpperCase())
+      .default(TEST_PAYMENT_IBAN),
+    PAYMENT_WHATSAPP_PHONE: z
+      .string()
+      .trim()
+      .regex(/^\+?[\d\s()\-]+$/, 'PAYMENT_WHATSAPP_PHONE telefon biçiminde olmalıdır')
+      .transform((value) => value.replace(/\D/g, ''))
+      .refine(
+        (value) => /^[1-9]\d{9,14}$/.test(value),
+        'PAYMENT_WHATSAPP_PHONE ülke kodlu telefon biçiminde olmalıdır',
+      )
+      .default(TEST_PAYMENT_WHATSAPP_PHONE),
   })
   // Production moduna özel ek güvenlik ve SSL kontrollerini gerçekleştiren geliştirilmiş doğrulama (superRefine)
   .superRefine((environment, context) => {
@@ -264,6 +287,23 @@ const envSchema = z
         message:
           'Production ortamında örneklerden farklı, kriptografik olarak rastgele DATA_ENCRYPTION_KEY zorunludur',
       });
+    }
+
+    if (environment.PAYMENT_MODE === 'live') {
+      const testValues = [
+        environment.PAYMENT_BANK_NAME === TEST_PAYMENT_BANK_NAME,
+        environment.PAYMENT_ACCOUNT_HOLDER === TEST_PAYMENT_ACCOUNT_HOLDER,
+        environment.PAYMENT_IBAN === TEST_PAYMENT_IBAN,
+        environment.PAYMENT_WHATSAPP_PHONE === TEST_PAYMENT_WHATSAPP_PHONE,
+      ];
+      if (testValues.some(Boolean)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['PAYMENT_MODE'],
+          message:
+            'PAYMENT_MODE=live için gerçek banka, hesap sahibi, IBAN ve WhatsApp bilgileri zorunludur',
+        });
+      }
     }
   });
 

@@ -33,12 +33,7 @@ const createImage = (src, alt, loading) => {
   return image;
 };
 
-// Backend endpoint'i tanımlanmadan ödeme bildirimi başarıyla tamamlanamaz.
-// Gerçek endpoint hazır olduğunda yalnızca bu değeri yapılandırın.
-const paymentNotificationEndpoint = "";
-
-// Gerçek hesap bilgileri hazır olduğunda yalnızca bu yapılandırmayı güncelleyin.
-const transferAccount = null;
+let transferAccount = null;
 
 const createTransferReference = () =>
   `DA-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
@@ -53,7 +48,8 @@ const state = {
   customer: {},
   transferReference: createTransferReference(),
   idempotencyKey: createIdempotencyKey(),
-  confirmedPayment: null
+  confirmedPayment: null,
+  paymentMode: null
 };
 
 const stepPanels = [...document.querySelectorAll(".builder-step")];
@@ -78,6 +74,7 @@ const orderItemsContainer = document.querySelector(".js-order-items");
 const bookingCompletion = document.querySelector(".js-booking-completion");
 const paymentNotificationForm = document.querySelector("#payment-notification-form");
 const paymentNotificationStatus = document.querySelector(".js-payment-notification-status");
+const paymentSubmitButton = paymentNotificationForm?.querySelector('button[type="submit"]');
 const summaryPanel = document.querySelector(".package-summary");
 const summaryToggles = [...document.querySelectorAll(".js-summary-toggle")];
 const summaryBackground = document.querySelector(".summary-backdrop");
@@ -429,9 +426,9 @@ function getTransferDescription() {
 
 function updateTransferUI() {
   const payment = getPaymentDetails();
-  const transferDescription = paymentNotificationEndpoint
+  const transferDescription = state.confirmedPayment
     ? getTransferDescription()
-    : "Sunucu bağlantısı sonrası oluşturulacak";
+    : "Başvuru kaydedildiğinde oluşturulur";
 
   document.querySelectorAll(".js-transfer-payable").forEach((element) => {
     element.textContent = formatPrice(payment.payable);
@@ -454,6 +451,43 @@ function updateTransferUI() {
   document.querySelectorAll(".js-notification-amount").forEach((element) => {
     element.value = formatPrice(payment.payable);
   });
+}
+
+function setPaymentInstructionsStatus(message, { enabled = false, mode = null } = {}) {
+  const title = document.querySelector(".js-payment-instruction-title");
+  const copy = document.querySelector(".js-payment-instruction-copy");
+  if (title) title.textContent = mode === "test" ? "Test ödeme bilgileri" : "Ödeme talimatları";
+  if (copy) copy.textContent = message;
+  if (paymentSubmitButton) {
+    paymentSubmitButton.disabled = !enabled;
+    paymentSubmitButton.querySelector("span").textContent =
+      mode === "test"
+        ? "Test başvurusu oluştur ve WhatsApp mesajını hazırla"
+        : enabled
+          ? "Başvuruyu kaydet ve WhatsApp'tan dekont gönder"
+          : "Ödeme talimatları kullanılamıyor";
+  }
+  const heading = document.querySelector(".js-payment-submit-heading");
+  if (heading) heading.textContent = mode === "test" ? "Test başvurusu" : "Başvuruyu kaydet";
+}
+
+async function hydratePaymentInstructions() {
+  if (!hasApiEndpoint()) {
+    setPaymentInstructionsStatus("Ödeme talimatları için sunucu bağlantısı gerekli.");
+    return;
+  }
+  try {
+    const response = await apiRequest("/payment-instructions");
+    if (!response.data?.enabled) throw new Error("Ödeme talimatları şu anda kullanılamıyor.");
+    transferAccount = response.data;
+    state.paymentMode = response.data.mode;
+    setPaymentInstructionsStatus(response.data.notice, { enabled: true, mode: response.data.mode });
+    updateTransferUI();
+  } catch (error) {
+    setPaymentInstructionsStatus(
+      error.message || "Ödeme talimatları yüklenemedi. Lütfen tekrar deneyin."
+    );
+  }
 }
 
 function formatWeddingDate(value) {
@@ -1055,7 +1089,7 @@ function generateWhatsAppMessage() {
     state.customer.primaryContact === "DAMAT"
       ? state.customer.groomPhone
       : state.customer.bridePhone;
-  return `Merhaba Düğünajansım Ekibi,\n\nPaket başvurumu oluşturdum. Dekontumu paylaşmak istiyorum.\n\n📋 *Başvuru Kodu:* ${refNo}\n💍 *Çift:* ${couple}\n📞 *Birincil Telefon:* ${primaryPhone || "—"}\n📅 *Düğün Tarihi:* ${formatWeddingDate(state.customer.weddingDate)}\n⏰ *Saat:* ${state.customer.startTime || "—"} - ${state.customer.endTime || "—"}${state.customer.endsNextDay ? " (ertesi gün)" : ""}\n📍 *Salon:* ${getVenueDisplayName()}\n\n🎁 *Paket:* ${base?.name || "Mini Paket"}\n➕ *Ek Hizmetler:* ${extras}\n💰 *Ödenecek Tutar:* ${formatPrice(payment.payable)} (${payment.payableLabel})\n\nDekontumu bu mesaja ekliyorum.`;
+  return `Merhaba Düğünajansım Ekibi,\n\nPaket başvurumu oluşturdum. Dekontumu paylaşmak istiyorum.\n\n📋 *Başvuru Kodu:* ${refNo}\n💍 *Çift:* ${couple}\n📞 *Birincil Telefon:* ${primaryPhone || "—"}\n📅 *Düğün Tarihi:* ${formatWeddingDate(state.customer.weddingDate)}\n⏰ *Saat:* ${state.customer.startTime || "—"} - ${state.customer.endTime || ""}${state.customer.endsNextDay ? " (ertesi gün)" : ""}\n📍 *Salon:* ${getVenueDisplayName()}\n\n🎁 *Paket:* ${base?.name || "Mini Paket"}\n➕ *Ek Hizmetler:* ${extras}\n💰 *Ödenecek Tutar:* ${formatPrice(payment.payable)} (${payment.payableLabel})\n\n⚠️ Havale/EFT açıklamasına *${refNo}* referans numarasını yazdım. Dekontumu bu mesaja ekliyorum.`;
 }
 
 function getWhatsAppUrl() {
@@ -1082,6 +1116,10 @@ function setPaymentNotificationStatus(message, type = "error") {
 if (paymentNotificationForm) {
   paymentNotificationForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!transferAccount) {
+      setPaymentNotificationStatus("Ödeme talimatları henüz yüklenmedi. Lütfen tekrar deneyin.");
+      return;
+    }
     const firstInvalid = validatePaymentNotificationForm();
     if (firstInvalid) {
       firstInvalid.focus();
@@ -1132,6 +1170,17 @@ if (paymentNotificationForm) {
 
       const refElement = document.querySelector(".js-booking-reference");
       if (refElement) refElement.textContent = state.transferReference;
+
+      const isTest = state.paymentMode === "test";
+      document.querySelector(".js-completion-eyebrow").textContent = isTest
+        ? "Test Başvurunuz Kaydedildi"
+        : "Başvurunuz Kaydedildi";
+      document.querySelector(".js-completion-status").textContent = isTest
+        ? "Test başvurunuz oluşturuldu; gerçek ödeme alınmadı."
+        : "Başvurunuz oluşturuldu; dekont bildiriminiz bekleniyor.";
+      document.querySelector(".js-completion-copy").textContent = isTest
+        ? "Bu bir test akışıdır. Test hesabına gerçek para göndermeyin; DA referansınızı WhatsApp mesajında kontrol edin."
+        : `Havale/EFT açıklamasına ${state.transferReference} referansını yazın; ardından dekontunuzu WhatsApp hattımızdan paylaşın.`;
 
       if (waUrl && whatsappWindow) {
         whatsappWindow.location.href = waUrl;
@@ -1282,6 +1331,7 @@ updateSummary();
 updateProgress();
 setSummaryOpen(false, { returnFocus: false });
 void hydrateRemoteData();
+void hydratePaymentInstructions();
 
 const today = new Date();
 const localToday = [
