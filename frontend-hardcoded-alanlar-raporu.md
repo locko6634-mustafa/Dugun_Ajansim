@@ -11,7 +11,7 @@ Frontenddeki hardcoded alanların büyük kısmı statik tasarım ve arayüz met
 1. **Yasal metinler tamamlanmamış:** Veri sorumlusunun gerçek kimliği ve başvuru/iletişim kanalı yerine ileride güncelleneceğini söyleyen geçici metinler yayında görünmektedir.
 2. **Fiyat ve ödeme politikası birden fazla kaynakta tekrar ediyor:** 20.000 TL paket fiyatı, %10 peşin indirim ve 5.000 TL kapora; HTML, frontend JS, backend servis ve seed verisinde ayrı ayrı tanımlıdır.
 3. **Katalog ve referans içerikleri iki ayrı dünyada yönetiliyor:** Admin/API kataloğu değişse bile ana sayfadaki paket, hizmet, mekân ve medya içeriği otomatik güncellenmez.
-4. **Teslim süresi çelişkili:** Aynı hizmet için hem “21 takvim günü” hem “21 iş günü” ifadesi kullanılmaktadır.
+4. **Teslim süresi çelişkisi giderildi:** İlgili paket, hizmet, FAQ ve yönetim formu metinleri “21 takvim günü” olarak tekleştirildi.
 
 Önerilen yön, fiyat/ödeme/katalog gibi iş verilerini backend/API'de; yasal kimlik, iletişim, SEO, referans mekân ve medya gibi yayın içeriğini tek bir site yapılandırması veya içerik manifestinde; rol ve durum etiketleri gibi istemci sözleşmelerini ise ortak frontend modüllerinde toplamaktır.
 
@@ -56,18 +56,18 @@ Frontenddeki hardcoded alanların büyük kısmı statik tasarım ve arayüz met
 
 **Kalan not:** `backend/prisma/seed.ts` fiyatların ayrı bir çalışma zamanı kaynağı değil, veritabanının ilk kurulum verisidir. Üretimde güncel katalog otoritesi veritabanıdır ve admin/API üzerinden yönetilir.
 
-### HC-03 — Teslim süresi “takvim günü / iş günü” olarak çelişiyor (P1)
+### HC-03 — Teslim süresi tanımları çelişiyor (P1) — Çözüldü
 
-**Kanıt**
+**Durum:** 7 Ağustos 2026 tarihinde “21 takvim günü” tanımı seçilerek çözüldü.
 
-- `paketini-olustur.html:137-142` ve `js/package-builder/application.js:151-157`: “En geç 21 takvim günü”.
-- `js/shared/service-catalog.js:31`, `:53`, `:75`, `:97`, `:119`: “21 iş günü”.
-- `index.html:1253-1262`: FAQ içinde “21 iş günü”.
-- `js/shared/custom-dialogs.js:278`: Admin form örneğinde paket için takvim, hizmet için iş günü ifadeleri teşvik ediliyor.
+**Uygulanan çözüm**
 
-**Risk:** Müşteri taahhüdü ve operasyon hedefi aynı değil; 21 iş günü, 21 takvim gününden belirgin biçimde daha uzundur.
+- `js/shared/service-catalog.js` içindeki fotoğraf, video, drone, Jimmy Jib ve dış çekim teslim metinleri “21 takvim günü” olarak tekleştirildi.
+- `index.html` içindeki teslimat FAQ yanıtı aynı tanıma geçirildi.
+- `js/shared/custom-dialogs.js` içindeki admin hizmet formu örneği, yeni katalog girişlerinde aynı tanımı teşvik edecek şekilde güncellendi.
+- Paket oluşturucudaki mevcut “21 takvim günü” tanımı korunarak public akışların aynı müşteri taahhüdünü göstermesi sağlandı.
 
-**Öneri:** İşletme tek sözleşmesel tanımı kararlaştırmalı. Paket/hizmet `deliveryText` alanları katalog API'sinde tek kaynak olmalı; FAQ bu veriden türetilmeli veya aynı içerik manifestine bağlanmalı.
+**Doğrulama:** E2E testi ana sayfadaki hizmet detayının ve FAQ yanıtının “21 takvim günü” gösterdiğini doğruluyor.
 
 ### HC-04 — Ana sayfa hizmet kataloğu admin/API kataloğundan kopuk (P1)
 
@@ -243,7 +243,7 @@ Bu rapordaki hardcoded borcun giderildiği şu kontrollerle ölçülebilir:
 
 - Admin panelinden fiyat/hizmet/mekân değişikliği yapıldığında public sayfalarda ayrıca kaynak kod düzenlemeden güncel bilgi görünür.
 - Frontend kaynaklarında ödeme oranı veya kapora üst sınırı sayısal iş kuralı olarak bulunmaz.
-- “21 iş günü / takvim günü” için onaylı tek ifade kullanılır.
+- Teslim süresi için onaylı tek “21 takvim günü” ifadesi kullanılır.
 - Footer ve yasal sayfalarda aynı, doğrulanmış iletişim/veri sorumlusu bilgileri görünür.
 - Rol/durum/uzmanlık etiketlerinin tek frontend kaynağı vardır ve backend enumlarıyla sözleşme testi bulunur.
 - Asset sürümleri elle yazılan tarih sorgularına bağlı değildir.

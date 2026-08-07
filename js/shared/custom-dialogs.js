@@ -275,7 +275,9 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
         <label class="wide">
           Teslim Süresi Metni
           <input class="js-catalog-delivery" type="text" placeholder="${
-            isPackage ? "Örn: En geç 21 takvim gününde dijital teslim" : "Örn: En geç 21 iş günü"
+            isPackage
+              ? "Örn: En geç 21 takvim gününde dijital teslim"
+              : "Örn: En geç 21 takvim günü"
           }" value="${escapeHtml(currentDelivery)}" />
         </label>
         <label class="wide">

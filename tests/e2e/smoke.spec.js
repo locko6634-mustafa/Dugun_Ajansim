@@ -104,6 +104,10 @@ test("ana sayfa fiyatları backend kataloğundan alır", async ({ page }) => {
   await expect(page.locator(".js-starting-price")).toContainText("23.456");
   await page.locator('[data-open-service="fotograf"]').click();
   await expect(page.locator("#home-service-detail .js-detail-price")).toContainText("7.654");
+  await expect(page.locator("#home-service-detail .js-detail-delivery")).toHaveText(
+    "En geç 21 takvim günü"
+  );
+  await expect(page.locator("#faq-answer-4")).toContainText("en geç 21 takvim günü");
 });
 
 test("anasayfa butonuna basildiginda sayfanin en ustune kaydirir", async ({ page, isMobile }) => {

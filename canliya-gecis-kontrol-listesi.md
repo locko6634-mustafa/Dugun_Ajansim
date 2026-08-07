@@ -123,7 +123,7 @@
 
 - [ ] **P1-01:** API kataloğu yüklenene kadar paket seçimini kapat; timeout/500/boş katalog hatasını ilk adımda görünür ve tekrar denenebilir yap. Statik eski fiyatla ilerlemeyi engelle. (`application.js:139-145,219-222,1046-1051`)
 - [ ] **P1-02:** Fiyat için tek kaynak belirle; admin panelindeki güncellemenin ana sayfa, fallback katalog, paket özeti ve backend toplamına yansımasını test et. (`index.html:1054-1057`, `js/shared/service-catalog.js:2-7`, `js/admin/app.js:1629-1671`)
-- [ ] **P1-03:** Teslimat SLA'sını “21 takvim günü” veya “21 iş günü” olarak tekleştir; tüm sayfa, mesaj ve sözleşmelerde aynı ifadeyi kullan. (`index.html:1337-1342`, `paketini-olustur.html:141`)
+- [x] **P1-03:** Teslimat SLA'sını “21 takvim günü” olarak tekleştir; tüm sayfa, mesaj ve sözleşmelerde aynı ifadeyi kullan. (`index.html:1253-1262`, `paketini-olustur.html:141`)
 - [ ] **P1-04:** Formdaki “üçüncü kişilerle paylaşılmaz” vaadini gerçek WhatsApp/veri aktarımıyla uyumlu hale getir; gönderilecek veriyi kullanıcıya önceden göster. (`paketini-olustur.html:504-511`, `application.js:811-834`)
 - [ ] **P1-05:** Marka kıdemini tekleştir: “10. yıl”, “8 yıldır” ve “2018'den beri” ifadeleri için tek onaylı anlatım kullan. (`login.html:48,77`, `index.html:95,1481`)
 - [ ] **P1-06:** Farklı çekim olarak sunulan Talia/Rena video kaynaklarını içerik sahibiyle doğrula. (`index.html:644-730`)

@@ -26,7 +26,7 @@ export const services = [
       "Doğal anlara odaklanan belgesel çekim yaklaşımı",
       "Seçilen karelerde renk, ışık ve rötuş düzenlemesi"
     ],
-    delivery: "En geç 21 iş günü"
+    delivery: "En geç 21 takvim günü"
   },
   {
     id: "video",
@@ -47,7 +47,7 @@ export const services = [
       "Hikâyeye özel kurgu, renk düzenleme ve müzik akışı",
       "Uzun film ve sosyal paylaşım için kısa özet versiyonu"
     ],
-    delivery: "En geç 21 iş günü"
+    delivery: "En geç 21 takvim günü"
   },
   {
     id: "drone",
@@ -68,7 +68,7 @@ export const services = [
       "Hava ve uçuş koşullarına göre güvenli çekim rotası",
       "Görüntülerin sinematik düğün filmine uyumlu kurgulanması"
     ],
-    delivery: "Film teslimiyle birlikte, en geç 21 iş günü"
+    delivery: "Film teslimiyle birlikte, en geç 21 takvim günü"
   },
   {
     id: "jimmy-jib",
@@ -89,7 +89,7 @@ export const services = [
       "Geniş açıdan yakın plana kesintisiz kamera hareketleri",
       "Görüntülerin düğün filmi kurgusuna dâhil edilmesi"
     ],
-    delivery: "Film teslimiyle birlikte, en geç 21 iş günü"
+    delivery: "Film teslimiyle birlikte, en geç 21 takvim günü"
   },
   {
     id: "dis-cekim",
@@ -110,7 +110,7 @@ export const services = [
       "Çift portreleri ile hareketli, samimi kareler",
       "Seçilen fotoğraflarda profesyonel renk ve rötuş"
     ],
-    delivery: "En geç 21 iş günü"
+    delivery: "En geç 21 takvim günü"
   },
   {
     id: "organizasyon",
