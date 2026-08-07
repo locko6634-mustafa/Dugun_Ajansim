@@ -42,20 +42,30 @@ test("masaustu ve mobil navigasyon ayni bolumleri ayni sirada kullanir", async (
   expect(mobileSectionOrder).toEqual(expectedSectionOrder);
 });
 
-test("masaustu header sayfadan ayrisan navigasyon seridi kullanir", async ({ page }) => {
-  await page.setViewportSize({ width: 1220, height: 800 });
+test("masaustu header klasik tam genislikte ve tek satirda kalir", async ({ page }) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: '{"success":false}' })
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/index.html");
 
   const headerBox = await page.locator(".site-header").boundingBox();
-  expect(headerBox?.x).toBeGreaterThan(0);
-  expect(headerBox?.y).toBeGreaterThan(0);
-  expect(headerBox?.width).toBeLessThan(1220);
+  const brandBox = await page.locator(".brand").boundingBox();
+  const navigationBox = await page.locator(".desktop-nav").boundingBox();
+  const actionsBox = await page.locator(".header-actions").boundingBox();
 
-  const activeLink = page.locator('.desktop-nav a[href="#anasayfa"]');
-  await expect(activeLink).toBeVisible();
-  await expect(activeLink).toHaveCSS("background-color", "rgb(255, 255, 255)");
-  await expect(activeLink).toHaveAttribute("aria-current", "location");
-  await expect(page.locator(".header-cta")).toHaveCSS("white-space", "nowrap");
+  expect(headerBox).not.toBeNull();
+  expect(brandBox).not.toBeNull();
+  expect(navigationBox).not.toBeNull();
+  expect(actionsBox).not.toBeNull();
+  expect(headerBox.x).toBe(0);
+  expect(headerBox.width).toBe(1440);
+  expect(brandBox.y + brandBox.height / 2).toBeCloseTo(
+    navigationBox.y + navigationBox.height / 2,
+    0
+  );
+  expect(brandBox.x + brandBox.width).toBeLessThanOrEqual(navigationBox.x);
+  expect(navigationBox.x + navigationBox.width).toBeLessThanOrEqual(actionsBox.x + 2);
 });
 
 test("scroll konumu masaustu navigasyonunun ust basligini gunceller", async ({ page }) => {
