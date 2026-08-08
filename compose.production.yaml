@@ -8,7 +8,7 @@ x-default-logging: &default-logging
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
     restart: unless-stopped
     stop_grace_period: 30s
     pids_limit: 200
@@ -114,7 +114,7 @@ services:
     logging: *default-logging
 
   db-role-bootstrap:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
     command: ["sh", "/usr/local/bin/init-runtime-role.sh"]
     environment:
       PGHOST: postgres

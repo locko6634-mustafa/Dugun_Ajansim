@@ -34,11 +34,16 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(backendDockerfile).toContain(
     "COPY --from=production-dependencies /app/package.json ./package.json"
   );
+  expect(backendDockerfile.match(/^FROM node:[^\s]+/gm)).toEqual([
+    expect.stringMatching(/^FROM node:[^@\s]+@sha256:[0-9a-f]{64}$/),
+    expect.stringMatching(/^FROM node:[^@\s]+@sha256:[0-9a-f]{64}$/)
+  ]);
 
   expect(frontendDockerfile).toContain("USER nginx");
   expect(frontendDockerfile).toContain("EXPOSE 8080");
   expect(frontendDockerfile).toContain("http://127.0.0.1:8080/healthz");
   expect(frontendDockerfile).toMatch(/chown -R nginx:nginx[\s\\]*[\s\S]*\/run/);
+  expect(frontendDockerfile).toMatch(/^FROM nginx:[^@\s]+@sha256:[0-9a-f]{64}$/m);
 
   expect(compose).toContain("admin-bootstrap:");
   expect(compose).toContain("dist/scripts/bootstrapAdmin.js");
@@ -46,6 +51,10 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(compose).toContain("loadbalancer.server.port=8080");
   expect(compose).toContain("pids_limit:");
   expect(compose).toContain("stop_grace_period:");
+  expect(compose.match(/^\s+image: postgres:[^\s]+/gm)).toEqual([
+    expect.stringMatching(/@sha256:[0-9a-f]{64}$/),
+    expect.stringMatching(/@sha256:[0-9a-f]{64}$/)
+  ]);
   expect(compose).toContain('max-size: "10m"');
   expect(compose).toContain("ADMIN_SESSION_IDLE_MINUTES:");
   expect(compose).toContain("CUSTOMER_SESSION_IDLE_HOURS:");
@@ -136,6 +145,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(deployWorkflow).toContain("github.event.workflow_run.event == 'push'");
   expect(deployWorkflow).toContain("github.event.workflow_run.head_branch == 'main'");
   expect(deployWorkflow).toContain("github.event.workflow_run.head_sha");
+  expect(deployWorkflow).toMatch(/uses: appleboy\/ssh-action@[0-9a-f]{40}\s+# v1\.0\.3/);
   expect(deployWorkflow).toContain('git cat-file -e "${DEPLOY_SHA}^{commit}"');
   expect(deployWorkflow).toContain('git reset --hard "$DEPLOY_SHA"');
   expect(deployWorkflow).not.toContain("git reset --hard origin/main");

@@ -32,7 +32,7 @@ jobs:
       PUBLIC_ORIGIN: https://dugun.n8n-mustafa.me
     steps:
       - name: Deploy the exact quality-checked revision
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
