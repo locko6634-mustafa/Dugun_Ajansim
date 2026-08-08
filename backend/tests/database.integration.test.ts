@@ -24,6 +24,30 @@ import {
 
 assertSafeLocalTestDatabase();
 
+const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
+  for (const field of [
+    "applicationId",
+    "customerUserId",
+    "primaryContact",
+    "primaryEmail",
+    "venueId",
+    "cancelledAt",
+    "deletedAt",
+    "deletedById",
+    "createdAt",
+    "updatedAt"
+  ]) {
+    assert.equal(field in wedding, false, `Operasyon düğün yanıtı ${field} alanını içermemeli.`);
+  }
+  assert.equal(typeof wedding.id, "string");
+  assert.equal(typeof wedding.brideFirstName, "string");
+  assert.equal(typeof wedding.bridePhone, "string");
+  assert.equal(typeof wedding.groomFirstName, "string");
+  assert.equal(typeof wedding.groomPhone, "string");
+  assert.deepEqual(Object.keys(wedding.packageSummary as object), ["name"]);
+  assert.equal(typeof (wedding.packageSummary as { name: unknown }).name, "string");
+};
+
 after(async () => {
   await prisma.$disconnect();
 });
@@ -1335,10 +1359,40 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", managerCookie);
   assert.equal(venueOperationsDashboard.status, 200);
   assert.equal(venueOperationsDashboard.body.data.venue.id, venue.id);
+  for (const dashboardWedding of [
+    ...venueOperationsDashboard.body.data.todayWeddings,
+    ...venueOperationsDashboard.body.data.weekWeddings
+  ]) {
+    assertOperationsWeddingContract(dashboardWedding);
+  }
+  for (const conflict of venueOperationsDashboard.body.data.conflicts) {
+    assertOperationsWeddingContract(conflict.firstWedding);
+    assertOperationsWeddingContract(conflict.secondWedding);
+  }
+  const venueOperationsCalendar = await request(app)
+    .get(`/api/v1/operations/calendar?month=${weddingDate.slice(0, 7)}`)
+    .set("Cookie", managerCookie);
+  assert.equal(venueOperationsCalendar.status, 200);
+  for (const calendarWedding of venueOperationsCalendar.body.data.weddings) {
+    assertOperationsWeddingContract(calendarWedding);
+  }
+  const venueOperationsWeddings = await request(app)
+    .get("/api/v1/operations/weddings")
+    .set("Cookie", managerCookie);
+  assert.equal(venueOperationsWeddings.status, 200);
+  assert.ok(
+    venueOperationsWeddings.body.data.some(
+      (operationsWedding: { id: string }) => operationsWedding.id === wedding.id
+    )
+  );
+  for (const operationsWedding of venueOperationsWeddings.body.data) {
+    assertOperationsWeddingContract(operationsWedding);
+  }
   const scopedWeddingDetail = await request(app)
     .get(`/api/v1/operations/weddings/${wedding.id}`)
     .set("Cookie", managerCookie);
   assert.equal(scopedWeddingDetail.status, 200);
+  assertOperationsWeddingContract(scopedWeddingDetail.body.data);
   assert.equal(
     scopedWeddingDetail.body.data.assignments.some(
       (assignment: { staffId: string }) => assignment.staffId === foreignStaff.id
@@ -1380,6 +1434,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       note: "Salon sorumlusu operasyon notu"
     });
   assert.equal(operationsWeddingUpdate.status, 200);
+  assertOperationsWeddingContract(operationsWeddingUpdate.body.data);
   const applicationAfterOperationsUpdate = await prisma.bookingApplication.findUniqueOrThrow({
     where: { id: wedding.applicationId }
   });

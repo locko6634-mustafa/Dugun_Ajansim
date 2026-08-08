@@ -63,14 +63,39 @@ const nextMonthOf = (month: string): string => {
   return probe.toISOString().slice(0, 7);
 };
 
-const weddingIncludeForVenue = (venueId: string) => ({
-  venue: { select: { id: true, name: true } },
+const weddingSelectForVenue = (venueId: string) => ({
+  id: true,
+  brideFirstName: true,
+  bridePhone: true,
+  groomFirstName: true,
+  groomPhone: true,
+  startsAt: true,
+  endsAt: true,
+  packageSummary: true,
+  note: true,
   assignments: {
     where: { staff: { venueId } },
     include: { staff: true },
     orderBy: { createdAt: "asc" as const }
   }
-}) satisfies Prisma.WeddingInclude;
+}) satisfies Prisma.WeddingSelect;
+
+type VenueOperationsWedding = Prisma.WeddingGetPayload<{
+  select: ReturnType<typeof weddingSelectForVenue>;
+}>;
+
+const venueOperationsWeddingDto = (wedding: VenueOperationsWedding) => ({
+  ...wedding,
+  packageSummary: {
+    name:
+      wedding.packageSummary &&
+      typeof wedding.packageSummary === "object" &&
+      !Array.isArray(wedding.packageSummary) &&
+      typeof wedding.packageSummary.name === "string"
+        ? wedding.packageSummary.name
+        : null
+  }
+});
 
 router.get(
   "/dashboard",
@@ -96,7 +121,7 @@ router.get(
           startsAt: { lt: tomorrowStart },
           endsAt: { gt: todayStart }
         },
-        include: weddingIncludeForVenue(venueId),
+        select: weddingSelectForVenue(venueId),
         orderBy: { startsAt: "asc" }
       }),
       prisma.wedding.findMany({
@@ -107,7 +132,7 @@ router.get(
           startsAt: { lt: weekEndsAt },
           endsAt: { gt: weekStartsAt }
         },
-        include: weddingIncludeForVenue(venueId),
+        select: weddingSelectForVenue(venueId),
         orderBy: { startsAt: "asc" }
       }),
       prisma.staff.findMany({
@@ -131,7 +156,9 @@ router.get(
     ]);
     if (!venue) throw new AppError("Salon bulunamadı.", 404);
 
-    const assignments = weekWeddings.flatMap((wedding) =>
+    const todayWeddingDtos = todayWeddings.map(venueOperationsWeddingDto);
+    const weekWeddingDtos = weekWeddings.map(venueOperationsWeddingDto);
+    const assignments = weekWeddingDtos.flatMap((wedding) =>
       wedding.assignments.map((assignment) => ({ assignment, wedding }))
     );
     const conflicts = assignments.flatMap((left, leftIndex) =>
@@ -161,11 +188,11 @@ router.get(
           todayWeddings: todayWeddings.length,
           weekWeddings: weekWeddings.length,
           activeStaff: activeStaff.length,
-          unassignedWeddings: weekWeddings.filter((wedding) => wedding.assignments.length === 0)
+          unassignedWeddings: weekWeddingDtos.filter((wedding) => wedding.assignments.length === 0)
             .length
         },
-        todayWeddings,
-        weekWeddings,
+        todayWeddings: todayWeddingDtos,
+        weekWeddings: weekWeddingDtos,
         idleStaff: activeStaff
           .filter((staff) => staff.assignments.length === 0)
           .map(({ assignments: _assignments, ...staff }) => staff),
@@ -202,12 +229,12 @@ router.get(
         startsAt: { lt: atIstanbulTime(`${nextMonthOf(month)}-01`, "00:00") },
         endsAt: { gt: atIstanbulTime(`${month}-01`, "00:00") }
       },
-      include: weddingIncludeForVenue(venueId),
+      select: weddingSelectForVenue(venueId),
       orderBy: { startsAt: "asc" }
     });
     res.json({
       success: true,
-      data: { month, today, venue, weddings },
+      data: { month, today, venue, weddings: weddings.map(venueOperationsWeddingDto) },
       correlationId: req.correlationId
     });
   })
@@ -316,11 +343,15 @@ router.get(
     const venueId = venueIdOf(req.auth!.venueId);
     const weddings = await prisma.wedding.findMany({
       where: { venueId, deletedAt: null },
-      include: weddingIncludeForVenue(venueId),
+      select: weddingSelectForVenue(venueId),
       orderBy: { startsAt: "desc" },
       take: 200
     });
-    res.json({ success: true, data: weddings, correlationId: req.correlationId });
+    res.json({
+      success: true,
+      data: weddings.map(venueOperationsWeddingDto),
+      correlationId: req.correlationId
+    });
   })
 );
 
@@ -331,7 +362,7 @@ router.get(
     const venueId = venueIdOf(req.auth!.venueId);
     const wedding = await prisma.wedding.findFirst({
       where: { id: req.params.id, venueId, deletedAt: null },
-      include: weddingIncludeForVenue(venueId)
+      select: weddingSelectForVenue(venueId)
     });
     if (!wedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
     const availableStaff = await prisma.staff.findMany({
@@ -354,7 +385,7 @@ router.get(
     });
     res.json({
       success: true,
-      data: { ...wedding, availableStaff },
+      data: { ...venueOperationsWeddingDto(wedding), availableStaff },
       correlationId: req.correlationId
     });
   })
@@ -438,7 +469,10 @@ router.patch(
               data: { dueAt: atIstanbulTime(addCalendarDays(req.body.weddingDate, 2), "10:00") }
             });
           }
-          const updated = await transaction.wedding.findUniqueOrThrow({ where: { id: current.id } });
+          const updated = await transaction.wedding.findUniqueOrThrow({
+            where: { id: current.id },
+            select: weddingSelectForVenue(venueId)
+          });
           await createAudit(transaction, {
             actorUserId: req.auth!.userId,
             action: "venue_wedding.schedule_updated",
@@ -457,7 +491,11 @@ router.patch(
         }
         throw error;
       });
-    res.json({ success: true, data: wedding, correlationId: req.correlationId });
+    res.json({
+      success: true,
+      data: venueOperationsWeddingDto(wedding),
+      correlationId: req.correlationId
+    });
   })
 );
 
