@@ -1,258 +1,229 @@
 # Frontend Hardcoded Alanlar Raporu
 
-- **Tarih:** 7 Ağustos 2026
-- **İncelenen dal/revizyon:** `main` / `bff9faca13fe0212ca8b9d1e101511d81dfc5792`
-- **Kapsam:** 9 HTML girişi, 19 JavaScript modülü ve üretilen `css/home/styles.css` hariç 17 CSS kaynak dosyası
+- **Tarih:** 9 Ağustos 2026
+- **İncelenen dal/revizyon:** `main` / `f66616a20a6164029ea176f87aa859ce8bec4034`
+- **Kapsam:** 9 HTML girişi, `js/` altında 23 JavaScript modülü ve üretilen `css/home/styles.css` hariç 17 CSS kaynak dosyası
+- **Kapsam dışı:** Test fixture'ları, `node_modules`, build/test çıktıları ve backendin genel kod kalitesi. Backend yalnız frontend sözleşmelerini doğrulamak için hedefli incelendi.
 
 ## Yönetici özeti
 
-Frontenddeki hardcoded alanların büyük kısmı statik tasarım ve arayüz metni olarak normaldir. Ancak aşağıdaki dört konu doğrudan yayın, müşteri beklentisi veya bakım riski taşır:
+Frontenddeki her sabit değer hata değildir. DOM seçicileri, route yolları, erişilebilirlik metinleri ve tasarım ölçüleri kodun doğal parçasıdır. Bu denetimde değişme ihtimali olan işletme/yayın verileri ile teknik sabitler ayrıldı.
 
-1. **Yasal metinler tamamlanmamış:** Veri sorumlusunun gerçek kimliği ve başvuru/iletişim kanalı yerine ileride güncelleneceğini söyleyen geçici metinler yayında görünmektedir.
-2. **Fiyat ve ödeme politikası birden fazla kaynakta tekrar ediyor:** 20.000 TL paket fiyatı, %10 peşin indirim ve 5.000 TL kapora; HTML, frontend JS, backend servis ve seed verisinde ayrı ayrı tanımlıdır.
-3. **Katalog ve referans içerikleri iki ayrı dünyada yönetiliyor:** Admin/API kataloğu değişse bile ana sayfadaki paket, hizmet, mekân ve medya içeriği otomatik güncellenmez.
-4. **Teslim süresi çelişkisi giderildi:** İlgili paket, hizmet, FAQ ve yönetim formu metinleri “21 takvim günü” olarak tekleştirildi.
+Güncel durumda en önemli açıklar şunlardır:
 
-Önerilen yön, fiyat/ödeme/katalog gibi iş verilerini backend/API'de; yasal kimlik, iletişim, SEO, referans mekân ve medya gibi yayın içeriğini tek bir site yapılandırması veya içerik manifestinde; rol ve durum etiketleri gibi istemci sözleşmelerini ise ortak frontend modüllerinde toplamaktır.
+1. **Yasal ve iletişim içeriği yayın için tamamlanmamış (P0):** Veri sorumlusu kimliği ve başvuru kanalı yok; ana sayfadaki iletişim alanında gerçek iletişim bilgisi bulunmuyor. KVKK kabulünde onaylanan belge sürümü de kaydedilmiyor.
+2. **Public saat seçici backend sözleşmesiyle uyumsuz (P1):** Paket oluşturucu yalnız `09:00–23:30` arasında 30 dakikalık seçenekler üretirken backend `00:00–23:59` aralığını kabul ediyor. Ertesi gün `02:00` gibi geçerli saatler public arayüzden seçilemiyor.
+3. **Galeri, video ve yayın metinleri kaynak koda bağlı (P2):** Referans içerikleri, FAQ, SEO metinleri ve Supabase Storage adresleri HTML deployu olmadan yönetilemiyor.
+4. **Merkezileştirme kısmi (P2/P3):** Fiyat, ödeme politikası, mekânlar, temel domain etiketleri ve bölgesel ayarlar merkezileştirilmiş olsa da katalog fallback içeriği, başvuru durum etiketleri, admin form sınırları ve tasarım tokenlarında tekrarlar sürüyor.
 
 ## Öncelik tanımı
 
-| Seviye | Anlamı                                                                     |
-| ------ | -------------------------------------------------------------------------- |
-| P0     | Yayın öncesi tamamlanmalı; yasal veya temel güven sorunu                   |
-| P1     | Müşteriye yanlış/eski bilgi gösterme ya da akış uyumsuzluğu riski          |
-| P2     | Yakın vadede merkezi kaynağa alınmalı; operasyon ve bakım riski            |
-| P3     | Teknik borç; mevcut davranış doğru olsa da değişiklik maliyetini artırıyor |
+| Seviye | Anlamı                                                                      |
+| ------ | --------------------------------------------------------------------------- |
+| P0     | Yayın öncesi tamamlanmalı; yasal veya temel güven riski                     |
+| P1     | Müşterinin yanlış işlem yapmasına veya akış uyumsuzluğuna yol açabilir      |
+| P2     | İçerik/operasyon değişikliğinde kod deployu veya çoklu düzenleme gerektirir |
+| P3     | Teknik borç; mevcut davranış çoğunlukla doğru fakat bakım maliyeti yüksek   |
 
-## Bulgular
+## Açık bulgular
 
-### HC-01 — Yasal kimlik ve iletişim kanalları geçici metin (P0)
-
-**Kanıt**
-
-- `kvkk-aydinlatma.html:16-20`: Veri sorumlusu yalnızca “Düğünajansım” olarak geçiyor ve iletişim bilgilerinin daha sonra ekleneceği açıkça yazıyor.
-- `kvkk-aydinlatma.html:34-37`: KVKK başvuru kanalının ileride yayımlanacağı belirtiliyor.
-- `gizlilik-politikasi.html:21-30`: Üretim saklama altyapısının devreye alınmadığını belirten geçici ifade ve somut olmayan “iletişim kanalları” kullanılıyor.
-- `index.html:1388-1455`: `#iletisim` bölümü gerçek telefon, e-posta, adres veya sosyal hesap içermiyor.
-- Frontend genelinde statik bir `mailto:` veya işletmeye ait `tel:` bağlantısı bulunmuyor; görülen telefon/e-posta bağlantıları yalnız API'den gelen müşteri/personel verileri için oluşturuluyor.
-
-**Risk:** Yasal başvuru sahibinin kime ve hangi kanaldan ulaşacağı belli değil. Site tamamlanmış izlenimi verirken yasal sayfalar açıkça taslak durumunda.
-
-**Öneri:** Yayın öncesinde hukuk/onay sahibi tarafından doğrulanmış ticari unvan, veri sorumlusu bilgisi, adres, e-posta/KEP veya tanımlı başvuru kanalı girilmeli. Bu bilgiler tek bir `site-config` kaynağından footer ve üç yasal sayfaya dağıtılmalı; yasal metnin kendisi otomatik üretilmemeli, onaylı sürüm olarak tutulmalı.
-
-### HC-02 — Fiyat, indirim ve kapora dört ayrı katmanda tanımlı (P1) — Çözüldü
-
-**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
-
-**Uygulanan çözüm**
-
-- İndirim oranı ve kapora üst sınırı `backend/src/services/booking.service.ts:36-54` içinde tek `paymentPolicy` kaynağında toplandı; backend nihai ödeme tutarını aynı politika ile hesaplıyor.
-- Public katalog `backend/src/routes/public.routes.ts:96-112` üzerinden paket/hizmet fiyatlarıyla birlikte ödeme politikasını döndürüyor.
-- Paket oluşturucu `js/package-builder/application.js:179-207` içinde katalog ve politika sözleşmesini doğruluyor; `js/package-builder/application.js:361-421` içinde yalnız sunucudan gelen politika ile istemci önizlemesi üretiyor.
-- `index.html:974-977` ve `paketini-olustur.html:120-270` içindeki gerçek sayısal başlangıç değerleri yükleme metinlerine dönüştürüldü. API yüklenmeden paket akışında ilerleme kapalıdır.
-- `js/shared/service-catalog.js` içindeki paket/hizmet fiyat yedekleri kaldırıldı. Ana sayfa fiyatları `js/home/services.js:31-66` üzerinden katalog API'sinden geliyor.
-
-**Doğrulama:** Backend birim testleri ödeme politikasının tek kaynağını; gerçek veritabanı entegrasyon testi `/catalog` sözleşmesini; E2E testleri ise backendin gönderdiği varsayılandan farklı `%20` indirim ve 30 TL kapora değerlerinin masaüstü/mobil frontend önizlemesine aynen yansıdığını doğruluyor.
-
-**Kalan not:** `backend/prisma/seed.ts` fiyatların ayrı bir çalışma zamanı kaynağı değil, veritabanının ilk kurulum verisidir. Üretimde güncel katalog otoritesi veritabanıdır ve admin/API üzerinden yönetilir.
-
-### HC-03 — Teslim süresi tanımları çelişiyor (P1) — Çözüldü
-
-**Durum:** 7 Ağustos 2026 tarihinde “21 takvim günü” tanımı seçilerek çözüldü.
-
-**Uygulanan çözüm**
-
-- `js/shared/service-catalog.js` içindeki fotoğraf, video, drone, Jimmy Jib ve dış çekim teslim metinleri “21 takvim günü” olarak tekleştirildi.
-- `index.html` içindeki teslimat FAQ yanıtı aynı tanıma geçirildi.
-- `js/shared/custom-dialogs.js` içindeki admin hizmet formu örneği, yeni katalog girişlerinde aynı tanımı teşvik edecek şekilde güncellendi.
-- Paket oluşturucudaki mevcut “21 takvim günü” tanımı korunarak public akışların aynı müşteri taahhüdünü göstermesi sağlandı.
-
-**Doğrulama:** E2E testi ana sayfadaki hizmet detayının ve FAQ yanıtının “21 takvim günü” gösterdiğini doğruluyor.
-
-### HC-04 — Ana sayfa hizmet kataloğu admin/API kataloğundan kopuk (P1) — Çözüldü
-
-**Durum:** 7 Ağustos 2026 tarihinde ana sayfa kartları ile hizmet detay modalı aynı public `/catalog` yanıtına bağlanarak çözüldü.
-
-**Uygulanan çözüm**
-
-- `js/home/services.js`, API'deki aktif hizmet listesini adı, açıklaması, görseli, sırası, fiyatı, teslim bilgisi, özellikleri ve galerisiyle normalize edip kartları yeniden render ediyor.
-- Ana sayfa kartı ve detay modalı aynı normalize edilmiş katalog nesnesini kullanıyor; admin panelinden eklenen yeni hizmetler görünürken pasife alınan hizmetler kaldırılıyor.
-- `index.html` içindeki statik kartlar API erişilemediğinde dayanıklı başlangıç/SEO içeriği olarak korunuyor; API başarıyla geldiğinde görüntülenen kataloğun otoritesi backend oluyor.
-- Boş aktif katalog için kullanıcıya açıklayıcı durum mesajı gösteriliyor ve API'de karşılığı olmayan yerel kartlar yayınlanmıyor.
-
-**Doğrulama:** E2E testi API'den gelen yeni bir hizmetin kart adı, açıklaması, görseli ve modal alanlarıyla render edildiğini; statik katalogdaki API dışı hizmetin kaldırıldığını masaüstü ve mobil Chromium'da doğruluyor.
-
-### HC-05 — Frontend ve backend form doğrulamaları aynı sözleşmeyi paylaşmıyor (P1) — Çözüldü
-
-**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
-
-**Uygulanan çözüm**
-
-- Ad, telefon, e-posta, özel salon adı ve not sınırları `backend/src/schemas/api.schemas.ts` içindeki `bookingFormConstraints` kaynağında toplandı; Zod şemaları aynı değerlerle oluşturuluyor.
-- Public `/catalog` yanıtı bu doğrulama sözleşmesini frontend'e iletiyor.
-- `js/shared/booking-form-constraints.js` sözleşmeyi doğrulayıp paket oluşturucu ile admin personel, manuel başvuru ve düğün formlarına `minlength`, `maxlength` ve `pattern` kurallarını uyguluyor.
-- Eski yalnız Türkiye cep telefonu formatını kabul eden istemci kontrolü kaldırıldı; frontend artık backendin kabul ettiği 10–24 karakterlik uluslararası telefon ayraçları sözleşmesini kullanıyor.
-
-**Doğrulama:** Backend testleri sözleşme ile Zod şemasının aynı kaynaktan geldiğini ve sınırları; E2E testleri ise public ve admin formlarındaki öznitelikleri ve uluslararası telefon kabulünü masaüstü/mobil tarayıcı akışında doğruluyor.
-
-### HC-06 — Referans mekânlar ve görünür adet statik (P2) — Çözüldü
-
-**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
-
-**Uygulanan çözüm**
-
-- `backend/prisma/schema.prisma:87-105` içinde operasyon adından bağımsız vitrin adı, görsel, sıra ve görünürlük alanları eklendi; public sorguya uygun birleşik indeks oluşturuldu.
-- `backend/src/routes/admin.routes.ts:2064-2180` ve `admin.html:387-405` üzerinden mekân oluşturma, düzenleme, kaldırma, iş ortaklığı, aktiflik ve ana sayfa görünürlüğü yönetilebilir hale getirildi. İlişkili operasyon kaydı bulunan mekânlar silinmek yerine pasife alınıyor.
-- `backend/src/routes/public.routes.ts:116-134` aktif iş ortağı mekânlarını vitrin alanları ve yönetilen sıralarıyla döndürüyor.
-- `index.html:1001-1003` içindeki statik mekân kartları kaldırıldı. `js/home/venues.js:67-106` yalnız public API'de vitrine açılan mekânları render ediyor; görünür adet ve mobil “tümünü göster” davranışı veri sayısından hesaplanıyor.
-
-**Doğrulama:** Gerçek veritabanı entegrasyon testi admin CRUD, public sözleşme, fiziksel silme ve ilişkili mekânı güvenli pasifleştirme davranışını; E2E testi ise API sırası, görsel, gizli kayıt ve dinamik mobil adet davranışını doğruluyor.
-
-### HC-07 — Galeri ve video içerikleri doğrudan markup/depolama adresine bağlı (P2)
+### HC-01 — Yasal kimlik, iletişim kanalı ve onay sürümü eksik (P0)
 
 **Kanıt**
 
-- `index.html:439-517`: 8 galeri kaydı statik HTML.
-- `index.html:562-672`: 3 çekim videosu; mekân adı, tarih ve açıklamalar statik.
-- `index.html:573`, `:611`, `:649`: Supabase Storage proje alanı doğrudan URL içinde. 3 referans yalnız 2 benzersiz video dosyasına gidiyor; `video1.mp4` hem Talia hem Rena için kullanılıyor.
-- `js/home/gallery.js:1-70` ve `js/home/shoots.js:1-65`: Davranış DOM'daki statik sıralama ve içeriğe bağlı.
+- `kvkk-aydinlatma.html:16-21`: Veri sorumlusu yalnız “Düğünajansım” olarak geçiyor; gerçek kimliğin ve iletişim bilgilerinin daha sonra ekleneceği yazıyor.
+- `kvkk-aydinlatma.html:34-39`: KVKK başvuru kanalı somutlaştırılmamış.
+- `gizlilik-politikasi.html:24-32`: Üretim saklama altyapısının devreye alınmadığını belirten geçici ifade ve belirsiz “iletişim kanalları” kullanılıyor.
+- `index.html:192-199`: Ana CTA “İletişim yakında” durumunda.
+- `index.html:1288-1356`: `#iletisim` footerı telefon, e-posta, adres veya sosyal hesap içermiyor.
+- `paketini-olustur.html:621-665`: KVKK ve pazarlama kabul metinleri doğrudan HTML içinde.
+- `backend/prisma/schema.prisma:228-229`: Yalnız `privacyConsentAt` ve `marketingConsentAt` zamanları tutuluyor; kabul edilen belge kimliği/sürümü saklanmıyor.
+- Frontenddeki `mailto:` ve `tel:` üretimleri yalnız API'den gelen müşteri/personel verileridir; işletmeye ait statik iletişim kanalı saptanmadı.
 
-**Risk:** Depolama alanı/CDN değişimi HTML deploy gerektirir. Aynı videonun iki farklı referansta kullanılması bilinçli değilse içerik hatasıdır. Harici medya hatasında merkezi fallback veya yayın durumu yoktur.
+**Risk:** Kullanıcı kime ve hangi kanaldan başvuracağını göremiyor. Metin daha sonra değişirse geçmiş bir başvurunun hangi onay metnini kabul ettiği teknik olarak kanıtlanamıyor.
 
-**Öneri:** Galeri/video kayıtlarını `media-manifest.json`, CMS veya public içerik API'sine taşıyın. Her kayıt için `id`, başlık, tarih, venue, poster, video URL, alt metin ve yayın durumu tutun. Storage hostname deploy/config katmanında yönetilsin.
+**Öneri:** Hukuk/onay sahibi tarafından doğrulanmış ticari unvan, veri sorumlusu, adres ve başvuru kanallarını sürümlü bir site/yasal içerik kaynağında tutun. Başvuruya `privacyNoticeVersion` ve gerekiyorsa `marketingConsentVersion` ekleyip kabul anındaki sürümü backendde kaydedin.
 
-### HC-08 — Rol, durum ve uzmanlık eşlemeleri kopyalanmış (P2) — Çözüldü
-
-**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
-
-**Uygulanan çözüm**
-
-- Rol/panel hedefleri, rol etiketleri, personel uzmanlıkları, teslimat durum sırası ve etiketleri ile mesaj türü etiketleri `js/shared/domain-labels.js` içinde tek kaynağa alındı.
-- Admin, operasyon, müşteri ve giriş/oturum modüllerindeki yerel kopyalar kaldırıldı; tüm tüketiciler ortak modülü kullanıyor.
-- Admin ve müşteri teslimat ekranları aynı açıklayıcı durum etiketlerini gösteriyor.
-- `tools/check-domain-contract.mjs`; ortak frontend anahtarlarını Prisma `UserRole`, `DeliveryStatus`, `MessageKind` ve `StaffSpecialty` enumlarıyla, teslimat adımlarını ayrıca sıra bakımından doğruluyor. Kontrol `npm run validate` kalite kapısına eklendi.
-
-**Doğrulama:** Sözleşme kontrolü yeni veya sırası değişen backend enum değerlerinde başarısız olarak eksik frontend etiketini yayın öncesinde görünür kılıyor.
-
-### HC-09 — Tarih, yıl ve doğrulanması gereken pazarlama iddiaları statik (P2) — Çözüldü
-
-**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
-
-**Uygulanan çözüm**
-
-- Ana sayfadaki “Türkiye'nin En Kapsamlı”, 70+ ekip, yılda 1500+ düğün, yüzlerce organizasyon, 2018'den beri ve 2027 uluslararası hedefi gibi doğrulama kaynağı bulunmayan iddialar kaldırıldı. Yerlerine mevcut hizmet kataloğu ve başvuru akışıyla uyumlu, ölçülemeyen nötr anlatımlar getirildi.
-- `js/shared/site-content.js` iki public sayfadaki copyright yılını çalışma zamanında güncel yıldan üretiyor.
-- `tools/check-site-content.mjs` sabit copyright yılının veya kaldırılan iddiaların yeniden eklenmesini engelliyor ve `npm run validate` kalite kapısında çalışıyor.
-- Referans çekim tarihleri gerçek içerik verisi olarak korundu. Yasal sayfaların revizyon tarihleri otomatikleştirilmedi; onaylı belge değiştiğinde bilinçli olarak güncellenecek.
-
-**Doğrulama:** E2E testi ana sayfa ve paket oluşturucuda güncel copyright yılını, güvenli SEO başlığını ve eski sayısal iddiaların görünmediğini doğruluyor. İçerik sözleşmesi kontrolü yasal belge tarihlerinin makinece okunabilir ve belgeye bağlı kalmasını denetliyor.
-
-### HC-10 — Manuel cache-busting sürümleri tutarsız yönetiliyor (P2)
-
-**Durum:** 7 Ağustos 2026 tarihinde çözüldü.
-
-**Uygulanan çözüm**
-
-- `index.html`, `paketini-olustur.html`, `login.html` ve `js/package-builder/main.js` içindeki elle yönetilen `?v=` sorguları kaldırıldı.
-- Tüm sayfalar aynı üretim cache sözleşmesine bağlandı: HTML yanıtları `no-store`, CSS/JS/görsel/font yanıtları `public, max-age=3600, must-revalidate` kullanıyor.
-- `tools/check-asset-cache-policy.mjs`, yerel HTML ve JavaScript kaynaklarına manuel `?v=` eklenmesini engelliyor ve `npm run validate` kalite kapısında çalışıyor.
-
-**Doğrulama:** Üretim yapılandırma testi HTML ve statik asset cache başlıklarını koruyor; asset cache sözleşmesi kontrolü manuel sürüm sorgularının yeniden eklenmediğini doğruluyor.
-
-### HC-11 — Locale, para birimi ve saat dilimi dağınık sabitler (P3)
+### HC-02 — Public düğün saatleri kod içinde `09:00–23:30 / 30 dk` ile sınırlı (P1)
 
 **Kanıt**
 
-- `tr-TR`, `TRY` ve `Europe/Istanbul` admin/operasyon/paket modüllerinde birçok kez doğrudan yazılmıştır; örnekler `js/admin/app.js:119-155`, `js/operations/app.js:42-73`, `js/package-builder/application.js:4-5`.
-- Müşteri paneli `js/customer-panel/app.js:12-13` tarih formatında açık saat dilimi kullanmıyor; admin ve operasyon panelleri İstanbul saatini açıkça kullanıyor.
-- Operasyon başlığında şehir `js/operations/app.js:503-504` içinde “İstanbul” olarak sabit.
+- `js/package-builder/application.js:964-977`: Saat seçenekleri `9 * 60` ile `23 * 60 + 30` arasında, `30` dakikalık artışla üretiliyor.
+- `paketini-olustur.html:527-602`: Başlangıç ve bitiş alanları yalnız bu özel seçiciyi kullanıyor; “bitiş ertesi gün” seçeneği mevcut.
+- `backend/src/schemas/api.schemas.ts:41,88-89`: Backend herhangi bir geçerli `HH:mm` değerini kabul ediyor; `09:00–23:30` veya 30 dakika kuralı yok.
+- `admin.html:532-535,583-586`: Admin formlarında native `time` alanları var ve aynı aralık uygulanmıyor.
+- Backend test verilerinde `20:00–02:00` gibi ertesi güne geçen saatler destekleniyor; public seçenek listesinde `02:00` bulunmuyor.
 
-**Risk:** Tek pazar varsayımı değişirse geniş çaplı düzenleme gerekir. Müşteri paneli farklı saat dilimindeki tarayıcıda admin/operasyon ekranından farklı tarih gösterebilir.
+**Risk:** Backend açısından geçerli düğün saatleri public başvuruda seçilemiyor. Public, admin ve operasyon kanalları farklı iş kuralı uyguluyor.
 
-**Öneri:** `js/shared/runtime-config.js` içinde locale, currency, time zone ve operasyon şehri tanımlayın. Tarih yardımcılarını ortaklaştırın ve date-only alanların dönüşüm sözleşmesini test edin.
+**Öneri:** Çalışma saati, gün aşımı ve slot adımını backend/public config sözleşmesine ekleyin. Örneğin `bookingSchedulePolicy: { startMinute, endMinute, stepMinutes, allowNextDay }` yanıtı üretin ve hem public hem admin seçicilerini aynı kaynaktan oluşturun. Aralık işletme kuralı değilse public seçiciyi tam gün destekleyecek şekilde düzenleyin.
 
-**Uygulanan çözüm**
-
-- Locale, para birimi, saat dilimi ve operasyon şehri `js/shared/runtime-config.js` içinde merkezileştirildi; admin, operasyon, müşteri paneli, ana sayfa ve paket oluşturucu bu sözleşmeye bağlandı.
-- Müşteri panelindeki tarih-saat gösterimi açıkça `Europe/Istanbul` saat dilimini kullanıyor.
-- Ortak tarih-saat, yalnız-tarih ve para biçimlendirme yardımcıları eklendi. Yalnız-tarih yardımcısı `YYYY-AA-GG` girdisini UTC öğlen üzerinden biçimlendirerek çalışma ortamının saat diliminden kaynaklanan gün kaymasını engelliyor.
-
-**Doğrulama:** `tools/runtime-config.test.mjs`; pazar sabitlerini, İstanbul gün sınırındaki tarih-saat dönüşümünü ve yalnız-tarih değerlerinin gün kaydırmamasını doğruluyor. Test `npm run validate` kalite kapısına eklendi.
-
-### HC-12 — Tasarım tokenları sayfa grupları arasında parçalı (P3)
+### HC-03 — Galeri ve video vitrini statik HTML ile harici Storage adreslerine bağlı (P2)
 
 **Kanıt**
 
-- 17 CSS kaynak dosyasında toplam 631 renk literal kullanımı, 67 media-query ve 65 sayısal `z-index` kullanımı saptandı. Bu sayılar değişken tanımlarını ve bilinçli görsel efektleri de içerir; tek başına hata sayısı değildir.
-- En yoğun dosyalar: `css/package-builder/package-builder.css` (200 renk literal kullanımı), `css/admin/admin.css` (73), `css/home/home.css` (63).
-- `css/admin/admin.css:2-17` ile `css/operations/operations.css:2-17` neredeyse aynı palette/radius/sidebar tokenlarını ayrı ayrı tanımlıyor.
-- Kaynaklarda 21 farklı `max-width` breakpoint değeri var: 370, 380, 430, 480, 520, 560, 640, 680, 700, 760, 780, 820, 900, 920, 960, 1060, 1080, 1120, 1180, 1200 ve 1280 px.
+- `index.html:421-517`: 8 galeri kaydı, görsel yolu, alt metni ve sıra bilgisi statik.
+- `index.html:556-668`: 3 video kartının mekân adı, tarih, poster ve açıklaması statik.
+- `index.html:567,605,643`: Supabase Storage proje hostname'i doğrudan HTML içinde.
+- `index.html:567,643`: Talia ve Rena kartları aynı `video1.mp4` kaynağına gidiyor.
+- `css/home/shoots.css:173-182`: Üç poster yolu HTML'e ek olarak CSS içinde tekrar tanımlı.
+- `index.html:515-517`: Galeri ilerleme göstergesi 4 sabit nokta; kart sayısı değişirse markup da güncellenmek zorunda.
+- `js/home/gallery.js` ve `js/home/shoots.js`: Davranış, başlangıçta DOM'da bulunan statik kartlara bağlanıyor.
 
-**Risk:** Marka rengi, responsive eşik veya katman sırası değişiklikleri çok dosyalı ve regresyona açık hale geliyor.
+**Risk:** Medya, CDN veya sıra değişikliği kod deployu gerektirir. Aynı dosyanın iki farklı referans gibi sunulması içerik hatası olabilir. Harici alan değişiminde merkezi fallback/yayın kontrolü yoktur.
 
-**Öneri:** Bunları CMS/backend config'e taşımayın. Ortak `css/shared/tokens.css` içinde marka, durum, breakpoint yaklaşımı ve z-index ölçeği tanımlayın; sayfaya özel dekoratif renkler yerel kalabilir. Admin ve operasyon ortak kabuk stilleri ayrıştırılmaya en uygun ilk alandır.
+**Öneri:** Galeri ve video kayıtlarını bir public içerik API'si veya `media-manifest.json` kaynağına taşıyın. Her kayıt için `id`, başlık, tarih, venue, poster, medya URL'si, alt metin, sıra ve yayın durumu saklayın; Storage/CDN kökünü ortam yapılandırmasına alın.
 
-### HC-13 — API geliştirme adresi ve istemci sözleşme sabitleri kod içinde (P3)
-
-**Kanıt**
-
-- `js/shared/api-client.js:1-8`: localhost için port `5000`, üretim için `/api/v1` varsayımı; meta etiketiyle override desteği var.
-- `js/shared/api-client.js:35-36`: CSRF cookie/header adları kod sözleşmesi olarak sabit.
-- `js/package-builder/application.js:37` ve `:112`: session storage anahtarı ve özel salon sentinel değeri sabit.
-
-**Değerlendirme:** Bunlar fiyat veya içerik gibi işletme tarafından değiştirilecek alanlar değildir. Port ve API yolu deploy ortamları çoğalırsa merkezi runtime config'e alınabilir; cookie adı, storage anahtarı ve sentinel değer ise ortak sözleşme sabiti olarak kodda kalabilir.
-
-### HC-14 — Marka yazımı bir noktada farklı (P3)
+### HC-04 — FAQ, SEO ve pazarlama vaatleri kaynak kodda dağınık (P2)
 
 **Kanıt**
 
-- Genel kullanım “Düğünajansım” iken `js/login/login.js:74-77` içinde “Düğün Ajansım” yazıyor.
+- `index.html:8-40`: Başlık, description, Open Graph, Twitter ve Organization JSON-LD metinleri ayrı ayrı yazılmış.
+- `index.html:1040-1270`: 8 FAQ kaydı statik HTML. Teslim süresi, hizmet bölgesi, paket kapsamı ve “dilediğiniz zaman ek hizmet” gibi operasyonel vaatler burada tutuluyor.
+- `index.html:70-419` ve `:1288-1356`: Marka, navigasyon, hero, fayda ve footer metinleri doğrudan HTML içinde.
+- `login.html`, `paketini-olustur.html`, `admin.html`, `operasyon-paneli.html`, `musteri-paneli.html` ve üç yasal sayfa kendi title/marka metinlerini ayrı ayrı taşıyor.
+- HTML ve üretim JS kapsamındaki ölçümde “Düğünajansım” 56 kez kullanılıyor.
 
-**Öneri:** Marka adı ortak site config sabitinden gelsin veya en azından lint/test ile tek yazım doğrulansın.
+**Risk:** Marka, SEO, iletişim veya iş vaadi değişikliğinde çoklu dosya düzenlemesi gerekir. FAQ ile gerçek katalog/operasyon davranışı zaman içinde ayrışabilir.
 
-## Kaynağa göre taşınma matrisi
+**Öneri:** Marka, SEO, iletişim, footer ve FAQ için tek bir yayın içeriği kaynağı oluşturun. FAQ cevaplarında ölçülebilir iş kurallarını serbest metin yerine katalog/politika alanlarından türetin veya editoryal onay sürecine bağlayın. Yasal dokümanları otomatik üretmeyin; onaylı ve sürümlü belge olarak yönetin.
 
-| Alan                            | Bugünkü kaynaklar                             | Hedef tek kaynak                                              |
-| ------------------------------- | --------------------------------------------- | ------------------------------------------------------------- |
-| Paket/hizmet fiyatı ve aktiflik | HTML + frontend katalog + backend seed/DB     | Backend DB + public katalog API                               |
-| İndirim/kapora hesabı           | HTML + frontend JS + backend servis           | Backend fiyat politikası/önizleme yanıtı                      |
-| Teslim taahhüdü                 | HTML + frontend katalog + admin serbest metni | Katalog alanı + onaylı içerik sözleşmesi                      |
-| İşletme/yasal iletişim          | Taslak yasal HTML; footerda eksik             | Onaylı site config + sürümlü yasal doküman                    |
-| Hizmet/mekân kartları           | Ana sayfa HTML + JS/CSS + backend             | Public içerik/katalog API veya build manifesti                |
-| Galeri ve videolar              | Ana sayfa HTML + doğrudan Storage URL         | Medya manifesti/CMS + yapılandırılmış CDN kökü                |
-| Rol/durum/uzmanlık etiketleri   | Birden fazla JS modülü                        | Ortak frontend domain modülü, backend sözleşmesiyle doğrulama |
-| Locale/timezone/currency        | Birden fazla JS modülü                        | Ortak runtime config ve formatter yardımcıları                |
-| Marka/SEO/copyright             | Birden fazla HTML ve JS                       | Site config; yasal ve pazarlama iddiaları onay akışıyla       |
-| Renk/radius/z-index ölçeği      | Sayfa bazlı CSS kökleri ve literaller         | Ortak CSS token katmanı                                       |
+### HC-05 — Hizmet kataloğunun yerel fallback içeriği API ile birlikte yaşamaya devam ediyor (P2)
 
-## Önerilen uygulama sırası
+**Kanıt**
 
-1. **Yayın engelleri:** Gerçek veri sorumlusu ve iletişim bilgilerini tamamlayın; taslak yasal ifadeleri hukuk/onay sürecinden geçirin.
-2. **Ticari tek kaynak:** Ödeme politikası ve gösterilen tüm sayısal fiyatları backend yanıtına bağlayın; API gelmeden eski fiyat göstermeyin.
-3. **Public içerik modeli:** Ana sayfa hizmetleri, referans mekânlar, galeri, videolar, FAQ ve SEO verileri için build manifesti veya public content endpointi kurun.
-4. **Sözleşme ortaklaştırma:** Rol yolları, enum etiketleri, formatlayıcılar ve form sınırlarını ortak modüllere alın; backend sözleşmesiyle test edin.
-5. **Build ve tasarım borcu:** Hashli asset manifesti, ortak CSS tokenları ve kontrollü breakpoint/z-index ölçeği oluşturun.
+- `js/shared/service-catalog.js:1-181`: Bir temel paket görseli ile 8 hizmetin adı, açıklaması, özellikleri, teslim metni, görseli ve galerisi statik.
+- `index.html:688-921`: Aynı 8 hizmet için SEO/ilk render kartları ayrıca HTML içinde.
+- `js/home/services.js:107-172`: API başarılı olduğunda kartlar yenileniyor; API başarısızsa HTML'deki başlangıç içeriği kalıyor.
+- `js/package-builder/application.js:241-277`: API kayıtlarında alan eksik olduğunda eşleşen yerel katalog açıklaması, galeri ve görselleri fallback olarak kullanılıyor.
+
+**Olumlu durum:** Fiyat, aktiflik ve normal çalışma zamanı kataloğunun otoritesi backend/API'dir; API olmadan ödeme akışına devam edilmiyor.
+
+**Risk:** Admin/API içeriği değiştiğinde kaynak HTML ve yerel fallback eski kalabilir. JavaScript çalışmadan okuyan botlar veya API hatası yaşayan kullanıcılar farklı katalog görebilir.
+
+**Öneri:** Public katalog için build-time snapshot/SSR benzeri tek bir üretim kaynağı kullanın ya da yerel fallback'i açıkça sürümlenmiş, API'den üretilen bir manifest haline getirin. Aynı hizmet metnini elle üç yerde yönetmeyin.
+
+### HC-06 — Başvuru, ödeme ve hesap durum etiketleri hâlâ tekrarlı (P2)
+
+**Kanıt**
+
+- `js/shared/domain-labels.js`: Rol/panel, personel uzmanlığı, teslimat durumu ve mesaj türü etiketleri merkezileştirilmiş.
+- `admin.html:253-257,527-542,578-579`: Başvuru durumu, birincil kişi ve ödeme yöntemi option/etiketleri statik.
+- `js/admin/app.js:525-579` ile `:642-674`: `GELIN/DAMAT`, `CASH/DEPOSIT` ve dört başvuru durumu iki render akışında ayrı ayrı eşleniyor.
+- `js/admin/app.js:920,1025,1061-1064`: Mesaj gönderim ve hesap aktiflik durumları yeniden inline eşleniyor.
+
+**Risk:** Backende yeni enum eklendiğinde bazı ekranlar ham anahtar, yanlış sınıf veya eksik filtre gösterebilir. Mevcut domain sözleşme kontrolü bu kalan eşlemelerin tamamını kapsamıyor.
+
+**Öneri:** `BOOKING_STATUS_LABELS`, `PAYMENT_METHOD_LABELS`, `PRIMARY_CONTACT_LABELS`, `MESSAGE_STATUS_LABELS` ve `ACCOUNT_STATUS_LABELS` haritalarını ortak domain modülüne alın; backend enum/şema anahtarlarıyla otomatik sözleşme kontrolüne ekleyin.
+
+### HC-07 — Admin katalog formu sınırları backend şemasından türemiyor (P2)
+
+**Kanıt**
+
+- `js/shared/custom-dialogs.js:250`: Fiyat alanı `step="50"`; bu, yönetim arayüzünü 50 TL katlarına yönlendiriyor.
+- `backend/src/schemas/api.schemas.ts:165,180`: Backend kuruş cinsinden `0–100.000.000` aralığını kabul ediyor; 50 TL adımı tanımlı değil.
+- `js/shared/custom-dialogs.js:238-317`: Kod, ad, açıklama, teslim, görsel, özellik ve galeri alanlarında backendin 100/200/500/2.000 karakter sınırları input özelliklerine uygulanmıyor.
+- `js/shared/custom-dialogs.js:461,524` ile `backend/src/schemas/api.schemas.ts:188-194`: Mekân sıra limiti ve slug regex'i iki katmanda ayrı ayrı yazılmış; bugün eşleşseler de ortak sözleşmeden gelmiyor.
+
+**Risk:** Admin kullanıcıları backendin kabul ettiği bazı fiyatları tarayıcı doğrulaması nedeniyle giremeyebilir; metin sınırlarında ise ancak API hatasından sonra geri bildirim alır. Şema değişiklikleri iki katmanda elle senkronize edilir.
+
+**Öneri:** Admin katalog/venue form sözleşmesini public olmayan bir admin config/schema yanıtıyla paylaşın veya ortak üretilen doğrulama manifesti kullanın. `step=50` bilinçli fiyat politikasıysa backendde de açıkça doğrulayın; değilse UI kısıtını kaldırın.
+
+### HC-08 — Tasarım tokenları ve responsive eşikler parçalı (P3)
+
+**Ölçüm**
+
+- 17 CSS kaynak dosyasında 638 renk literal kullanımı, 67 media query ve 65 sayısal `z-index` kullanımı saptandı. Bu sayılar değişken tanımlarını ve bilinçli dekoratif efektleri de içerir; tek başına hata sayısı değildir.
+- En yoğun dosyalar: `css/package-builder/package-builder.css` 200, `css/admin/admin.css` 76, `css/home/home.css` 63 renk literal kullanımı.
+- 21 farklı `max-width` breakpoint değeri var: 370, 380, 430, 480, 520, 560, 640, 680, 700, 760, 780, 820, 900, 920, 960, 1060, 1080, 1120, 1180, 1200 ve 1280 px.
+- `css/admin/admin.css:1-17` ile `css/operations/operations.css:1-17` aynı kabuk paleti, radius, shadow ve sidebar tokenlarını küçük farklarla yineliyor.
+
+**Risk:** Marka rengi, responsive eşik veya katman sırası değişikliği çok dosyalı ve görsel regresyona açık hale geliyor.
+
+**Öneri:** Bunları backend/CMS'e taşımayın. Ortak `css/shared/tokens.css` ve panel kabuk katmanında marka, durum, radius, z-index ve responsive yaklaşımını birleştirin; sayfaya özel dekoratif renkler yerel kalabilir.
+
+### HC-09 — Runtime/deploy ve istemci sözleşme sabitleri kod içinde (P3)
+
+**Kanıt**
+
+- `js/shared/runtime-config.js:1-4`: `tr-TR`, `TRY`, `Europe/Istanbul` ve `İstanbul` tek dosyada fakat build/runtime girdisi değil.
+- `js/shared/api-client.js:1-8`: Local hostname listesi, port `5000` ve `/api/v1` varsayımı kodda; `api-base-url` meta override desteği var.
+- `js/shared/api-client.js:34-36`: CSRF cookie/header adları istemci-backend sözleşmesi olarak sabit.
+- `js/package-builder/application.js:43,121`: Session storage anahtarı ve özel salon sentinel değeri sabit.
+- API route pathleri tüm sayfa modüllerinde string olarak bulunuyor.
+- `index.html:13-40`: `__APP_ORIGIN__` placeholderı deploy sırasında Dockerfile tarafından doğrulanıp değiştiriliyor.
+
+**Değerlendirme:** Bunların çoğu içerik değil, teknik sözleşme sabitidir. Tek pazar ve tek API sürümü hedefinde kodda kalmaları kabul edilebilir. Çoklu marka/pazar veya farklı API originleri planlanırsa runtime environment manifestine taşınmalıdır.
+
+### HC-10 — Marka yazımı bir kullanıcı mesajında farklı (P3)
+
+**Kanıt**
+
+- Genel kullanım “Düğünajansım” iken `js/login/login.js:72` içinde “Düğün Ajansım” yazıyor.
+- Tarama sonucu üretim HTML/JS içinde 56 bitişik, 1 ayrı yazım bulundu.
+
+**Öneri:** Marka adını site config sabitinden üretin veya en azından içerik sözleşmesi testine izin verilen tek yazımı ekleyin.
+
+## Kaynak bazlı hardcoded envanteri
+
+| Kaynak                                         | Sabit alanlar                                                                                  | Değerlendirme / hedef                                                                      |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `index.html`                                   | SEO, marka, navigasyon, hero, fayda, galeri, videolar, hizmet fallback kartları, FAQ, footer   | SEO/yayın içeriği ve medya manifest/API; yapısal markup kodda kalabilir                    |
+| `paketini-olustur.html`                        | Akış başlıkları, alan etiketleri, KVKK/pazarlama kabul metni, ödeme ve tamamlanma açıklamaları | Yasal metin sürümlü; sıradan UI metni kodda kalabilir                                      |
+| `login.html` ve panel HTML'leri                | Title, marka, navigasyon, form/filtre seçenekleri                                              | Marka/site config; enum seçenekleri ortak domain sözleşmesi                                |
+| Üç yasal HTML                                  | Belge metni ve `27 Temmuz 2026` revizyon tarihi                                                | Onaylı, sürümlü yasal doküman; tarih otomatikleştirilmemeli                                |
+| `js/shared/service-catalog.js`                 | Paket/hizmet fallback metni ve 19 benzersiz yerel asset yolunun önemli bölümü                  | API'den üretilen snapshot veya manifest                                                    |
+| `js/shared/domain-labels.js`                   | Rol, uzmanlık, teslimat ve mesaj türü etiketleri                                               | Doğru merkezileştirme; backend sözleşme testi korunmalı                                    |
+| `js/shared/runtime-config.js`                  | Locale, para birimi, saat dilimi, şehir                                                        | Tek pazar için kabul edilebilir; çoklu pazar için runtime config                           |
+| `js/shared/api-client.js`                      | API base fallback, cookie/header ve HTTP varsayımları                                          | Teknik sözleşme; ortam sayısı artarsa runtime manifest                                     |
+| `js/package-builder/application.js`            | Saat aralığı, endpointler, storage anahtarı, WhatsApp şablonu, UI/fallback metinleri           | Saat politikası backendden; mesaj şablonu içerik/config; teknik anahtarlar kodda kalabilir |
+| `js/admin/app.js`                              | Endpointler, başvuru/ödeme/hesap etiketleri, operasyon mesajları                               | Enum etiketleri ortak domain modülü; UI mesajları kodda kalabilir                          |
+| `js/home/gallery.js`, `shoots.js`, `venues.js` | DOM yapısı varsayımları, görünür mekân adedi `4`, fallback görsel, observer eşikleri           | İçerik adedi veriden; görsel davranış sabitleri kodda kabul edilebilir                     |
+| CSS kaynakları                                 | Renkler, fontlar, breakpointler, z-index, animasyon ve asset yolları                           | Ortak tasarım tokenları; sayfa dekorasyonu yerel                                           |
+
+## Çözülmüş veya güvenli biçimde merkezileştirilmiş alanlar
+
+Bu maddeler güncel kaynakta tekrar doğrulandı; yeniden açık bulgu sayılmadı:
+
+- **Fiyat ve ödeme politikası:** Paket/hizmet fiyatları ile indirim/kapora politikası backend DB ve `/catalog` yanıtından geliyor. API olmadan paket/ödeme akışı açılmıyor.
+- **Ödeme talimatları:** Banka, hesap sahibi, IBAN ve WhatsApp numarası frontend kaynaklarında gömülü değil; `/payment-instructions` yanıtından geliyor.
+- **Form doğrulaması:** Başvuru ad/telefon/e-posta/özel salon/not sınırları backend `bookingFormConstraints` kaynağından public ve admin formlarına uygulanıyor. HC-07'deki admin katalog formları bunun dışında.
+- **Referans mekânlar:** Vitrin adı, görsel, sıra ve görünürlük backend/admin/API ile yönetiliyor. `COLLAPSED_VENUE_COUNT = 4` yalnız mobil sunum tercihidir.
+- **Rol, teslimat, uzmanlık ve mesaj türü etiketleri:** `js/shared/domain-labels.js` içinde ortak. HC-06, bu modüle henüz alınmamış diğer enumları kapsıyor.
+- **Locale/currency/timezone:** Dağınık tekrarlar `js/shared/runtime-config.js` içinde toplanmış ve formatter yardımcıları kullanılıyor.
+- **Copyright yılı ve cache-busting:** Yıl çalışma zamanında üretiliyor; elle yönetilen `?v=` asset sürümleri kaldırılmış ve cache politikası deploy katmanında.
+- **Doğrulanmamış sayısal pazarlama iddiaları:** Eski ekip/düğün/adet/hedef iddiaları kaldırılmış ve içerik kontrolü kalite kapısına eklenmiş.
 
 ## Bilinçli olarak sorun sayılmayan sabitler
 
-- HTML erişilebilirlik etiketleri, buton metinleri ve hata mesajları; çok dillilik hedefi yoksa kodda kalabilir.
-- CSS boyutları ve animasyon değerleri; içerik config'i değil, tasarım sisteminin parçasıdır. Yalnız tekrar edenler tokenlaştırılmalıdır.
-- API route pathleri, DOM selectorları, storage anahtarları ve enumların makine değerleri; ortak sözleşme sabiti olarak kodda kalabilir.
-- `index.html` içindeki `__APP_ORIGIN__` placeholderı; `Dockerfile:3-17` ve `compose.production.yaml:213` üzerinden üretim buildinde doğrulanıp değiştiriliyor.
-- E2E test fixturelarındaki sabit tarih, kişi, fiyat ve UUID değerleri; deterministik test verisidir.
+- DOM selectorları, event adları, HTTP methodları ve API route pathleri; sürümlü istemci-backend sözleşmesinin parçasıdır.
+- Buton, hata, boş durum ve erişilebilirlik metinleri; çok dillilik hedefi yoksa kodda kalabilir. İşletme/yasal vaat içerenler bu istisnaya dahil değildir.
+- CSS ölçüleri, SVG pathleri, animasyon süreleri ve observer eşikleri; tasarım/davranış sabitidir. Yalnız tekrar edenler tokenlaştırılmalıdır.
+- Session storage anahtarı, özel salon sentinel değeri ve CSRF cookie/header adları; ortak teknik sözleşmedir.
+- `__APP_ORIGIN__`; üretim image buildinde zorunlu HTTPS origin ile değiştirilen ve geride kalması engellenen placeholderdır.
+- Test fixturelarındaki tarih, fiyat, kişi ve UUID değerleri; deterministik test verisidir.
 
-## Güvenlik taraması notu
+## Güvenlik ve sır taraması notu
 
-HTML, CSS ve `js/` kapsamındaki basit desen taramasında gömülü API anahtarı, bearer token, servis rolü anahtarı veya düz metin parola saptanmadı. Supabase Storage hostname'i açık bir medya URL'sidir; gizli anahtar değildir, ancak HC-07 kapsamındaki dağıtım bağımlılığıdır.
+- Üretim HTML/JS kapsamında basit yüksek sinyal desen taramasında gömülü API anahtarı, bearer token, servis rolü anahtarı, düz metin parola, gerçek IBAN veya sabit WhatsApp alıcısı saptanmadı.
+- Supabase hostname'i public medya adresidir; sır değildir, ancak HC-03 kapsamındaki deploy/içerik bağımlılığıdır.
+- `mailto:` ve `tel:` şablonları admin/operasyon ekranında API'den gelen kullanıcı verileri için oluşturuluyor; işletme iletişim bilgisi olarak değerlendirilmedi.
+
+## Önerilen uygulama sırası
+
+1. **Yayın engeli:** Gerçek veri sorumlusu ve iletişim bilgilerini tamamlayın; yasal/onay metinlerini sürümleyip kabul edilen sürümü backendde saklayın.
+2. **Saat sözleşmesi:** Public, admin ve backend için tek düğün saat/slot politikası belirleyin ve API'den dağıtın.
+3. **Public içerik modeli:** Galeri, video, FAQ, SEO, marka ve iletişim verilerini yönetilen içerik kaynağına alın.
+4. **Katalog snapshotı:** API ile HTML/yerel fallback içeriğini aynı kaynaktan üretin.
+5. **Domain ve form sözleşmesi:** Kalan başvuru/ödeme/hesap enumlarını ve admin katalog sınırlarını ortaklaştırın.
+6. **Tasarım borcu:** Panel kabuğu ve ortak CSS token katmanını ayırın.
 
 ## Kabul ölçütleri
 
-Bu rapordaki hardcoded borcun giderildiği şu kontrollerle ölçülebilir:
-
-- Admin panelinden fiyat/hizmet/mekân değişikliği yapıldığında public sayfalarda ayrıca kaynak kod düzenlemeden güncel bilgi görünür.
-- Frontend kaynaklarında ödeme oranı veya kapora üst sınırı sayısal iş kuralı olarak bulunmaz.
-- Teslim süresi için onaylı tek “21 takvim günü” ifadesi kullanılır.
-- Footer ve yasal sayfalarda aynı, doğrulanmış iletişim/veri sorumlusu bilgileri görünür.
-- Rol/durum/uzmanlık etiketlerinin tek frontend kaynağı vardır ve backend enumlarıyla sözleşme testi bulunur.
-- Asset sürümleri elle yazılan tarih sorgularına bağlı değildir.
-- Frontend kalite kapıları (`npm run validate`, `npm run audit:performance`, `npm run test:e2e`) yeni veri kaynağıyla da geçer.
+- Footer ve yasal sayfalarda aynı, doğrulanmış veri sorumlusu/iletişim bilgileri görünür; başvuru kaydı kabul edilen metin sürümünü içerir.
+- Public saat seçici backendin kabul ettiği politika ile aynı aralık, adım ve ertesi gün davranışını uygular.
+- Galeri, video, FAQ, SEO veya iletişim değişikliği için HTML/JS/CSS kaynak düzenlemesi gerekmez.
+- Admin kataloğu değiştiğinde API, ilk HTML ve fallback snapshotı arasında içerik farkı oluşmaz.
+- Başvuru/ödeme/hesap enum etiketlerinin tek frontend kaynağı ve backend sözleşme testi vardır.
+- Admin katalog form limitleri backend şemasıyla aynı kaynaktan üretilir veya otomatik doğrulanır.
+- Ortak renk/radius/z-index/panel ölçüleri paylaşılan CSS token katmanından gelir.
