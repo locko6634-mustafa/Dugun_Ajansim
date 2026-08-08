@@ -83,7 +83,7 @@ Testler ürün sözleşmesidir. Bir özelliği düzeltmek yerine testi etkisizle
 - Test runner, Playwright config, test environment, Docker Compose veya CI dosyasını kullanıcı talebi olmadan geçiş kapısını gevşetecek şekilde değiştirmek.
 - Başarısız, atlanmış, çalışmamış, zaman aşımına uğramış veya rapor üretmemiş testi “geçti” saymak.
 - Hedefli veya hızlı yerel kontrolü çalıştırmadan değişikliği push etmek.
-- GitHub Actions tam kalite kapıları yeşil olmadan işi tamamlanmış saymak.
+- Push sonrasında GitHub Actions durumunu CLI, API, connector veya tarayıcıyla sorgulamak ya da izlemek. CI sorunu oluşursa kullanıcı agent'a bildirir.
 
 `tests/e2e/production-hardening.spec.js` içindeki Chromium dışı proje için mevcut, gerekçeli tek-proje istisnası yeni skip kullanımı için emsal değildir. Bu istisna genişletilemez veya başka testlere kopyalanamaz. Yeni bir test atlama ihtiyacı varsa agent değişiklik yapmadan önce kullanıcıdan açık onay alır.
 
@@ -107,13 +107,12 @@ Kök neden belirlenmeden test veya kaynak kod üzerinde rastgele değişiklik ya
 
 ## 6. Kademeli Doğrulama ve Kalite Kapıları
 
-Doğrulama üç aşamalıdır:
+Doğrulama iki yerel aşamalıdır; tam kalite kapıları push sonrasında GitHub Actions üzerinde otomatik çalışır:
 
 1. Geliştirme sırasında yalnız değişen davranışın `test:targeted` komutu veya kararlı test etiketi çalıştırılır.
 2. Push öncesinde kökte `npm run test:quick` çalıştırılır. Bu komut `git diff` üzerinden etki alanını belirler; yerel statik, hedefli frontend ve/veya hedefli backend kontrollerini seçer.
-3. Push sonrasında GitHub Actions üzerindeki `quality` ve `backend-integration` işleri izlenir. Tam frontend, iki cihazlı E2E, backend ve veritabanı entegrasyon kapsamı yalnız CI'da zorunludur.
 
-Yerel hızlı kontrolün başarılı sonucu push iznidir; teslim kanıtı değildir. İş ancak güncel push SHA'sı için iki CI işi de yeşil olduğunda tamamlanır. CI erişilemez veya sonucu okunamazsa durum açıkça raporlanır ve iş tamamlanmış sayılmaz.
+Yerel hızlı kontrol başarılıysa değişiklik commit edilip push edilir. Agent push sonrasında GitHub Actions durumunu `gh` dahil herhangi bir CLI, API, connector veya tarayıcı üzerinden kontrol etmez. CI hatası oluşursa kullanıcı sonucu agent'a iletir; agent yalnız bildirilen hata üzerinde hedefli inceleme ve düzeltme yapar.
 
 `tools/agent-check.mjs` aynı commit SHA, aynı çalışma ağacı içeriği ve aynı komut için başarılı sonucu önbellekten kullanabilir. İlgili kaynak veya test içeriği değiştiğinde anahtar değişir ve kontrol yeniden çalışır. Belirsiz dosya veya katmanlar arası değişiklik güvenli geniş yerel gruba yönlendirilir.
 
@@ -166,7 +165,7 @@ npm run test:integration
 
 ### Katmanlar arası veya yayın etkili değişiklik
 
-`npm run test:quick` güvenli geniş yerel grupları seçer. Push sonrasında tüm tam kalite kapıları CI'da çalışır. Yerel hızlı kapı başarısızken commit/push yapılmaz. CI kapısı başarısız veya okunamazken teslim tamamlanmış sayılmaz.
+`npm run test:quick` güvenli geniş yerel grupları seçer. Push sonrasında tüm tam kalite kapıları CI'da otomatik çalışır; agent bu işleri izlemez. Yerel hızlı kapı başarısızken commit/push yapılmaz. Kullanıcı bir CI hatası bildirirse teslim yeniden açılır ve ilgili başarısızlık hedefli olarak düzeltilir.
 
 ## 7. Git, Commit ve Push — Her Tamamlanan İşlemde Zorunlu
 
@@ -181,8 +180,7 @@ Bu depoda teslim, yerel dosya değişikliğiyle bitmez. Başarıyla tamamlanan h
 5. `git diff --cached --check` ve `git diff --cached` ile staged kapsamı doğrula.
 6. Anlamlı, tek amacı anlatan bir commit oluştur.
 7. Commiti hemen `git push origin HEAD` ile mevcut upstream dala gönder.
-8. Güncel push SHA'sı için GitHub Actions `quality` ve `backend-integration` işlerini izle; başarısızsa ilgili hedefli kontrolle kök nedeni düzeltip yeni commit ve push oluştur.
-9. İki CI işi de yeşil olduğunda `git status --short --branch`, `git log -1 --oneline` ve yerel/uzak SHA karşılaştırmasıyla teslimi doğrula.
+8. `git status --short --branch` ve `git log -1 --oneline` ile yerel teslim durumunu doğrula. GitHub Actions durumunu ayrıca sorgulama veya izleme.
 
 ### Git güvenlik kuralları
 
@@ -194,7 +192,7 @@ Bu depoda teslim, yerel dosya değişikliğiyle bitmez. Başarıyla tamamlanan h
 - Push reddedilirse force push yapma. Uzak değişikliği incele, güvenli entegrasyon için kullanıcıya durumu bildir.
 - Commit başarılı, push başarısızsa işi tamamlandı sayma; commit SHA ve push hatasını açıkça raporla.
 - Çalışma ağacındaki kullanıcı değişiklikleri agent commitine karışmamalıdır. Staged diffte yabancı dosya görülürse committen önce unstage et; dosya içeriğini geri alma.
-- CI başarısız olursa teslim tamamlanmış sayılmaz. İlgili logu incele, kapsam içindeki hatayı düzelt, kalite kapılarını yeniden çalıştır, yeni commit oluştur ve tekrar push et.
+- Kullanıcı CI başarısızlığı bildirirse ilgili logu incele, kapsam içindeki hatayı düzelt, yerel kalite kapılarını yeniden çalıştır, yeni commit oluştur ve tekrar push et.
 
 Commit mesajı kısa ve açıklayıcı olmalıdır. Uygun örnekler: `fix(auth): oturum yenileme yarışını engelle`, `test(admin): salon yetki regresyonunu kapsa`, `docs(agent): doğrulama ve teslim kurallarını sıkılaştır`.
 
@@ -226,14 +224,14 @@ Bir iş ancak aşağıdakilerin tamamı sağlandığında tamamlanmıştır:
 
 - Kullanıcı talebi ve kabul ölçütleri karşılandı.
 - Değişen davranış için uygun regresyon testi mevcut.
-- Değişiklik odaklı yerel hızlı kontrol ve güncel push SHA'sının tam CI kapıları geçti; skip/only/todo veya yutulmuş hata yok.
+- Değişiklik odaklı yerel hızlı kontrol geçti; skip/only/todo veya yutulmuş hata yok.
 - Diff yalnız amaçlanan dosyaları içeriyor ve sır/kişisel veri içermiyor.
 - Dokümantasyon ve environment örnekleri davranışla uyumlu.
 - Değişiklik anlamlı bir commit olarak oluşturuldu.
-- Commit mevcut uzak dala push edildi, iki CI işi yeşil oldu ve yerel/uzak SHA doğrulandı.
+- Commit mevcut uzak dala push edildi ve yerel dal/upstream durumu doğrulandı.
 - Son raporda değişen dosyalar, çalıştırılan testler, sonuçlar, commit SHA, push dalı ve varsa açık riskler belirtildi.
 
-“Kod hazır ama test edilmedi”, “testler CI'da çalışır”, “commit yerelde kaldı” veya “push denenmedi” bu proje için tamamlanmış teslim değildir.
+“Kod hazır ama yerel kontrol çalıştırılmadı”, “commit yerelde kaldı” veya “push denenmedi” bu proje için tamamlanmış teslim değildir. GitHub Actions sonucu agent tarafından ayrıca kontrol edilmez; sorun çıkarsa kullanıcı bildirir.
 
 ## 11. Agent Sonuç Raporu Şablonu
 
