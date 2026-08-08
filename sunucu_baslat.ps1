@@ -14,15 +14,10 @@ $backendPort = 5000
 $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
 if ($nodeCommand) {
     $execPath = $nodeCommand.Source
-    $frontendCmd = """$execPath"" ""$frontendDir\tools\serve.mjs"" $frontendPort"
+    $frontendCmd = """$execPath"" ""$frontendDir\tools\serve.mjs"" $frontendPort 127.0.0.1"
 } else {
-    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
-    if (-not $pythonCommand) {
-        Write-Host "Hata: Node.js veya Python sisteminizde yuklu degil!" -ForegroundColor Red
-        Exit 1
-    }
-    $execPath = $pythonCommand.Source
-    $frontendCmd = """$execPath"" -c ""import http.server; http.server.test(http.server.SimpleHTTPRequestHandler, http.server.ThreadingHTTPServer, port=$frontendPort)"""
+    Write-Host "Hata: Guvenli frontend sunucusu icin Node.js 22+ gereklidir." -ForegroundColor Red
+    Exit 1
 }
 
 Write-Host "Frontend sunucusu (Port $frontendPort) WMI ile baslatiliyor..." -ForegroundColor Cyan
