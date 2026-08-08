@@ -81,3 +81,4 @@ desktop.ini
 # Yedekler & Belgeler
 backups/
 /backend/docs
+*.md
