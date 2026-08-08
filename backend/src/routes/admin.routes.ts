@@ -298,7 +298,11 @@ router.post(
           deletedAt: null,
           status: { in: ["ONAY_BEKLIYOR", "REDDEDILDI", "IPTAL_EDILDI"] }
         },
-        data: { deletedAt: new Date(), deletedById: req.auth!.userId }
+        data: {
+          deletedAt: new Date(),
+          deletedById: req.auth!.userId,
+          paymentFlowTokenHash: null
+        }
       });
       if (updated.count !== 1)
         throw new AppError(

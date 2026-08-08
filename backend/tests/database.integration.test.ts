@@ -557,6 +557,15 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     409
   );
   assert.equal(await prisma.wedding.count({ where: { applicationId: firstApplication.id } }), 1);
+  assert.equal(
+    (
+      await prisma.bookingApplication.findUniqueOrThrow({
+        where: { id: firstApplication.id },
+        select: { paymentFlowTokenHash: true }
+      })
+    ).paymentFlowTokenHash,
+    null
+  );
   const firstApprovalResult = concurrentApprovals.find((result) => result.status === "fulfilled");
   assert.ok(firstApprovalResult);
   const firstApproval = firstApprovalResult.value;
@@ -612,6 +621,10 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     }
   });
   const app = createApp();
+  const approvedPaymentFlowRead = await request(app)
+    .get(`/api/v1/booking-applications/${firstApplication.id}/payment-flow`)
+    .set("Payment-Flow-Key", paymentFlowKey);
+  assert.equal(approvedPaymentFlowRead.status, 404);
   const routePaymentFlowKey = `${marker}-route-payment-flow-key-1234567890`;
   const publicRouteApplication = await request(app)
     .post("/api/v1/booking-applications")
@@ -687,6 +700,39 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(
     repeatedHandoff.body.data.whatsappHandoffAt,
     firstHandoff.body.data.whatsappHandoffAt
+  );
+  const rejectedFlowKey = `${marker}-rejected-payment-flow-key-1234567890`;
+  const rejectedFlowApplication = await createBookingApplication(
+    {
+      ...applicationInput,
+      weddingDate: addCalendarDays(weddingDate, 9),
+      primaryEmail: `rejected-flow-${marker}@example.com`
+    },
+    {
+      source: "PUBLIC_FORM",
+      idempotencyKey: `${marker}-rejected-payment-flow`,
+      paymentFlowKey: rejectedFlowKey,
+      correlationId
+    }
+  );
+  await rejectBookingApplication(
+    rejectedFlowApplication.id,
+    "Ödeme doğrulanamadı",
+    admin.id,
+    correlationId
+  );
+  const rejectedPaymentFlowRead = await request(app)
+    .get(`/api/v1/booking-applications/${rejectedFlowApplication.id}/payment-flow`)
+    .set("Payment-Flow-Key", rejectedFlowKey);
+  assert.equal(rejectedPaymentFlowRead.status, 404);
+  assert.equal(
+    (
+      await prisma.bookingApplication.findUniqueOrThrow({
+        where: { id: rejectedFlowApplication.id },
+        select: { paymentFlowTokenHash: true }
+      })
+    ).paymentFlowTokenHash,
+    null
   );
 
   const expiringDate = addCalendarDays(weddingDate, 5);
@@ -1038,6 +1084,40 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
   const adminCookie = `${env.SESSION_COOKIE_NAME}=${adminToken}`;
   const adminAuthCookie = `${adminCookie}; ${CSRF_COOKIE_NAME}=${adminCsrfToken}`;
+  const archivedFlowKey = `${marker}-archived-payment-flow-key-1234567890`;
+  const archivedFlowApplication = await createBookingApplication(
+    {
+      ...applicationInput,
+      weddingDate: addCalendarDays(weddingDate, 10),
+      primaryEmail: `archived-flow-${marker}@example.com`
+    },
+    {
+      source: "PUBLIC_FORM",
+      idempotencyKey: `${marker}-archived-payment-flow`,
+      paymentFlowKey: archivedFlowKey,
+      correlationId
+    }
+  );
+  const archivedFlow = await request(app)
+    .post(`/api/v1/admin/booking-applications/${archivedFlowApplication.id}/archive`)
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
+  assert.equal(archivedFlow.status, 200);
+  const archivedPaymentFlowRead = await request(app)
+    .get(`/api/v1/booking-applications/${archivedFlowApplication.id}/payment-flow`)
+    .set("Payment-Flow-Key", archivedFlowKey);
+  assert.equal(archivedPaymentFlowRead.status, 404);
+  assert.equal(
+    (
+      await prisma.bookingApplication.findUniqueOrThrow({
+        where: { id: archivedFlowApplication.id },
+        select: { paymentFlowTokenHash: true }
+      })
+    ).paymentFlowTokenHash,
+    null
+  );
   const adminForbidden = await request(app)
     .get("/api/v1/customer/dashboard")
     .set("Cookie", adminCookie);

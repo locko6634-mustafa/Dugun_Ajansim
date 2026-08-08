@@ -476,11 +476,16 @@ type PaymentFlowApplication = Prisma.BookingApplicationGetPayload<{
 }>;
 
 const assertPaymentFlowAccess = (
-  application: Pick<PaymentFlowApplication, "source" | "paymentFlowTokenHash">,
+  application: Pick<
+    PaymentFlowApplication,
+    "source" | "status" | "deletedAt" | "paymentFlowTokenHash"
+  >,
   paymentFlowKey: string
 ): void => {
   if (
     application.source !== "PUBLIC_FORM" ||
+    application.status !== "ONAY_BEKLIYOR" ||
+    application.deletedAt !== null ||
     !application.paymentFlowTokenHash ||
     !tokenHashesMatch(paymentFlowKey, application.paymentFlowTokenHash)
   ) {
@@ -922,6 +927,7 @@ export const approveBookingApplication = async (
             },
             data: {
               status: "ONAYLANDI",
+              paymentFlowTokenHash: null,
               reviewedAt: new Date(),
               reviewedById: actorUserId
             }
@@ -1057,6 +1063,7 @@ export const rejectBookingApplication = async (
       where: { id: applicationId, status: "ONAY_BEKLIYOR", deletedAt: null },
       data: {
         status: "REDDEDILDI",
+        paymentFlowTokenHash: null,
         rejectionReason: reason,
         reviewedAt: new Date(),
         reviewedById: actorUserId
