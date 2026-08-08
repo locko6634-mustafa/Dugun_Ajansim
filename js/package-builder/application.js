@@ -5,6 +5,10 @@ import {
   applyBookingFormConstraints,
   parseBookingFormConstraints
 } from "../shared/booking-form-constraints.js";
+import {
+  getBookingTimeValues,
+  parseBookingSchedulePolicy
+} from "../shared/booking-schedule-policy.js";
 import { APP_LOCALE } from "../shared/runtime-config.js";
 const moneyFormatter = new Intl.NumberFormat(APP_LOCALE, { maximumFractionDigits: 2 });
 const formatPrice = (value) =>
@@ -60,6 +64,7 @@ const state = {
   paymentMode: null,
   paymentPolicy: null,
   bookingFormConstraints: null,
+  bookingSchedulePolicy: null,
   catalogReady: false
 };
 
@@ -188,6 +193,7 @@ function parseCatalogData(data) {
   const cashDiscountPercent = data?.paymentPolicy?.cashDiscountPercent;
   const depositMaximumCents = data?.paymentPolicy?.depositMaximumCents;
   const constraints = parseBookingFormConstraints(data?.bookingFormConstraints);
+  const schedulePolicy = parseBookingSchedulePolicy(data?.bookingSchedulePolicy);
   const hasValidPolicy =
     Number.isInteger(cashDiscountPercent) &&
     cashDiscountPercent >= 0 &&
@@ -207,7 +213,8 @@ function parseCatalogData(data) {
     remotePackages,
     remoteServices,
     paymentPolicy: { cashDiscountPercent, depositMaximumCents },
-    bookingFormConstraints: constraints
+    bookingFormConstraints: constraints,
+    bookingSchedulePolicy: schedulePolicy
   };
 }
 
@@ -228,10 +235,12 @@ async function hydrateRemoteData() {
       remotePackages,
       remoteServices: remoteServiceItems,
       paymentPolicy,
-      bookingFormConstraints
+      bookingFormConstraints,
+      bookingSchedulePolicy
     } = parseCatalogData(catalogResponse.data);
     state.paymentPolicy = paymentPolicy;
     state.bookingFormConstraints = bookingFormConstraints;
+    state.bookingSchedulePolicy = bookingSchedulePolicy;
     applyBookingFormConstraints(checkoutForm, bookingFormConstraints);
     state.catalogReady = true;
     const activePackageCodes = new Set(remotePackages.map((item) => item.code));
@@ -312,6 +321,7 @@ async function hydrateRemoteData() {
   } catch {
     state.catalogReady = false;
     state.paymentPolicy = null;
+    state.bookingSchedulePolicy = null;
     services.forEach((service) => {
       delete service.price;
     });
@@ -965,8 +975,7 @@ function renderTimeOptions(picker) {
   const input = picker.querySelector('input[type="hidden"]');
   const options = picker.querySelector(".js-time-options");
   options.replaceChildren();
-  for (let minutes = 9 * 60; minutes <= 23 * 60 + 30; minutes += 30) {
-    const value = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  for (const value of getBookingTimeValues(state.bookingSchedulePolicy)) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "time-picker__option";
@@ -1170,6 +1179,11 @@ function validateTimeSlots() {
   const endTime = endTimeInput.value;
   const endsNextDay = Boolean(endsNextDayCheckbox?.checked);
 
+  if (endsNextDay && !state.bookingSchedulePolicy?.allowNextDay) {
+    setFieldValidity(endTimeInput, false, "Bitiş saati ertesi güne taşınamaz.");
+    return false;
+  }
+
   if (!startTime || !endTime) {
     setFieldValidity(startTimeInput, true);
     setFieldValidity(endTimeInput, true);
@@ -1230,7 +1244,10 @@ if (weddingDateInput) {
     const hasDate = Boolean(weddingDateInput.value);
     if (startTimeInput) setPickerDisabled(startTimeInput, !hasDate);
     if (endTimeInput) setPickerDisabled(endTimeInput, !hasDate);
-    if (endsNextDayCheckbox) endsNextDayCheckbox.disabled = !hasDate;
+    if (endsNextDayCheckbox) {
+      endsNextDayCheckbox.disabled = !hasDate || !state.bookingSchedulePolicy?.allowNextDay;
+      if (!state.bookingSchedulePolicy?.allowNextDay) endsNextDayCheckbox.checked = false;
+    }
 
     if (hasDate) {
       if (isCustomVenueSelected()) {

@@ -3,6 +3,7 @@ import nodeTest from "node:test";
 import {
   bookingBodySchema,
   bookingFormConstraints,
+  bookingSchedulePolicy,
   deliveryUpdateBodySchema,
   passwordChangeBodySchema,
   strongPasswordSchema,
@@ -209,6 +210,15 @@ test("başvuru formu sınırları backend doğrulama şemasıyla aynı kaynaktan
     bookingBodySchema.safeParse({ ...validInternationalPhone, note: "a".repeat(2_001) }).success,
     false
   );
+});
+
+test("public düğün saati politikası tam günü ve gece yarısı geçişini destekler", () => {
+  assert.deepEqual(bookingSchedulePolicy, {
+    earliestTime: "00:00",
+    latestTime: "23:30",
+    stepMinutes: 30,
+    allowNextDay: true
+  });
 });
 
 test("parolalar Argon2id ile hashlenir ve hassas değerler AES-GCM ile şifrelenir", async () => {

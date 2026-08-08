@@ -23,6 +23,12 @@ const defaultBookingFormConstraints = Object.freeze({
   customVenueName: { minLength: 2, maxLength: 140 },
   note: { maxLength: 2_000 }
 });
+const defaultBookingSchedulePolicy = Object.freeze({
+  earliestTime: "00:00",
+  latestTime: "23:30",
+  stepMinutes: 30,
+  allowNextDay: true
+});
 
 async function clickPanel(page, panelName, isOps = false) {
   const toggleSelector = isOps ? ".js-toggle-ops-sidebar" : ".js-toggle-sidebar";
@@ -116,6 +122,7 @@ test("@frontend-smoke ana sayfa kartları ve detayları backend kataloğundan al
         data: {
           paymentPolicy: defaultPaymentPolicy,
           bookingFormConstraints: defaultBookingFormConstraints,
+          bookingSchedulePolicy: defaultBookingSchedulePolicy,
           packages: [{ code: "mini", name: "Mini Paket", priceCents: 2_345_600 }],
           services: [
             {
@@ -302,6 +309,7 @@ test("@frontend-smoke paket formu çift, saat ve salon alanlarını backend kata
         data: {
           paymentPolicy: defaultPaymentPolicy,
           bookingFormConstraints: defaultBookingFormConstraints,
+          bookingSchedulePolicy: defaultBookingSchedulePolicy,
           packages: [
             {
               code: "mini",
@@ -355,8 +363,17 @@ test("@frontend-smoke paket formu çift, saat ve salon alanlarını backend kata
   await expect(
     page.locator('.js-time-picker[data-time-picker="start"] .js-time-trigger')
   ).toBeEnabled();
+  const endTimePicker = page.locator('.js-time-picker[data-time-picker="end"]');
+  await endTimePicker.locator(".js-time-trigger").click();
+  await expect(endTimePicker.locator('[data-time-value="02:00"]')).toHaveCount(1);
+  await expect(endTimePicker.locator("[data-time-value]")).toHaveCount(48);
+  await page.keyboard.press("Escape");
   await selectWeddingTime(page, "start", "20:00");
+  await selectWeddingTime(page, "end", "02:00");
+  await page.locator('input[name="endsNextDay"]').check();
+  await expect(page.locator('input[name="endTime"]')).not.toHaveAttribute("aria-invalid", "true");
   await selectWeddingTime(page, "end", "19:00");
+  await page.locator('input[name="endsNextDay"]').uncheck();
   await expect(page.locator('input[name="endTime"]')).toHaveAttribute("aria-invalid", "true");
 });
 
@@ -542,6 +559,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
         data: {
           paymentPolicy: defaultPaymentPolicy,
           bookingFormConstraints: defaultBookingFormConstraints,
+          bookingSchedulePolicy: defaultBookingSchedulePolicy,
           packages: [
             { code: "mini", name: "Mini Paket", priceCents: 2_000_000, isActive: true },
             { code: "hikaye", name: "Hikâye Paketi", priceCents: 3_500_000, isActive: true }
@@ -812,6 +830,7 @@ test("@frontend-smoke referans WhatsApp'tan önce oluşturulur ve yapılandırı
             depositMaximumCents: 3_000
           },
           bookingFormConstraints: defaultBookingFormConstraints,
+          bookingSchedulePolicy: defaultBookingSchedulePolicy,
           packages: [
             {
               code: "mini",
@@ -1043,6 +1062,7 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
         data: {
           paymentPolicy: defaultPaymentPolicy,
           bookingFormConstraints: defaultBookingFormConstraints,
+          bookingSchedulePolicy: defaultBookingSchedulePolicy,
           packages: [
             {
               code: "mini",

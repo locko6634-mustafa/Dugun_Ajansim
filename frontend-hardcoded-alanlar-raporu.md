@@ -12,9 +12,8 @@ Frontenddeki her sabit değer hata değildir. DOM seçicileri, route yolları, e
 Güncel durumda en önemli açıklar şunlardır:
 
 1. **Yasal ve iletişim içeriği yayın için tamamlanmamış (P0):** Veri sorumlusu kimliği ve başvuru kanalı yok; ana sayfadaki iletişim alanında gerçek iletişim bilgisi bulunmuyor. KVKK kabulünde onaylanan belge sürümü de kaydedilmiyor.
-2. **Public saat seçici backend sözleşmesiyle uyumsuz (P1):** Paket oluşturucu yalnız `09:00–23:30` arasında 30 dakikalık seçenekler üretirken backend `00:00–23:59` aralığını kabul ediyor. Ertesi gün `02:00` gibi geçerli saatler public arayüzden seçilemiyor.
-3. **Galeri, video ve yayın metinleri kaynak koda bağlı (P2):** Referans içerikleri, FAQ, SEO metinleri ve Supabase Storage adresleri HTML deployu olmadan yönetilemiyor.
-4. **Merkezileştirme kısmi (P2/P3):** Fiyat, ödeme politikası, mekânlar, temel domain etiketleri ve bölgesel ayarlar merkezileştirilmiş olsa da katalog fallback içeriği, başvuru durum etiketleri, admin form sınırları ve tasarım tokenlarında tekrarlar sürüyor.
+2. **Galeri, video ve yayın metinleri kaynak koda bağlı (P2):** Referans içerikleri, FAQ, SEO metinleri ve Supabase Storage adresleri HTML deployu olmadan yönetilemiyor.
+3. **Merkezileştirme kısmi (P2/P3):** Fiyat, ödeme politikası, mekânlar, temel domain etiketleri ve bölgesel ayarlar merkezileştirilmiş olsa da katalog fallback içeriği, başvuru durum etiketleri, admin form sınırları ve tasarım tokenlarında tekrarlar sürüyor.
 
 ## Öncelik tanımı
 
@@ -43,20 +42,6 @@ Güncel durumda en önemli açıklar şunlardır:
 **Risk:** Kullanıcı kime ve hangi kanaldan başvuracağını göremiyor. Metin daha sonra değişirse geçmiş bir başvurunun hangi onay metnini kabul ettiği teknik olarak kanıtlanamıyor.
 
 **Öneri:** Hukuk/onay sahibi tarafından doğrulanmış ticari unvan, veri sorumlusu, adres ve başvuru kanallarını sürümlü bir site/yasal içerik kaynağında tutun. Başvuruya `privacyNoticeVersion` ve gerekiyorsa `marketingConsentVersion` ekleyip kabul anındaki sürümü backendde kaydedin.
-
-### HC-02 — Public düğün saatleri kod içinde `09:00–23:30 / 30 dk` ile sınırlı (P1)
-
-**Kanıt**
-
-- `js/package-builder/application.js:964-977`: Saat seçenekleri `9 * 60` ile `23 * 60 + 30` arasında, `30` dakikalık artışla üretiliyor.
-- `paketini-olustur.html:527-602`: Başlangıç ve bitiş alanları yalnız bu özel seçiciyi kullanıyor; “bitiş ertesi gün” seçeneği mevcut.
-- `backend/src/schemas/api.schemas.ts:41,88-89`: Backend herhangi bir geçerli `HH:mm` değerini kabul ediyor; `09:00–23:30` veya 30 dakika kuralı yok.
-- `admin.html:532-535,583-586`: Admin formlarında native `time` alanları var ve aynı aralık uygulanmıyor.
-- Backend test verilerinde `20:00–02:00` gibi ertesi güne geçen saatler destekleniyor; public seçenek listesinde `02:00` bulunmuyor.
-
-**Risk:** Backend açısından geçerli düğün saatleri public başvuruda seçilemiyor. Public, admin ve operasyon kanalları farklı iş kuralı uyguluyor.
-
-**Öneri:** Çalışma saati, gün aşımı ve slot adımını backend/public config sözleşmesine ekleyin. Örneğin `bookingSchedulePolicy: { startMinute, endMinute, stepMinutes, allowNextDay }` yanıtı üretin ve hem public hem admin seçicilerini aynı kaynaktan oluşturun. Aralık işletme kuralı değilse public seçiciyi tam gün destekleyecek şekilde düzenleyin.
 
 ### HC-03 — Galeri ve video vitrini statik HTML ile harici Storage adreslerine bağlı (P2)
 
@@ -185,6 +170,7 @@ Güncel durumda en önemli açıklar şunlardır:
 
 Bu maddeler güncel kaynakta tekrar doğrulandı; yeniden açık bulgu sayılmadı:
 
+- **HC-02 — Public düğün saatleri (9 Ağustos 2026):** Backend `/catalog`, `bookingSchedulePolicy` ile `00:00–23:30`, 30 dakika ve ertesi gün desteğini yayımlıyor. Public seçici 48 slotu bu doğrulanan sözleşmeden üretiyor; `20:00–02:00` akışı regresyon testiyle korunuyor.
 - **Fiyat ve ödeme politikası:** Paket/hizmet fiyatları ile indirim/kapora politikası backend DB ve `/catalog` yanıtından geliyor. API olmadan paket/ödeme akışı açılmıyor.
 - **Ödeme talimatları:** Banka, hesap sahibi, IBAN ve WhatsApp numarası frontend kaynaklarında gömülü değil; `/payment-instructions` yanıtından geliyor.
 - **Form doğrulaması:** Başvuru ad/telefon/e-posta/özel salon/not sınırları backend `bookingFormConstraints` kaynağından public ve admin formlarına uygulanıyor. HC-07'deki admin katalog formları bunun dışında.

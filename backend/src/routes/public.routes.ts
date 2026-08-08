@@ -8,7 +8,11 @@ import {
   rateLimitKeyGenerator
 } from "../middlewares/rateLimit.middleware.js";
 import { validateRequest } from "../middlewares/validate.middleware.js";
-import { bookingBodySchema, bookingFormConstraints } from "../schemas/api.schemas.js";
+import {
+  bookingBodySchema,
+  bookingFormConstraints,
+  bookingSchedulePolicy
+} from "../schemas/api.schemas.js";
 import {
   createBookingApplication,
   getPaymentFlowApplication,
@@ -107,7 +111,13 @@ router.get(
     ]);
     res.json({
       success: true,
-      data: { packages, services, paymentPolicy, bookingFormConstraints },
+      data: {
+        packages,
+        services,
+        paymentPolicy,
+        bookingFormConstraints,
+        bookingSchedulePolicy
+      },
       correlationId: req.correlationId
     });
   })

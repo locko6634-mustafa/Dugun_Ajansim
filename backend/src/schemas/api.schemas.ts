@@ -19,6 +19,13 @@ export const bookingFormConstraints = Object.freeze({
   note: { maxLength: 2_000 }
 });
 
+export const bookingSchedulePolicy = Object.freeze({
+  earliestTime: "00:00",
+  latestTime: "23:30",
+  stepMinutes: 30,
+  allowNextDay: true
+});
+
 const nameSchema = z
   .string()
   .trim()
