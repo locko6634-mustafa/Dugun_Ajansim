@@ -14,6 +14,12 @@ import {
   MESSAGE_KIND_LABELS,
   STAFF_SPECIALTY_LABELS
 } from "../shared/domain-labels.js";
+import {
+  APP_LOCALE,
+  APP_TIME_ZONE,
+  OPERATIONS_CITY,
+  formatAppCurrency
+} from "../shared/runtime-config.js";
 
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
 const STATUS_LABELS = DELIVERY_STATUS_LABELS;
@@ -110,30 +116,26 @@ const escapeHtml = (value) =>
 
 const formatDate = (value, includeTime = false) =>
   value
-    ? new Intl.DateTimeFormat("tr-TR", {
-        timeZone: "Europe/Istanbul",
+    ? new Intl.DateTimeFormat(APP_LOCALE, {
+        timeZone: APP_TIME_ZONE,
         dateStyle: "medium",
         ...(includeTime ? { timeStyle: "short" } : {})
       }).format(new Date(value))
     : "—";
 
 const formatTime = (value) =>
-  new Intl.DateTimeFormat("tr-TR", {
-    timeZone: "Europe/Istanbul",
+  new Intl.DateTimeFormat(APP_LOCALE, {
+    timeZone: APP_TIME_ZONE,
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date(value));
 
 const formatMoney = (cents) =>
-  new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    maximumFractionDigits: 0
-  }).format(Number(cents || 0) / 100);
+  formatAppCurrency(Number(cents || 0) / 100, { maximumFractionDigits: 0 });
 
 const datePartInIstanbul = (value) =>
   new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Istanbul",
+    timeZone: APP_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit"
@@ -141,7 +143,7 @@ const datePartInIstanbul = (value) =>
 
 const timePartInIstanbul = (value) =>
   new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Istanbul",
+    timeZone: APP_TIME_ZONE,
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23"
@@ -363,10 +365,11 @@ function renderWeek() {
       (wedding) => datePartInIstanbul(wedding.startsAt) === date
     );
     const dateValue = new Date(`${date}T12:00:00.000Z`);
-    const weekday = new Intl.DateTimeFormat("tr-TR", { weekday: "short", timeZone: "UTC" }).format(
-      dateValue
-    );
-    const day = new Intl.DateTimeFormat("tr-TR", {
+    const weekday = new Intl.DateTimeFormat(APP_LOCALE, {
+      weekday: "short",
+      timeZone: "UTC"
+    }).format(dateValue);
+    const day = new Intl.DateTimeFormat(APP_LOCALE, {
       day: "numeric",
       month: "short",
       timeZone: "UTC"
@@ -432,11 +435,14 @@ function renderCalendar() {
     : empty("Kayıtlı salon bulunmuyor.");
 
   const monthDate = new Date(`${data.month}-01T12:00:00.000Z`);
-  document.querySelector(".js-calendar-label").textContent = `${new Intl.DateTimeFormat("tr-TR", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC"
-  }).format(monthDate)} · ${data.selectedVenue?.name || "Salon yok"}`;
+  document.querySelector(".js-calendar-label").textContent = `${new Intl.DateTimeFormat(
+    APP_LOCALE,
+    {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC"
+    }
+  ).format(monthDate)} · ${data.selectedVenue?.name || "Salon yok"}`;
 
   const year = monthDate.getUTCFullYear();
   const monthIndex = monthDate.getUTCMonth();
@@ -450,7 +456,7 @@ function renderCalendar() {
     const dateValue = new Date(`${date}T12:00:00.000Z`);
     const events = byDate.get(date) || [];
     const outside = date.slice(0, 7) !== data.month;
-    const weekday = new Intl.DateTimeFormat("tr-TR", {
+    const weekday = new Intl.DateTimeFormat(APP_LOCALE, {
       weekday: "short",
       timeZone: "UTC"
     }).format(dateValue);
@@ -810,12 +816,15 @@ async function loadWeddings() {
 }
 
 function renderWeddings() {
-  const term = document.querySelector(".js-wedding-search").value.trim().toLocaleLowerCase("tr-TR");
+  const term = document
+    .querySelector(".js-wedding-search")
+    .value.trim()
+    .toLocaleLowerCase(APP_LOCALE);
   const status = document.querySelector(".js-wedding-status").value;
   const rows = state.weddings.filter((wedding) => {
     const haystack =
       `${coupleName(wedding)} ${wedding.bridePhone} ${wedding.groomPhone} ${wedding.venue.name}`.toLocaleLowerCase(
-        "tr-TR"
+        APP_LOCALE
       );
     return (
       (!term || haystack.includes(term)) &&
@@ -826,13 +835,13 @@ function renderWeddings() {
     ? rows
         .map((wedding) => {
           const date = new Date(wedding.startsAt);
-          const day = new Intl.DateTimeFormat("tr-TR", {
+          const day = new Intl.DateTimeFormat(APP_LOCALE, {
             day: "2-digit",
-            timeZone: "Europe/Istanbul"
+            timeZone: APP_TIME_ZONE
           }).format(date);
-          const month = new Intl.DateTimeFormat("tr-TR", {
+          const month = new Intl.DateTimeFormat(APP_LOCALE, {
             month: "short",
-            timeZone: "Europe/Istanbul"
+            timeZone: APP_TIME_ZONE
           }).format(date);
           return `<article class="wedding-card"><div class="date-tile"><strong>${day}</strong><small>${escapeHtml(month)}</small></div><div><strong>${escapeHtml(coupleName(wedding))}</strong><p>${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)}</p></div><div class="crew-line">${renderCrew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}">Ayrıntılar</button></article>`;
         })
@@ -945,13 +954,16 @@ async function ensureVenues() {
 }
 
 function renderStaff() {
-  const term = document.querySelector(".js-staff-search").value.trim().toLocaleLowerCase("tr-TR");
+  const term = document
+    .querySelector(".js-staff-search")
+    .value.trim()
+    .toLocaleLowerCase(APP_LOCALE);
   const specialty = document.querySelector(".js-staff-specialty-filter").value;
   const venueId = document.querySelector(".js-staff-venue-filter")?.value || "";
   const active = document.querySelector(".js-staff-active-filter").value;
   const rows = state.staff.filter((staff) => {
     const matchesTerm = `${staff.firstName} ${staff.lastName} ${staff.phone}`
-      .toLocaleLowerCase("tr-TR")
+      .toLocaleLowerCase(APP_LOCALE)
       .includes(term);
     const matchesSpecialty = !specialty || staff.specialties.includes(specialty);
     const matchesVenue = !venueId || staff.venueId === venueId || staff.venue?.id === venueId;
@@ -1056,7 +1068,7 @@ function renderCatalogRows(container, rows, type) {
   container.innerHTML = rows
     .map((item) => {
       const img = item.imagePath || "assets/images/hero-couple.webp";
-      const priceFormatted = (item.priceCents / 100).toLocaleString("tr-TR");
+      const priceFormatted = (item.priceCents / 100).toLocaleString(APP_LOCALE);
       const subInfo = [
         `Kod: ${escapeHtml(item.code)}`,
         !isPackage && item.category ? `Kategori: ${escapeHtml(item.category)}` : null,
@@ -2128,10 +2140,10 @@ document
   .querySelectorAll(".js-logout")
   .forEach((button) => button.addEventListener("click", () => void logout()));
 
-document.querySelector(".js-current-date").textContent = `${new Intl.DateTimeFormat("tr-TR", {
-  timeZone: "Europe/Istanbul",
+document.querySelector(".js-current-date").textContent = `${new Intl.DateTimeFormat(APP_LOCALE, {
+  timeZone: APP_TIME_ZONE,
   dateStyle: "long"
-}).format(new Date())} · İstanbul`;
+}).format(new Date())} · ${OPERATIONS_CITY}`;
 
 if (await ensureAdmin()) {
   await Promise.all([

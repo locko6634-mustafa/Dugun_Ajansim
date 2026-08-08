@@ -510,7 +510,7 @@ export function showVenueFormModal({ title = "", initialData = null } = {}) {
       button.addEventListener("click", () => cleanup(null), { once: true });
     });
 
-    setTimeout(() => (isEdit ? nameInput : slugInput)?.focus(), 50);
+    (isEdit ? nameInput : slugInput)?.focus();
 
     form.onsubmit = (event) => {
       event.preventDefault();

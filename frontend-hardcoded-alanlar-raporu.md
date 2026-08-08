@@ -171,6 +171,14 @@ Frontenddeki hardcoded alanların büyük kısmı statik tasarım ve arayüz met
 
 **Öneri:** `js/shared/runtime-config.js` içinde locale, currency, time zone ve operasyon şehri tanımlayın. Tarih yardımcılarını ortaklaştırın ve date-only alanların dönüşüm sözleşmesini test edin.
 
+**Uygulanan çözüm**
+
+- Locale, para birimi, saat dilimi ve operasyon şehri `js/shared/runtime-config.js` içinde merkezileştirildi; admin, operasyon, müşteri paneli, ana sayfa ve paket oluşturucu bu sözleşmeye bağlandı.
+- Müşteri panelindeki tarih-saat gösterimi açıkça `Europe/Istanbul` saat dilimini kullanıyor.
+- Ortak tarih-saat, yalnız-tarih ve para biçimlendirme yardımcıları eklendi. Yalnız-tarih yardımcısı `YYYY-AA-GG` girdisini UTC öğlen üzerinden biçimlendirerek çalışma ortamının saat diliminden kaynaklanan gün kaymasını engelliyor.
+
+**Doğrulama:** `tools/runtime-config.test.mjs`; pazar sabitlerini, İstanbul gün sınırındaki tarih-saat dönüşümünü ve yalnız-tarih değerlerinin gün kaydırmamasını doğruluyor. Test `npm run validate` kalite kapısına eklendi.
+
 ### HC-12 — Tasarım tokenları sayfa grupları arasında parçalı (P3)
 
 **Kanıt**

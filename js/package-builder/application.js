@@ -5,7 +5,8 @@ import {
   applyBookingFormConstraints,
   parseBookingFormConstraints
 } from "../shared/booking-form-constraints.js";
-const moneyFormatter = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 });
+import { APP_LOCALE } from "../shared/runtime-config.js";
+const moneyFormatter = new Intl.NumberFormat(APP_LOCALE, { maximumFractionDigits: 2 });
 const formatPrice = (value) =>
   Number.isFinite(value) ? `${moneyFormatter.format(value)} TL` : "—";
 const toCents = (value) => Math.round(value * 100);
@@ -884,12 +885,12 @@ let calendarView = new Date();
 
 let currentOccupiedSlots = [];
 
-const pickerDateFormatter = new Intl.DateTimeFormat("tr-TR", {
+const pickerDateFormatter = new Intl.DateTimeFormat(APP_LOCALE, {
   day: "numeric",
   month: "long",
   year: "numeric"
 });
-const calendarFormatter = new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" });
+const calendarFormatter = new Intl.DateTimeFormat(APP_LOCALE, { month: "long", year: "numeric" });
 const dateToValue = (date) =>
   [
     date.getFullYear(),

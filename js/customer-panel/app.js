@@ -1,11 +1,11 @@
 import { apiRequest } from "../shared/api-client.js";
 import { DELIVERY_STATUS_LABELS, DELIVERY_STATUS_ORDER } from "../shared/domain-labels.js";
+import { formatAppDate } from "../shared/runtime-config.js";
 
 const statusOrder = DELIVERY_STATUS_ORDER;
 const statusLabels = DELIVERY_STATUS_LABELS;
 
-const formatDate = (value) =>
-  new Intl.DateTimeFormat("tr-TR", { dateStyle: "long" }).format(new Date(value));
+const formatDate = (value) => formatAppDate(value, { dateStyle: "long" });
 
 const safeDeliveryUrl = (value) => {
   let url;

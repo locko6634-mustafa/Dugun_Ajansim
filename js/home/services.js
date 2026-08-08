@@ -1,15 +1,12 @@
 import { services as homeServices } from "../shared/service-catalog.js";
 import { apiRequest, hasApiEndpoint } from "../shared/api-client.js";
+import { formatAppCurrency } from "../shared/runtime-config.js";
 
 const fallbackImage = "assets/images/hero-couple.webp";
 
 function formatPrice(amount) {
   if (!Number.isFinite(amount)) return "Güncel fiyatı paket oluşturucuda görün";
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    maximumFractionDigits: 0
-  }).format(amount);
+  return formatAppCurrency(amount, { maximumFractionDigits: 0 });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
