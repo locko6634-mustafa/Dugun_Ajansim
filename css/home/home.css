@@ -132,7 +132,7 @@ button {
   display: flex;
   align-items: center;
   justify-self: end;
-  gap: 10px;
+  gap: 6px;
 }
 
 .header-login {
