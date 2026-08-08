@@ -198,8 +198,14 @@ services:
       - traefik.http.routers.dugun-ajansim-api.priority=100
       - traefik.http.routers.dugun-ajansim-api.tls=true
       - traefik.http.routers.dugun-ajansim-api.tls.certresolver=mytlschallenge
-      - traefik.http.routers.dugun-ajansim-api.middlewares=dugun-ajansim-compress
+      - traefik.http.routers.dugun-ajansim-api.middlewares=dugun-ajansim-edge-ratelimit,dugun-ajansim-edge-inflight,dugun-ajansim-compress
       - traefik.http.services.dugun-ajansim-api.loadbalancer.server.port=5000
+      - traefik.http.middlewares.dugun-ajansim-edge-ratelimit.ratelimit.average=${EDGE_RATE_LIMIT_AVERAGE:-20}
+      - traefik.http.middlewares.dugun-ajansim-edge-ratelimit.ratelimit.period=${EDGE_RATE_LIMIT_PERIOD:-1s}
+      - traefik.http.middlewares.dugun-ajansim-edge-ratelimit.ratelimit.burst=${EDGE_RATE_LIMIT_BURST:-40}
+      - traefik.http.middlewares.dugun-ajansim-edge-ratelimit.ratelimit.sourcecriterion.ipstrategy.ipv6subnet=${EDGE_RATE_LIMIT_IPV6_SUBNET:-56}
+      - traefik.http.middlewares.dugun-ajansim-edge-inflight.inflightreq.amount=${EDGE_INFLIGHT_REQUESTS:-50}
+      - traefik.http.middlewares.dugun-ajansim-edge-inflight.inflightreq.sourcecriterion.requesthost=true
       - traefik.http.middlewares.dugun-ajansim-compress.compress=true
     networks:
       - internal

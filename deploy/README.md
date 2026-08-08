@@ -4,7 +4,7 @@
 
 - Alan adının A kaydı sunucunun genel IP adresine yönlenmeli.
 - Sunucuda Docker Compose ve harici `edge_proxy` ağı çalışmalı.
-- Traefik, `mytlschallenge` sertifika çözücüsünü sağlamalı.
+- Traefik v3, `mytlschallenge` sertifika çözücüsünü sağlamalı.
 
 ## İlk kurulum
 
@@ -35,6 +35,27 @@ oturum temizliği için silme yetkisine sahiptir. Rol hazırlama adımı her da�
 Traefik'e bu ağda sabit bir IP verin, aynı kesin IP'yi `TRUST_PROXY` olarak kullanın ve Traefik
 `forwardedHeaders.insecure` ayarını etkinleştirmeyin. Sayısal `TRUST_PROXY=1` kullanımı, ağa
 erişebilen başka bir container'ın istemci IP başlığını sahtelemesine izin verebilir.
+
+### API giriş katmanı trafik sınırları
+
+Traefik, `/api/v1` trafiğini backend'e aktarmadan önce IP tabanlı token-bucket hız sınırını ve
+alan adı genelindeki eşzamanlı istek sınırını uygular. Varsayılanlar IP başına saniyede ortalama
+20 istek, 40 istek burst, IPv6 için `/56` gruplama ve aynı anda 50 API isteğidir:
+
+```dotenv
+EDGE_RATE_LIMIT_AVERAGE=20
+EDGE_RATE_LIMIT_PERIOD=1s
+EDGE_RATE_LIMIT_BURST=40
+EDGE_RATE_LIMIT_IPV6_SUBNET=56
+EDGE_INFLIGHT_REQUESTS=50
+```
+
+Bu değerler uygulama içindeki daha dar login ve başvuru kotalarının yerine geçmez. Dağıtımdan
+sonra Traefik `429` yanıtlarını, API gecikmesini ve backend CPU/bellek kullanımını izleyin.
+Gerçek kullanıcıların ortak NAT altında engellendiği görülürse önce `burst` değerini kontrollü
+artırın; sürekli yük kapasitesi doğrulanmadan `average` veya eşzamanlı istek sınırını büyütmeyin.
+Değişiklik öncesinde her zaman `docker compose ... config -q` çalıştırın. Acil geri dönüşte
+önceki doğrulanmış compose revizyonuna dönüp `up -d` uygulayın; uygulama içi kotaları kapatmayın.
 
 İlk admin parolasını dosyaya veya komut geçmişine yazmadan, etkileşimli olarak oluşturun:
 

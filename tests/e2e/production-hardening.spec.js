@@ -52,6 +52,27 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(compose).toContain("TEMPORARY_PASSWORD_TTL_HOURS:");
   expect(compose).toContain("TRUST_PROXY: ${TRUST_PROXY:?");
   expect(compose).not.toMatch(/TRUST_PROXY:\s*1(?:\s|$)/);
+  expect(compose).toContain(
+    "dugun-ajansim-edge-ratelimit,dugun-ajansim-edge-inflight,dugun-ajansim-compress"
+  );
+  expect(compose).toContain(
+    "dugun-ajansim-edge-ratelimit.ratelimit.average=${EDGE_RATE_LIMIT_AVERAGE:-20}"
+  );
+  expect(compose).toContain(
+    "dugun-ajansim-edge-ratelimit.ratelimit.period=${EDGE_RATE_LIMIT_PERIOD:-1s}"
+  );
+  expect(compose).toContain(
+    "dugun-ajansim-edge-ratelimit.ratelimit.burst=${EDGE_RATE_LIMIT_BURST:-40}"
+  );
+  expect(compose).toContain(
+    "dugun-ajansim-edge-ratelimit.ratelimit.sourcecriterion.ipstrategy.ipv6subnet=${EDGE_RATE_LIMIT_IPV6_SUBNET:-56}"
+  );
+  expect(compose).toContain(
+    "dugun-ajansim-edge-inflight.inflightreq.amount=${EDGE_INFLIGHT_REQUESTS:-50}"
+  );
+  expect(compose).toContain(
+    "dugun-ajansim-edge-inflight.inflightreq.sourcecriterion.requesthost=true"
+  );
   expect(compose).toContain("db-role-bootstrap:");
   expect(compose).toContain(
     "./deploy/postgres/init-runtime-role.sh:/docker-entrypoint-initdb.d/20-runtime-role.sh:ro"
@@ -81,12 +102,20 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(exampleEnv).toMatch(/^POSTGRES_RUNTIME_PASSWORD=$/m);
   expect(exampleEnv).toMatch(/^DATA_ENCRYPTION_KEY=$/m);
   expect(exampleEnv).toMatch(/^TRUST_PROXY=$/m);
+  expect(exampleEnv).toContain("EDGE_RATE_LIMIT_AVERAGE=20");
+  expect(exampleEnv).toContain("EDGE_RATE_LIMIT_PERIOD=1s");
+  expect(exampleEnv).toContain("EDGE_RATE_LIMIT_BURST=40");
+  expect(exampleEnv).toContain("EDGE_RATE_LIMIT_IPV6_SUBNET=56");
+  expect(exampleEnv).toContain("EDGE_INFLIGHT_REQUESTS=50");
   expect(exampleEnv).toContain("ADMIN_SESSION_IDLE_MINUTES=720");
   expect(exampleEnv).toContain("CUSTOMER_SESSION_IDLE_HOURS=12");
   expect(exampleEnv).toContain("TEMPORARY_PASSWORD_TTL_HOURS=72");
 
   expect(deployReadme).toContain("install -m 600");
   expect(deployReadme).toContain("config -q");
+  expect(deployReadme).toContain("Traefik v3");
+  expect(deployReadme).toContain("EDGE_RATE_LIMIT_AVERAGE");
+  expect(deployReadme).toContain("EDGE_INFLIGHT_REQUESTS");
   expect(deployReadme).toContain("-e ADMIN_BOOTSTRAP_USERNAME -e ADMIN_BOOTSTRAP_PASSWORD");
   expect(deployReadme).toContain("pg_restore --exit-on-error");
   expect(deployReadme).toContain("-p dugun-ajansim-restore-check");
