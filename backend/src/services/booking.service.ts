@@ -552,11 +552,13 @@ const toPaymentFlowResponse = (application: PaymentFlowApplication) => {
 
 export const expireStalePaymentFlows = async (
   now = new Date(),
-  _correlationId = `payment-expiry-${now.toISOString()}`
+  _correlationId = `payment-expiry-${now.toISOString()}`,
+  applicationId?: string
 ): Promise<number> =>
   prisma.$transaction(async (transaction) => {
     const expiredCandidates = await transaction.bookingApplication.findMany({
       where: {
+        ...(applicationId ? { id: applicationId } : {}),
         source: "PUBLIC_FORM",
         status: "ONAY_BEKLIYOR",
         deletedAt: null,
@@ -565,7 +567,7 @@ export const expireStalePaymentFlows = async (
       },
       select: { id: true, venueId: true },
       orderBy: [{ paymentFlowExpiresAt: "asc" }, { id: "asc" }],
-      take: 100
+      take: applicationId ? 1 : 100
     });
 
     let expiredCount = 0;
@@ -597,14 +599,18 @@ export const getPaymentFlowApplication = async (
   paymentFlowKey: string,
   correlationId: string
 ) => {
-  await expireStalePaymentFlows(new Date(), correlationId);
+  const now = new Date();
   const application = await prisma.bookingApplication.findUnique({
     where: { id: applicationId },
     include: paymentFlowInclude
   });
   if (!application) throw new AppError("Ödeme akışı bulunamadı.", 404);
   assertPaymentFlowAccess(application, paymentFlowKey);
-  assertPaymentFlowNotExpired(application, new Date());
+  if (application.paymentFlowExpiresAt && application.paymentFlowExpiresAt <= now) {
+    await expireStalePaymentFlows(now, correlationId, application.id);
+    throw new AppError("Ödeme akışı bulunamadı.", 404);
+  }
+  assertPaymentFlowNotExpired(application, now);
   return toPaymentFlowResponse(application);
 };
 

@@ -781,6 +781,22 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     where: { id: expiringApplication.id },
     data: { paymentFlowExpiresAt: new Date(Date.now() - 1_000) }
   });
+  const invalidKeyRead = await request(app)
+    .get(`/api/v1/booking-applications/${publicRouteApplicationId}/payment-flow`)
+    .set("Payment-Flow-Key", `${marker}-invalid-sweep-key-1234567890`);
+  assert.equal(invalidKeyRead.status, 404);
+  assert.equal(
+    await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }),
+    1
+  );
+  const missingApplicationRead = await request(app)
+    .get("/api/v1/booking-applications/00000000-0000-4000-8000-000000000000/payment-flow")
+    .set("Payment-Flow-Key", expiringFlowKey);
+  assert.equal(missingApplicationRead.status, 404);
+  assert.equal(
+    await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }),
+    1
+  );
   assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 1);
   const expiredApplication = await prisma.bookingApplication.findUnique({
     where: { id: expiringApplication.id }
