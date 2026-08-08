@@ -1944,6 +1944,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
 
   const renderedReset = await request(app)
     .get(`/api/v1/admin/message-tasks/${resetTaskId}/render`)
+    .set("X-Correlation-ID", correlationId)
     .set("Cookie", adminCookie);
   assert.equal(renderedReset.status, 200);
   assert.equal(renderedReset.headers["cache-control"], "no-store");
@@ -1953,6 +1954,20 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     renderedReset.body.data.whatsappUrl.includes(renderedReset.body.data.message),
     false
   );
+  const secretViewedAudit = await prisma.auditLog.findFirst({
+    where: {
+      actorUserId: admin.id,
+      action: "message.secret_viewed",
+      targetType: "MessageTask",
+      targetId: resetTaskId,
+      correlationId
+    }
+  });
+  assert.ok(secretViewedAudit);
+  assert.deepEqual(secretViewedAudit.metadata, {
+    weddingId: wedding.id,
+    kind: "PASSWORD_RESET"
+  });
   const expectedUpdatedAt = renderedReset.body.data.expectedUpdatedAt as string;
   const markedSent = await request(app)
     .post(`/api/v1/admin/message-tasks/${resetTaskId}/mark-sent`)

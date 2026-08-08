@@ -2211,8 +2211,8 @@ router.get(
   })
 );
 
-const renderMessage = async (taskId: string) => {
-  const task = await prisma.messageTask.findUnique({
+const renderMessage = async (taskId: string, transaction: Prisma.TransactionClient = prisma) => {
+  const task = await transaction.messageTask.findUnique({
     where: { id: taskId },
     include: {
       wedding: {
@@ -2284,7 +2284,23 @@ router.get(
   "/message-tasks/:id/render",
   validateRequest(uuidRequest),
   asyncHandler(async (req, res) => {
-    const rendered = await renderMessage(req.params.id);
+    const rendered = await prisma.$transaction(async (transaction) => {
+      const result = await renderMessage(req.params.id, transaction);
+      if (result.task.kind === "ACCOUNT_ACTIVATION" || result.task.kind === "PASSWORD_RESET") {
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "message.secret_viewed",
+          targetType: "MessageTask",
+          targetId: result.task.id,
+          correlationId: req.correlationId,
+          metadata: {
+            weddingId: result.task.weddingId,
+            kind: result.task.kind
+          }
+        });
+      }
+      return result;
+    });
     res.set("Cache-Control", "no-store");
     res.json({
       success: true,
