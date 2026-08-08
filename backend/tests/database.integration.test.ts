@@ -712,11 +712,10 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     data: { paymentFlowExpiresAt: new Date(Date.now() - 1_000) }
   });
   assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 1);
-  const expiredApplication = await prisma.bookingApplication.findUniqueOrThrow({
+  const expiredApplication = await prisma.bookingApplication.findUnique({
     where: { id: expiringApplication.id }
   });
-  assert.equal(expiredApplication.status, "IPTAL_EDILDI");
-  assert.ok(expiredApplication.paymentFlowExpiredAt);
+  assert.equal(expiredApplication, null);
   const expiredAvailability = await getVenueAvailability(venue.id, expiringDate);
   assert.equal(
     expiredAvailability.occupiedSlots.some(
@@ -726,9 +725,69 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   );
   assert.equal(
     await prisma.auditLog.count({
-      where: { targetId: expiringApplication.id, action: "booking.payment_flow_expired" }
+      where: { targetType: "BookingApplication", targetId: expiringApplication.id }
     }),
-    1
+    0
+  );
+
+  const customVenueName = `Anonim Salon ${marker}`;
+  const updatedCustomVenueName = `${customVenueName} Güncel`;
+  const customVenueFlowKey = `${marker}-custom-venue-expiry-key-1234567890`;
+  const customVenueWeddingDate = addCalendarDays(weddingDate, 8);
+  const customVenueApplication = await createBookingApplication(
+    {
+      ...applicationInput,
+      venueId: undefined,
+      customVenueName,
+      weddingDate: customVenueWeddingDate,
+      primaryEmail: `custom-venue-${marker}@example.com`
+    },
+    {
+      source: "PUBLIC_FORM",
+      idempotencyKey: `${marker}-custom-venue-expiry`,
+      paymentFlowKey: customVenueFlowKey,
+      correlationId
+    }
+  );
+  const customVenue = await prisma.venue.findUniqueOrThrow({
+    where: { name: customVenueName },
+    select: { id: true }
+  });
+  secondaryVenueIds.push(customVenue.id);
+  const updatedCustomVenueFlow = await request(app)
+    .patch(`/api/v1/booking-applications/${customVenueApplication.id}/payment-flow`)
+    .set("Payment-Flow-Key", customVenueFlowKey)
+    .send({
+      ...applicationInput,
+      venueId: undefined,
+      customVenueName: updatedCustomVenueName,
+      weddingDate: customVenueWeddingDate,
+      primaryEmail: `custom-venue-${marker}@example.com`
+    });
+  assert.equal(updatedCustomVenueFlow.status, 200);
+  assert.equal(updatedCustomVenueFlow.body.data.customVenueName, updatedCustomVenueName);
+  assert.equal(await prisma.venue.count({ where: { id: customVenue.id } }), 0);
+  const updatedCustomVenue = await prisma.venue.findUniqueOrThrow({
+    where: { name: updatedCustomVenueName },
+    select: { id: true }
+  });
+  secondaryVenueIds.push(updatedCustomVenue.id);
+  await prisma.bookingApplication.update({
+    where: { id: customVenueApplication.id },
+    data: { paymentFlowExpiresAt: new Date(Date.now() - 1_000) }
+  });
+
+  assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 1);
+  assert.equal(
+    await prisma.bookingApplication.count({ where: { id: customVenueApplication.id } }),
+    0
+  );
+  assert.equal(await prisma.venue.count({ where: { id: updatedCustomVenue.id } }), 0);
+  assert.equal(
+    await prisma.auditLog.count({
+      where: { targetType: "BookingApplication", targetId: customVenueApplication.id }
+    }),
+    0
   );
 
   const handedOffExpiringDate = addCalendarDays(weddingDate, 6);
@@ -786,19 +845,18 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   );
   assert.ok(replacementAfterHandoffExpiry.id);
   assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 1);
-  const expiredHandedOffApplication = await prisma.bookingApplication.findUniqueOrThrow({
+  const expiredHandedOffApplication = await prisma.bookingApplication.findUnique({
     where: { id: handedOffExpiringApplication.id }
   });
-  assert.equal(expiredHandedOffApplication.status, "IPTAL_EDILDI");
-  assert.ok(expiredHandedOffApplication.paymentFlowExpiredAt);
+  assert.equal(expiredHandedOffApplication, null);
   assert.equal(
     await prisma.auditLog.count({
       where: {
         targetId: handedOffExpiringApplication.id,
-        action: "booking.payment_flow_expired"
+        targetType: "BookingApplication"
       }
     }),
-    1
+    0
   );
 
   const approvalExpiryRaceDate = addCalendarDays(weddingDate, 7);
@@ -854,8 +912,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const expiredPaymentFlowRead = await request(app)
     .get(`/api/v1/booking-applications/${approvalExpiryRaceApplication.id}/payment-flow`)
     .set("Payment-Flow-Key", approvalExpiryRaceFlowKey);
-  assert.equal(expiredPaymentFlowRead.status, 410);
-  assert.equal(expiredPaymentFlowRead.body.errors.code, "PAYMENT_FLOW_EXPIRED");
+  assert.equal(expiredPaymentFlowRead.status, 404);
 
   const beforeActivation = await request(app)
     .get("/api/v1/customer/dashboard")

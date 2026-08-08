@@ -77,6 +77,21 @@ const createAudit = (
     }
   });
 
+const deleteOrphanedCustomerVenue = (
+  transaction: Prisma.TransactionClient,
+  venueId: string
+) =>
+  transaction.venue.deleteMany({
+    where: {
+      id: venueId,
+      isPartner: false,
+      applications: { none: {} },
+      weddings: { none: {} },
+      staff: { none: {} },
+      managers: { none: {} }
+    }
+  });
+
 const idempotencySelect = {
   id: true,
   referenceCode: true,
@@ -532,7 +547,7 @@ const toPaymentFlowResponse = (application: PaymentFlowApplication) => {
 
 export const expireStalePaymentFlows = async (
   now = new Date(),
-  correlationId = `payment-expiry-${now.toISOString()}`
+  _correlationId = `payment-expiry-${now.toISOString()}`
 ): Promise<number> =>
   prisma.$transaction(async (transaction) => {
     const expiredCandidates = await transaction.bookingApplication.findMany({
@@ -543,7 +558,7 @@ export const expireStalePaymentFlows = async (
         paymentFlowExpiredAt: null,
         paymentFlowExpiresAt: { lte: now }
       },
-      select: { id: true, referenceCode: true, paymentFlowExpiresAt: true },
+      select: { id: true, venueId: true },
       orderBy: [{ paymentFlowExpiresAt: "asc" }, { id: "asc" }],
       take: 100
     });
@@ -562,17 +577,12 @@ export const expireStalePaymentFlows = async (
         data: { status: "IPTAL_EDILDI", paymentFlowExpiredAt: now }
       });
       if (claimed.count !== 1) continue;
-      expiredCount += 1;
-      await createAudit(transaction, {
-        action: "booking.payment_flow_expired",
-        targetType: "BookingApplication",
-        targetId: candidate.id,
-        correlationId,
-        metadata: {
-          referenceCode: candidate.referenceCode,
-          paymentFlowExpiresAt: candidate.paymentFlowExpiresAt?.toISOString()
-        }
+      await transaction.auditLog.deleteMany({
+        where: { targetType: "BookingApplication", targetId: candidate.id }
       });
+      await transaction.bookingApplication.delete({ where: { id: candidate.id } });
+      await deleteOrphanedCustomerVenue(transaction, candidate.venueId);
+      expiredCount += 1;
     }
     return expiredCount;
   });
@@ -719,6 +729,9 @@ export const updatePaymentFlowApplication = async (
         correlationId,
         metadata: { referenceCode: current.referenceCode }
       });
+      if (current.venueId !== venue.id) {
+        await deleteOrphanedCustomerVenue(transaction, current.venueId);
+      }
       return toPaymentFlowResponse(updated);
     },
     {
