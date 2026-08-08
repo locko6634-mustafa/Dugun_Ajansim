@@ -506,6 +506,12 @@ async function loadApplications() {
   }
 }
 
+function hasActivePaymentFlow(item) {
+  if (item.source !== "PUBLIC_FORM" || item.status !== "ONAY_BEKLIYOR") return true;
+  const expiresAt = new Date(item.paymentFlowExpiresAt).valueOf();
+  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+}
+
 function renderApplicationCard(item) {
   const venueName = item.venue?.name || "Salon Belirtilmedi";
   const dateStr = formatDate(item.weddingStartsAt, false);
@@ -526,14 +532,17 @@ function renderApplicationCard(item) {
       : item.paymentMethod === "DEPOSIT"
         ? "Kapora"
         : item.paymentMethod;
-  const canApprove = item.source === "ADMIN" || Boolean(item.whatsappHandoffAt);
-  const paymentStage = item.paymentFlowExpiredAt
-    ? "Bildirim süresi doldu"
-    : item.source === "ADMIN"
-      ? "Yönetici başvurusu"
-      : item.whatsappHandoffAt
-        ? "Dekont kontrolü bekleniyor"
-        : "WhatsApp geçişi bekleniyor";
+  const paymentFlowIsActive = hasActivePaymentFlow(item);
+  const canApprove =
+    item.source === "ADMIN" || (Boolean(item.whatsappHandoffAt) && paymentFlowIsActive);
+  const paymentStage =
+    item.paymentFlowExpiredAt || !paymentFlowIsActive
+      ? "Bildirim süresi doldu"
+      : item.source === "ADMIN"
+        ? "Yönetici başvurusu"
+        : item.whatsappHandoffAt
+          ? `Dekont kontrolü bekleniyor — son süre ${formatDate(item.paymentFlowExpiresAt, true)}`
+          : "WhatsApp geçişi bekleniyor";
 
   const statusLabel =
     item.status === "ONAY_BEKLIYOR"
@@ -637,14 +646,17 @@ function renderApplicationDetailModal(item) {
       : item.paymentMethod === "DEPOSIT"
         ? "Kapora Ödeme"
         : item.paymentMethod;
-  const canApprove = item.source === "ADMIN" || Boolean(item.whatsappHandoffAt);
-  const paymentStage = item.paymentFlowExpiredAt
-    ? `Bildirim süresi doldu (${formatDate(item.paymentFlowExpiredAt, true)})`
-    : item.source === "ADMIN"
-      ? "Yönetici başvurusu"
-      : item.whatsappHandoffAt
-        ? `Dekont kontrolü bekleniyor (${formatDate(item.whatsappHandoffAt, true)})`
-        : `WhatsApp geçişi bekleniyor${item.paymentFlowExpiresAt ? ` — son süre ${formatDate(item.paymentFlowExpiresAt, true)}` : ""}`;
+  const paymentFlowIsActive = hasActivePaymentFlow(item);
+  const canApprove =
+    item.source === "ADMIN" || (Boolean(item.whatsappHandoffAt) && paymentFlowIsActive);
+  const paymentStage =
+    item.paymentFlowExpiredAt || !paymentFlowIsActive
+      ? `Bildirim süresi doldu (${formatDate(item.paymentFlowExpiredAt || item.paymentFlowExpiresAt, true)})`
+      : item.source === "ADMIN"
+        ? "Yönetici başvurusu"
+        : item.whatsappHandoffAt
+          ? `Dekont kontrolü bekleniyor (${formatDate(item.whatsappHandoffAt, true)}) — son süre ${formatDate(item.paymentFlowExpiresAt, true)}`
+          : `WhatsApp geçişi bekleniyor${item.paymentFlowExpiresAt ? ` — son süre ${formatDate(item.paymentFlowExpiresAt, true)}` : ""}`;
 
   const statusLabel =
     item.status === "ONAY_BEKLIYOR"

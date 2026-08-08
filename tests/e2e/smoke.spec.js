@@ -491,6 +491,10 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     id: "263b221c-327b-4c8e-b015-33c70fc41e55",
     referenceCode: "DA-2026-123456",
     status: "ONAY_BEKLIYOR",
+    source: "PUBLIC_FORM",
+    paymentFlowExpiresAt: "2020-08-07T12:00:00.000Z",
+    whatsappHandoffAt: "2020-08-07T11:30:00.000Z",
+    paymentFlowExpiredAt: null,
     brideFirstName: "Zeynep",
     brideLastName: "Kaya",
     bridePhone: "+905551234567",
@@ -658,6 +662,10 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await clickPanel(page, "applications");
   await expect(page.locator(".application-card")).toContainText("10 Ağu 2026");
   await expect(page.locator(".application-card")).toContainText("00:30");
+  await expect(page.locator(".application-card")).toContainText("Bildirim süresi doldu");
+  await expect(
+    page.locator(".application-card").getByRole("button", { name: "Onayla" })
+  ).toHaveCount(0);
   await page.getByLabel("Başvuru referans kodu").fill("DA-2026-123456");
   await page.getByRole("button", { name: "Bul" }).click();
   await expect.poll(() => lastApplicationUrl).toContain("referenceCode=DA-2026-123456");
@@ -1102,6 +1110,9 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
   await expect(page.locator(".js-edit-package")).toBeDisabled();
   await expect(page.locator(".js-payment-notification-status")).toContainText(
     "WhatsApp aşamasına geçildi"
+  );
+  await expect(page.locator(".js-payment-flow-expiry")).toContainText(
+    "Yönetici onayı için kalan süre"
   );
 });
 

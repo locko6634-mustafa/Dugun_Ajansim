@@ -731,6 +731,132 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     1
   );
 
+  const handedOffExpiringDate = addCalendarDays(weddingDate, 6);
+  const handedOffExpiringFlowKey = `${marker}-handed-off-expiring-flow-key-1234567890`;
+  const handedOffExpiringApplication = await createBookingApplication(
+    {
+      ...applicationInput,
+      weddingDate: handedOffExpiringDate,
+      startTime: "13:00",
+      endTime: "15:00",
+      endsNextDay: false,
+      primaryEmail: `handed-off-expiring-${marker}@example.com`
+    },
+    {
+      source: "PUBLIC_FORM",
+      idempotencyKey: `${marker}-handed-off-expiring-payment-flow`,
+      paymentFlowKey: handedOffExpiringFlowKey,
+      correlationId
+    }
+  );
+  await markWhatsappHandoff(
+    handedOffExpiringApplication.id,
+    handedOffExpiringFlowKey,
+    correlationId
+  );
+  await prisma.bookingApplication.update({
+    where: { id: handedOffExpiringApplication.id },
+    data: { paymentFlowExpiresAt: new Date(Date.now() - 1_000) }
+  });
+  const handedOffExpiredAvailability = await getVenueAvailability(
+    venue.id,
+    handedOffExpiringDate
+  );
+  assert.equal(
+    handedOffExpiredAvailability.occupiedSlots.some(
+      (slot) => slot.startTime === "13:00" && slot.endTime === "15:00"
+    ),
+    false
+  );
+  const replacementAfterHandoffExpiry = await createBookingApplication(
+    {
+      ...applicationInput,
+      weddingDate: handedOffExpiringDate,
+      startTime: "13:00",
+      endTime: "15:00",
+      endsNextDay: false,
+      primaryEmail: `handoff-expiry-replacement-${marker}@example.com`
+    },
+    {
+      source: "PUBLIC_FORM",
+      idempotencyKey: `${marker}-handoff-expiry-replacement`,
+      paymentFlowKey: `${marker}-handoff-expiry-replacement-key-1234567890`,
+      correlationId
+    }
+  );
+  assert.ok(replacementAfterHandoffExpiry.id);
+  assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 1);
+  const expiredHandedOffApplication = await prisma.bookingApplication.findUniqueOrThrow({
+    where: { id: handedOffExpiringApplication.id }
+  });
+  assert.equal(expiredHandedOffApplication.status, "IPTAL_EDILDI");
+  assert.ok(expiredHandedOffApplication.paymentFlowExpiredAt);
+  assert.equal(
+    await prisma.auditLog.count({
+      where: {
+        targetId: handedOffExpiringApplication.id,
+        action: "booking.payment_flow_expired"
+      }
+    }),
+    1
+  );
+
+  const approvalExpiryRaceDate = addCalendarDays(weddingDate, 7);
+  const approvalExpiryRaceFlowKey = `${marker}-approval-expiry-race-key-1234567890`;
+  const approvalExpiryRaceApplication = await createBookingApplication(
+    {
+      ...applicationInput,
+      weddingDate: approvalExpiryRaceDate,
+      startTime: "16:00",
+      endTime: "18:00",
+      endsNextDay: false,
+      primaryEmail: `approval-expiry-race-${marker}@example.com`
+    },
+    {
+      source: "PUBLIC_FORM",
+      idempotencyKey: `${marker}-approval-expiry-race`,
+      paymentFlowKey: approvalExpiryRaceFlowKey,
+      correlationId
+    }
+  );
+  await markWhatsappHandoff(
+    approvalExpiryRaceApplication.id,
+    approvalExpiryRaceFlowKey,
+    correlationId
+  );
+  let approvalExpiryWasForced = false;
+  await assert.rejects(
+    approveBookingApplication(
+      approvalExpiryRaceApplication.id,
+      admin.id,
+      correlationId,
+      {
+        createUsername: async () => {
+          approvalExpiryWasForced = true;
+          await prisma.bookingApplication.update({
+            where: { id: approvalExpiryRaceApplication.id },
+            data: { paymentFlowExpiresAt: new Date(Date.now() - 1_000) }
+          });
+          return `expiry-race-${marker}`;
+        }
+      }
+    ),
+    (error: unknown) =>
+      error instanceof Error &&
+      "statusCode" in error &&
+      (error as { statusCode: number }).statusCode === 410
+  );
+  assert.equal(approvalExpiryWasForced, true);
+  assert.equal(
+    await prisma.wedding.count({ where: { applicationId: approvalExpiryRaceApplication.id } }),
+    0
+  );
+  const expiredPaymentFlowRead = await request(app)
+    .get(`/api/v1/booking-applications/${approvalExpiryRaceApplication.id}/payment-flow`)
+    .set("Payment-Flow-Key", approvalExpiryRaceFlowKey);
+  assert.equal(expiredPaymentFlowRead.status, 410);
+  assert.equal(expiredPaymentFlowRead.body.errors.code, "PAYMENT_FLOW_EXPIRED");
+
   const beforeActivation = await request(app)
     .get("/api/v1/customer/dashboard")
     .set("Cookie", `${env.SESSION_COOKIE_NAME}=${preActivationToken}`);

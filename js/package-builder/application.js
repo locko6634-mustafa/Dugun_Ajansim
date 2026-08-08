@@ -747,14 +747,10 @@ function updatePaymentFlowState() {
     button.disabled = Boolean(state.whatsappHandoffAt);
   });
   if (state.whatsappHandoffAt) {
-    if (paymentFlowCountdownTimer) window.clearInterval(paymentFlowCountdownTimer);
-    expiry.hidden = false;
-    expiry.textContent = "WhatsApp dekont bildirimi başlatıldı; yönetici kontrolü bekleniyor.";
     setPaymentNotificationStatus(
-      "WhatsApp aşamasına geçildi. Banka ve referans bilgilerinizi bu ekrandan kontrol edebilirsiniz.",
+      "WhatsApp aşamasına geçildi. Başvurunuz kalan süre içinde yönetici onayı bekliyor.",
       "success"
     );
-    return;
   }
   const renderCountdown = () => {
     const remainingMs = new Date(state.paymentFlowExpiresAt).valueOf() - Date.now();
@@ -765,7 +761,10 @@ function updatePaymentFlowState() {
     const minutes = Math.floor(remainingMs / 60_000);
     const seconds = Math.floor((remainingMs % 60_000) / 1000);
     expiry.hidden = false;
-    expiry.textContent = `WhatsApp bildirimi için kalan süre: ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    const countdownLabel = state.whatsappHandoffAt
+      ? "Yönetici onayı için kalan süre"
+      : "WhatsApp bildirimi için kalan süre";
+    expiry.textContent = `${countdownLabel}: ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   };
   if (paymentFlowCountdownTimer) window.clearInterval(paymentFlowCountdownTimer);
   renderCountdown();
