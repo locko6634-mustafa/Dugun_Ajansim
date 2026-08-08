@@ -66,6 +66,19 @@ export const configureSecurityMiddleware = (app: Express): void => {
     }),
   );
 
+  // Origin taşımayan çapraz-site tarayıcı isteklerini kota sayacına ulaşmadan reddet.
+  app.use('/api', (req, _res, next) => {
+    const origin = req.get('Origin');
+    const fetchSite = req.get('Sec-Fetch-Site')?.toLowerCase();
+
+    if (!origin && fetchSite === 'cross-site') {
+      next(new AppError('Çapraz kaynaklı isteğe izin verilmiyor.', 403));
+      return;
+    }
+
+    next();
+  });
+
   // 3. Rate Limiting (Aşırı İstek Sınırlama)
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // İstek penceresi: 15 Dakika (milisaniye cinsinden)

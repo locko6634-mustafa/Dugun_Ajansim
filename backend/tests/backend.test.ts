@@ -939,7 +939,7 @@ test('404 yanıtı path ve query string içeriğini yansıtmaz', async () => {
   assert.equal(response.body.message.includes('gizli-query-degeri'), false);
 });
 
-test('CORS tarafından reddedilen istekler genel API kotasını tüketmez', async () => {
+test('reddedilen çapraz kaynaklı istekler genel API kotasını tüketmez', async () => {
   const integrationApp = createApp((application) => {
     application.get('/api/test', (_req, res) => {
       res.json({ success: true });
@@ -954,9 +954,18 @@ test('CORS tarafından reddedilen istekler genel API kotasını tüketmez', asyn
     assert.equal(blockedResponse.status, 403);
   }
 
+  for (let requestIndex = 0; requestIndex < 101; requestIndex += 1) {
+    const blockedResponse = await request(integrationApp)
+      .get('/api/test')
+      .set('Sec-Fetch-Site', 'cross-site');
+
+    assert.equal(blockedResponse.status, 403);
+  }
+
   const legitimateResponse = await request(integrationApp)
     .get('/api/test')
-    .set('Origin', 'http://localhost:3000');
+    .set('Origin', 'http://localhost:3000')
+    .set('Sec-Fetch-Site', 'cross-site');
 
   assert.equal(legitimateResponse.status, 200);
   assert.equal(legitimateResponse.body.success, true);
@@ -965,14 +974,16 @@ test('CORS tarafından reddedilen istekler genel API kotasını tüketmez', asyn
   for (let requestIndex = 0; requestIndex < 99; requestIndex += 1) {
     const allowedResponse = await request(integrationApp)
       .get('/api/test')
-      .set('Origin', 'http://localhost:3000');
+      .set('Origin', 'http://localhost:3000')
+      .set('Sec-Fetch-Site', 'cross-site');
 
     assert.equal(allowedResponse.status, 200);
   }
 
   const rateLimitedResponse = await request(integrationApp)
     .get('/api/test')
-    .set('Origin', 'http://localhost:3000');
+    .set('Origin', 'http://localhost:3000')
+    .set('Sec-Fetch-Site', 'cross-site');
 
   assert.equal(rateLimitedResponse.status, 429);
   assert.equal(rateLimitedResponse.body.success, false);
