@@ -939,26 +939,44 @@ test('404 yanıtı path ve query string içeriğini yansıtmaz', async () => {
   assert.equal(response.body.message.includes('gizli-query-degeri'), false);
 });
 
-test('genel rate limiter CORS tarafından reddedilen 101. API isteğini de engeller', async () => {
+test('CORS tarafından reddedilen istekler genel API kotasını tüketmez', async () => {
   const integrationApp = createApp((application) => {
     application.get('/api/test', (_req, res) => {
       res.json({ success: true });
     });
   });
-  let response: request.Response | undefined;
 
   for (let requestIndex = 0; requestIndex < 101; requestIndex += 1) {
-    response = await request(integrationApp)
+    const blockedResponse = await request(integrationApp)
       .get('/api/test')
       .set('Origin', 'https://attacker.example');
+
+    assert.equal(blockedResponse.status, 403);
   }
 
-  assert.equal(response?.status, 429);
-  assert.equal(response?.body.success, false);
-  assert.equal(response?.body.status, 'error');
-  assert.equal(response?.body.statusCode, 429);
-  assert.equal(typeof response?.body.correlationId, 'string');
-  assert.equal(response?.headers['cache-control'], 'no-store');
+  const legitimateResponse = await request(integrationApp)
+    .get('/api/test')
+    .set('Origin', 'http://localhost:3000');
+
+  assert.equal(legitimateResponse.status, 200);
+  assert.equal(legitimateResponse.body.success, true);
+  assert.equal(legitimateResponse.headers['ratelimit-remaining'], '99');
+
+  for (let requestIndex = 0; requestIndex < 99; requestIndex += 1) {
+    const allowedResponse = await request(integrationApp)
+      .get('/api/test')
+      .set('Origin', 'http://localhost:3000');
+
+    assert.equal(allowedResponse.status, 200);
+  }
+
+  const rateLimitedResponse = await request(integrationApp)
+    .get('/api/test')
+    .set('Origin', 'http://localhost:3000');
+
+  assert.equal(rateLimitedResponse.status, 429);
+  assert.equal(rateLimitedResponse.body.success, false);
+  assert.equal(rateLimitedResponse.body.statusCode, 429);
 });
 
 test('tüm GET rotaları tanım dışı query parametrelerini 400 ile reddeder', async () => {

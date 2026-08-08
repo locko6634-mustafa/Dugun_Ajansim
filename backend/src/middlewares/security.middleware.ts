@@ -40,22 +40,7 @@ export const configureSecurityMiddleware = (app: Express): void => {
     }),
   );
 
-  // 2. Rate Limiting (Aşırı İstek Sınırlama)
-  const globalLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // İstek penceresi: 15 Dakika (milisaniye cinsinden)
-    max: 100, // Belirtilen sürede tek bir IP adresinden yapılabilecek maksimum istek sayısı (100)
-    standardHeaders: true, // `RateLimit-*` standart HTTP başlıklarını yanıta ekle
-    legacyHeaders: false, // Eskimiş `X-RateLimit-*` başlıklarını devre dışı bırak
-    keyGenerator: rateLimitKeyGenerator,
-    handler: createRateLimitHandler(
-      'Çok fazla istek gönderdiniz. Lütfen 15 dakika sonra tekrar deneyin.',
-    ),
-  });
-
-  // Rate Limiter'ı yalnızca /api altındaki rotalar için aktif et
-  app.use('/api', globalLimiter);
-
-  // 3. CORS (Cross-Origin Resource Sharing) Yapılandırması
+  // 2. CORS (Cross-Origin Resource Sharing) Yapılandırması
   const allowedOrigins = env.CORS_ORIGIN;
   app.use(
     cors({
@@ -80,4 +65,19 @@ export const configureSecurityMiddleware = (app: Express): void => {
       credentials: true,
     }),
   );
+
+  // 3. Rate Limiting (Aşırı İstek Sınırlama)
+  const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // İstek penceresi: 15 Dakika (milisaniye cinsinden)
+    max: 100, // Belirtilen sürede tek bir IP adresinden yapılabilecek maksimum istek sayısı (100)
+    standardHeaders: true, // `RateLimit-*` standart HTTP başlıklarını yanıta ekle
+    legacyHeaders: false, // Eskimiş `X-RateLimit-*` başlıklarını devre dışı bırak
+    keyGenerator: rateLimitKeyGenerator,
+    handler: createRateLimitHandler(
+      'Çok fazla istek gönderdiniz. Lütfen 15 dakika sonra tekrar deneyin.',
+    ),
+  });
+
+  // Rate Limiter'ı yalnızca /api altındaki rotalar için aktif et
+  app.use('/api', globalLimiter);
 };
