@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { readFileSync } from "node:fs";
+
+const siteContent = JSON.parse(
+  readFileSync(new URL("../../content/site-content.json", import.meta.url), "utf8")
+);
 
 const pages = ["/index.html", "/login.html", "/paketini-olustur.html"];
 const defaultPaymentPolicy = Object.freeze({
@@ -28,6 +33,28 @@ const defaultBookingSchedulePolicy = Object.freeze({
   latestTime: "23:30",
   stepMinutes: 30,
   allowNextDay: true
+});
+
+test("@frontend-smoke yayın manifesti SEO, FAQ ve footer içeriğine yansır", async ({ page }) => {
+  const homePage = siteContent.pages["index.html"];
+
+  await page.goto("/index.html");
+  await expect(page).toHaveTitle(homePage.title);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+    "content",
+    homePage.description
+  );
+  await expect(page.locator('meta[property="og:description"]')).toHaveAttribute(
+    "content",
+    homePage.socialDescription
+  );
+  await expect(page.locator(".faq-item")).toHaveCount(siteContent.home.faq.items.length);
+  await expect(page.locator(".faq-question").last()).toContainText(
+    siteContent.home.faq.items.at(-1).question
+  );
+  await expect(page.locator(".site-footer__brand > p")).toHaveText(
+    siteContent.brand.footerDescription
+  );
 });
 
 async function clickPanel(page, panelName, isOps = false) {

@@ -1,0 +1,122 @@
+{
+  "brand": {
+    "name": "Düğünajansım",
+    "footerTagline": "En güzel “evet”lere şahidiz.",
+    "footerDescription": "Fotoğraf, sinematik film, drone, Jimmy Jib ve tüm görsel prodüksiyon süreçlerini tek profesyonel ekiple yönetiyoruz."
+  },
+  "pages": {
+    "index.html": {
+      "title": "Düğünajansım | Düğün Fotoğrafı ve Video Prodüksiyonu",
+      "description": "Düğünajansım; fotoğraf, sinematik film, drone, Jimmy Jib ve tüm görsel prodüksiyon süreçlerini tek çatı altında yönetir.",
+      "socialDescription": "Düğününüzün her anını fotoğraftan sinematik filme, drone'dan Jimmy Jib çekimine kadar tek profesyonel ekiple planlayın.",
+      "canonicalUrl": "__APP_ORIGIN__/",
+      "imageUrl": "__APP_ORIGIN__/assets/images/hero-couple.webp",
+      "imageAlt": "Düğünajansım'da romantik düğün çekimi",
+      "organizationDescription": "Fotoğraf, sinematik film, drone, Jimmy Jib ve uçtan uca düğün prodüksiyon hizmetleri."
+    },
+    "login.html": {
+      "title": "Giriş Yap | Düğünajansım",
+      "description": "Düğünajansım hesabınıza güvenli şekilde giriş yapın.",
+      "socialDescription": "Düğünajansım hesabınıza güvenli şekilde giriş yapın.",
+      "canonicalUrl": "./login.html",
+      "imageUrl": "assets/images/hero-couple.webp",
+      "imageAlt": "Düğünajansım düğün çekimi"
+    },
+    "paketini-olustur.html": {
+      "title": "Paketini Oluştur | Düğünajansım",
+      "description": "Düğünajansım çekim paketinizi temel paket ve ek hizmetlerle kendiniz oluşturun.",
+      "socialDescription": "Düğün çekim paketinizi temel paket ve ek hizmetlerle kendi hikâyenize göre oluşturun.",
+      "canonicalUrl": "./paketini-olustur.html",
+      "imageUrl": "assets/images/hero-couple.webp",
+      "imageAlt": "Düğünajansım düğün çekimi"
+    },
+    "admin.html": { "title": "Yönetim Merkezi | Düğünajansım" },
+    "operasyon-paneli.html": { "title": "Salon Sorumlusu | Düğünajansım" },
+    "musteri-paneli.html": { "title": "Teslimat Paneli | Düğünajansım" },
+    "kvkk-aydinlatma.html": { "title": "KVKK Aydınlatma Metni | Düğünajansım" },
+    "gizlilik-politikasi.html": { "title": "Gizlilik Politikası | Düğünajansım" },
+    "kullanim-sartlari.html": { "title": "Kullanım Şartları | Düğünajansım" }
+  },
+  "home": {
+    "faq": {
+      "eyebrow": "Sık Sorulan Sorular",
+      "title": "Merak Ettikleriniz,",
+      "titleEmphasis": "Yanıtlarıyla Burada.",
+      "description": "Çekiminiz ve hizmetlerimizle ilgili en çok merak edilen soruları sizin için yanıtladık.",
+      "items": [
+        {
+          "icon": "location",
+          "question": "Düğün çekim paketlerinizde neler bulunuyor?",
+          "answer": "Paketlerimiz; düğün fotoğrafçılığı, sinematik düğün filmi, drone çekimi, Jimmy Jib, dış çekim, premium albüm tasarımı ve tercih ettiğiniz ek hizmetlere göre tamamen özelleştirilebilir. İhtiyacınıza uygun paketi online olarak kolayca oluşturabilirsiniz."
+        },
+        {
+          "icon": "dress",
+          "question": "Rezervasyon süreci nasıl işliyor?",
+          "answer": "Web sitemiz üzerinden tarihinizi sorgulayabilir, paketinizi oluşturabilir ve rezervasyonunuzu kolayca tamamlayabilirsiniz. Ekibimiz, çekim gününe kadar tüm süreç boyunca sizinle iletişim halinde olur.",
+          "decoration": "branch"
+        },
+        {
+          "icon": "venue",
+          "question": "Türkiye’nin her yerine hizmet veriyor musunuz?",
+          "answer": "Hizmet bölgesi ve ekip uygunluğu organizasyon tarihi ile konumuna göre başvuru sırasında değerlendirilir. Konumunuzu paylaşarak güncel planlama bilgisini alabilirsiniz."
+        },
+        {
+          "icon": "delivery",
+          "question": "Fotoğraf ve videolar ne zaman teslim ediliyor?",
+          "answer": "Tüm fotoğraf ve video düzenleme süreçleri tamamlandıktan sonra dijital teslimatlarınız en geç 21 takvim günü içerisinde güvenli şekilde tarafınıza ulaştırılır. Premium albüm siparişleriniz ise tasarım onayının ardından özenle hazırlanarak teslim edilir."
+        },
+        {
+          "icon": "calendar",
+          "question": "Düğün günü kaç kişilik ekip görev alıyor?",
+          "answer": "Seçtiğiniz pakete göre fotoğrafçı, kameraman, drone operatörü ve diğer prodüksiyon ekibi planlanır. Her organizasyon için ihtiyaç duyulan ekip profesyonel şekilde organize edilir."
+        },
+        {
+          "icon": "clock",
+          "question": "Organizasyon hizmetleri neleri kapsıyor?",
+          "answer": "360° Video Booth, Instax misafir albümü, QR kodlu dijital anı paylaşımı, karşılama panoları, anı köşeleri ve düğününüze değer katan birçok özel organizasyon çözümünü tek çatı altında sunuyoruz."
+        },
+        {
+          "icon": "camera",
+          "question": "Dış çekim için mekân seçebiliyor muyuz?",
+          "answer": "Evet. Dilerseniz önerdiğimiz konsept lokasyonlarda, dilerseniz sizin belirlediğiniz mekânlarda profesyonel dış çekim gerçekleştiriyoruz."
+        },
+        {
+          "icon": "calendar",
+          "question": "Rezervasyondan sonra paketime ek hizmet ekleyebilir miyim?",
+          "answer": "Elbette. Rezervasyonunuzu oluşturduktan sonra drone çekimi, Jimmy Jib, premium albüm, organizasyon hizmetleri ve diğer ek seçenekleri ekip uygunluğu ve güncel koşullara göre talep edebilirsiniz."
+        }
+      ]
+    },
+    "footer": {
+      "navigation": [
+        {
+          "title": "Keşfedin",
+          "links": [
+            { "label": "Hakkımızda", "href": "#hakkimizda" },
+            { "label": "Galeri", "href": "#galeri" },
+            { "label": "Sıkça Sorulanlar", "href": "#sss" }
+          ]
+        },
+        {
+          "title": "Planlayın",
+          "links": [
+            { "label": "Hizmetlerimiz", "href": "#hizmetler" },
+            { "label": "İletişim", "href": "#iletisim" }
+          ]
+        },
+        {
+          "title": "Yasal",
+          "links": [
+            { "label": "KVKK Aydınlatma", "href": "kvkk-aydinlatma.html" },
+            { "label": "Gizlilik Politikası", "href": "gizlilik-politikasi.html" },
+            { "label": "Kullanım Şartları", "href": "kullanim-sartlari.html" }
+          ]
+        }
+      ],
+      "ctaEyebrow": "Hayalinizdeki güne ilk adım",
+      "ctaText": "Hikâyenizi birlikte planlayalım.",
+      "ctaLabel": "Paket Oluştur",
+      "ctaHref": "#paket-olustur"
+    }
+  }
+}

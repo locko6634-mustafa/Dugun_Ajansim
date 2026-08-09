@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Dugun Ajansim frontend kalite ve regresyon testleri",
   "scripts": {
-    "build": "npm run build:css",
+    "build": "npm run build:site-content && npm run build:css",
+    "build:site-content": "node tools/sync-site-content.mjs",
     "build:css": "node tools/build-home-css.mjs",
     "optimize:images": "node tools/optimize-images.mjs",
     "format": "prettier --write \"**/*.{html,css,js,json,md,mjs}\"",
@@ -14,7 +15,7 @@
     "lint:css": "stylelint \"css/**/*.css\"",
     "validate:html": "html-validate \"*.html\"",
     "validate:domain-contract": "node tools/check-domain-contract.mjs",
-    "validate:site-content": "node tools/check-site-content.mjs",
+    "validate:site-content": "node tools/sync-site-content.mjs --check && node tools/check-site-content.mjs",
     "validate:asset-cache": "node tools/check-asset-cache-policy.mjs",
     "validate:runtime-config": "node --test tools/runtime-config.test.mjs",
     "validate:booking-schedule-policy": "node --test tools/booking-schedule-policy.test.mjs",
