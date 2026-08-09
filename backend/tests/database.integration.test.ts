@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
 import request from "supertest";
 import { createApp } from "../src/app.js";
@@ -872,6 +873,66 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(
     await prisma.auditLog.count({
       where: { targetType: "BookingApplication", targetId: customVenueApplication.id }
+    }),
+    0
+  );
+
+  const overflowVenue = await prisma.venue.create({
+    data: {
+      name: `Toplu Temizlik Salonu ${marker}`,
+      slug: `${marker}-bulk-expiry`,
+      isPartner: false
+    }
+  });
+  secondaryVenueIds.push(overflowVenue.id);
+  const overflowApplicationIds = Array.from({ length: 101 }, () => randomUUID());
+  await prisma.bookingApplication.createMany({
+    data: overflowApplicationIds.map((id, index) => ({
+      id,
+      referenceCode: `EXP-${marker}-${index}`,
+      source: "PUBLIC_FORM",
+      status: "ONAY_BEKLIYOR",
+      brideFirstName: "Toplu",
+      brideLastName: "Temizlik",
+      bridePhone: "05550000001",
+      groomFirstName: "Güvenlik",
+      groomLastName: "Testi",
+      groomPhone: "05550000002",
+      primaryContact: "GELIN",
+      primaryEmail: `bulk-expiry-${index}-${marker}@example.com`,
+      weddingStartsAt: new Date(Date.now() + (index + 60) * 86_400_000),
+      weddingEndsAt: new Date(Date.now() + (index + 60) * 86_400_000 + 7_200_000),
+      venueId: overflowVenue.id,
+      packageId: packageRecord.id,
+      packageCodeSnapshot: packageRecord.code,
+      packageNameSnapshot: packageRecord.name,
+      packagePriceCents: packageRecord.priceCents,
+      totalPriceCents: packageRecord.priceCents,
+      paymentMethod: "CASH",
+      payableNowCents: packageRecord.priceCents,
+      paymentFlowTokenHash: hashToken(`${marker}-bulk-expiry-${index}`),
+      paymentFlowExpiresAt: new Date(Date.now() - 1_000),
+      privacyConsentAt: new Date()
+    }))
+  });
+  await prisma.auditLog.createMany({
+    data: overflowApplicationIds.map((id) => ({
+      action: "booking.created",
+      targetType: "BookingApplication",
+      targetId: id,
+      correlationId
+    }))
+  });
+
+  assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 101);
+  assert.equal(
+    await prisma.bookingApplication.count({ where: { id: { in: overflowApplicationIds } } }),
+    0
+  );
+  assert.equal(await prisma.venue.count({ where: { id: overflowVenue.id } }), 0);
+  assert.equal(
+    await prisma.auditLog.count({
+      where: { targetType: "BookingApplication", targetId: { in: overflowApplicationIds } }
     }),
     0
   );

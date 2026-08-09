@@ -554,45 +554,53 @@ export const expireStalePaymentFlows = async (
   now = new Date(),
   _correlationId = `payment-expiry-${now.toISOString()}`,
   applicationId?: string
-): Promise<number> =>
-  prisma.$transaction(async (transaction) => {
-    const expiredCandidates = await transaction.bookingApplication.findMany({
-      where: {
-        ...(applicationId ? { id: applicationId } : {}),
-        source: "PUBLIC_FORM",
-        status: "ONAY_BEKLIYOR",
-        deletedAt: null,
-        paymentFlowExpiredAt: null,
-        paymentFlowExpiresAt: { lte: now }
-      },
-      select: { id: true, venueId: true },
-      orderBy: [{ paymentFlowExpiresAt: "asc" }, { id: "asc" }],
-      take: applicationId ? 1 : 100
-    });
+): Promise<number> => {
+  let totalExpiredCount = 0;
 
-    let expiredCount = 0;
-    for (const candidate of expiredCandidates) {
-      const claimed = await transaction.bookingApplication.updateMany({
+  while (true) {
+    const batch = await prisma.$transaction(async (transaction) => {
+      const expiredCandidates = await transaction.bookingApplication.findMany({
         where: {
-          id: candidate.id,
+          ...(applicationId ? { id: applicationId } : {}),
           source: "PUBLIC_FORM",
           status: "ONAY_BEKLIYOR",
           deletedAt: null,
           paymentFlowExpiredAt: null,
           paymentFlowExpiresAt: { lte: now }
         },
-        data: { status: "IPTAL_EDILDI", paymentFlowExpiredAt: now }
+        select: { id: true, venueId: true },
+        orderBy: [{ paymentFlowExpiresAt: "asc" }, { id: "asc" }],
+        take: applicationId ? 1 : 100
       });
-      if (claimed.count !== 1) continue;
-      await transaction.auditLog.deleteMany({
-        where: { targetType: "BookingApplication", targetId: candidate.id }
-      });
-      await transaction.bookingApplication.delete({ where: { id: candidate.id } });
-      await deleteOrphanedCustomerVenue(transaction, candidate.venueId);
-      expiredCount += 1;
-    }
-    return expiredCount;
-  });
+
+      let expiredCount = 0;
+      for (const candidate of expiredCandidates) {
+        const claimed = await transaction.bookingApplication.updateMany({
+          where: {
+            id: candidate.id,
+            source: "PUBLIC_FORM",
+            status: "ONAY_BEKLIYOR",
+            deletedAt: null,
+            paymentFlowExpiredAt: null,
+            paymentFlowExpiresAt: { lte: now }
+          },
+          data: { status: "IPTAL_EDILDI", paymentFlowExpiredAt: now }
+        });
+        if (claimed.count !== 1) continue;
+        await transaction.auditLog.deleteMany({
+          where: { targetType: "BookingApplication", targetId: candidate.id }
+        });
+        await transaction.bookingApplication.delete({ where: { id: candidate.id } });
+        await deleteOrphanedCustomerVenue(transaction, candidate.venueId);
+        expiredCount += 1;
+      }
+      return { candidateCount: expiredCandidates.length, expiredCount };
+    });
+
+    totalExpiredCount += batch.expiredCount;
+    if (applicationId || batch.candidateCount < 100) return totalExpiredCount;
+  }
+};
 
 export const getPaymentFlowApplication = async (
   applicationId: string,

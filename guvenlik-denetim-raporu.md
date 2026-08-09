@@ -2,7 +2,7 @@
 
 ## Kapsam
 
-Düğün Ajansım ön yüz, arka uç, Prisma/geçiş, Docker/Nginx, PostgreSQL rolü ve CI/CD yüzeylerinde standart tek geçişli statik güvenlik denetimi. Genel puan: 6,5/10.
+Düğün Ajansım ön yüz, arka uç, Prisma/geçiş, Docker/Nginx, PostgreSQL rolü ve CI/CD yüzeylerinde standart tek geçişli statik güvenlik denetimi. İlk tarama puanı: 6,5/10. Güncel durumlar 9 Ağustos 2026 tarihli yeniden doğrulama bölümünde gösterilir; puan yeniden hesaplanmamıştır.
 
 - Tarama biçimi: depo
 - Hedef türü: git_sürümü
@@ -37,9 +37,40 @@ Sınırlamalar ve kapsam dışı tutulanlar:
 
 Temel yapıtlar: `scan-manifest.json`, `findings.json` ve `coverage.json`. Bu rapor, söz konusu dosyaların belirlenimci bir yansımasıdır.
 
+### Güncel Yeniden Doğrulama — 9 Ağustos 2026
+
+- İncelenen kaynak sürümü: `55962449a9ae45adb9efab6da5492a842d82009a`
+- Yöntem: güncel kaynakta saldırgan girdisi → en yakın kontrol → etki zinciri, karşı kontroller ve mevcut regresyon testleri incelendi; hedefli testler çalıştırıldı.
+- Durum dağılımı: **çözüldü: 12, kısmen çözüldü: 0, çözülmedi: 1**.
+- İlk taramadaki 6,5/10 puan, yeni ve tam kapsamlı tarama yapılmadığı için değiştirilmedi.
+
+Doğrulama rubriği:
+
+- [x] Saldırgan girdisinin güncel erişilebilirliği kontrol edildi.
+- [x] İlk rapordaki kök neden güncel kodda arandı.
+- [x] Yeni veya mevcut güvenlik kontrolünün zinciri kesip kesmediği incelendi.
+- [x] Etkinin güncel kodda hâlâ üretilebilir olup olmadığı değerlendirildi.
+- [x] Regresyon testleri ve dağıtım yapılandırması karşı kanıt olarak doğrulandı.
+
+| No | Güncel durum     | Yeniden doğrulama kanıtı | Kalan açıklık |
+| -- | ---------------- | ------------------------- | ------------- |
+| 1  | Çözüldü         | Genel başvurular ve WhatsApp devri aynı mutlak `paymentFlowExpiresAt` sınırına tabi; takvim yalnız süresi dolmamış genel tutmaları dikkate alıyor ve süpürme devir yapılmış kayıtları da siliyor. | Yok. |
+| 2  | Çözüldü         | Dakikalık süpürme, süresi dolan kayıtları 100'lük kısa transaction partileri halinde aday kalmayana kadar tüketiyor; başvuru, ilişkili denetim kayıtları ve sahipsiz müşteri salonu siliniyor. 101 kayıtlık regresyon testi tüm kalıcı ayak izinin tek süpürmede kaldırıldığını doğruluyor. | Yok. |
+| 3  | Çözüldü         | CORS ve `Sec-Fetch-Site` çapraz-site reddi global API sınırlayıcısından önce çalışıyor; hedefli kota testi geçti. | Yok. |
+| 4  | Çözüldü         | Ödeme akışı erişimi yalnız silinmemiş `PUBLIC_FORM` ve `ONAY_BEKLIYOR` kayıtlarında geçerli; süre sonu kayıtları siliniyor, onay/arşiv akışları token özetini temizliyor. | Yok. |
+| 5  | Çözüldü         | Yerel sunucu varsayılan olarak `127.0.0.1` üzerinde dinliyor ve yalnız kök HTML ile `assets/`, `css/`, `js/` yollarını sunuyor; hassas yol testleri geçti. | Yok. |
+| 6  | Çözüldü         | SSH eylemi tam commit SHA'sına, Node/Nginx/Postgres tabanları `sha256` digestlerine sabitlendi; üretim sertleştirme testi geçti. | Yok. |
+| 7  | Çözüldü         | Geçici parola içeren mesaj görüntülendiğinde aynı transaction içinde `message.secret_viewed` denetim kaydı oluşturuluyor; gizli değer metadata'ya yazılmıyor. | Yok. |
+| 8  | Çözüldü         | Salon operasyon yanıtları `weddingSelectForVenue` allowlist seçimi ve daraltılmış `packageSummary` DTO'su kullanıyor; gereksiz müşteri/ödeme alanları dönmüyor. | Yok. |
+| 9  | Çözüldü         | Ödeme akışı GET çağrısı önce hedef kaydı bulup taşıyıcı anahtarını doğruluyor; yalnız doğrulanmış hedef süresi dolmuşsa hedefe özel süpürme yapılıyor. | Yok. |
+| 10 | Çözüldü         | Üretim `script-src` artık `'unsafe-inline'` içermiyor; satır içi başlangıç betikleri harici modüllere taşındı ve CSP regresyon testi geçti. | Yok. |
+| 11 | Çözüldü         | Genel uygunluk yanıtı kesin saatler yerine yalnız `hasOccupancy` döndürüyor ve tarih ufku 366 günle sınırlı. | Yok. |
+| 12 | Çözüldü         | Ortak çıkış yardımcısı yalnız başarı veya zaten geçersiz 401 oturumunda yönlendiriyor; 403/429/ağ/5xx hatalarında sayfada kalıp aktif oturum uyarısı gösteriyor. | Yok. |
+| 13 | Çözülmedi       | Dağıtım hâlâ her çalışmada benzersiz tam `pg_dump` üretiyor. | Yaş/adet/boyut saklama politikası, minimum boş disk eşiği ve otomatik sunucu dışı aktarım uygulanmıyor. |
+
 ## Tehdit Modeli
 
-Düğün Ajansım anonim ziyaretçi, müşteri, salon yetkilisi, yönetici ve altyapı operatörü sınırları olan genel erişime açık rezervasyon/operasyon platformudur. Genel güvenlik puanı 6,5/10: kimlik, CSRF, kripto, kiracı ve üretim sır kontrolleri güçlü; ancak doğrulanmamış WhatsApp devir sinyali kullanılabilirlik ve gelir açısından yüksek öncelikli açık oluşturur.
+Düğün Ajansım anonim ziyaretçi, müşteri, salon yetkilisi, yönetici ve altyapı operatörü sınırları olan genel erişime açık rezervasyon/operasyon platformudur. İlk tarama güvenlik puanı 6,5/10 idi. Güncel yeniden doğrulamada WhatsApp devir ve anonim kalıcı kayıt büyümesi bulguları çözülmüş, yedek saklama bulgusu açık kalmıştır.
 
 ### Varlıklar
 
@@ -89,21 +120,21 @@ Düğün Ajansım anonim ziyaretçi, müşteri, salon yetkilisi, yönetici ve al
 
 ## Bulgular
 
-| Bulgu                                                                                                       | Önem düzeyi | Güven  | Ayrıntılı açıklama |
-| ----------------------------------------------------------------------------------------------------------- | ----------- | ------ | ------------------ |
-| [Sahte WhatsApp devir işlemi salon saatini süresiz bloke edebiliyor](#finding-1)                            | yüksek      | yüksek | aşağıda            |
-| [Kimliksiz genel erişime açık başvurular kalıcı veritabanı büyümesi oluşturabiliyor](#finding-2)            | orta        | yüksek | aşağıda            |
-| [Çapraz kaynaklı reddedilen trafik kurban IP'nin API kotasını tüketebiliyor](#finding-3)                    | orta        | yüksek | aşağıda            |
-| [Ödeme akışı taşıyıcı anahtarı süre sonu ve terminal/arşiv durumlarından sonra geçerli kalıyor](#finding-4) | orta        | yüksek | aşağıda            |
-| [Yerel statik sunucu depo kökünü tüm ağ arayüzlerine yayımlıyor](#finding-5)                                | orta        | yüksek | aşağıda            |
-| [Üretim eylemi ve konteyner tabanları değişebilir etiketlere bağlı](#finding-6)                             | düşük       | yüksek | aşağıda            |
-| [Geçici parolanın düz metin görüntülenmesi denetim kaydı kaydı oluşturmuyor](#finding-7)                    | düşük       | yüksek | aşağıda            |
-| [Salon operasyon API'leri gerekli olmayan düğün alanlarını döndürüyor](#finding-8)                          | düşük       | yüksek | aşağıda            |
-| [Geçersiz Ödeme akışı GET isteği küresel süre sonu süpürmesini tetikleyebiliyor](#finding-9)                | düşük       | orta   | aşağıda            |
-| [Üretim CSP satır içi betik çalıştırılmasına izin veriyor](#finding-10)                                     | düşük       | yüksek | aşağıda            |
-| [genel erişime açık uygunluk uç noktası salonların kesin doluluk saatlerini açığa çıkarıyor](#finding-11)   | düşük       | yüksek | aşağıda            |
-| [ön yüz çıkış, sunucu iptal başarısız olsa da tamamlanmış gibi yönlendiriyor](#finding-12)                  | düşük       | yüksek | aşağıda            |
-| [Dağıtım yedekleri saklama olmadan sınırsız birikebiliyor](#finding-13)                                     | düşük       | yüksek | aşağıda            |
+| Bulgu                                                                                                       | İlk önem | İlk güven | Güncel durum    | Ayrıntılı açıklama |
+| ----------------------------------------------------------------------------------------------------------- | -------- | ---------- | ---------------- | ------------------ |
+| [Sahte WhatsApp devir işlemi salon saatini süresiz bloke edebiliyor](#finding-1)                            | yüksek   | yüksek     | Çözüldü         | aşağıda            |
+| [Kimliksiz genel erişime açık başvurular kalıcı veritabanı büyümesi oluşturabiliyor](#finding-2)            | orta     | yüksek     | Çözüldü         | aşağıda            |
+| [Çapraz kaynaklı reddedilen trafik kurban IP'nin API kotasını tüketebiliyor](#finding-3)                    | orta     | yüksek     | Çözüldü         | aşağıda            |
+| [Ödeme akışı taşıyıcı anahtarı süre sonu ve terminal/arşiv durumlarından sonra geçerli kalıyor](#finding-4) | orta     | yüksek     | Çözüldü         | aşağıda            |
+| [Yerel statik sunucu depo kökünü tüm ağ arayüzlerine yayımlıyor](#finding-5)                                | orta     | yüksek     | Çözüldü         | aşağıda            |
+| [Üretim eylemi ve konteyner tabanları değişebilir etiketlere bağlı](#finding-6)                             | düşük    | yüksek     | Çözüldü         | aşağıda            |
+| [Geçici parolanın düz metin görüntülenmesi denetim kaydı kaydı oluşturmuyor](#finding-7)                    | düşük    | yüksek     | Çözüldü         | aşağıda            |
+| [Salon operasyon API'leri gerekli olmayan düğün alanlarını döndürüyor](#finding-8)                          | düşük    | yüksek     | Çözüldü         | aşağıda            |
+| [Geçersiz Ödeme akışı GET isteği küresel süre sonu süpürmesini tetikleyebiliyor](#finding-9)                | düşük    | orta       | Çözüldü         | aşağıda            |
+| [Üretim CSP satır içi betik çalıştırılmasına izin veriyor](#finding-10)                                     | düşük    | yüksek     | Çözüldü         | aşağıda            |
+| [genel erişime açık uygunluk uç noktası salonların kesin doluluk saatlerini açığa çıkarıyor](#finding-11)   | düşük    | yüksek     | Çözüldü         | aşağıda            |
+| [ön yüz çıkış, sunucu iptal başarısız olsa da tamamlanmış gibi yönlendiriyor](#finding-12)                  | düşük    | yüksek     | Çözüldü         | aşağıda            |
+| [Dağıtım yedekleri saklama olmadan sınırsız birikebiliyor](#finding-13)                                     | düşük    | yüksek     | Çözülmedi       | aşağıda            |
 
 ### Güven Ölçeği
 
@@ -116,6 +147,8 @@ Düğün Ajansım anonim ziyaretçi, müşteri, salon yetkilisi, yönetici ve al
 <a id="finding-1"></a>
 
 ### [1] Sahte WhatsApp devir işlemi salon saatini süresiz bloke edebiliyor
+
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
 
 | Alan               | Değer                                                                                                                                                                                                                             |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -213,6 +246,8 @@ Testler:
 
 ### [2] Kimliksiz genel erişime açık başvurular kalıcı veritabanı büyümesi oluşturabiliyor
 
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
+
 | Alan               | Değer                                                                                                                                                                                                                                  |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Önem düzeyi        | orta                                                                                                                                                                                                                                   |
@@ -294,12 +329,12 @@ Ek çalışma zamanı veya dağıtım kanıtı bu önem düzeyini yükseltebilir
 
 #### Düzeltme
 
-Özel salon adını başvuruya kapsam edilmiş alan/modelde tutun. CAPTCHA ve e-posta/SMS doğrulaması, kişi/cihaz kotaları ve zorunlu yinelenebilirlik uygulayın. Expired doğrulanmamış kayıtları anonimleştiren/silen saklama ve sahipsiz salon temizliği ekleyin.
+Uygulanan çözüm, doğrulanmamış genel başvurulara mutlak ödeme akışı TTL'si uygular. Dakikalık süpürücü süresi dolan kayıtları 100'lük kısa transaction partileri halinde aday kalmayana kadar tüketir; ilişkili denetim kayıtlarını, başvuruyu ve sahipsiz müşteri salonunu siler. Böylece trafik tek partiyi aşsa da kalıcı temizleme kuyruğu oluşmaz.
 
 Testler:
 
-- Doğrulanmamış özel salon challenge/kota ile reddedilmelidir.
-- saklama süresi dolmuş ilişkileri ve sahipsiz salon kayıtlarını temizlemelidir.
+- 100 kayıtlık parti sınırını aşan 101 süresi dolmuş başvuru tek süpürmede temizlenmelidir.
+- Saklama süresi dolmuş ilişkiler, denetim kayıtları ve sahipsiz salon kayıtları temizlenmelidir.
 
 Önleyici kontroller:
 
@@ -310,6 +345,8 @@ Testler:
 <a id="finding-3"></a>
 
 ### [3] Çapraz kaynaklı reddedilen trafik kurban IP'nin API kotasını tüketebiliyor
+
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
 
 | Alan               | Değer                                                                                                                                   |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -396,6 +433,8 @@ Testler:
 <a id="finding-4"></a>
 
 ### [4] Ödeme akışı taşıyıcı anahtarı süre sonu ve terminal/arşiv durumlarından sonra geçerli kalıyor
+
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
 
 | Alan               | Değer                                                                                                                                                                                                                                                                            |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -495,6 +534,8 @@ Testler:
 
 ### [5] Yerel statik sunucu depo kökünü tüm ağ arayüzlerine yayımlıyor
 
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
+
 | Alan               | Değer                                                                                                                                                  |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Önem düzeyi        | orta                                                                                                                                                   |
@@ -580,6 +621,8 @@ Testler:
 <a id="finding-6"></a>
 
 ### [6] Üretim eylemi ve konteyner tabanları değişebilir etiketlere bağlı
+
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
 
 | Alan               | Değer                                                                                           |
 | ------------------ | ----------------------------------------------------------------------------------------------- |
@@ -667,6 +710,8 @@ Testler:
 
 ### [7] Geçici parolanın düz metin görüntülenmesi denetim kaydı kaydı oluşturmuyor
 
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
+
 | Alan               | Değer                                                                                                                                                              |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Önem düzeyi        | düşük                                                                                                                                                              |
@@ -753,6 +798,8 @@ Testler:
 
 ### [8] Salon operasyon API'leri gerekli olmayan düğün alanlarını döndürüyor
 
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
+
 | Alan               | Değer                                                                                                                                                                                                               |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Önem düzeyi        | düşük                                                                                                                                                                                                               |
@@ -837,6 +884,8 @@ Testler:
 <a id="finding-9"></a>
 
 ### [9] Geçersiz Ödeme akışı GET isteği küresel süre sonu süpürmesini tetikleyebiliyor
+
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
 
 | Alan               | Değer                                                                                                                                                                    |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -924,6 +973,8 @@ Testler:
 
 ### [10] Üretim CSP satır içi betik çalıştırılmasına izin veriyor
 
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
+
 | Alan               | Değer                                                                                             |
 | ------------------ | ------------------------------------------------------------------------------------------------- |
 | Önem düzeyi        | düşük                                                                                             |
@@ -1008,6 +1059,8 @@ Testler:
 <a id="finding-11"></a>
 
 ### [11] genel erişime açık uygunluk uç noktası salonların kesin doluluk saatlerini açığa çıkarıyor
+
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
 
 | Alan               | Değer                                                                                                                               |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -1094,6 +1147,8 @@ Testler:
 
 ### [12] ön yüz çıkış, sunucu iptal başarısız olsa da tamamlanmış gibi yönlendiriyor
 
+> Güncel durum (9 Ağustos 2026): **Çözüldü**
+
 | Alan               | Değer                                                                                                                                           |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Önem düzeyi        | düşük                                                                                                                                           |
@@ -1178,6 +1233,8 @@ Testler:
 <a id="finding-13"></a>
 
 ### [13] Dağıtım yedekleri saklama olmadan sınırsız birikebiliyor
+
+> Güncel durum (9 Ağustos 2026): **Çözülmedi**
 
 | Alan               | Değer                                                                                                    |
 | ------------------ | -------------------------------------------------------------------------------------------------------- |
