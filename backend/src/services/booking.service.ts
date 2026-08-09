@@ -225,6 +225,9 @@ export const createBookingApplication = async (
   if (options.source === "PUBLIC_FORM" && !options.paymentFlowKey) {
     throw new AppError("Ödeme akışı anahtarı zorunludur.", 400);
   }
+  if (options.source === "PUBLIC_FORM" && !options.idempotencyKey) {
+    throw new AppError("Idempotency-Key zorunludur.", 400);
+  }
   const { startsAt, endsAt } = createWeddingRange(
     input.weddingDate,
     input.startTime,

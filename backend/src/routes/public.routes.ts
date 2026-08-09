@@ -24,6 +24,8 @@ import {
 } from "../services/booking.service.js";
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { normalizePhone } from "../utils/domain.js";
+import { BOOKING_TURNSTILE_ACTION, verifyBookingBotChallenge } from "../utils/turnstile.js";
 
 const router = Router();
 const publicBookingLimiter = rateLimit({
@@ -43,6 +45,23 @@ const publicAvailabilityLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: rateLimitKeyGenerator,
   handler: createRateLimitHandler("Çok fazla uygunluk sorgusu yaptınız.")
+});
+
+const publicBookingContactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const body = req.body as z.infer<typeof bookingBodySchema>;
+    return [
+      body.primaryEmail.trim().toLowerCase(),
+      normalizePhone(body.bridePhone),
+      normalizePhone(body.groomPhone)
+    ].join("|");
+  },
+  store: new DatabaseRateLimitStore("public-booking-contact"),
+  handler: createRateLimitHandler("Bu iletişim bilgileriyle çok fazla başvuru denemesi yapıldı.")
 });
 
 const emptyRequestSchema = z.object({
@@ -127,7 +146,13 @@ router.get(
         services,
         paymentPolicy,
         bookingFormConstraints,
-        bookingSchedulePolicy
+        bookingSchedulePolicy,
+        botProtection: {
+          provider: "turnstile",
+          enabled: env.BOT_PROTECTION_MODE === "turnstile",
+          siteKey: env.BOT_PROTECTION_MODE === "turnstile" ? env.TURNSTILE_SITE_KEY : null,
+          action: BOOKING_TURNSTILE_ACTION
+        }
       },
       correlationId: req.correlationId
     });
@@ -178,12 +203,22 @@ router.post(
       params: z.object({}).strict()
     })
   ),
+  asyncHandler(async (req, _res, next) => {
+    const idempotencyKey = req.get("Idempotency-Key");
+    if (!idempotencyKey || !z.string().uuid().safeParse(idempotencyKey).success) {
+      throw new AppError("Idempotency-Key geçerli bir UUID olmalıdır.", 400);
+    }
+    await verifyBookingBotChallenge({
+      token: req.get("Turnstile-Token"),
+      remoteIp: req.ip,
+      idempotencyKey
+    });
+    next();
+  }),
+  publicBookingContactLimiter,
   asyncHandler(async (req, res) => {
     const rawKey = req.get("Idempotency-Key");
-    if (rawKey !== undefined && !/^[A-Za-z0-9._-]{16,128}$/.test(rawKey)) {
-      throw new AppError("Idempotency-Key biçimi geçersiz.", 400);
-    }
-    const idempotencyKey = rawKey;
+    const idempotencyKey = z.string().uuid().parse(rawKey);
     const paymentFlowKey = getPaymentFlowKey(req);
     const application = await createBookingApplication(req.body, {
       source: "PUBLIC_FORM",

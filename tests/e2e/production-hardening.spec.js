@@ -19,7 +19,9 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     deployScript,
     backupCrypto,
     homePage,
-    homeBootstrap
+    homeBootstrap,
+    packageBuilderApplication,
+    packageBuilderPage
   ] = await Promise.all([
     readProjectFile("backend/Dockerfile"),
     readProjectFile("Dockerfile"),
@@ -34,7 +36,9 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     readProjectFile("deploy/deploy-production.sh"),
     readProjectFile("deploy/backup-crypto.mjs"),
     readProjectFile("index.html"),
-    readProjectFile("js/home/bootstrap.js")
+    readProjectFile("js/home/bootstrap.js"),
+    readProjectFile("js/package-builder/application.js"),
+    readProjectFile("paketini-olustur.html")
   ]);
 
   expect(backendDockerfile).toContain("FROM build AS migrate");
@@ -137,6 +141,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     expect.arrayContaining([expect.not.stringContaining("'unsafe-inline'")])
   );
   expect(nginx).not.toMatch(/script-src [^;]*'unsafe-inline'/);
+  expect(nginx).toContain("script-src 'self' https://challenges.cloudflare.com");
+  expect(nginx).toContain("frame-src https://challenges.cloudflare.com");
   expect(nginx).not.toContain("immutable");
   expect(nginx).not.toContain("expires 1y");
 
@@ -144,6 +150,9 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(homePage).not.toMatch(/\sonload\s*=/i);
   expect(homePage).not.toContain('document.documentElement.classList.add("js")');
   expect(homeBootstrap).toContain('document.documentElement.classList.add("js")');
+  expect(packageBuilderApplication).toContain('"Turnstile-Token": state.botChallengeToken');
+  expect(packageBuilderApplication).toContain("turnstile.render(container");
+  expect(packageBuilderPage).toContain("js-turnstile");
 
   expect(exampleEnv).toMatch(/^POSTGRES_PASSWORD=$/m);
   expect(exampleEnv).toMatch(/^POSTGRES_RUNTIME_USER=dugun_runtime$/m);
@@ -156,6 +165,9 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(exampleEnv).toContain("BACKEND_MEMORY_LIMIT=768m");
   expect(exampleEnv).toContain("FRONTEND_MEMORY_LIMIT=256m");
   expect(exampleEnv).toMatch(/^TRUST_PROXY=$/m);
+  expect(exampleEnv).toMatch(/^BOT_PROTECTION_MODE=turnstile$/m);
+  expect(exampleEnv).toMatch(/^TURNSTILE_SITE_KEY=$/m);
+  expect(exampleEnv).toMatch(/^TURNSTILE_SECRET_KEY=$/m);
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_AVERAGE=20");
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_PERIOD=1s");
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_BURST=40");

@@ -45,6 +45,9 @@ const createImage = (src, alt, loading) => {
 
 let transferAccount = null;
 const PAYMENT_FLOW_SESSION_KEY = "dugunajansim_payment_flow";
+const TURNSTILE_SCRIPT_URL =
+  "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+const BOOKING_TURNSTILE_ACTION = "booking_application";
 
 const state = {
   step: 1,
@@ -65,10 +68,14 @@ const state = {
   paymentPolicy: null,
   bookingFormConstraints: null,
   bookingSchedulePolicy: null,
+  botProtection: { enabled: false, siteKey: null, action: BOOKING_TURNSTILE_ACTION },
+  botChallengeToken: null,
   catalogReady: false
 };
 
 let paymentFlowCountdownTimer = null;
+let turnstileWidgetId = null;
+let turnstileScriptPromise = null;
 
 function persistPaymentFlowSession() {
   if (!state.applicationId || !state.paymentFlowKey) return;
@@ -194,6 +201,14 @@ function parseCatalogData(data) {
   const depositMaximumCents = data?.paymentPolicy?.depositMaximumCents;
   const constraints = parseBookingFormConstraints(data?.bookingFormConstraints);
   const schedulePolicy = parseBookingSchedulePolicy(data?.bookingSchedulePolicy);
+  const rawBotProtection = data?.botProtection;
+  const botProtection = rawBotProtection?.enabled
+    ? {
+        enabled: true,
+        siteKey: rawBotProtection.siteKey,
+        action: rawBotProtection.action
+      }
+    : { enabled: false, siteKey: null, action: BOOKING_TURNSTILE_ACTION };
   const hasValidPolicy =
     Number.isInteger(cashDiscountPercent) &&
     cashDiscountPercent >= 0 &&
@@ -205,7 +220,13 @@ function parseCatalogData(data) {
     remotePackages.every((item) => Number.isSafeInteger(item.priceCents) && item.priceCents >= 0) &&
     Array.isArray(remoteServices) &&
     remoteServices.every((item) => Number.isSafeInteger(item.priceCents) && item.priceCents >= 0);
-  if (!hasValidPolicy || !hasValidPrices) {
+  const hasValidBotProtection =
+    !botProtection.enabled ||
+    (rawBotProtection?.provider === "turnstile" &&
+      typeof botProtection.siteKey === "string" &&
+      botProtection.siteKey.length > 0 &&
+      botProtection.action === BOOKING_TURNSTILE_ACTION);
+  if (!hasValidPolicy || !hasValidPrices || !hasValidBotProtection) {
     throw new Error("Sunucudan geçerli katalog, ödeme ve form koşulları alınamadı.");
   }
 
@@ -214,8 +235,60 @@ function parseCatalogData(data) {
     remoteServices,
     paymentPolicy: { cashDiscountPercent, depositMaximumCents },
     bookingFormConstraints: constraints,
-    bookingSchedulePolicy: schedulePolicy
+    bookingSchedulePolicy: schedulePolicy,
+    botProtection
   };
+}
+
+function loadTurnstileScript() {
+  if (window.turnstile) return Promise.resolve(window.turnstile);
+  if (turnstileScriptPromise) return turnstileScriptPromise;
+
+  turnstileScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = TURNSTILE_SCRIPT_URL;
+    script.async = true;
+    script.defer = true;
+    script.addEventListener("load", () => {
+      if (window.turnstile) resolve(window.turnstile);
+      else reject(new Error("Bot doğrulama bileşeni yüklenemedi."));
+    });
+    script.addEventListener("error", () =>
+      reject(new Error("Bot doğrulama bileşeni yüklenemedi."))
+    );
+    document.head.append(script);
+  });
+  return turnstileScriptPromise;
+}
+
+async function initializeBotProtection(configuration) {
+  const container = document.querySelector(".js-turnstile");
+  state.botProtection = configuration;
+  state.botChallengeToken = null;
+  container.hidden = !configuration.enabled;
+  if (!configuration.enabled) return;
+
+  const turnstile = await loadTurnstileScript();
+  turnstileWidgetId = turnstile.render(container, {
+    sitekey: configuration.siteKey,
+    action: configuration.action,
+    callback: (token) => {
+      state.botChallengeToken = token;
+    },
+    "expired-callback": () => {
+      state.botChallengeToken = null;
+    },
+    "error-callback": () => {
+      state.botChallengeToken = null;
+    }
+  });
+}
+
+function resetBotChallenge() {
+  state.botChallengeToken = null;
+  if (turnstileWidgetId !== null && window.turnstile) {
+    window.turnstile.reset(turnstileWidgetId);
+  }
 }
 
 async function hydrateRemoteData() {
@@ -236,12 +309,14 @@ async function hydrateRemoteData() {
       remoteServices: remoteServiceItems,
       paymentPolicy,
       bookingFormConstraints,
-      bookingSchedulePolicy
+      bookingSchedulePolicy,
+      botProtection
     } = parseCatalogData(catalogResponse.data);
     state.paymentPolicy = paymentPolicy;
     state.bookingFormConstraints = bookingFormConstraints;
     state.bookingSchedulePolicy = bookingSchedulePolicy;
     applyBookingFormConstraints(checkoutForm, bookingFormConstraints);
+    await initializeBotProtection(botProtection);
     state.catalogReady = true;
     const activePackageCodes = new Set(remotePackages.map((item) => item.code));
     Object.keys(basePackages).forEach((code) => {
@@ -779,21 +854,35 @@ function updatePaymentFlowState() {
 async function savePaymentFlow() {
   if (!hasApiEndpoint()) throw new Error("Başvuru oluşturmak için sunucu bağlantısı gerekli.");
   const isUpdate = Boolean(state.applicationId);
-  const response = await apiRequest(
-    isUpdate
-      ? `/booking-applications/${state.applicationId}/payment-flow`
-      : "/booking-applications",
-    {
-      method: isUpdate ? "PATCH" : "POST",
-      headers: {
-        "Payment-Flow-Key": state.paymentFlowKey,
-        ...(!isUpdate ? { "Idempotency-Key": state.idempotencyKey } : {})
-      },
-      body: getBookingRequestBody()
-    }
-  );
-  applyPaymentFlowSummary(response.data);
-  return response.data;
+  if (!isUpdate && state.botProtection.enabled && !state.botChallengeToken) {
+    throw new Error("Lütfen bot doğrulamasını tamamlayın.");
+  }
+  try {
+    const response = await apiRequest(
+      isUpdate
+        ? `/booking-applications/${state.applicationId}/payment-flow`
+        : "/booking-applications",
+      {
+        method: isUpdate ? "PATCH" : "POST",
+        headers: {
+          "Payment-Flow-Key": state.paymentFlowKey,
+          ...(!isUpdate
+            ? {
+                "Idempotency-Key": state.idempotencyKey,
+                ...(state.botChallengeToken ? { "Turnstile-Token": state.botChallengeToken } : {})
+              }
+            : {})
+        },
+        body: getBookingRequestBody()
+      }
+    );
+    applyPaymentFlowSummary(response.data);
+    if (!isUpdate) state.botChallengeToken = null;
+    return response.data;
+  } catch (error) {
+    if (!isUpdate) resetBotChallenge();
+    throw error;
+  }
 }
 
 async function openPaymentSummary() {
@@ -1273,6 +1362,14 @@ checkoutForm.addEventListener("submit", (event) => {
   });
 
   const isTimeValid = validateTimeSlots();
+
+  if (state.botProtection.enabled && !state.botChallengeToken) {
+    setPaymentNotificationStatus("Devam etmek için bot doğrulamasını tamamlayın.");
+    document
+      .querySelector(".js-turnstile")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
 
   const firstInvalid = requiredFields.find((input) =>
     input.matches('input[type="hidden"]') ? !input.value : !input.validity.valid

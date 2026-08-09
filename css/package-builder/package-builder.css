@@ -3968,6 +3968,15 @@ body.is-completion-open {
   background: hsl(40 31% 98%);
 }
 
+.bot-challenge {
+  min-height: 65px;
+  margin-top: 1rem;
+}
+
+.bot-challenge[hidden] {
+  display: none;
+}
+
 .consent-fields legend {
   padding: 0 8px;
   color: var(--ink-soft);

@@ -170,6 +170,15 @@ const envSchema = z
     PORT: portSchema.default('5000'),
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     CORS_ORIGIN: corsOriginSchema,
+    BOT_PROTECTION_MODE: z.enum(['disabled', 'turnstile']).default('disabled'),
+    TURNSTILE_SITE_KEY: z.string().trim().max(256).default(''),
+    TURNSTILE_SECRET_KEY: z.string().trim().max(256).default(''),
+    TURNSTILE_EXPECTED_HOSTNAME: z.string().trim().toLowerCase().max(253).default(''),
+    TURNSTILE_VERIFY_TIMEOUT_MS: boundedIntegerSchema(
+      'TURNSTILE_VERIFY_TIMEOUT_MS',
+      500,
+      10_000,
+    ).default('5000'),
     DATABASE_URL: databaseUrlSchema,
     ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: booleanStringSchema(
       'ALLOW_PRIVATE_DATABASE_WITHOUT_TLS',
@@ -294,6 +303,35 @@ const envSchema = z
     // Eğer ortam production değilse ekstra parola/SSL kontrollerini atla
     if (environment.NODE_ENV !== 'production') {
       return;
+    }
+
+    if (environment.BOT_PROTECTION_MODE === 'turnstile' && !environment.TURNSTILE_SITE_KEY) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TURNSTILE_SITE_KEY'],
+        message: 'Turnstile modunda TURNSTILE_SITE_KEY zorunludur',
+      });
+    }
+    if (environment.BOT_PROTECTION_MODE === 'turnstile' && !environment.TURNSTILE_SECRET_KEY) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TURNSTILE_SECRET_KEY'],
+        message: 'Turnstile modunda TURNSTILE_SECRET_KEY zorunludur',
+      });
+    }
+    if (
+      environment.BOT_PROTECTION_MODE === 'turnstile' &&
+      (!environment.TURNSTILE_EXPECTED_HOSTNAME ||
+        !environment.CORS_ORIGIN.some(
+          (origin) =>
+            new URL(origin).hostname.toLowerCase() === environment.TURNSTILE_EXPECTED_HOSTNAME,
+        ))
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TURNSTILE_EXPECTED_HOSTNAME'],
+        message: 'Turnstile hostname izin verilen CORS alan adlarından biri olmalıdır',
+      });
     }
 
     if (typeof environment.TRUST_PROXY === 'number') {

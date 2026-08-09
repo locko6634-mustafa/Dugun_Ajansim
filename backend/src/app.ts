@@ -18,6 +18,7 @@ import operationsRoutes from './routes/operations.routes.js';
 // Özel hata sınıfımızı içe aktar
 import { AppError } from './utils/appError.js';
 import { attachRequestContext } from './middlewares/requestContext.middleware.js';
+import { assertBookingBotProtectionConfigured } from './utils/turnstile.js';
 
 // Rota kaydedici fonksiyon tipi tanımı
 type RouteRegistrar = (application: Express) => void;
@@ -35,6 +36,7 @@ const registerApplicationRoutes: RouteRegistrar = (application) => {
 
 // Express uygulamasını oluşturan ve tüm middleware/rotaları bağlayan ana fabrika fonksiyonu
 export const createApp = (registerRoutes: RouteRegistrar = registerApplicationRoutes): Express => {
+  assertBookingBotProtectionConfigured();
   // Yeni bir Express uygulaması örneği oluştur
   const application: Express = express();
 

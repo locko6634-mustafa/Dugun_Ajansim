@@ -60,6 +60,10 @@ import {
   createUncaughtExceptionHandler,
 } from '../src/utils/processLifecycle.js';
 import type { GracefulShutdown } from '../src/utils/processLifecycle.js';
+import {
+  assertBookingBotProtectionConfigured,
+  verifyBookingBotChallenge,
+} from '../src/utils/turnstile.js';
 
 const test: typeof nodeTest = ((name: string, ...args: unknown[]) =>
   nodeTest(`[backend-unit] ${name}`, ...(args as [never]))) as typeof nodeTest;
@@ -70,6 +74,11 @@ const validEnvironment: NodeJS.ProcessEnv = {
   PORT: '5000',
   NODE_ENV: 'test',
   CORS_ORIGIN: 'http://localhost:3000/,https://example.com',
+  BOT_PROTECTION_MODE: 'turnstile',
+  TURNSTILE_SITE_KEY: 'test-site-key',
+  TURNSTILE_SECRET_KEY: 'test-secret-key',
+  TURNSTILE_EXPECTED_HOSTNAME: 'example.com',
+  TURNSTILE_VERIFY_TIMEOUT_MS: '5000',
   DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/dugun_ajansim',
   TRUST_PROXY: '0',
   HEALTHCHECK_TIMEOUT_MS: '3000',
@@ -80,10 +89,8 @@ const validEnvironment: NodeJS.ProcessEnv = {
   DATA_ENCRYPTION_ACTIVE_KEY_ID: 'active-2026',
   DATA_ENCRYPTION_KEYRING_JSON:
     '{"active-2026":"7d9f3c1a5e8b2d4f6a0c9e7b3d1f5a8c2e4b6d0f9a7c3e1b5d8f2a4c6e0b9d7f"}',
-  PII_BLIND_INDEX_KEY:
-    'b6d18a03f74ce9521a6b8d309f5e7c124a8d60f3b91e5c72d4a09b6e38f157c2',
-  RATE_LIMIT_HMAC_KEY:
-    'c7e29b14a85df0632b7c9e401a6f8d235b9e71c4a02d6f83e5b1a9c60d347f28',
+  PII_BLIND_INDEX_KEY: 'b6d18a03f74ce9521a6b8d309f5e7c124a8d60f3b91e5c72d4a09b6e38f157c2',
+  RATE_LIMIT_HMAC_KEY: 'c7e29b14a85df0632b7c9e401a6f8d235b9e71c4a02d6f83e5b1a9c60d347f28',
   PII_ENCRYPTION_MODE: 'encrypted',
 };
 const validProductionEncryptionKey =
@@ -184,6 +191,8 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   assert.equal(parsed.HTTP_REQUEST_TIMEOUT_MS, 15000);
   assert.equal(parsed.HTTP_HEADERS_TIMEOUT_MS, 10000);
   assert.equal(parsed.HTTP_KEEP_ALIVE_TIMEOUT_MS, 5000);
+  assert.equal(parsed.BOT_PROTECTION_MODE, 'turnstile');
+  assert.equal(parsed.TURNSTILE_EXPECTED_HOSTNAME, 'example.com');
   assert.equal(parsed.ADMIN_SESSION_TTL_HOURS, 8);
   assert.equal(parsed.ADMIN_SESSION_IDLE_MINUTES, 30);
   assert.equal(parsed.SALON_SESSION_IDLE_MINUTES, 60);
@@ -278,6 +287,18 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   };
   const productionEnvironment = parseEnvironment(productionEnvironmentInput);
   assert.equal(productionEnvironment.NODE_ENV, 'production');
+  const productionMaintenanceEnvironment = parseEnvironment({
+    ...productionEnvironmentInput,
+    BOT_PROTECTION_MODE: 'disabled',
+  });
+  assert.equal(productionMaintenanceEnvironment.BOT_PROTECTION_MODE, 'disabled');
+  assert.throws(() => assertBookingBotProtectionConfigured('production', 'disabled'));
+  assert.throws(() =>
+    parseEnvironment({
+      ...productionEnvironmentInput,
+      TURNSTILE_EXPECTED_HOSTNAME: 'attacker.example',
+    }),
+  );
   assert.throws(() =>
     parseEnvironment({
       ...productionEnvironmentInput,
@@ -393,7 +414,10 @@ authTest('RFC 6238 TOTP kodu dar zaman penceresi, AAD ve tekrar adımıyla doğr
   const rfcSecret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
   assert.equal(generateTotpCode(rfcSecret, 1n), '287082');
   assert.equal(findMatchingTotpStep(rfcSecret, '287082', new Date(59_000)), 1n);
-  assert.equal(findMatchingTotpStep(rfcSecret, generateTotpCode(rfcSecret, 2n), new Date(89_000)), 2n);
+  assert.equal(
+    findMatchingTotpStep(rfcSecret, generateTotpCode(rfcSecret, 2n), new Date(89_000)),
+    2n,
+  );
   assert.equal(
     findMatchingTotpStep(rfcSecret, generateTotpCode(rfcSecret, 1n), new Date(119_000)),
     undefined,
@@ -563,19 +587,11 @@ test('PII zarfı keyring rotasyonu, kayıt/model AAD bağlamı ve alan ayrımlı
   assert.equal(encrypted.piiEncryptionVersion, 3);
   assert.equal(encrypted.piiSchemaVersion, BOOKING_APPLICATION_PII_SCHEMA_VERSION);
   assert.deepEqual(
-    decryptBookingApplicationPii(
-      '11111111-1111-4111-8111-111111111111',
-      encrypted,
-      rotatedCrypto,
-    ),
+    decryptBookingApplicationPii('11111111-1111-4111-8111-111111111111', encrypted, rotatedCrypto),
     payload,
   );
   assert.throws(() =>
-    decryptBookingApplicationPii(
-      '22222222-2222-4222-8222-222222222222',
-      encrypted,
-      rotatedCrypto,
-    ),
+    decryptBookingApplicationPii('22222222-2222-4222-8222-222222222222', encrypted, rotatedCrypto),
   );
 
   const normalizedEmail = rotatedCrypto.blindIndex(
@@ -592,16 +608,8 @@ test('PII zarfı keyring rotasyonu, kayıt/model AAD bağlamı ve alan ayrımlı
     rotatedCrypto.blindIndex('Wedding.primaryEmail', 'ada@example.com', 'email'),
   );
   assert.notEqual(
-    rotatedCrypto.blindIndex(
-      'BookingApplication.bridePhone',
-      '+90 (555) 111 22 33',
-      'phone',
-    ),
-    rotatedCrypto.blindIndex(
-      'BookingApplication.groomPhone',
-      '+90 (555) 111 22 33',
-      'phone',
-    ),
+    rotatedCrypto.blindIndex('BookingApplication.bridePhone', '+90 (555) 111 22 33', 'phone'),
+    rotatedCrypto.blindIndex('BookingApplication.groomPhone', '+90 (555) 111 22 33', 'phone'),
   );
 });
 
@@ -649,9 +657,7 @@ test('PII payload doğrulaması bilinmeyen alanı reddeder; encrypted fallback v
     decryptBookingApplicationPii(recordId, legacySource, cryptography, 'encrypted').primaryEmail,
     'ada@example.com',
   );
-  assert.throws(() =>
-    decryptBookingApplicationPii(recordId, legacySource, cryptography, 'strict'),
-  );
+  assert.throws(() => decryptBookingApplicationPii(recordId, legacySource, cryptography, 'strict'));
 });
 
 test('veritabanı healthcheck Prisma timeout kullanır ve eşzamanlı sorguları tekilleştirir', async () => {
@@ -1067,6 +1073,80 @@ test('takvim çakışmaları personel bazında sıralı ve sınırlı hesaplanı
   assert.equal(result.truncated, true);
 });
 
+test('Turnstile doğrulaması token, hostname ve action sözleşmesini sunucuda denetler', async () => {
+  let requestBody: Record<string, unknown> | undefined;
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        success: true,
+        hostname: 'example.com',
+        action: 'booking_application',
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  };
+  const configuration = {
+    mode: 'turnstile' as const,
+    secretKey: 'server-only-secret',
+    expectedHostname: 'example.com',
+    timeoutMs: 1_000,
+  };
+
+  await verifyBookingBotChallenge({
+    token: 'opaque-client-token',
+    remoteIp: '203.0.113.10',
+    idempotencyKey: '9c3715de-f949-469a-bc06-a00af46cf9b6',
+    fetchImpl,
+    configuration,
+  });
+  assert.deepEqual(requestBody, {
+    secret: 'server-only-secret',
+    response: 'opaque-client-token',
+    remoteip: '203.0.113.10',
+    idempotency_key: '9c3715de-f949-469a-bc06-a00af46cf9b6',
+  });
+
+  await assert.rejects(
+    verifyBookingBotChallenge({
+      token: 'opaque-client-token',
+      remoteIp: undefined,
+      idempotencyKey: '9c3715de-f949-469a-bc06-a00af46cf9b6',
+      configuration,
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            hostname: 'attacker.example',
+            action: 'booking_application',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    }),
+    (error: unknown) => error instanceof AppError && error.statusCode === 400,
+  );
+});
+
+test('Turnstile servis hatasında güvenli biçimde kapalı kalır', async () => {
+  await assert.rejects(
+    verifyBookingBotChallenge({
+      token: 'opaque-client-token',
+      remoteIp: undefined,
+      idempotencyKey: '9c3715de-f949-469a-bc06-a00af46cf9b6',
+      configuration: {
+        mode: 'turnstile',
+        secretKey: 'server-only-secret',
+        expectedHostname: 'example.com',
+        timeoutMs: 1_000,
+      },
+      fetchImpl: async () => {
+        throw new Error('provider unavailable');
+      },
+    }),
+    (error: unknown) => error instanceof AppError && error.statusCode === 503,
+  );
+});
+
 test('gerçek rate limiter aynı IPv6 /56 ağındaki adreslerle limit aşımını engeller', async () => {
   const integrationApp = express();
   integrationApp.set('trust proxy', true);
@@ -1130,6 +1210,44 @@ test('public başvuru limiter IPv6 /56 ağını tek istemci sayar ve ortak 429 s
   assert.equal(limited.headers['cache-control'], 'no-store');
 });
 
+test('public başvuru geçerli UUID idempotency anahtarı olmadan işleme alınmaz', async () => {
+  const bookingBody = {
+    brideFirstName: 'Ayşe',
+    brideLastName: 'Yılmaz',
+    bridePhone: '+90 555 123 45 67',
+    groomFirstName: 'Mehmet',
+    groomLastName: 'Demir',
+    groomPhone: '05559876543',
+    primaryContact: 'GELIN',
+    primaryEmail: 'ayse@example.com',
+    weddingDate: '2099-08-10',
+    startTime: '19:00',
+    endTime: '23:00',
+    endsNextDay: false,
+    venueId: 'de305d54-75b4-431b-adb2-eb6b9e546014',
+    packageCode: 'mini',
+    serviceCodes: [],
+    paymentMethod: 'CASH',
+    privacyConsent: true,
+    marketingConsent: false,
+  };
+
+  const missing = await request(createApp())
+    .post('/api/v1/booking-applications')
+    .set('Payment-Flow-Key', 'payment-flow-key-with-at-least-32-characters')
+    .send(bookingBody);
+  const malformed = await request(createApp())
+    .post('/api/v1/booking-applications')
+    .set('Payment-Flow-Key', 'payment-flow-key-with-at-least-32-characters')
+    .set('Idempotency-Key', 'not-a-uuid')
+    .send(bookingBody);
+
+  assert.equal(missing.status, 400);
+  assert.equal(malformed.status, 400);
+  assert.match(missing.body.message, /Idempotency-Key/);
+  assert.match(malformed.body.message, /UUID/);
+});
+
 test('CORS preflight CSRF, idempotency, ödeme akışı ve correlation başlıklarına izin verir', async () => {
   const integrationApp = createApp((application) => {
     application.post('/api/test', (_req, res) => {
@@ -1142,7 +1260,7 @@ test('CORS preflight CSRF, idempotency, ödeme akışı ve correlation başlıkl
     .set('Access-Control-Request-Method', 'POST')
     .set(
       'Access-Control-Request-Headers',
-      'x-csrf-token,idempotency-key,payment-flow-key,x-correlation-id',
+      'x-csrf-token,idempotency-key,payment-flow-key,turnstile-token,x-correlation-id',
     );
 
   assert.equal(response.status, 204);
@@ -1150,6 +1268,7 @@ test('CORS preflight CSRF, idempotency, ödeme akışı ve correlation başlıkl
   assert.ok(allowedHeaders.includes('x-csrf-token'));
   assert.ok(allowedHeaders.includes('idempotency-key'));
   assert.ok(allowedHeaders.includes('payment-flow-key'));
+  assert.ok(allowedHeaders.includes('turnstile-token'));
   assert.ok(allowedHeaders.includes('x-correlation-id'));
   assert.equal(String(response.headers['access-control-allow-methods']).includes('PUT'), false);
 });

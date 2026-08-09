@@ -186,6 +186,12 @@ test("migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalış�
   assert.equal(catalogResponse.body.data.bookingFormConstraints.personName.maxLength, 80);
   assert.equal(catalogResponse.body.data.bookingFormConstraints.phone.maxLength, 24);
   assert.equal(catalogResponse.body.data.bookingFormConstraints.note.maxLength, 2_000);
+  assert.deepEqual(catalogResponse.body.data.botProtection, {
+    provider: "turnstile",
+    enabled: false,
+    siteKey: null,
+    action: "booking_application"
+  });
 });
 
 test("expired, revoked, idle, disabled ve süresi dolmuş geçici kimlikler reddedilir", async (context) => {
@@ -808,7 +814,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const publicRouteApplication = await request(app)
     .post("/api/v1/booking-applications")
     .set("X-Correlation-ID", correlationId)
-    .set("Idempotency-Key", `${marker}-public-route-key`)
+    .set("Idempotency-Key", randomUUID())
     .set("Payment-Flow-Key", routePaymentFlowKey)
     .send({
       ...applicationInput,
