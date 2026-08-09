@@ -1,4 +1,5 @@
 import { apiRequest } from "../shared/api-client.js";
+import { logoutUser } from "../shared/auth-session.js";
 import { DELIVERY_STATUS_LABELS, DELIVERY_STATUS_ORDER } from "../shared/domain-labels.js";
 import { formatAppDate } from "../shared/runtime-config.js";
 
@@ -106,11 +107,11 @@ document.querySelector(".js-open-delivery").addEventListener("click", async () =
 });
 
 document.querySelector(".js-logout").addEventListener("click", async () => {
-  try {
-    await apiRequest("/auth/logout", { method: "POST" });
-  } finally {
-    window.location.replace("login.html");
-  }
+  await logoutUser({
+    redirectTo: "login.html",
+    replace: true,
+    messageElement: document.querySelector(".page-message")
+  });
 });
 
 if (await ensureCustomer()) {

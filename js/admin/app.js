@@ -1,4 +1,5 @@
 import { apiRequest } from "../shared/api-client.js";
+import { logoutUser } from "../shared/auth-session.js";
 import {
   showCustomConfirm,
   showCustomPrompt,
@@ -2141,16 +2142,15 @@ weddingForm.addEventListener("submit", async (event) => {
   }
 });
 
-async function logout() {
-  try {
-    await apiRequest("/auth/logout", { method: "POST" });
-  } finally {
-    window.location.replace("login.html");
-  }
-}
 document
   .querySelectorAll(".js-logout")
-  .forEach((button) => button.addEventListener("click", () => void logout()));
+  .forEach((button) =>
+    button.addEventListener(
+      "click",
+      () =>
+        void logoutUser({ redirectTo: "login.html", replace: true, messageElement: globalMessage })
+    )
+  );
 
 document.querySelector(".js-current-date").textContent = `${new Intl.DateTimeFormat(APP_LOCALE, {
   timeZone: APP_TIME_ZONE,

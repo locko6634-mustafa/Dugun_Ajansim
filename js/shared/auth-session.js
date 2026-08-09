@@ -15,14 +15,45 @@ export async function fetchSession() {
   return null;
 }
 
-export async function logoutUser() {
+const LOGOUT_FAILURE_MESSAGE =
+  "Çıkış tamamlanamadı. Oturumunuz hâlâ aktif olabilir. Lütfen tekrar deneyin.";
+
+function showLogoutFailure(messageElement, buttons) {
+  let target = messageElement || document.querySelector(".global-message, .page-message");
+  if (!target) {
+    target = document.createElement("p");
+    target.className = "logout-message";
+    buttons[0]?.insertAdjacentElement("afterend", target);
+  }
+  target.setAttribute("role", "alert");
+  target.setAttribute("aria-live", "assertive");
+  target.textContent = LOGOUT_FAILURE_MESSAGE;
+}
+
+export async function logoutUser({
+  redirectTo = "index.html",
+  replace = false,
+  messageElement = null,
+  buttons = [...document.querySelectorAll(".js-logout, .header-logout, .mobile-logout-button")]
+} = {}) {
+  buttons.forEach((button) => (button.disabled = true));
   try {
     await apiRequest("/auth/logout", { method: "POST" });
   } catch (error) {
+    if (error?.status === 401) {
+      if (replace) window.location.replace(redirectTo);
+      else window.location.href = redirectTo;
+      return true;
+    }
     console.error("Çıkış yaparken bir hata oluştu:", error);
-  } finally {
-    window.location.href = "index.html";
+    buttons.forEach((button) => (button.disabled = false));
+    showLogoutFailure(messageElement, buttons);
+    return false;
   }
+
+  if (replace) window.location.replace(redirectTo);
+  else window.location.href = redirectTo;
+  return true;
 }
 
 export async function initHeaderAuth() {
@@ -66,7 +97,7 @@ export async function initHeaderAuth() {
       </svg>
       <span>Çıkış</span>
     `;
-    logoutBtn.addEventListener("click", logoutUser);
+    logoutBtn.addEventListener("click", () => void logoutUser());
     if (desktopLoginLink) {
       desktopLoginLink.insertAdjacentElement("afterend", logoutBtn);
     } else {
@@ -85,7 +116,7 @@ export async function initHeaderAuth() {
     mobileLogoutBtn.type = "button";
     mobileLogoutBtn.className = "button button--ghost mobile-logout-button";
     mobileLogoutBtn.textContent = "Çıkış Yap";
-    mobileLogoutBtn.addEventListener("click", logoutUser);
+    mobileLogoutBtn.addEventListener("click", () => void logoutUser());
     mobileMenuActions.appendChild(mobileLogoutBtn);
   }
 }

@@ -1243,6 +1243,66 @@ test("@frontend-smoke oturum acilmis kullanici anasayfada role uygun paneli ve c
   }
 });
 
+test("@frontend-smoke cikis istegi basarisizsa oturum sayfasinda kalir ve uyari gosterir", async ({
+  page,
+  isMobile
+}) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { role: "ADMIN", mustChangePassword: false, username: "admin" }
+      })
+    })
+  );
+  await page.route("**/api/v1/auth/logout", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ success: false, message: "Servis kullanılamıyor." })
+    })
+  );
+
+  await page.goto("/index.html?logout-test=1");
+  if (isMobile) {
+    await page.locator("[aria-controls]").first().click();
+    await page.locator(".mobile-logout-button").click();
+  } else {
+    await page.locator(".header-logout").click();
+  }
+
+  await expect(page).toHaveURL(/index\.html\?logout-test=1$/);
+  await expect(page.getByRole("alert")).toContainText(
+    "Çıkış tamamlanamadı. Oturumunuz hâlâ aktif olabilir. Lütfen tekrar deneyin."
+  );
+});
+
+test("@frontend-smoke basarili cikis giris durumunu sonlandirip ana sayfaya yonlendirir", async ({
+  page
+}) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { role: "ADMIN", mustChangePassword: false, username: "admin" }
+      })
+    })
+  );
+  await page.route("**/api/v1/auth/logout", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: null })
+    })
+  );
+
+  await page.goto("/index.html?logout-test=success");
+  await page.locator(".header-logout").click();
+
+  await expect(page).toHaveURL(/\/index\.html$/);
+});
+
 test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yonetir", async ({
   page
 }) => {

@@ -1,4 +1,5 @@
 import { apiRequest } from "../shared/api-client.js";
+import { logoutUser } from "../shared/auth-session.js";
 import { STAFF_SPECIALTY_LABELS } from "../shared/domain-labels.js";
 import { APP_LOCALE, APP_TIME_ZONE, OPERATIONS_CITY } from "../shared/runtime-config.js";
 
@@ -499,15 +500,14 @@ document.querySelector(".js-specialties").innerHTML = Object.entries(SPECIALTIES
   .join("");
 document.querySelector(".js-current-date").textContent =
   `${new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, dateStyle: "long" }).format(new Date())} · ${OPERATIONS_CITY}`;
-document.querySelectorAll(".js-logout").forEach((button) =>
-  button.addEventListener("click", async () => {
-    try {
-      await apiRequest("/auth/logout", { method: "POST" });
-    } finally {
-      window.location.replace("login.html");
-    }
-  })
-);
+document
+  .querySelectorAll(".js-logout")
+  .forEach((button) =>
+    button.addEventListener(
+      "click",
+      () => void logoutUser({ redirectTo: "login.html", replace: true, messageElement: message })
+    )
+  );
 
 if (await ensureSession()) await loadDashboard().catch((error) => setMessage(error.message));
 
