@@ -16,7 +16,7 @@ import {
 import {
   createBookingApplication,
   getPaymentFlowApplication,
-  getVenueAvailability,
+  getPublicVenueAvailability,
   markWhatsappHandoff,
   paymentPolicy,
   updatePaymentFlowApplication
@@ -32,6 +32,15 @@ const publicBookingLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: rateLimitKeyGenerator,
   handler: createRateLimitHandler("Çok fazla başvuru denemesi yaptınız.")
+});
+
+const publicAvailabilityLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: rateLimitKeyGenerator,
+  handler: createRateLimitHandler("Çok fazla uygunluk sorgusu yaptınız.")
 });
 
 const emptyRequestSchema = z.object({
@@ -146,11 +155,13 @@ router.get(
 
 router.get(
   "/venues/:venueId/availability",
+  publicAvailabilityLimiter,
   validateRequest(availabilitySchema),
   asyncHandler(async (req, res) => {
     const { venueId } = req.params;
     const { date } = req.query as { date: string };
-    const availability = await getVenueAvailability(venueId, date);
+    const availability = await getPublicVenueAvailability(venueId, date);
+    res.set("Cache-Control", "no-store");
     res.json({ success: true, data: availability, correlationId: req.correlationId });
   })
 );

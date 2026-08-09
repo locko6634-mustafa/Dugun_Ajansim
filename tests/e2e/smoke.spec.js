@@ -370,7 +370,7 @@ test("@frontend-smoke paket formu çift, saat ve salon alanlarını backend kata
       contentType: "application/json",
       body: JSON.stringify({
         success: true,
-        data: { date: "2027-08-10", occupiedSlots: [] }
+        data: { date: "2027-08-10", hasOccupancy: true }
       })
     })
   );
@@ -387,6 +387,10 @@ test("@frontend-smoke paket formu çift, saat ve salon alanlarını backend kata
   await expect(page.locator(".js-venue-select")).toContainText("Cess Wedding");
   await page.locator('select[name="venueId"]').selectOption("de305d54-75b4-431b-adb2-eb6b9e546014");
   await selectWeddingDate(page, "2027-08-10");
+  await expect(page.locator(".js-availability-banner")).toContainText(
+    "Bu tarihte salon için başka kayıtlar bulunmaktadır."
+  );
+  await expect(page.locator(".js-availability-banner")).not.toContainText(/\d{2}:\d{2}/);
   await expect(
     page.locator('.js-time-picker[data-time-picker="start"] .js-time-trigger')
   ).toBeEnabled();
@@ -894,7 +898,7 @@ test("@frontend-smoke referans WhatsApp'tan önce oluşturulur ve yapılandırı
         contentType: "application/json",
         body: JSON.stringify({
           success: true,
-          data: { date: "2027-08-10", occupiedSlots: [] }
+          data: { date: "2027-08-10", hasOccupancy: false }
         })
       });
     }
@@ -1109,7 +1113,7 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
       body: JSON.stringify({
         success: true,
         data: route.request().url().includes("/availability")
-          ? { date: "2027-08-10", occupiedSlots: [] }
+          ? { date: "2027-08-10", hasOccupancy: false }
           : []
       })
     })

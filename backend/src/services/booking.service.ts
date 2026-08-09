@@ -1146,4 +1146,23 @@ export const getVenueAvailability = async (
   return { date: dateStr, occupiedSlots };
 };
 
+const PUBLIC_AVAILABILITY_MAX_ADVANCE_DAYS = 366;
+
+export const getPublicVenueAvailability = async (
+  venueId: string,
+  dateStr: string
+): Promise<{ date: string; hasOccupancy: boolean }> => {
+  const today = getIstanbulDate(new Date());
+  const latestAllowedDate = addCalendarDays(today, PUBLIC_AVAILABILITY_MAX_ADVANCE_DAYS);
+  if (dateStr < today || dateStr > latestAllowedDate) {
+    throw new AppError(
+      `Uygunluk yalnızca bugün ile ${latestAllowedDate} arasındaki tarihler için sorgulanabilir.`,
+      400
+    );
+  }
+
+  const availability = await getVenueAvailability(venueId, dateStr);
+  return { date: availability.date, hasOccupancy: availability.occupiedSlots.length > 0 };
+};
+
 export { createAudit };

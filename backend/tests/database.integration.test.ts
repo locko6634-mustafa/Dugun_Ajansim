@@ -2073,10 +2073,26 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     false
   );
 
+  const currentWeddingSchedule = await prisma.wedding.findUniqueOrThrow({
+    where: { id: wedding.id },
+    select: { startsAt: true }
+  });
+  const currentWeddingDate = getIstanbulDate(currentWeddingSchedule.startsAt);
   const availabilityRes = await request(app).get(
-    `/api/v1/venues/${venue.id}/availability?date=${weddingDate}`
+    `/api/v1/venues/${venue.id}/availability?date=${currentWeddingDate}`
   );
   assert.equal(availabilityRes.status, 200);
   assert.equal(availabilityRes.body.success, true);
-  assert.ok(Array.isArray(availabilityRes.body.data.occupiedSlots));
+  assert.equal(availabilityRes.headers["cache-control"], "no-store");
+  assert.deepEqual(availabilityRes.body.data, {
+    date: currentWeddingDate,
+    hasOccupancy: true
+  });
+  assert.equal("occupiedSlots" in availabilityRes.body.data, false);
+
+  const outOfHorizonAvailabilityRes = await request(app).get(
+    `/api/v1/venues/${venue.id}/availability?date=${addCalendarDays(getIstanbulDate(new Date()), 367)}`
+  );
+  assert.equal(outOfHorizonAvailabilityRes.status, 400);
+  assert.equal(outOfHorizonAvailabilityRes.body.success, false);
 });

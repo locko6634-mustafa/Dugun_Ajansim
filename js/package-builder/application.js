@@ -892,7 +892,7 @@ const calendarDays = document.querySelector(".js-calendar-days");
 const timePickers = [...document.querySelectorAll(".js-time-picker")];
 let calendarView = new Date();
 
-let currentOccupiedSlots = [];
+let hasVenueOccupancy = false;
 
 const pickerDateFormatter = new Intl.DateTimeFormat(APP_LOCALE, {
   day: "numeric",
@@ -1055,7 +1055,7 @@ async function fetchVenueAvailability() {
   const date = weddingDateInput?.value;
 
   if (!venueId || venueId === CUSTOM_VENUE_VALUE || !date) {
-    currentOccupiedSlots = [];
+    hasVenueOccupancy = false;
     if (availabilityBanner) availabilityBanner.hidden = true;
     return;
   }
@@ -1067,11 +1067,10 @@ async function fetchVenueAvailability() {
 
   try {
     const res = await apiRequest(`/venues/${venueId}/availability?date=${date}`);
-    currentOccupiedSlots = res.data.occupiedSlots || [];
+    hasVenueOccupancy = res.data.hasOccupancy === true;
     renderAvailabilityBanner();
-    validateTimeSlots();
   } catch {
-    currentOccupiedSlots = [];
+    hasVenueOccupancy = false;
     if (availabilityBanner) {
       availabilityBanner.innerHTML = `<div class="availability-banner__warning">⚠️ Salon doluluk bilgisi alınamadı.</div>`;
       availabilityBanner.hidden = false;
@@ -1141,14 +1140,14 @@ function updateVenueDependentFields() {
       endsNextDayCheckbox.disabled = true;
     }
   }
-  currentOccupiedSlots = [];
+  hasVenueOccupancy = false;
   if (availabilityBanner) availabilityBanner.hidden = true;
 }
 
 function renderAvailabilityBanner() {
   if (!availabilityBanner) return;
 
-  if (currentOccupiedSlots.length === 0) {
+  if (!hasVenueOccupancy) {
     availabilityBanner.innerHTML = `
       <div class="availability-banner__info">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
@@ -1159,14 +1158,12 @@ function renderAvailabilityBanner() {
     return;
   }
 
-  const slotsText = currentOccupiedSlots.map((s) => `${s.startTime} - ${s.endTime}`).join(", ");
-
   availabilityBanner.innerHTML = `
     <div class="availability-banner__warning">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
       <div>
-        <strong>Bu tarihteki dolu saatler:</strong> ${escapeHtml(slotsText)}
-        <small style="display:block; margin-top:2px;">Bu saat aralıklarıyla çakışmayan bir zaman aralığı seçebilirsiniz (örn. dolu saat 13:00 - 17:00 ise 18:00 - 22:00 seçilebilir).</small>
+        <strong>Bu tarihte salon için başka kayıtlar bulunmaktadır.</strong>
+        <small style="display:block; margin-top:2px;">Seçtiğiniz saat aralığının uygunluğu başvuru sırasında güvenli biçimde kontrol edilecektir.</small>
       </div>
     </div>
   `;
@@ -1198,30 +1195,9 @@ function validateTimeSlots() {
     return false;
   }
 
-  if (currentOccupiedSlots.length === 0) {
-    setFieldValidity(startTimeInput, true);
-    setFieldValidity(endTimeInput, true);
-    return true;
-  }
-
-  const conflictingSlot = currentOccupiedSlots.find((slot) => {
-    const slotStart = timeToMinutes(slot.startTime);
-    let slotEnd = timeToMinutes(slot.endTime);
-    if (slotEnd <= slotStart) slotEnd += 24 * 60;
-
-    return newStart < slotEnd && newEnd > slotStart;
-  });
-
-  if (conflictingSlot) {
-    const errorMsg = `Seçilen saat aralığı salondaki dolu saatlerle (${conflictingSlot.startTime} - ${conflictingSlot.endTime}) çakışıyor.`;
-    setFieldValidity(startTimeInput, false, errorMsg);
-    setFieldValidity(endTimeInput, false, errorMsg);
-    return false;
-  } else {
-    setFieldValidity(startTimeInput, true);
-    setFieldValidity(endTimeInput, true);
-    return true;
-  }
+  setFieldValidity(startTimeInput, true);
+  setFieldValidity(endTimeInput, true);
+  return true;
 }
 
 if (venueSelect) {
@@ -1251,13 +1227,13 @@ if (weddingDateInput) {
 
     if (hasDate) {
       if (isCustomVenueSelected()) {
-        currentOccupiedSlots = [];
+        hasVenueOccupancy = false;
         if (availabilityBanner) availabilityBanner.hidden = true;
       } else {
         fetchVenueAvailability();
       }
     } else {
-      currentOccupiedSlots = [];
+      hasVenueOccupancy = false;
       if (availabilityBanner) availabilityBanner.hidden = true;
     }
   });
