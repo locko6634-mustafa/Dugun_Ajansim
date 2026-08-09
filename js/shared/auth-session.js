@@ -23,7 +23,8 @@ function showLogoutFailure(messageElement, buttons) {
   if (!target) {
     target = document.createElement("p");
     target.className = "logout-message";
-    buttons[0]?.insertAdjacentElement("afterend", target);
+    const visibleButton = buttons.find((button) => button.getClientRects().length > 0);
+    (visibleButton || buttons[0])?.insertAdjacentElement("afterend", target);
   }
   target.setAttribute("role", "alert");
   target.setAttribute("aria-live", "assertive");

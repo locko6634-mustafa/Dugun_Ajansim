@@ -1279,7 +1279,8 @@ test("@frontend-smoke cikis istegi basarisizsa oturum sayfasinda kalir ve uyari 
 });
 
 test("@frontend-smoke basarili cikis giris durumunu sonlandirip ana sayfaya yonlendirir", async ({
-  page
+  page,
+  isMobile
 }) => {
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
@@ -1298,7 +1299,12 @@ test("@frontend-smoke basarili cikis giris durumunu sonlandirip ana sayfaya yonl
   );
 
   await page.goto("/index.html?logout-test=success");
-  await page.locator(".header-logout").click();
+  if (isMobile) {
+    await page.locator("[aria-controls]").first().click();
+    await page.locator(".mobile-logout-button").click();
+  } else {
+    await page.locator(".header-logout").click();
+  }
 
   await expect(page).toHaveURL(/\/index\.html$/);
 });
