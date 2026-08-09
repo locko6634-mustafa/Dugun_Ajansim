@@ -20,11 +20,14 @@ import {
   getSessionAbsoluteTtlMs,
   getSessionIdleTimeoutMs,
   getSessionTouchIntervalMs,
+  isMfaEnrollmentRequired,
   isTemporaryPasswordExpired,
 } from '../src/middlewares/auth.middleware.js';
 import { createGlobalErrorHandler } from '../src/middlewares/error.middleware.js';
+import { hashRateLimitKey } from '../src/middlewares/databaseRateLimitStore.js';
 import {
   createRateLimitHandler,
+  loginAccountRateLimitKeyGenerator,
   normalizeRateLimitIp,
   rateLimitKeyGenerator,
 } from '../src/middlewares/rateLimit.middleware.js';
@@ -33,8 +36,22 @@ import { validateCorsOrigin } from '../src/middlewares/security.middleware.js';
 import { validateRequest } from '../src/middlewares/validate.middleware.js';
 import { AppError } from '../src/utils/appError.js';
 import { decryptValue, encryptValue } from '../src/utils/crypto.js';
+import { findBoundedIntervalConflicts } from '../src/utils/intervalConflicts.js';
+import {
+  BOOKING_APPLICATION_PII_SCHEMA_VERSION,
+  createPiiCryptography,
+  decryptBookingApplicationPii,
+  encryptBookingApplicationPii,
+} from '../src/utils/pii-crypto.js';
 import { createFailedLoginSecurityEvent } from '../src/utils/securityLogger.js';
 import { cleanupStaleSessions } from '../src/utils/sessionMaintenance.js';
+import {
+  createTotpEnrollmentUri,
+  createTotpSecret,
+  findMatchingTotpStep,
+  generateTotpCode,
+  totpEncryptionAad,
+} from '../src/utils/totp.js';
 import {
   createGracefulShutdown,
   createUncaughtExceptionHandler,
@@ -53,7 +70,18 @@ const validEnvironment: NodeJS.ProcessEnv = {
   DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/dugun_ajansim',
   TRUST_PROXY: '0',
   HEALTHCHECK_TIMEOUT_MS: '3000',
+  HTTP_REQUEST_TIMEOUT_MS: '15000',
+  HTTP_HEADERS_TIMEOUT_MS: '10000',
+  HTTP_KEEP_ALIVE_TIMEOUT_MS: '5000',
   DATA_ENCRYPTION_KEY: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  DATA_ENCRYPTION_ACTIVE_KEY_ID: 'active-2026',
+  DATA_ENCRYPTION_KEYRING_JSON:
+    '{"active-2026":"7d9f3c1a5e8b2d4f6a0c9e7b3d1f5a8c2e4b6d0f9a7c3e1b5d8f2a4c6e0b9d7f"}',
+  PII_BLIND_INDEX_KEY:
+    'b6d18a03f74ce9521a6b8d309f5e7c124a8d60f3b91e5c72d4a09b6e38f157c2',
+  RATE_LIMIT_HMAC_KEY:
+    'c7e29b14a85df0632b7c9e401a6f8d235b9e71c4a02d6f83e5b1a9c60d347f28',
+  PII_ENCRYPTION_MODE: 'encrypted',
 };
 const validProductionEncryptionKey =
   '7d9f3c1a5e8b2d4f6a0c9e7b3d1f5a8c2e4b6d0f9a7c3e1b5d8f2a4c6e0b9d7f';
@@ -68,6 +96,26 @@ test('production seed kullanıcı, parola veya operasyon personeli oluşturmaz',
   assert.equal((seedSource.match(/update:\s*\{\}/g) ?? []).length, 3);
   assert.equal(seedSource.includes('update: { name'), false);
   assert.equal(seedSource.includes('update: { category'), false);
+});
+
+test('runtime rolü audit kayıtlarını güncelleyemez veya silemez', async () => {
+  const runtimeRoleSource = await readFile(
+    new URL('../../deploy/postgres/init-runtime-role.sh', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    runtimeRoleSource,
+    /REVOKE UPDATE ON TABLE %I\.%I FROM %I[\s\S]*?'public', 'audit_logs'/,
+  );
+  assert.match(
+    runtimeRoleSource,
+    /REVOKE DELETE ON TABLE %I\.%I FROM %I[\s\S]*?'public', 'audit_logs'/,
+  );
+  assert.doesNotMatch(
+    runtimeRoleSource,
+    /GRANT DELETE ON TABLE %I\.%I TO %I[\s\S]*?'public', 'audit_logs'/,
+  );
 });
 
 const createMockResponse = () => {
@@ -105,8 +153,12 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   assert.deepEqual(parsed.CORS_ORIGIN, ['http://localhost:3000', 'https://example.com']);
   assert.equal(parsed.TRUST_PROXY, 0);
   assert.equal(parsed.HEALTHCHECK_TIMEOUT_MS, 3000);
-  assert.equal(parsed.ADMIN_SESSION_IDLE_MINUTES, 720);
-  assert.equal(parsed.SALON_SESSION_IDLE_MINUTES, 720);
+  assert.equal(parsed.HTTP_REQUEST_TIMEOUT_MS, 15000);
+  assert.equal(parsed.HTTP_HEADERS_TIMEOUT_MS, 10000);
+  assert.equal(parsed.HTTP_KEEP_ALIVE_TIMEOUT_MS, 5000);
+  assert.equal(parsed.ADMIN_SESSION_TTL_HOURS, 8);
+  assert.equal(parsed.ADMIN_SESSION_IDLE_MINUTES, 30);
+  assert.equal(parsed.SALON_SESSION_IDLE_MINUTES, 60);
   assert.equal(parsed.CUSTOMER_SESSION_IDLE_HOURS, 12);
   assert.equal(parsed.TEMPORARY_PASSWORD_TTL_HOURS, 72);
   assert.equal(parsed.PAYMENT_MODE, 'test');
@@ -288,19 +340,47 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   );
 });
 
-authTest('rol bazlı hareketsizlik süreleri uygulanır ve tüm roller remember tercihini destekler', () => {
-  assert.equal(getSessionIdleTimeoutMs('ADMIN'), 12 * 60 * 60 * 1000);
-  assert.equal(getSessionIdleTimeoutMs('SALON_YETKILISI'), 12 * 60 * 60 * 1000);
+authTest('ayrıcalıklı remember isteği yok sayılır ve MFA production ortamında zorunludur', () => {
+  assert.equal(getSessionIdleTimeoutMs('ADMIN'), 30 * 60 * 1000);
+  assert.equal(getSessionIdleTimeoutMs('SALON_YETKILISI'), 60 * 60 * 1000);
   assert.equal(getSessionIdleTimeoutMs('MUSTERI'), 12 * 60 * 60 * 1000);
-  assert.ok(getSessionAbsoluteTtlMs('ADMIN', true) > getSessionAbsoluteTtlMs('ADMIN', false));
-  assert.ok(
-    getSessionAbsoluteTtlMs('SALON_YETKILISI', true) >
-      getSessionAbsoluteTtlMs('SALON_YETKILISI', false),
+  assert.equal(getSessionAbsoluteTtlMs('ADMIN', true), 8 * 60 * 60 * 1000);
+  assert.equal(getSessionAbsoluteTtlMs('ADMIN', true), getSessionAbsoluteTtlMs('ADMIN', false));
+  assert.equal(
+    getSessionAbsoluteTtlMs('SALON_YETKILISI', true),
+    getSessionAbsoluteTtlMs('SALON_YETKILISI', false),
   );
   assert.ok(getSessionAbsoluteTtlMs('MUSTERI', true) > getSessionAbsoluteTtlMs('MUSTERI', false));
   assert.ok(getSessionTouchIntervalMs('ADMIN') < getSessionIdleTimeoutMs('ADMIN'));
   assert.ok(getSessionTouchIntervalMs('MUSTERI') < getSessionIdleTimeoutMs('MUSTERI'));
   assert.equal(calculateSessionTouchIntervalMs(5 * 60 * 1000), 2.5 * 60 * 1000);
+  assert.equal(isMfaEnrollmentRequired('ADMIN', false, 'production'), true);
+  assert.equal(isMfaEnrollmentRequired('SALON_YETKILISI', false, 'production'), true);
+  assert.equal(isMfaEnrollmentRequired('MUSTERI', false, 'production'), false);
+  assert.equal(isMfaEnrollmentRequired('ADMIN', true, 'production'), false);
+  assert.equal(isMfaEnrollmentRequired('ADMIN', false, 'test'), false);
+});
+
+authTest('RFC 6238 TOTP kodu dar zaman penceresi, AAD ve tekrar adımıyla doğrulanır', () => {
+  const rfcSecret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+  assert.equal(generateTotpCode(rfcSecret, 1n), '287082');
+  assert.equal(findMatchingTotpStep(rfcSecret, '287082', new Date(59_000)), 1n);
+  assert.equal(findMatchingTotpStep(rfcSecret, generateTotpCode(rfcSecret, 2n), new Date(89_000)), 2n);
+  assert.equal(
+    findMatchingTotpStep(rfcSecret, generateTotpCode(rfcSecret, 1n), new Date(119_000)),
+    undefined,
+  );
+  assert.equal(findMatchingTotpStep(rfcSecret, '12345x', new Date(59_000)), undefined);
+
+  const generatedSecret = createTotpSecret();
+  assert.match(generatedSecret, /^[A-Z2-7]{32}$/);
+  const enrollmentUri = createTotpEnrollmentUri(generatedSecret, 'yonetici');
+  assert.equal(enrollmentUri.startsWith('otpauth://totp/'), true);
+  assert.equal(new URL(enrollmentUri).searchParams.get('secret'), generatedSecret);
+
+  const encrypted = encryptValue(generatedSecret, totpEncryptionAad('user-one'));
+  assert.equal(decryptValue(encrypted, totpEncryptionAad('user-one')), generatedSecret);
+  assert.throws(() => decryptValue(encrypted, totpEncryptionAad('user-two')));
 });
 
 test('geçici parola için boş veya geçmiş süre güvenli biçimde geçersiz sayılır', () => {
@@ -416,6 +496,133 @@ test('AES-256-GCM yalnız 12 bayt IV, 16 bayt tag ve doğru AAD bağlamını kab
   );
   assert.throws(() =>
     decryptValue({ ...encrypted, iv: `${encrypted.iv}=` }, 'MessageTask:test-id'),
+  );
+});
+
+test('PII zarfı keyring rotasyonu, kayıt/model AAD bağlamı ve alan ayrımlı blind index uygular', () => {
+  const oldKey = '12'.repeat(32);
+  const activeKey = '34'.repeat(32);
+  const blindIndexKey = '56'.repeat(32);
+  const legacyCrypto = createPiiCryptography({
+    activeKeyId: 'old-2026',
+    keyring: { 'old-2026': oldKey },
+    blindIndexKey,
+  });
+  const rotatedCrypto = createPiiCryptography({
+    activeKeyId: 'active-2026',
+    keyring: { 'old-2026': oldKey, 'active-2026': activeKey },
+    blindIndexKey,
+  });
+  const payload = {
+    brideFirstName: 'Ada',
+    brideLastName: 'Yılmaz',
+    bridePhone: '+905551112233',
+    groomFirstName: 'Can',
+    groomLastName: 'Kaya',
+    groomPhone: '+905554445566',
+    primaryEmail: 'ada@example.com',
+    note: 'Sessiz salon',
+    rejectionReason: null,
+  };
+
+  const encrypted = encryptBookingApplicationPii(
+    '11111111-1111-4111-8111-111111111111',
+    payload,
+    legacyCrypto,
+  );
+
+  assert.equal(encrypted.piiKeyId, 'old-2026');
+  assert.equal(encrypted.piiEncryptionVersion, 3);
+  assert.equal(encrypted.piiSchemaVersion, BOOKING_APPLICATION_PII_SCHEMA_VERSION);
+  assert.deepEqual(
+    decryptBookingApplicationPii(
+      '11111111-1111-4111-8111-111111111111',
+      encrypted,
+      rotatedCrypto,
+    ),
+    payload,
+  );
+  assert.throws(() =>
+    decryptBookingApplicationPii(
+      '22222222-2222-4222-8222-222222222222',
+      encrypted,
+      rotatedCrypto,
+    ),
+  );
+
+  const normalizedEmail = rotatedCrypto.blindIndex(
+    'BookingApplication.primaryEmail',
+    '  ADA@Example.COM ',
+    'email',
+  );
+  assert.equal(
+    normalizedEmail,
+    rotatedCrypto.blindIndex('BookingApplication.primaryEmail', 'ada@example.com', 'email'),
+  );
+  assert.notEqual(
+    normalizedEmail,
+    rotatedCrypto.blindIndex('Wedding.primaryEmail', 'ada@example.com', 'email'),
+  );
+  assert.notEqual(
+    rotatedCrypto.blindIndex(
+      'BookingApplication.bridePhone',
+      '+90 (555) 111 22 33',
+      'phone',
+    ),
+    rotatedCrypto.blindIndex(
+      'BookingApplication.groomPhone',
+      '+90 (555) 111 22 33',
+      'phone',
+    ),
+  );
+});
+
+test('PII payload doğrulaması bilinmeyen alanı reddeder; encrypted fallback ve strict kesimi uygular', () => {
+  const cryptography = createPiiCryptography({
+    activeKeyId: 'active-2026',
+    keyring: { 'active-2026': '78'.repeat(32) },
+    blindIndexKey: '9a'.repeat(32),
+  });
+  const recordId = '33333333-3333-4333-8333-333333333333';
+  const payloadWithUnknownField = {
+    brideFirstName: 'Ada',
+    brideLastName: 'Yılmaz',
+    bridePhone: '+905551112233',
+    groomFirstName: 'Can',
+    groomLastName: 'Kaya',
+    groomPhone: '+905554445566',
+    primaryEmail: 'ada@example.com',
+    note: null,
+    rejectionReason: null,
+    leaked: 'yasak',
+  };
+
+  assert.throws(() =>
+    encryptBookingApplicationPii(recordId, payloadWithUnknownField, cryptography),
+  );
+  const legacySource = {
+    brideFirstName: 'Ada',
+    brideLastName: 'Yılmaz',
+    bridePhone: '+905551112233',
+    groomFirstName: 'Can',
+    groomLastName: 'Kaya',
+    groomPhone: '+905554445566',
+    primaryEmail: 'ada@example.com',
+    note: null,
+    rejectionReason: null,
+    piiCiphertext: null,
+    piiIv: null,
+    piiAuthTag: null,
+    piiKeyId: null,
+    piiEncryptionVersion: null,
+    piiSchemaVersion: null,
+  };
+  assert.equal(
+    decryptBookingApplicationPii(recordId, legacySource, cryptography, 'encrypted').primaryEmail,
+    'ada@example.com',
+  );
+  assert.throws(() =>
+    decryptBookingApplicationPii(recordId, legacySource, cryptography, 'strict'),
   );
 });
 
@@ -794,6 +1001,42 @@ test('IPv6 rate-limit anahtarı /56 ağında gruplanır ve IPv4-mapped adresi no
   assert.equal(normalizeRateLimitIp('::ffff:192.0.2.128'), '192.0.2.128');
   assert.equal(normalizeRateLimitIp('192.0.2.128'), '192.0.2.128');
   assert.equal(normalizeRateLimitIp('geçersiz'), 'invalid-ip');
+});
+
+test('ortak rate-limit anahtarları HMAC ile gizlenir ve hesap adı kanonikleştirilir', () => {
+  const secret = '42'.repeat(32);
+  const first = hashRateLimitKey('auth-login', '192.0.2.4', secret);
+  assert.equal(first, hashRateLimitKey('auth-login', '192.0.2.4', secret));
+  assert.notEqual(first, hashRateLimitKey('public-booking', '192.0.2.4', secret));
+  assert.match(first, /^[a-f0-9]{64}$/);
+  assert.equal(first.includes('192.0.2.4'), false);
+  assert.equal(
+    loginAccountRateLimitKeyGenerator({ body: { username: '  YÖNETİCİ  ' } } as Request),
+    'yonetici',
+  );
+});
+
+test('takvim çakışmaları personel bazında sıralı ve sınırlı hesaplanır', () => {
+  const values = [
+    { staff: 'a', id: '1', start: new Date(0), end: new Date(30) },
+    { staff: 'b', id: '4', start: new Date(5), end: new Date(50) },
+    { staff: 'a', id: '2', start: new Date(10), end: new Date(20) },
+    { staff: 'a', id: '3', start: new Date(15), end: new Date(40) },
+  ];
+  const result = findBoundedIntervalConflicts(values, {
+    groupKey: (value) => value.staff,
+    startsAt: (value) => value.start,
+    endsAt: (value) => value.end,
+    maxConflicts: 2,
+  });
+  assert.deepEqual(
+    result.pairs.map(([left, right]) => [left.id, right.id]),
+    [
+      ['1', '2'],
+      ['1', '3'],
+    ],
+  );
+  assert.equal(result.truncated, true);
 });
 
 test('gerçek rate limiter aynı IPv6 /56 ağındaki adreslerle limit aşımını engeller', async () => {

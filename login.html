@@ -153,6 +153,25 @@
               <span class="field-error" id="password-error" aria-live="polite"></span>
             </div>
 
+            <div class="form-field mfa-login-field" hidden>
+              <label for="totp-code">Doğrulama kodu</label>
+              <div class="input-shell">
+                <input
+                  id="totp-code"
+                  name="totpCode"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  minlength="6"
+                  maxlength="6"
+                  placeholder="000000"
+                  aria-describedby="totp-code-error"
+                />
+              </div>
+              <span class="field-error" id="totp-code-error" aria-live="polite"></span>
+            </div>
+
             <label class="remember-control">
               <input type="checkbox" name="remember" />
               <span class="custom-check" aria-hidden="true">
@@ -179,7 +198,7 @@
                 <h2>Yeni parola belirleyin</h2>
               </div>
             </div>
-            <div class="form-field">
+            <div class="form-field password-current-field">
               <label for="current-password">Geçici / mevcut parola</label>
               <div class="input-shell">
                 <input
@@ -226,6 +245,68 @@
               </svg>
             </button>
             <p class="form-message password-change-message" role="status" aria-live="polite"></p>
+          </form>
+
+          <form class="mfa-enrollment-form" novalidate hidden>
+            <div class="login-card__heading login-card__heading--compact">
+              <span class="login-card__number" aria-hidden="true">03</span>
+              <div>
+                <p class="eyebrow">Hesabınızı güçlendirin</p>
+                <h2>İki adımlı doğrulamayı kurun</h2>
+              </div>
+            </div>
+            <p>
+              Yönetim erişimi için bir doğrulama uygulaması gerekir. Kurulumu mevcut parolanızla
+              başlatın.
+            </p>
+            <div class="form-field">
+              <label for="mfa-current-password">Mevcut parola</label>
+              <div class="input-shell">
+                <input
+                  id="mfa-current-password"
+                  name="currentPassword"
+                  type="password"
+                  autocomplete="current-password"
+                  minlength="6"
+                  required
+                />
+              </div>
+            </div>
+            <div class="mfa-enrollment-details" hidden>
+              <div class="form-field">
+                <label for="mfa-secret">Kurulum anahtarı</label>
+                <div class="input-shell">
+                  <input id="mfa-secret" type="text" readonly aria-describedby="mfa-secret-note" />
+                </div>
+                <span id="mfa-secret-note"
+                  >Anahtarı doğrulama uygulamanıza girin veya bağlantıyı açın.</span
+                >
+              </div>
+              <p><a class="mfa-otpauth-link" href="#">Doğrulama uygulamasında aç</a></p>
+              <div class="form-field">
+                <label for="mfa-confirm-code">Uygulamadaki 6 haneli kod</label>
+                <div class="input-shell">
+                  <input
+                    id="mfa-confirm-code"
+                    name="totpCode"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    minlength="6"
+                    maxlength="6"
+                    placeholder="000000"
+                  />
+                </div>
+              </div>
+            </div>
+            <button class="submit-button mfa-enrollment-submit" type="submit">
+              <span>Kurulumu Başlat</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12h14M14 7l5 5-5 5" />
+              </svg>
+            </button>
+            <p class="form-message mfa-enrollment-message" role="status" aria-live="polite"></p>
           </form>
 
           <p class="support-note">

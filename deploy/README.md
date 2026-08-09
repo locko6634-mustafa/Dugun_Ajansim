@@ -5,6 +5,8 @@
 - Alan adının A kaydı sunucunun genel IP adresine yönlenmeli.
 - Sunucuda Docker Compose ve harici `edge_proxy` ağı çalışmalı.
 - Traefik v3, `mytlschallenge` sertifika çözücüsünü sağlamalı.
+- GitHub production environment içinde sunucu bilgileri, SSH anahtarı ve doğrulanmış
+  `SERVER_HOST_FINGERPRINT` secret'ı tanımlanmalı.
 
 ## İlk kurulum
 
@@ -12,7 +14,7 @@
 install -m 600 .env.production.example .env.production
 # .env.production içindeki alan adını, boş sırları ve canlı ödeme bilgilerini doldurun.
 # İki veritabanı parolası birbirinden farklı, URL-güvenli ve en az 20 karakter olmalıdır.
-# DATA_ENCRYPTION_KEY için: openssl rand -hex 32
+# DATA_ENCRYPTION_KEY ve ondan farklı BACKUP_ENCRYPTION_KEY için ayrı ayrı: openssl rand -hex 32
 # TRUST_PROXY değerini edge_proxy ağındaki sabit Traefik container IP'si olarak ayarlayın.
 # PAYMENT_MODE=live kullanın; banka, hesap sahibi, IBAN ve WhatsApp alanlarının beşi de zorunludur.
 docker compose --env-file .env.production -f compose.production.yaml config -q
@@ -118,45 +120,27 @@ Kontroller başarılıysa normal `up -d --build` komutuyla backend ve frontend'i
 
 ## Yedekleme ve geri yükleme tatbikatı
 
-GitHub Actions dağıtımı migration öncesinde `backups/` altında izinleri kısıtlı custom-format
-bir yedek oluşturur ve `pg_restore --list` ile arşiv bütünlüğünü doğrulamadan ilerlemez. Bu yerel
-önlem; şifreli sunucu dışı kopya, saklama süresi ve gerçek geri yükleme tatbikatının yerine geçmez.
-Başarılı bir dağıtım da tek başına geri yükleme veya rollback garantisi değildir; ters migration
-ya da veri geri yükleme kararı ayrıca hazırlanmış ve sınanmış bir runbook ile uygulanmalıdır.
+Dağıtım betiği migration öncesinde veritabanı ve host boş alanını ölçer. Yeterli alan yoksa fail-closed
+durur. Custom-format dump, ayrı `BACKUP_ENCRYPTION_KEY` ile sürümlü başlık ve rastgele IV kullanan
+AES-256-GCM akışına doğrudan şifrelenir; düz metin kalıcı yedek dosyası oluşturulmaz. Anahtar boş,
+örnek/zayıf veya `DATA_ENCRYPTION_KEY` ile aynıysa dağıtım başlamaz.
 
-Yedekleri erişimi kısıtlı, şifreli ve sunucu dışında da tutulan bir dizine alın:
+Her şifreli yedek production verisine dokunmayan rastgele adlı geçici bir veritabanına
+`pg_restore --exit-on-error --no-owner --no-acl` ile gerçekten geri yüklenir ve public tablolar
+doğrulanır. Tatbikat tamamlanınca geçici veritabanı silinir. Başarılı dağıtımdan sonra 30 günden eski
+veya en yeni 30 dosyanın dışındaki `pre-deploy-*.dump.gcm` yedekler güvenli kapsam kontrolüyle
+temizlenir. İlk başarılı şifreli yedekten sonra önceki otomasyonun ürettiği
+`pre-deploy-*.dump` düz metin yedekleri de aynı dar yol kontrolüyle kaldırılır. Bu değerler
+workflow environment değişkenleriyle daraltılabilir.
 
-```bash
-umask 077
-mkdir -p backups
-chmod 700 backups
-backup_path="backups/dugun-ajansim-$(date +%Y%m%d-%H%M%S).dump"
-docker compose --env-file .env.production -f compose.production.yaml exec -T postgres \
-  sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom' > "$backup_path"
-docker compose --env-file .env.production -f compose.production.yaml exec -T postgres \
-  pg_restore --list < "$backup_path" >/dev/null
-```
+Yeni sürüm sağlık kontrollerini geçemezse Git SHA ile backend/frontend image referansları önceki
+doğrulanmış sete otomatik döndürülür. Veritabanı migration'ı veya production verisi otomatik geri
+alınmaz; migration'lar expand/contract uyumlu olmalı, veri geri yükleme ise yazma kaybı riski nedeniyle
+operatör onayıyla yapılmalıdır.
 
-`pg_restore --list` yalnız arşiv biçimini doğrular. Yedeğin gerçekten geri yüklenebilir olduğunu,
-production verisine dokunmayan ayrı bir Compose projesinde düzenli olarak sınayın:
-
-```bash
-docker compose --env-file .env.production -f compose.production.yaml \
-  -p dugun-ajansim-restore-check up -d --wait postgres
-docker compose --env-file .env.production -f compose.production.yaml \
-  -p dugun-ajansim-restore-check exec -T postgres \
-  sh -c 'pg_restore --exit-on-error --no-owner --no-acl -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
-  < "$backup_path"
-docker compose --env-file .env.production -f compose.production.yaml \
-  -p dugun-ajansim-restore-check exec -T postgres \
-  sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT count(*) FROM \"_prisma_migrations\";"'
-docker compose --env-file .env.production -f compose.production.yaml \
-  -p dugun-ajansim-restore-check down -v
-```
-
-`dugun-ajansim-restore-check` proje adını değiştirmeyin ve bu komutları çalışan production
-projesine karşı uygulamayın. Tatbikatı en az üç ayda bir tekrarlayın; yedek saklama süresini,
-şifrelemeyi ve sunucu dışı kopyayı işletme politikanızda ayrıca tanımlayın.
+Yerel retention, host veya disk kaybına karşı koruma değildir. `*.dump.gcm` dosyalarını ve ilgili
+anahtar sürümünü erişimi kısıtlı, sunucu dışı ve immutable depolamaya ayrıca kopyalayın; en az üç
+ayda bir bu kopyadan bağımsız restore tatbikatı yapın.
 
 ## Kontrol
 
@@ -167,5 +151,6 @@ curl -fsS "https://dugun.n8n-mustafa.me/api/v1/health"
 ```
 
 `.env.production` dosyasını repoya eklemeyin. `DATA_ENCRYPTION_KEY` değişirse mevcut şifreli
-teslimat bağlantıları çözülemez; anahtarı güvenli bir parola kasasında sürümlü olarak yedekleyin.
+teslimat bağlantıları, `BACKUP_ENCRYPTION_KEY` değişirse eski yedekler çözülemez; iki anahtarı ayrı
+ve güvenli bir parola kasasında sürümlü olarak yedekleyin.
 Dosyanın izinlerini `stat -c '%a %n' .env.production` ile kontrol edin; beklenen izin `600`'dür.

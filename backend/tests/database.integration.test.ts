@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
 import request from "supertest";
+import type { Options as RateLimitOptions } from "express-rate-limit";
 import { createApp } from "../src/app.js";
 import { env } from "../src/config/env.config.js";
 import { prisma } from "../src/config/prisma.js";
 import { CSRF_COOKIE_NAME } from "../src/middlewares/auth.middleware.js";
+import { DatabaseRateLimitStore } from "../src/middlewares/databaseRateLimitStore.js";
 import { assertSafeLocalTestDatabase } from "../src/scripts/testDatabaseGuard.js";
 import {
   approveBookingApplication,
@@ -15,15 +17,34 @@ import {
   markWhatsappHandoff,
   rejectBookingApplication
 } from "../src/services/booking.service.js";
-import { decryptValue, hashPassword, hashToken, verifyPassword } from "../src/utils/crypto.js";
+import {
+  createOpaqueToken,
+  decryptValue,
+  hashPassword,
+  hashToken,
+  verifyPassword
+} from "../src/utils/crypto.js";
 import {
   addCalendarDays,
   deliveryEncryptionAad,
-  getIstanbulDate,
-  messageSecretEncryptionAad
+  getIstanbulDate
 } from "../src/utils/domain.js";
+import {
+  generateTotpCode,
+  TOTP_PERIOD_SECONDS,
+  totpEncryptionAad
+} from "../src/utils/totp.js";
+import {
+  decryptBookingApplicationPii,
+  decryptMessageTaskPii,
+  decryptWeddingPii,
+  piiCryptography,
+  weddingWithDecryptedPii
+} from "../src/utils/pii-crypto.js";
 
 assertSafeLocalTestDatabase();
+
+const PAYMENT_FLOW_SWEEP_ADVISORY_LOCK_KEY = 1_940_667_981;
 
 const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
   for (const field of [
@@ -47,6 +68,34 @@ const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
   assert.equal(typeof wedding.groomPhone, "string");
   assert.deepEqual(Object.keys(wedding.packageSummary as object), ["name"]);
   assert.equal(typeof (wedding.packageSummary as { name: unknown }).name, "string");
+  assertNoPiiPersistenceMetadata(wedding);
+};
+
+const assertNoPiiPersistenceMetadata = (value: unknown): void => {
+  if (Array.isArray(value)) {
+    value.forEach(assertNoPiiPersistenceMetadata);
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    assert.equal(
+      /^(pii(Ciphertext|Iv|AuthTag|KeyId|EncryptionVersion|SchemaVersion|Revision)|.*BlindIndex)$/.test(
+        key
+      ),
+      false,
+      `API yanıtı PII persistence alanını sızdırmamalı: ${key}`
+    );
+    assertNoPiiPersistenceMetadata(nestedValue);
+  }
+};
+
+const assertSerializedRowOmitsPlaintext = (
+  serialized: string,
+  sentinels: readonly string[]
+): void => {
+  for (const sentinel of sentinels) {
+    assert.equal(serialized.includes(sentinel), false, `DB satırı plaintext içeriyor: ${sentinel}`);
+  }
 };
 
 after(async () => {
@@ -78,8 +127,8 @@ test("test veritabanı guard yalnızca açık yerel hedefi kabul eder", () => {
 });
 
 test("migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalışır", async (context) => {
-  assert.equal(env.ADMIN_SESSION_IDLE_MINUTES, 720);
-  assert.equal(env.SALON_SESSION_IDLE_MINUTES, 720);
+  assert.equal(env.ADMIN_SESSION_IDLE_MINUTES, 30);
+  assert.equal(env.SALON_SESSION_IDLE_MINUTES, 60);
   assert.equal(env.CUSTOMER_SESSION_IDLE_HOURS, 12);
   assert.equal(env.TEMPORARY_PASSWORD_TTL_HOURS, 72);
   const healthRecord = await prisma.systemHealth.create({
@@ -279,6 +328,7 @@ test("expired, revoked, idle, disabled ve süresi dolmuş geçici kimlikler redd
 });
 
 test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalışır", async (context) => {
+  await prisma.rateLimitBucket.deleteMany();
   const marker = `it-${Date.now()}-${Math.floor(Math.random() * 10_000)}`;
   const correlationId = `integration-${marker}`;
   const weddingDate = addCalendarDays(getIstanbulDate(new Date()), 30);
@@ -295,9 +345,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
         'ALTER TABLE "wedding_assignments" ENABLE TRIGGER "wedding_assignments_venue_match_trigger"'
       );
     }
-    await prisma.auditLog.deleteMany({ where: { correlationId } });
     const applications = await prisma.bookingApplication.findMany({
-      where: { primaryEmail: { contains: marker } },
+      where: { packageCodeSnapshot: { contains: marker } },
       select: { id: true }
     });
     const applicationIds = applications.map((item) => item.id);
@@ -318,6 +367,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     }
     if (venueId) await prisma.venue.deleteMany({ where: { id: venueId } });
     if (adminId) await prisma.user.deleteMany({ where: { id: adminId } });
+    await prisma.auditLog.deleteMany({ where: { correlationId } });
   });
 
   const venue = await prisma.venue.create({
@@ -363,7 +413,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     packageCode: packageRecord.code,
     serviceCodes: [],
     paymentMethod: "CASH" as const,
-    note: "",
+    note: `PII notu ${marker}`,
     privacyConsent: true,
     marketingConsent: false
   };
@@ -382,6 +432,60 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
   assert.equal(duplicateApplication.id, firstApplication.id);
   assert.equal(firstApplication.totalPriceCents, 1_800_000);
+  assert.equal(env.PII_ENCRYPTION_MODE, "encrypted");
+  const storedApplication = await prisma.bookingApplication.findUniqueOrThrow({
+    where: { id: firstApplication.id }
+  });
+  assert.equal(storedApplication.brideFirstName, null);
+  assert.equal(storedApplication.bridePhone, null);
+  assert.equal(storedApplication.primaryEmail, null);
+  assert.equal(storedApplication.note, null);
+  assert.ok(
+    storedApplication.piiCiphertext &&
+      storedApplication.piiIv &&
+      storedApplication.piiAuthTag &&
+      storedApplication.piiKeyId
+  );
+  const [rawApplication] = await prisma.$queryRaw<Array<{ serialized: string }>>`
+    SELECT to_jsonb(application_row)::text AS "serialized"
+    FROM "booking_applications" application_row
+    WHERE "id" = ${firstApplication.id}
+  `;
+  assert.ok(rawApplication);
+  assertSerializedRowOmitsPlaintext(rawApplication.serialized, [
+    applicationInput.brideFirstName,
+    applicationInput.brideLastName,
+    "+905551234567",
+    applicationInput.groomFirstName,
+    applicationInput.groomLastName,
+    "+905559876543",
+    applicationInput.primaryEmail,
+    applicationInput.note
+  ]);
+  const exactEmailApplication = await prisma.bookingApplication.findFirst({
+    where: {
+      deletedAt: null,
+      primaryEmailBlindIndex: piiCryptography.blindIndex(
+        "BookingApplication.primaryEmail",
+        `  ${applicationInput.primaryEmail.toUpperCase()} `,
+        "email"
+      )
+    },
+    select: { id: true }
+  });
+  assert.equal(exactEmailApplication?.id, firstApplication.id);
+  const exactBridePhoneApplication = await prisma.bookingApplication.findFirst({
+    where: {
+      deletedAt: null,
+      bridePhoneBlindIndex: piiCryptography.blindIndex(
+        "BookingApplication.bridePhone",
+        "+90 (555) 123 45 67",
+        "phone"
+      )
+    },
+    select: { id: true }
+  });
+  assert.equal(exactBridePhoneApplication?.id, firstApplication.id);
   await assert.rejects(
     prisma.bookingApplication.update({
       where: { id: firstApplication.id },
@@ -600,6 +704,10 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     correlationId
   );
   assert.notEqual(firstApproval.username, secondApproval.username);
+  assert.match(firstApproval.username, /^m-[a-f0-9]{32}$/);
+  assert.match(secondApproval.username, /^m-[a-f0-9]{32}$/);
+  assert.equal(firstApproval.username.toLocaleLowerCase("tr-TR").includes("yilmaz"), false);
+  assert.equal(firstApproval.username.toLocaleLowerCase("tr-TR").includes("demir"), false);
 
   const wedding = await prisma.wedding.findUniqueOrThrow({
     where: { id: firstApproval.weddingId },
@@ -607,29 +715,75 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
   assert.ok(wedding.delivery);
   assert.equal(wedding.messageTasks.length, 2);
-  const activationTask = wedding.messageTasks.find((task) => task.kind === "ACCOUNT_ACTIVATION");
-  assert.ok(
-    activationTask?.secretCiphertext && activationTask.secretIv && activationTask.secretAuthTag
-  );
-  const temporaryPassword = decryptValue(
-    {
-      ciphertext: activationTask.secretCiphertext,
-      iv: activationTask.secretIv,
-      authTag: activationTask.secretAuthTag
+  assert.equal(wedding.brideFirstName, null);
+  assert.equal(wedding.primaryEmail, null);
+  const decryptedWeddingPii = decryptWeddingPii(wedding.id, wedding);
+  assert.equal(decryptedWeddingPii.brideFirstName, applicationInput.brideFirstName);
+  assert.equal(decryptedWeddingPii.primaryEmail, applicationInput.primaryEmail);
+  const [rawWedding] = await prisma.$queryRaw<Array<{ serialized: string }>>`
+    SELECT to_jsonb(wedding_row)::text AS "serialized"
+    FROM "weddings" wedding_row
+    WHERE "id" = ${wedding.id}
+  `;
+  assert.ok(rawWedding);
+  assertSerializedRowOmitsPlaintext(rawWedding.serialized, [
+    applicationInput.brideFirstName,
+    applicationInput.brideLastName,
+    "+905551234567",
+    applicationInput.groomFirstName,
+    applicationInput.groomLastName,
+    "+905559876543",
+    applicationInput.primaryEmail,
+    applicationInput.note
+  ]);
+  const exactWedding = await prisma.wedding.findFirst({
+    where: {
+      deletedAt: null,
+      primaryEmailBlindIndex: piiCryptography.blindIndex(
+        "Wedding.primaryEmail",
+        applicationInput.primaryEmail,
+        "email"
+      )
     },
-    messageSecretEncryptionAad(wedding.id, activationTask.kind)
+    select: { id: true }
+  });
+  assert.equal(exactWedding?.id, wedding.id);
+  const activationTask = wedding.messageTasks.find((task) => task.kind === "ACCOUNT_ACTIVATION");
+  assert.ok(activationTask);
+  assert.equal(activationTask.secretCiphertext, null);
+  assert.equal(activationTask.secretIv, null);
+  assert.equal(activationTask.secretAuthTag, null);
+  assert.equal(activationTask.recipientPhone, null);
+  assert.equal(
+    decryptMessageTaskPii(activationTask.id, activationTask).recipientPhone,
+    "+905551234567"
   );
-  assert.equal(await verifyPassword(wedding.customerUser.passwordHash, temporaryPassword), true);
-  assert.notEqual(temporaryPassword, weddingDate.replaceAll("-", ""));
+  const rawMessageTasks = await prisma.$queryRaw<Array<{ serialized: string }>>`
+    SELECT to_jsonb(message_row)::text AS "serialized"
+    FROM "message_tasks" message_row
+    WHERE "weddingId" = ${wedding.id}
+  `;
+  assert.equal(rawMessageTasks.length, 2);
+  rawMessageTasks.forEach((row) =>
+    assertSerializedRowOmitsPlaintext(row.serialized, ["+905551234567"])
+  );
+  const exactMessageTask = await prisma.messageTask.findFirst({
+    where: {
+      weddingId: wedding.id,
+      recipientPhoneBlindIndex: piiCryptography.blindIndex(
+        "MessageTask.recipientPhone",
+        "+90 (555) 123 45 67",
+        "phone"
+      )
+    },
+    select: { id: true }
+  });
+  assert.ok(exactMessageTask);
   assert.equal(activationTask.encryptionVersion, 2);
   assert.equal(wedding.delivery?.encryptionVersion, 2);
-  assert.ok(wedding.customerUser.temporaryPasswordExpiresAt);
+  assert.equal(wedding.customerUser.temporaryPasswordExpiresAt, null);
+  assert.equal(wedding.customerUser.mustChangePassword, true);
   assert.ok(wedding.customerUser.activeAt);
-  assert.equal(
-    wedding.customerUser.temporaryPasswordExpiresAt.valueOf() -
-      wedding.customerUser.activeAt.valueOf(),
-    env.TEMPORARY_PASSWORD_TTL_HOURS * 60 * 60 * 1000
-  );
   assert.equal(wedding.endsAt.toISOString(), `${weddingDate}T23:00:00.000Z`);
   assert.equal(
     wedding.delivery?.dueDate.toISOString().slice(0, 10),
@@ -683,7 +837,14 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     restoredPaymentFlow.body.data.referenceCode,
     publicRouteApplication.body.data.referenceCode
   );
+  assert.equal(restoredPaymentFlow.body.data.brideFirstName, "Route");
+  assert.equal(restoredPaymentFlow.body.data.brideLastName, applicationInput.brideLastName);
+  assert.equal(restoredPaymentFlow.body.data.bridePhone, "+905551234567");
+  assert.equal(restoredPaymentFlow.body.data.groomFirstName, "Public");
+  assert.equal(restoredPaymentFlow.body.data.groomPhone, "+905559876543");
   assert.equal(restoredPaymentFlow.body.data.primaryEmail, `route-${marker}@example.com`);
+  assert.equal(restoredPaymentFlow.body.data.note, applicationInput.note);
+  assertNoPiiPersistenceMetadata(restoredPaymentFlow.body.data);
 
   const updatedPaymentFlow = await request(app)
     .patch(`/api/v1/booking-applications/${publicRouteApplicationId}/payment-flow`)
@@ -704,6 +865,24 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   );
   assert.equal(updatedPaymentFlow.body.data.paymentFlowExpiresAt, originalPaymentFlowExpiry);
   assert.equal(updatedPaymentFlow.body.data.paymentMethod, "DEPOSIT");
+  assert.equal(updatedPaymentFlow.body.data.note, "Ödeme akışı güncellendi");
+  assertNoPiiPersistenceMetadata(updatedPaymentFlow.body.data);
+  const storedUpdatedPaymentFlow = await prisma.bookingApplication.findUniqueOrThrow({
+    where: { id: publicRouteApplicationId }
+  });
+  assert.equal(storedUpdatedPaymentFlow.note, null);
+  const [rawUpdatedPaymentFlow] = await prisma.$queryRaw<Array<{ serialized: string }>>`
+    SELECT to_jsonb(application_row)::text AS "serialized"
+    FROM "booking_applications" application_row
+    WHERE "id" = ${publicRouteApplicationId}
+  `;
+  assert.ok(rawUpdatedPaymentFlow);
+  assertSerializedRowOmitsPlaintext(rawUpdatedPaymentFlow.serialized, [
+    "Route",
+    "Public",
+    `route-${marker}@example.com`,
+    "Ödeme akışı güncellendi"
+  ]);
 
   await assert.rejects(
     approveBookingApplication(publicRouteApplicationId, admin.id, correlationId),
@@ -746,6 +925,24 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     admin.id,
     correlationId
   );
+  const rejectedStoredApplication = await prisma.bookingApplication.findUniqueOrThrow({
+    where: { id: rejectedFlowApplication.id }
+  });
+  assert.equal(rejectedStoredApplication.rejectionReason, null);
+  assert.equal(
+    decryptBookingApplicationPii(rejectedStoredApplication.id, rejectedStoredApplication)
+      .rejectionReason,
+    "Ödeme doğrulanamadı"
+  );
+  const rejectionAudit = await prisma.auditLog.findFirstOrThrow({
+    where: {
+      action: "booking.rejected",
+      targetId: rejectedFlowApplication.id,
+      correlationId
+    },
+    orderBy: { createdAt: "desc" }
+  });
+  assert.equal(JSON.stringify(rejectionAudit.metadata).includes("Ödeme doğrulanamadı"), false);
   const rejectedPaymentFlowRead = await request(app)
     .get(`/api/v1/booking-applications/${rejectedFlowApplication.id}/payment-flow`)
     .set("Payment-Flow-Key", rejectedFlowKey);
@@ -782,6 +979,24 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     where: { id: expiringApplication.id },
     data: { paymentFlowExpiresAt: new Date(Date.now() - 1_000) }
   });
+  const invalidKeyUpdate = await request(app)
+    .patch(`/api/v1/booking-applications/${publicRouteApplicationId}/payment-flow`)
+    .set("Payment-Flow-Key", `${marker}-invalid-update-key-1234567890`)
+    .send(applicationInput);
+  assert.equal(invalidKeyUpdate.status, 404);
+  assert.equal(
+    await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }),
+    1
+  );
+  const invalidKeyHandoff = await request(app)
+    .post(`/api/v1/booking-applications/${publicRouteApplicationId}/whatsapp-handoff`)
+    .set("Payment-Flow-Key", `${marker}-invalid-handoff-key-1234567890`)
+    .send({});
+  assert.equal(invalidKeyHandoff.status, 404);
+  assert.equal(
+    await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }),
+    1
+  );
   const invalidKeyRead = await request(app)
     .get(`/api/v1/booking-applications/${publicRouteApplicationId}/payment-flow`)
     .set("Payment-Flow-Key", `${marker}-invalid-sweep-key-1234567890`);
@@ -810,11 +1025,18 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     ),
     false
   );
+  const expiredApplicationAudits = await prisma.auditLog.findMany({
+    where: { targetType: "BookingApplication", targetId: expiringApplication.id },
+    select: { action: true, metadata: true },
+    orderBy: { createdAt: "asc" }
+  });
+  assert.deepEqual(
+    expiredApplicationAudits.map((entry) => entry.action),
+    ["booking.created", "booking.payment_flow_expired"]
+  );
   assert.equal(
-    await prisma.auditLog.count({
-      where: { targetType: "BookingApplication", targetId: expiringApplication.id }
-    }),
-    0
+    JSON.stringify(expiredApplicationAudits).includes(`expiring-${marker}@example.com`),
+    false
   );
 
   const customVenueName = `Anonim Salon ${marker}`;
@@ -870,11 +1092,15 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     0
   );
   assert.equal(await prisma.venue.count({ where: { id: updatedCustomVenue.id } }), 0);
-  assert.equal(
-    await prisma.auditLog.count({
-      where: { targetType: "BookingApplication", targetId: customVenueApplication.id }
-    }),
-    0
+  assert.deepEqual(
+    (
+      await prisma.auditLog.findMany({
+        where: { targetType: "BookingApplication", targetId: customVenueApplication.id },
+        select: { action: true },
+        orderBy: { createdAt: "asc" }
+      })
+    ).map((entry) => entry.action),
+    ["booking.created", "booking.payment_flow_updated", "booking.payment_flow_expired"]
   );
 
   const overflowVenue = await prisma.venue.create({
@@ -924,7 +1150,33 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     }))
   });
 
-  assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 101);
+  assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 100);
+  assert.equal(
+    await prisma.bookingApplication.count({ where: { id: { in: overflowApplicationIds } } }),
+    1
+  );
+  assert.equal(await prisma.venue.count({ where: { id: overflowVenue.id } }), 1);
+  assert.equal(
+    await prisma.auditLog.count({
+      where: {
+        targetType: "BookingApplication",
+        targetId: { in: overflowApplicationIds },
+        action: "booking.created"
+      }
+    }),
+    101
+  );
+  assert.equal(
+    await prisma.auditLog.count({
+      where: {
+        targetType: "BookingApplication",
+        targetId: { in: overflowApplicationIds },
+        action: "booking.payment_flow_expired"
+      }
+    }),
+    100
+  );
+  assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 1);
   assert.equal(
     await prisma.bookingApplication.count({ where: { id: { in: overflowApplicationIds } } }),
     0
@@ -932,8 +1184,79 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(await prisma.venue.count({ where: { id: overflowVenue.id } }), 0);
   assert.equal(
     await prisma.auditLog.count({
-      where: { targetType: "BookingApplication", targetId: { in: overflowApplicationIds } }
+      where: {
+        targetType: "BookingApplication",
+        targetId: { in: overflowApplicationIds },
+        action: "booking.payment_flow_expired"
+      }
     }),
+    101
+  );
+
+  const advisoryLockApplicationId = randomUUID();
+  await prisma.bookingApplication.create({
+    data: {
+      id: advisoryLockApplicationId,
+      referenceCode: `LOCK-${marker}`,
+      source: "PUBLIC_FORM",
+      status: "ONAY_BEKLIYOR",
+      brideFirstName: "Advisory",
+      brideLastName: "Lock",
+      bridePhone: "05550000003",
+      groomFirstName: "Bounded",
+      groomLastName: "Sweep",
+      groomPhone: "05550000004",
+      primaryContact: "GELIN",
+      primaryEmail: `advisory-lock-${marker}@example.com`,
+      weddingStartsAt: new Date(Date.now() + 200 * 86_400_000),
+      weddingEndsAt: new Date(Date.now() + 200 * 86_400_000 + 7_200_000),
+      venueId: venue.id,
+      packageId: packageRecord.id,
+      packageCodeSnapshot: packageRecord.code,
+      packageNameSnapshot: packageRecord.name,
+      packagePriceCents: packageRecord.priceCents,
+      totalPriceCents: packageRecord.priceCents,
+      paymentMethod: "CASH",
+      payableNowCents: packageRecord.priceCents,
+      paymentFlowTokenHash: hashToken(`${marker}-advisory-lock-flow-key`),
+      paymentFlowExpiresAt: new Date(Date.now() - 1_000),
+      privacyConsentAt: new Date()
+    }
+  });
+  let notifyLockAcquired: (() => void) | undefined;
+  let releaseAdvisoryLock: (() => void) | undefined;
+  const advisoryLockAcquired = new Promise<void>((resolve) => {
+    notifyLockAcquired = resolve;
+  });
+  const advisoryLockRelease = new Promise<void>((resolve) => {
+    releaseAdvisoryLock = resolve;
+  });
+  const heldAdvisoryLock = prisma.$transaction(
+    async (transaction) => {
+      await transaction.$queryRaw`
+        SELECT pg_advisory_xact_lock(
+          ${PAYMENT_FLOW_SWEEP_ADVISORY_LOCK_KEY}::bigint
+        )::text AS "lock"
+      `;
+      notifyLockAcquired?.();
+      await advisoryLockRelease;
+    },
+    { timeout: 10_000 }
+  );
+  await advisoryLockAcquired;
+  try {
+    assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 0);
+    assert.equal(
+      await prisma.bookingApplication.count({ where: { id: advisoryLockApplicationId } }),
+      1
+    );
+  } finally {
+    releaseAdvisoryLock?.();
+    await heldAdvisoryLock;
+  }
+  assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 1);
+  assert.equal(
+    await prisma.bookingApplication.count({ where: { id: advisoryLockApplicationId } }),
     0
   );
 
@@ -996,14 +1319,18 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     where: { id: handedOffExpiringApplication.id }
   });
   assert.equal(expiredHandedOffApplication, null);
-  assert.equal(
-    await prisma.auditLog.count({
-      where: {
-        targetId: handedOffExpiringApplication.id,
-        targetType: "BookingApplication"
-      }
-    }),
-    0
+  assert.deepEqual(
+    (
+      await prisma.auditLog.findMany({
+        where: {
+          targetId: handedOffExpiringApplication.id,
+          targetType: "BookingApplication"
+        },
+        select: { action: true },
+        orderBy: { createdAt: "asc" }
+      })
+    ).map((entry) => entry.action),
+    ["booking.created", "booking.whatsapp_handoff_started", "booking.payment_flow_expired"]
   );
 
   const approvalExpiryRaceDate = addCalendarDays(weddingDate, 7);
@@ -1074,16 +1401,38 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     where: { id: wedding.customerUserId },
     data: { activeAt: new Date(Date.now() - 60_000) }
   });
+  const activationSetupToken = createOpaqueToken();
+  await prisma.passwordSetupToken.create({
+    data: {
+      tokenHash: hashToken(activationSetupToken),
+      userId: wedding.customerUserId,
+      purpose: "ACCOUNT_ACTIVATION",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      createdById: admin.id
+    }
+  });
+  const initialCustomerPassword = "ilk-kurulum-icin-kalici-guvenli-parola";
+  const passwordSetup = await request(app)
+    .post("/api/v1/auth/password/setup")
+    .set("X-Correlation-ID", correlationId)
+    .send({ token: activationSetupToken, newPassword: initialCustomerPassword });
+  assert.equal(passwordSetup.status, 200);
+  assert.equal(passwordSetup.body.data.username, wedding.customerUser.username);
+  const replayedPasswordSetup = await request(app)
+    .post("/api/v1/auth/password/setup")
+    .send({ token: activationSetupToken, newPassword: "yeniden-kullanilamayacak-guvenli-parola" });
+  assert.equal(replayedPasswordSetup.status, 410);
+
   const login = await request(app)
     .post("/api/v1/auth/login")
     .set("X-Correlation-ID", correlationId)
     .send({
       username: wedding.customerUser.username,
-      password: temporaryPassword,
+      password: initialCustomerPassword,
       remember: true
     });
   assert.equal(login.status, 200);
-  assert.equal(login.body.data.mustChangePassword, true);
+  assert.equal(login.body.data.mustChangePassword, false);
   const loginCookies = login.headers["set-cookie"] as unknown as string[];
   const loginSessionCookie = loginCookies.find((cookie) =>
     cookie.startsWith(`${env.SESSION_COOKIE_NAME}=`)
@@ -1107,7 +1456,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const forcedPasswordChange = await request(app)
     .get("/api/v1/customer/dashboard")
     .set("Cookie", customerCookie);
-  assert.equal(forcedPasswordChange.status, 428);
+  assert.equal(forcedPasswordChange.status, 200);
 
   const passwordHashBeforeCsrfFailure = (
     await prisma.user.findUniqueOrThrow({ where: { id: wedding.customerUserId } })
@@ -1116,7 +1465,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .post("/api/v1/auth/password/change")
     .set("Cookie", `${customerCookie}; ${customerCsrfCookie}`)
     .send({
-      currentPassword: temporaryPassword,
+      currentPassword: initialCustomerPassword,
       newPassword: "csrf-olmadan-kullanilamayacak-kalici-parola"
     });
   assert.equal(csrfRejectedPasswordChange.status, 403);
@@ -1131,7 +1480,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", `${customerCookie}; ${customerCsrfCookie}`)
     .set("X-CSRF-Token", customerCsrfToken)
     .send({
-      currentPassword: temporaryPassword,
+      currentPassword: initialCustomerPassword,
       newPassword: "yalnizca-entegrasyonda-kullanilan-kalici-parola"
     });
   assert.equal(passwordChange.status, 200);
@@ -1172,6 +1521,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", customerCookie);
   assert.equal(ownDashboard.status, 200);
   assert.equal(ownDashboard.body.data.couple.bride, "Ayşe Yılmaz");
+  assertNoPiiPersistenceMetadata(ownDashboard.body.data);
 
   const adminToken = `${marker}-admin-session-token`;
   const adminCsrfToken = `${marker}-admin-csrf`;
@@ -1246,12 +1596,14 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(applicationLookup.body.data[0].id, firstApplication.id);
   assert.equal("idempotencyKey" in applicationLookup.body.data[0], false);
   assert.equal("idempotencyFingerprint" in applicationLookup.body.data[0], false);
+  assertNoPiiPersistenceMetadata(applicationLookup.body.data);
   const applicationDetail = await request(app)
     .get(`/api/v1/admin/booking-applications/${firstApplication.id}`)
     .set("Cookie", adminCookie);
   assert.equal(applicationDetail.status, 200);
   assert.equal("idempotencyKey" in applicationDetail.body.data, false);
   assert.equal("idempotencyFingerprint" in applicationDetail.body.data, false);
+  assertNoPiiPersistenceMetadata(applicationDetail.body.data);
 
   const conflictingRestore = await request(app)
     .post(`/api/v1/admin/booking-applications/${archivedApplication.id}/restore`)
@@ -1271,10 +1623,13 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(successfulRestore.status, 200);
   assert.equal(successfulRestore.body.data.deletedAt, null);
 
-  const secondWeddingBeforeCredentialRotation = await prisma.wedding.findUniqueOrThrow({
+  const secondWeddingBeforeCredentialRotationRow = await prisma.wedding.findUniqueOrThrow({
     where: { id: secondApproval.weddingId },
     include: { customerUser: true }
   });
+  const secondWeddingBeforeCredentialRotation = weddingWithDecryptedPii(
+    secondWeddingBeforeCredentialRotationRow
+  );
   const secondPasswordReset = await request(app)
     .post(
       `/api/v1/admin/customers/${secondWeddingBeforeCredentialRotation.customerUserId}/reset-password`
@@ -1353,11 +1708,9 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     }
   });
   assert.equal(renewedSecondActivation.status, "PENDING");
-  assert.ok(
-    renewedSecondActivation.secretCiphertext &&
-      renewedSecondActivation.secretIv &&
-      renewedSecondActivation.secretAuthTag
-  );
+  assert.equal(renewedSecondActivation.secretCiphertext, null);
+  assert.equal(renewedSecondActivation.secretIv, null);
+  assert.equal(renewedSecondActivation.secretAuthTag, null);
 
   const createdStaff = await request(app)
     .post("/api/v1/admin/staff")
@@ -1530,7 +1883,14 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const applicationAfterOperationsUpdate = await prisma.bookingApplication.findUniqueOrThrow({
     where: { id: wedding.applicationId }
   });
-  assert.equal(applicationAfterOperationsUpdate.note, "Salon sorumlusu operasyon notu");
+  assert.equal(applicationAfterOperationsUpdate.note, null);
+  assert.equal(
+    decryptWeddingPii(
+      wedding.id,
+      await prisma.wedding.findUniqueOrThrow({ where: { id: wedding.id } })
+    ).note,
+    "Salon sorumlusu operasyon notu"
+  );
   const operationsStaff = await request(app)
     .get("/api/v1/operations/staff")
     .set("Cookie", managerCookie);
@@ -1626,6 +1986,17 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     JSON.stringify(weddingDetail.body.data.messageTasks).includes("secretCiphertext"),
     false
   );
+  assertNoPiiPersistenceMetadata(weddingDetail.body.data);
+  const messageTaskList = await request(app)
+    .get("/api/v1/admin/message-tasks")
+    .set("Cookie", adminCookie);
+  assert.equal(messageTaskList.status, 200);
+  const listedActivationTask = messageTaskList.body.data.find(
+    (task: { id: string }) => task.id === activationTask.id
+  );
+  assert.ok(listedActivationTask);
+  assert.equal(listedActivationTask.recipientPhone, "+905551234567");
+  assertNoPiiPersistenceMetadata(messageTaskList.body.data);
 
   const archivedStaff = await request(app)
     .patch(`/api/v1/admin/staff/${createdStaff.body.data.id}`)
@@ -1819,6 +2190,10 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const customerPasswordHashBeforeWeddingUpdate = (
     await prisma.user.findUniqueOrThrow({ where: { id: wedding.customerUserId } })
   ).passwordHash;
+  const currentWeddingPiiForAdmin = decryptWeddingPii(
+    wedding.id,
+    await prisma.wedding.findUniqueOrThrow({ where: { id: wedding.id } })
+  );
   const updatedWeddingDate = addCalendarDays(weddingDate, 1);
   const adminScheduleConflict = await request(app)
     .patch(`/api/v1/admin/weddings/${wedding.id}`)
@@ -1826,14 +2201,14 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", adminAuthCookie)
     .set("X-CSRF-Token", adminCsrfToken)
     .send({
-      brideFirstName: wedding.brideFirstName,
-      brideLastName: wedding.brideLastName,
-      bridePhone: wedding.bridePhone,
-      groomFirstName: wedding.groomFirstName,
-      groomLastName: wedding.groomLastName,
-      groomPhone: wedding.groomPhone,
+      brideFirstName: currentWeddingPiiForAdmin.brideFirstName,
+      brideLastName: currentWeddingPiiForAdmin.brideLastName,
+      bridePhone: currentWeddingPiiForAdmin.bridePhone,
+      groomFirstName: currentWeddingPiiForAdmin.groomFirstName,
+      groomLastName: currentWeddingPiiForAdmin.groomLastName,
+      groomPhone: currentWeddingPiiForAdmin.groomPhone,
       primaryContact: wedding.primaryContact,
-      primaryEmail: wedding.primaryEmail,
+      primaryEmail: currentWeddingPiiForAdmin.primaryEmail,
       weddingDate,
       startTime: "20:00",
       endTime: "02:00",
@@ -1843,7 +2218,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       serviceCodes: (wedding.packageSummary as { services: Array<{ code: string }> }).services.map(
         (service) => service.code
       ),
-      note: wedding.note ?? ""
+      note: currentWeddingPiiForAdmin.note ?? ""
     });
   assert.equal(adminScheduleConflict.status, 409);
   assert.equal(adminScheduleConflict.body.errors.code, "VENUE_SCHEDULE_CONFLICT");
@@ -1854,14 +2229,14 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", adminAuthCookie)
     .set("X-CSRF-Token", adminCsrfToken)
     .send({
-      brideFirstName: wedding.brideFirstName,
-      brideLastName: wedding.brideLastName,
-      bridePhone: wedding.bridePhone,
-      groomFirstName: wedding.groomFirstName,
-      groomLastName: wedding.groomLastName,
-      groomPhone: wedding.groomPhone,
+      brideFirstName: currentWeddingPiiForAdmin.brideFirstName,
+      brideLastName: currentWeddingPiiForAdmin.brideLastName,
+      bridePhone: currentWeddingPiiForAdmin.bridePhone,
+      groomFirstName: currentWeddingPiiForAdmin.groomFirstName,
+      groomLastName: currentWeddingPiiForAdmin.groomLastName,
+      groomPhone: currentWeddingPiiForAdmin.groomPhone,
       primaryContact: wedding.primaryContact,
-      primaryEmail: wedding.primaryEmail,
+      primaryEmail: currentWeddingPiiForAdmin.primaryEmail,
       weddingDate: updatedWeddingDate,
       startTime: "20:00",
       endTime: "02:00",
@@ -1871,7 +2246,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       serviceCodes: (wedding.packageSummary as { services: Array<{ code: string }> }).services.map(
         (service) => service.code
       ),
-      note: wedding.note ?? ""
+      note: currentWeddingPiiForAdmin.note ?? ""
     });
   assert.equal(adminVenueAssignmentMismatch.status, 409);
   assert.equal(adminVenueAssignmentMismatch.body.errors.code, "VENUE_ASSIGNMENT_MISMATCH");
@@ -1882,14 +2257,14 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", adminAuthCookie)
     .set("X-CSRF-Token", adminCsrfToken)
     .send({
-      brideFirstName: wedding.brideFirstName,
-      brideLastName: wedding.brideLastName,
-      bridePhone: wedding.bridePhone,
-      groomFirstName: wedding.groomFirstName,
-      groomLastName: wedding.groomLastName,
+      brideFirstName: currentWeddingPiiForAdmin.brideFirstName,
+      brideLastName: currentWeddingPiiForAdmin.brideLastName,
+      bridePhone: currentWeddingPiiForAdmin.bridePhone,
+      groomFirstName: currentWeddingPiiForAdmin.groomFirstName,
+      groomLastName: currentWeddingPiiForAdmin.groomLastName,
       groomPhone: "05550001122",
       primaryContact: "DAMAT",
-      primaryEmail: wedding.primaryEmail,
+      primaryEmail: currentWeddingPiiForAdmin.primaryEmail,
       weddingDate: updatedWeddingDate,
       startTime: "20:00",
       endTime: "02:00",
@@ -1899,15 +2274,22 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       serviceCodes: (wedding.packageSummary as { services: Array<{ code: string }> }).services.map(
         (service) => service.code
       ),
-      note: wedding.note ?? ""
+      note: currentWeddingPiiForAdmin.note ?? ""
     });
   assert.equal(weddingUpdate.status, 200);
   assert.equal(weddingUpdate.body.data.credentialsRegenerated, false);
   assert.equal(weddingUpdate.body.data.username, wedding.customerUser.username);
+  assert.equal(weddingUpdate.body.data.groomPhone, "+905550001122");
+  assertNoPiiPersistenceMetadata(weddingUpdate.body.data);
   const applicationAfterAdminUpdate = await prisma.bookingApplication.findUniqueOrThrow({
     where: { id: wedding.applicationId }
   });
-  assert.equal(applicationAfterAdminUpdate.groomPhone, "+905550001122");
+  assert.equal(applicationAfterAdminUpdate.groomPhone, null);
+  assert.equal(
+    decryptBookingApplicationPii(applicationAfterAdminUpdate.id, applicationAfterAdminUpdate)
+      .groomPhone,
+    "+905550001122"
+  );
   assert.equal(
     applicationAfterAdminUpdate.weddingStartsAt.toISOString(),
     weddingUpdate.body.data.startsAt
@@ -1929,7 +2311,44 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       weddingId_kind: { weddingId: wedding.id, kind: "PREPARATION_UPDATE" }
     }
   });
-  assert.equal(preparationAfterWeddingUpdate.recipientPhone, "+905550001122");
+  assert.equal(preparationAfterWeddingUpdate.recipientPhone, null);
+  assert.equal(
+    decryptMessageTaskPii(preparationAfterWeddingUpdate.id, preparationAfterWeddingUpdate)
+      .recipientPhone,
+    "+905550001122"
+  );
+  assert.equal(
+    (
+      await prisma.bookingApplication.findFirst({
+        where: {
+          id: wedding.applicationId,
+          groomPhoneBlindIndex: piiCryptography.blindIndex(
+            "BookingApplication.groomPhone",
+            "0 (555) 000 11 22",
+            "phone"
+          )
+        },
+        select: { id: true }
+      })
+    )?.id,
+    wedding.applicationId
+  );
+  assert.equal(
+    (
+      await prisma.messageTask.findFirst({
+        where: {
+          id: preparationAfterWeddingUpdate.id,
+          recipientPhoneBlindIndex: piiCryptography.blindIndex(
+            "MessageTask.recipientPhone",
+            "0 (555) 000 11 22",
+            "phone"
+          )
+        },
+        select: { id: true }
+      })
+    )?.id,
+    preparationAfterWeddingUpdate.id
+  );
   assert.equal(
     preparationAfterWeddingUpdate.dueAt.toISOString(),
     `${addCalendarDays(updatedWeddingDate, 2)}T07:00:00.000Z`
@@ -1994,6 +2413,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", adminCookie);
   assert.equal(safeAdminWeddings.status, 200);
   assert.equal(JSON.stringify(safeAdminWeddings.body).includes("driveUrlCiphertext"), false);
+  assertNoPiiPersistenceMetadata(safeAdminWeddings.body.data);
 
   await assert.rejects(
     prisma.delivery.update({
@@ -2069,49 +2489,60 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     false
   );
   const resetTaskId = passwordReset.body.data.taskId as string;
+  const firstResetToken = String(passwordReset.body.data.message).match(
+    /#setup=([A-Za-z0-9_-]{43})/
+  )?.[1];
+  assert.ok(firstResetToken);
   const pendingResetTask = await prisma.messageTask.findUniqueOrThrow({
     where: { id: resetTaskId }
   });
   assert.equal(pendingResetTask.status, "PENDING");
-  assert.ok(
-    pendingResetTask.secretCiphertext && pendingResetTask.secretIv && pendingResetTask.secretAuthTag
-  );
+  assert.equal(pendingResetTask.secretCiphertext, null);
+  assert.equal(pendingResetTask.secretIv, null);
+  assert.equal(pendingResetTask.secretAuthTag, null);
   assert.equal(pendingResetTask.encryptionVersion, 2);
   await assert.rejects(
     prisma.messageTask.update({
       where: { id: resetTaskId },
-      data: { status: "SENT", sentAt: new Date(), sentById: admin.id }
+      data: { status: "SENT", sentAt: null, sentById: admin.id }
     })
   );
   const resetCustomer = await prisma.user.findUniqueOrThrow({
     where: { id: wedding.customerUserId }
   });
   assert.equal(resetCustomer.mustChangePassword, true);
-  assert.ok(resetCustomer.temporaryPasswordExpiresAt);
+  assert.equal(resetCustomer.temporaryPasswordExpiresAt, null);
 
   const renderedReset = await request(app)
-    .get(`/api/v1/admin/message-tasks/${resetTaskId}/render`)
+    .post(`/api/v1/admin/message-tasks/${resetTaskId}/render`)
     .set("X-Correlation-ID", correlationId)
-    .set("Cookie", adminCookie);
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
   assert.equal(renderedReset.status, 200);
   assert.equal(renderedReset.headers["cache-control"], "no-store");
-  assert.equal(renderedReset.body.data.message.includes("Geçici parolanız"), true);
+  assert.equal(renderedReset.body.data.message.includes("Tek kullanımlık parola"), true);
+  const latestResetToken = String(renderedReset.body.data.message).match(
+    /#setup=([A-Za-z0-9_-]{43})/
+  )?.[1];
+  assert.ok(latestResetToken);
+  assert.notEqual(latestResetToken, firstResetToken);
   assert.equal(new URL(renderedReset.body.data.whatsappUrl).search, "");
   assert.equal(
     renderedReset.body.data.whatsappUrl.includes(renderedReset.body.data.message),
     false
   );
-  const secretViewedAudit = await prisma.auditLog.findFirst({
+  const setupLinkAudit = await prisma.auditLog.findFirst({
     where: {
       actorUserId: admin.id,
-      action: "message.secret_viewed",
+      action: "message.password_setup_link_issued",
       targetType: "MessageTask",
       targetId: resetTaskId,
       correlationId
     }
   });
-  assert.ok(secretViewedAudit);
-  assert.deepEqual(secretViewedAudit.metadata, {
+  assert.ok(setupLinkAudit);
+  assert.deepEqual(setupLinkAudit.metadata, {
     weddingId: wedding.id,
     kind: "PASSWORD_RESET"
   });
@@ -2137,17 +2568,36 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({ expectedUpdatedAt });
   assert.equal(replayedMarkSent.status, 409);
 
+  const revokedResetSetup = await request(app)
+    .post("/api/v1/auth/password/setup")
+    .send({ token: firstResetToken, newPassword: "eski-link-kullanilamayacak-guvenli-parola" });
+  assert.equal(revokedResetSetup.status, 410);
+  const resetPassword = "reset-sonrasi-yeni-kalici-guvenli-parola";
+  const resetSetup = await request(app)
+    .post("/api/v1/auth/password/setup")
+    .send({ token: latestResetToken, newPassword: resetPassword });
+  assert.equal(resetSetup.status, 200);
+  const replayedResetSetup = await request(app)
+    .post("/api/v1/auth/password/setup")
+    .send({ token: latestResetToken, newPassword: "ikinci-kez-kullanilamayacak-guvenli-parola" });
+  assert.equal(replayedResetSetup.status, 410);
+  assert.equal(
+    await verifyPassword(
+      (await prisma.user.findUniqueOrThrow({ where: { id: wedding.customerUserId } })).passwordHash,
+      resetPassword
+    ),
+    true
+  );
+
   const auditLogs = await prisma.auditLog.findMany({ where: { correlationId } });
   const serializedLogs = JSON.stringify(auditLogs);
   assert.equal(serializedLogs.includes(driveUrl), false);
-  assert.equal(serializedLogs.includes(temporaryPassword), false);
+  assert.equal(serializedLogs.includes(activationSetupToken), false);
+  assert.equal(serializedLogs.includes(latestResetToken), false);
   assert.equal(serializedLogs.includes(firstApproval.username), false);
   assert.equal(serializedLogs.includes(applicationInput.bridePhone), false);
   assert.equal(serializedLogs.includes(applicationInput.primaryEmail), false);
-  assert.equal(
-    wedding.messageTasks.some((task) => task.secretCiphertext === temporaryPassword),
-    false
-  );
+  assert.equal(wedding.messageTasks.some((task) => task.secretCiphertext !== null), false);
 
   const currentWeddingSchedule = await prisma.wedding.findUniqueOrThrow({
     where: { id: wedding.id },
@@ -2171,4 +2621,263 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   );
   assert.equal(outOfHorizonAvailabilityRes.status, 400);
   assert.equal(outOfHorizonAvailabilityRes.body.success, false);
+});
+
+test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı uçtan uca çalışır", async (context) => {
+  await prisma.rateLimitBucket.deleteMany();
+  const marker = `mfa-${Date.now()}-${Math.floor(Math.random() * 10_000)}`;
+  const password = "Mfa-Entegrasyon!Mor-Bulut-2026";
+  const user = await prisma.user.create({
+    data: {
+      username: marker,
+      passwordHash: await hashPassword(password),
+      role: "ADMIN",
+      status: "ACTIVE",
+      mustChangePassword: false,
+      temporaryPasswordExpiresAt: null,
+      passwordChangedAt: new Date()
+    }
+  });
+  context.after(async () => {
+    await prisma.auditLog.deleteMany({
+      where: { OR: [{ actorUserId: user.id }, { targetType: "User", targetId: user.id }] }
+    });
+    await prisma.user.deleteMany({ where: { id: user.id } });
+  });
+
+  await assert.rejects(
+    prisma.user.update({
+      where: { id: user.id },
+      data: { totpSecretCiphertext: "eksik-durum" }
+    })
+  );
+
+  const sessionToken = `${marker}-session`;
+  const csrfToken = `${marker}-csrf`;
+  await prisma.authSession.create({
+    data: {
+      tokenHash: hashToken(sessionToken),
+      csrfTokenHash: hashToken(csrfToken),
+      userId: user.id,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000)
+    }
+  });
+  const sessionCookie = `${env.SESSION_COOKIE_NAME}=${sessionToken}`;
+  const csrfCookie = `${CSRF_COOKIE_NAME}=${csrfToken}`;
+  const authCookies = `${sessionCookie}; ${csrfCookie}`;
+  const app = createApp();
+  const mfaLoginClientIp = '198.51.100.42';
+  app.set('trust proxy', 1);
+
+  const csrfRejectedEnrollment = await request(app)
+    .post("/api/v1/auth/mfa/enroll")
+    .set("Cookie", authCookies)
+    .send({ currentPassword: password });
+  assert.equal(csrfRejectedEnrollment.status, 403);
+  assert.equal(
+    (await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).totpSecretCiphertext,
+    null
+  );
+
+  const enrollment = await request(app)
+    .post("/api/v1/auth/mfa/enroll")
+    .set("Cookie", authCookies)
+    .set("X-CSRF-Token", csrfToken)
+    .send({ currentPassword: password });
+  assert.equal(enrollment.status, 200);
+  assert.equal(enrollment.headers["cache-control"], "no-store");
+  const secret = enrollment.body.data.secret as string;
+  assert.match(secret, /^[A-Z2-7]{32}$/);
+  assert.equal(new URL(enrollment.body.data.otpauthUri).searchParams.get("secret"), secret);
+  const pendingUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+  assert.notEqual(pendingUser.totpSecretCiphertext, secret);
+  assert.equal(pendingUser.totpKeyId, env.DATA_ENCRYPTION_ACTIVE_KEY_ID);
+  assert.equal(
+    decryptValue(
+      {
+        ciphertext: pendingUser.totpSecretCiphertext!,
+        iv: pendingUser.totpSecretIv!,
+        authTag: pendingUser.totpSecretAuthTag!
+      },
+      totpEncryptionAad(user.id)
+    ),
+    secret
+  );
+  assert.throws(() =>
+    decryptValue(
+      {
+        ciphertext: pendingUser.totpSecretCiphertext!,
+        iv: pendingUser.totpSecretIv!,
+        authTag: pendingUser.totpSecretAuthTag!
+      },
+      totpEncryptionAad(`${user.id}-baska`)
+    )
+  );
+
+  const confirmationStep = BigInt(
+    Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS)
+  );
+  const confirmationCode = generateTotpCode(secret, confirmationStep);
+  const confirmation = await request(app)
+    .post("/api/v1/auth/mfa/confirm")
+    .set("Cookie", authCookies)
+    .set("X-CSRF-Token", csrfToken)
+    .send({ currentPassword: password, totpCode: confirmationCode });
+  assert.equal(confirmation.status, 200);
+  assert.equal(confirmation.headers["cache-control"], "no-store");
+  const confirmedCookies = confirmation.headers["set-cookie"] as unknown as string[];
+  assert.ok(confirmedCookies.some((cookie) => cookie.startsWith(`${env.SESSION_COOKIE_NAME}=`)));
+  assert.ok(confirmedCookies.some((cookie) => cookie.startsWith(`${CSRF_COOKIE_NAME}=`)));
+
+  const enabledUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+  assert.ok(enabledUser.totpEnabledAt);
+  assert.equal(enabledUser.totpEnrollmentExpiresAt, null);
+  assert.equal(enabledUser.totpLastUsedStep, confirmationStep);
+  assert.equal(
+    (await request(app).get("/api/v1/auth/session").set("Cookie", sessionCookie)).status,
+    401
+  );
+
+  const activeSessionsBeforeMissingCode = await prisma.authSession.count({
+    where: { userId: user.id, revokedAt: null }
+  });
+  const missingCodeLogin = await request(app)
+    .post("/api/v1/auth/login")
+    .set('X-Forwarded-For', mfaLoginClientIp)
+    .send({
+      username: user.username,
+      password,
+      remember: true
+    });
+  assert.equal(missingCodeLogin.status, 401);
+  assert.equal(missingCodeLogin.body.errors.code, "MFA_REQUIRED");
+  assert.equal(missingCodeLogin.headers["set-cookie"], undefined);
+  assert.equal(
+    await prisma.authSession.count({ where: { userId: user.id, revokedAt: null } }),
+    activeSessionsBeforeMissingCode
+  );
+
+  const replayedLogin = await request(app)
+    .post("/api/v1/auth/login")
+    .set('X-Forwarded-For', mfaLoginClientIp)
+    .send({
+      username: user.username,
+      password,
+      totpCode: confirmationCode,
+      remember: true
+    });
+  assert.equal(replayedLogin.status, 401);
+  assert.equal(
+    await prisma.authSession.count({ where: { userId: user.id, revokedAt: null } }),
+    activeSessionsBeforeMissingCode
+  );
+
+  const loginStep = BigInt(Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS));
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { totpLastUsedStep: loginStep - 1n, totpKeyId: null }
+  });
+  const loginBody = {
+    username: user.username,
+    password,
+    totpCode: generateTotpCode(secret, loginStep),
+    remember: true
+  };
+  const concurrentLogins = await Promise.all([
+    request(app)
+      .post("/api/v1/auth/login")
+      .set('X-Forwarded-For', mfaLoginClientIp)
+      .send(loginBody),
+    request(app)
+      .post("/api/v1/auth/login")
+      .set('X-Forwarded-For', mfaLoginClientIp)
+      .send(loginBody)
+  ]);
+  assert.deepEqual(
+    concurrentLogins.map((response) => response.status).sort(),
+    [200, 401]
+  );
+  const successfulLogin = concurrentLogins.find((response) => response.status === 200)!;
+  assert.equal(successfulLogin.status, 200);
+  assert.equal(successfulLogin.body.data.mfaEnabled, true);
+  assert.equal(
+    (await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).totpKeyId,
+    env.DATA_ENCRYPTION_ACTIVE_KEY_ID
+  );
+  const successfulLoginCookies = successfulLogin.headers["set-cookie"] as unknown as string[];
+  const loginSessionCookie = successfulLoginCookies
+    .find((cookie) => cookie.startsWith(`${env.SESSION_COOKIE_NAME}=`))!
+    .split(";", 1)[0];
+  const loginCsrfCookie = successfulLoginCookies
+    .find((cookie) => cookie.startsWith(`${CSRF_COOKIE_NAME}=`))!
+    .split(";", 1)[0];
+  const loginCsrfToken = loginCsrfCookie.slice(`${CSRF_COOKIE_NAME}=`.length);
+  const adminSessionCookieHeader = successfulLoginCookies.find((cookie) =>
+    cookie.startsWith(`${env.SESSION_COOKIE_NAME}=`)
+  )!;
+  assert.match(adminSessionCookieHeader, /Max-Age=28800/i);
+
+  const disableStep = BigInt(Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS));
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { totpLastUsedStep: disableStep - 1n }
+  });
+  const disabled = await request(app)
+    .post("/api/v1/auth/mfa/disable")
+    .set("Cookie", `${loginSessionCookie}; ${loginCsrfCookie}`)
+    .set("X-CSRF-Token", loginCsrfToken)
+    .send({ currentPassword: password, totpCode: generateTotpCode(secret, disableStep) });
+  assert.equal(disabled.status, 200);
+  assert.ok(
+    (disabled.headers["set-cookie"] as unknown as string[]).some((cookie) =>
+      cookie.startsWith(`${env.SESSION_COOKIE_NAME}=`)
+    )
+  );
+  const disabledUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+  assert.equal(disabledUser.totpSecretCiphertext, null);
+  assert.equal(disabledUser.totpSecretIv, null);
+  assert.equal(disabledUser.totpSecretAuthTag, null);
+  assert.equal(disabledUser.totpKeyId, null);
+  assert.equal(disabledUser.totpEnabledAt, null);
+  assert.equal(disabledUser.totpLastUsedStep, null);
+  assert.equal(
+    await prisma.authSession.count({ where: { userId: user.id, revokedAt: null } }),
+    0
+  );
+
+  const auditLogs = await prisma.auditLog.findMany({
+    where: { actorUserId: user.id },
+    select: { action: true, metadata: true }
+  });
+  assert.deepEqual(
+    auditLogs.map((entry) => entry.action).sort(),
+    ["auth.login", "auth.mfa_disabled", "auth.mfa_enabled", "auth.mfa_enrollment_started"]
+  );
+  assert.equal(JSON.stringify(auditLogs).includes(secret), false);
+  assert.equal(JSON.stringify(auditLogs).includes(confirmationCode), false);
+});
+
+test("rate limit sayaçları farklı uygulama süreçleri arasında atomik paylaşılır", async () => {
+  const namespace = `integration-${randomUUID()}`;
+  const key = "203.0.113.9";
+  const firstStore = new DatabaseRateLimitStore(namespace);
+  const secondStore = new DatabaseRateLimitStore(namespace);
+  const options = { windowMs: 60_000 } as RateLimitOptions;
+  firstStore.init(options);
+  secondStore.init(options);
+
+  const first = await firstStore.increment(key);
+  const second = await secondStore.increment(key);
+  assert.equal(first.totalHits, 1);
+  assert.equal(second.totalHits, 2);
+  assert.ok(second.resetTime instanceof Date);
+
+  await firstStore.decrement(key);
+  const third = await secondStore.increment(key);
+  assert.equal(third.totalHits, 2);
+
+  await secondStore.resetKey(key);
+  const reset = await firstStore.increment(key);
+  assert.equal(reset.totalHits, 1);
+  await firstStore.resetKey(key);
 });

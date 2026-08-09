@@ -48,9 +48,19 @@ export const getSessionTouchIntervalMs = (role: UserRole): number =>
   calculateSessionTouchIntervalMs(getSessionIdleTimeoutMs(role));
 
 export const getSessionAbsoluteTtlMs = (role: UserRole, remember: boolean): number =>
-  remember
-    ? env.REMEMBER_SESSION_TTL_DAYS * 24 * 60 * 60 * 1000
-    : env.SESSION_TTL_HOURS * 60 * 60 * 1000;
+  role === 'ADMIN'
+    ? env.ADMIN_SESSION_TTL_HOURS * 60 * 60 * 1000
+    : role === 'MUSTERI' && remember
+      ? env.REMEMBER_SESSION_TTL_DAYS * 24 * 60 * 60 * 1000
+      : env.SESSION_TTL_HOURS * 60 * 60 * 1000;
+
+export const isPrivilegedRole = (role: UserRole): boolean => role !== 'MUSTERI';
+
+export const isMfaEnrollmentRequired = (
+  role: UserRole,
+  mfaEnabled: boolean,
+  environment = env.NODE_ENV,
+): boolean => environment === 'production' && isPrivilegedRole(role) && !mfaEnabled;
 
 export const isTemporaryPasswordExpired = (
   user: {
@@ -72,7 +82,26 @@ export const authenticate = asyncHandler(async (req, res, next) => {
 
   const session = await prisma.authSession.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: true },
+    select: {
+      id: true,
+      expiresAt: true,
+      lastUsedAt: true,
+      mfaVerifiedAt: true,
+      revokedAt: true,
+      user: {
+        select: {
+          id: true,
+          username: true,
+          role: true,
+          status: true,
+          activeAt: true,
+          mustChangePassword: true,
+          temporaryPasswordExpiresAt: true,
+          totpEnabledAt: true,
+          venueId: true,
+        },
+      },
+    },
   });
 
   const now = new Date();
@@ -106,6 +135,12 @@ export const authenticate = asyncHandler(async (req, res, next) => {
     role: session.user.role,
     sessionId: session.id,
     mustChangePassword: session.user.mustChangePassword,
+    mfaEnabled: session.user.totpEnabledAt !== null,
+    mfaVerified: session.mfaVerifiedAt !== null,
+    mustEnrollMfa: isMfaEnrollmentRequired(
+      session.user.role,
+      session.user.totpEnabledAt !== null,
+    ),
     venueId: session.user.venueId,
   };
 
@@ -128,7 +163,32 @@ export const authenticate = asyncHandler(async (req, res, next) => {
 
 export const requireChangedPassword = (req: Request, _res: Response, next: NextFunction): void => {
   if (req.auth?.mustChangePassword) {
-    next(new AppError('Devam etmek için geçici parolanızı değiştirin.', 428));
+    next(
+      new AppError('Devam etmek için geçici parolanızı değiştirin.', 428, true, {
+        code: 'PASSWORD_CHANGE_REQUIRED',
+      }),
+    );
+    return;
+  }
+  if (req.auth?.mustEnrollMfa) {
+    next(
+      new AppError('Devam etmek için iki adımlı doğrulamayı kurun.', 428, true, {
+        code: 'MFA_ENROLLMENT_REQUIRED',
+      }),
+    );
+    return;
+  }
+  if (
+    req.auth &&
+    isPrivilegedRole(req.auth.role) &&
+    req.auth.mfaEnabled &&
+    !req.auth.mfaVerified
+  ) {
+    next(
+      new AppError('İki adımlı doğrulama gerekli.', 401, true, {
+        code: 'MFA_REQUIRED',
+      }),
+    );
     return;
   }
   next();

@@ -1,8 +1,10 @@
 import { isIP } from 'node:net';
 import type { NextFunction, Request, Response } from 'express';
+import { normalizeUsername } from '../utils/domain.js';
 
 const IPV6_SUBNET_BITS = 56;
 const INVALID_IP_KEY = 'invalid-ip';
+const INVALID_ACCOUNT_KEY = 'invalid-account';
 
 const parseIpv4 = (value: string): [number, number, number, number] | undefined => {
   const octets = value.split('.').map(Number);
@@ -66,6 +68,13 @@ export const normalizeRateLimitIp = (ip: string | undefined): string => {
 };
 
 export const rateLimitKeyGenerator = (req: Request): string => normalizeRateLimitIp(req.ip);
+
+export const loginAccountRateLimitKeyGenerator = (req: Request): string => {
+  const candidate = (req.body as { username?: unknown } | undefined)?.username;
+  if (typeof candidate !== 'string' || candidate.length > 128) return INVALID_ACCOUNT_KEY;
+  const normalized = normalizeUsername(candidate);
+  return normalized.length >= 3 && normalized.length <= 64 ? normalized : INVALID_ACCOUNT_KEY;
+};
 
 export const createRateLimitHandler =
   (message: string) =>

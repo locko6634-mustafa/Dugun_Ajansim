@@ -13,16 +13,19 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure"
   },
-  webServer: {
-    command: "node tools/serve.mjs 8000",
-    url: "http://127.0.0.1:8000",
-    reuseExistingServer: true,
-    timeout: 30_000
-  },
+  webServer: process.env.PLAYWRIGHT_SKIP_WEB_SERVER
+    ? undefined
+    : {
+        command: "node tools/serve.mjs 8000",
+        url: "http://127.0.0.1:8000",
+        reuseExistingServer: true,
+        timeout: 30_000
+      },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     {
       name: "mobile-chromium",
+      testIgnore: /production-hardening\.spec\.js/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 375, height: 812 },

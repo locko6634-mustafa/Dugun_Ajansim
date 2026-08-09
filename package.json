@@ -20,13 +20,15 @@
     "validate:runtime-config": "node --test tools/runtime-config.test.mjs",
     "validate:booking-schedule-policy": "node --test tools/booking-schedule-policy.test.mjs",
     "validate:serve-security": "node --test tools/serve.test.mjs",
-    "validate": "npm run format:check && npm run lint:js && npm run lint:css && npm run validate:html && npm run validate:domain-contract && npm run validate:site-content && npm run validate:asset-cache && npm run validate:runtime-config && npm run validate:booking-schedule-policy && npm run validate:serve-security",
+    "validate:dependency-security": "node --test tools/dependency-security.test.mjs",
+    "validate": "npm run format:check && npm run lint:js && npm run lint:css && npm run validate:html && npm run validate:domain-contract && npm run validate:site-content && npm run validate:asset-cache && npm run validate:runtime-config && npm run validate:booking-schedule-policy && npm run validate:serve-security && npm run validate:dependency-security",
     "test:targeted": "playwright test",
     "test:quick": "node tools/agent-check.mjs",
     "test:agent-check": "node --test tools/agent-check.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test": "npm run validate && npm run test:e2e",
+    "audit:dependencies": "npm audit",
     "audit:performance": "node tools/check-performance-budget.mjs"
   },
   "devDependencies": {

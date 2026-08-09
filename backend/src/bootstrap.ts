@@ -40,6 +40,10 @@ export const startServer = (): GracefulShutdown => {
     console.log(`🛡️ Ortam: ${env.NODE_ENV}`);
     console.log(`🏥 Healthcheck Endpoint: http://localhost:${env.PORT}/api/v1/health`);
   });
+  server.requestTimeout = env.HTTP_REQUEST_TIMEOUT_MS;
+  server.headersTimeout = env.HTTP_HEADERS_TIMEOUT_MS;
+  server.keepAliveTimeout = env.HTTP_KEEP_ALIVE_TIMEOUT_MS;
+  server.maxRequestsPerSocket = 1_000;
 
   // Kapanış hatalarını ortama göre günlüğe kaydeden iç fonksiyon
   const logShutdownError = (message: string, error?: unknown): void => {

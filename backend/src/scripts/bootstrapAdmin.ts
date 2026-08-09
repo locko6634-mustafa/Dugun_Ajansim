@@ -1,16 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { env } from '../config/env.config.js';
 import { prisma } from '../config/prisma.js';
-import { strongPasswordSchema } from '../schemas/api.schemas.js';
+import { isPasswordSimilarToUsername, strongPasswordSchema } from '../schemas/api.schemas.js';
 import { hashPassword } from '../utils/crypto.js';
 import { createTemporaryPasswordExpiry, normalizeUsername } from '../utils/domain.js';
 
 const username = normalizeUsername(process.env.ADMIN_BOOTSTRAP_USERNAME ?? '');
 const password = process.env.ADMIN_BOOTSTRAP_PASSWORD ?? '';
 
-if (username.length < 3 || !strongPasswordSchema.safeParse(password).success) {
+if (
+  username.length < 3 ||
+  !strongPasswordSchema.safeParse(password).success ||
+  isPasswordSimilarToUsername(password, username)
+) {
   throw new Error(
-    'ADMIN_BOOTSTRAP_USERNAME ve 15-128 karakterlik güvenli ADMIN_BOOTSTRAP_PASSWORD zorunludur.',
+    'ADMIN_BOOTSTRAP_USERNAME ve kullanıcı adından farklı, tahmin edilemez bir ADMIN_BOOTSTRAP_PASSWORD zorunludur.',
   );
 }
 

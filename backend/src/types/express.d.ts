@@ -10,6 +10,9 @@ declare global {
         role: UserRole;
         sessionId: string;
         mustChangePassword: boolean;
+        mfaEnabled: boolean;
+        mfaVerified: boolean;
+        mustEnrollMfa: boolean;
         venueId: string | null;
       };
     }

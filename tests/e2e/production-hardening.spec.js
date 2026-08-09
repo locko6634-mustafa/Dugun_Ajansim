@@ -4,9 +4,7 @@ import { expect, test } from "@playwright/test";
 const readProjectFile = (relativePath) =>
   readFile(new URL(`../../${relativePath}`, import.meta.url), "utf8");
 
-test("production container ve dağıtım korumaları yapılandırmada kalır", async ({}, testInfo) => {
-  test.skip(testInfo.project.name !== "chromium", "Yapılandırma denetimi tek projede yeterlidir.");
-
+test("production container ve dağıtım korumaları yapılandırmada kalır", async () => {
   const [
     backendDockerfile,
     frontendDockerfile,
@@ -17,6 +15,9 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     deployWorkflow,
     bootstrapAdmin,
     runtimeRoleScript,
+    runtimeTimeoutScript,
+    deployScript,
+    backupCrypto,
     homePage,
     homeBootstrap
   ] = await Promise.all([
@@ -29,6 +30,9 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     readProjectFile(".github/workflows/deploy.yml"),
     readProjectFile("backend/src/scripts/bootstrapAdmin.ts"),
     readProjectFile("deploy/postgres/init-runtime-role.sh"),
+    readProjectFile("deploy/postgres/configure-runtime-timeouts.sh"),
+    readProjectFile("deploy/deploy-production.sh"),
+    readProjectFile("deploy/backup-crypto.mjs"),
     readProjectFile("index.html"),
     readProjectFile("js/home/bootstrap.js")
   ]);
@@ -40,14 +44,19 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   );
   expect(backendDockerfile.match(/^FROM node:[^\s]+/gm)).toEqual([
     expect.stringMatching(/^FROM node:[^@\s]+@sha256:[0-9a-f]{64}$/),
+    expect.stringMatching(/^FROM node:[^@\s]+@sha256:[0-9a-f]{64}$/),
     expect.stringMatching(/^FROM node:[^@\s]+@sha256:[0-9a-f]{64}$/)
   ]);
+  expect(backendDockerfile).toContain("AS backup-crypto");
+  expect(backendDockerfile).toContain("COPY deploy/backup-crypto.mjs ./backup-crypto.mjs");
+  expect(backendDockerfile).toContain("org.opencontainers.image.revision");
 
   expect(frontendDockerfile).toContain("USER nginx");
   expect(frontendDockerfile).toContain("EXPOSE 8080");
   expect(frontendDockerfile).toContain("http://127.0.0.1:8080/healthz");
   expect(frontendDockerfile).toMatch(/chown -R nginx:nginx[\s\\]*[\s\S]*\/run/);
   expect(frontendDockerfile).toMatch(/^FROM nginx:[^@\s]+@sha256:[0-9a-f]{64}$/m);
+  expect(frontendDockerfile).toContain("org.opencontainers.image.revision");
 
   expect(compose).toContain("admin-bootstrap:");
   expect(compose).toContain("dist/scripts/bootstrapAdmin.js");
@@ -57,10 +66,26 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(compose).toContain("stop_grace_period:");
   expect(compose.match(/^\s+image: postgres:[^\s]+/gm)).toEqual([
     expect.stringMatching(/@sha256:[0-9a-f]{64}$/),
+    expect.stringMatching(/@sha256:[0-9a-f]{64}$/),
     expect.stringMatching(/@sha256:[0-9a-f]{64}$/)
   ]);
+  expect(compose.match(/^\s+read_only: true$/gm)?.length).toBeGreaterThanOrEqual(8);
+  expect(compose.match(/^\s+init: true$/gm)?.length).toBeGreaterThanOrEqual(7);
+  expect(compose).toContain("mem_limit:");
+  expect(compose).toContain("mem_reservation:");
+  expect(compose).toContain("cpus:");
+  expect(compose).toContain("POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256");
+  expect(compose).toContain("db-runtime-hardening:");
+  expect(compose).toContain("POSTGRES_RUNTIME_STATEMENT_TIMEOUT_MS:");
+  expect(compose).toContain("POSTGRES_RUNTIME_LOCK_TIMEOUT_MS:");
+  expect(compose).toContain("POSTGRES_RUNTIME_IDLE_TRANSACTION_TIMEOUT_MS:");
+  expect(compose).toContain("backup-crypto:");
+  expect(compose).toContain("BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?");
+  expect(compose).toContain("APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS:");
+  expect(compose).toContain("network_mode: none");
   expect(compose).toContain('max-size: "10m"');
   expect(compose).toContain("ADMIN_SESSION_IDLE_MINUTES:");
+  expect(compose).toContain("ADMIN_SESSION_TTL_HOURS:");
   expect(compose).toContain("CUSTOMER_SESSION_IDLE_HOURS:");
   expect(compose).toContain("TEMPORARY_PASSWORD_TTL_HOURS:");
   expect(compose).toContain("TRUST_PROXY: ${TRUST_PROXY:?");
@@ -97,7 +122,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     /backend:[\s\S]*?DATABASE_URL: postgresql:\/\/\$\{POSTGRES_RUNTIME_USER:-dugun_runtime\}:\$\{POSTGRES_RUNTIME_PASSWORD:\?POSTGRES_RUNTIME_PASSWORD zorunludur\}@postgres/
   );
   expect(compose).toMatch(
-    /seed:[\s\S]*?depends_on:\s*\n\s*db-role-bootstrap:\s*\n\s*condition: service_completed_successfully/
+    /seed:[\s\S]*?depends_on:\s*\n\s*db-runtime-hardening:\s*\n\s*condition: service_completed_successfully/
   );
   expect(compose).toMatch(
     /db-role-bootstrap:[\s\S]*?depends_on:\s*\n\s*migrate:\s*\n\s*condition: service_completed_successfully/
@@ -124,13 +149,21 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(exampleEnv).toMatch(/^POSTGRES_RUNTIME_USER=dugun_runtime$/m);
   expect(exampleEnv).toMatch(/^POSTGRES_RUNTIME_PASSWORD=$/m);
   expect(exampleEnv).toMatch(/^DATA_ENCRYPTION_KEY=$/m);
+  expect(exampleEnv).toMatch(/^APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS=$/m);
+  expect(exampleEnv).toMatch(/^BACKUP_ENCRYPTION_KEY=$/m);
+  expect(exampleEnv).toContain("POSTGRES_RUNTIME_STATEMENT_TIMEOUT_MS=30000");
+  expect(exampleEnv).toContain("POSTGRES_MEMORY_LIMIT=2g");
+  expect(exampleEnv).toContain("BACKEND_MEMORY_LIMIT=768m");
+  expect(exampleEnv).toContain("FRONTEND_MEMORY_LIMIT=256m");
   expect(exampleEnv).toMatch(/^TRUST_PROXY=$/m);
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_AVERAGE=20");
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_PERIOD=1s");
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_BURST=40");
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_IPV6_SUBNET=56");
   expect(exampleEnv).toContain("EDGE_INFLIGHT_REQUESTS=50");
-  expect(exampleEnv).toContain("ADMIN_SESSION_IDLE_MINUTES=720");
+  expect(exampleEnv).toContain("ADMIN_SESSION_IDLE_MINUTES=30");
+  expect(exampleEnv).toContain("ADMIN_SESSION_TTL_HOURS=8");
+  expect(exampleEnv).toContain("SALON_SESSION_IDLE_MINUTES=60");
   expect(exampleEnv).toContain("CUSTOMER_SESSION_IDLE_HOURS=12");
   expect(exampleEnv).toContain("TEMPORARY_PASSWORD_TTL_HOURS=72");
 
@@ -140,41 +173,61 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(deployReadme).toContain("EDGE_RATE_LIMIT_AVERAGE");
   expect(deployReadme).toContain("EDGE_INFLIGHT_REQUESTS");
   expect(deployReadme).toContain("-e ADMIN_BOOTSTRAP_USERNAME -e ADMIN_BOOTSTRAP_PASSWORD");
+  expect(deployReadme).toContain("AES-256-GCM");
   expect(deployReadme).toContain("pg_restore --exit-on-error");
-  expect(deployReadme).toContain("-p dugun-ajansim-restore-check");
+  expect(deployReadme).toContain("BACKUP_ENCRYPTION_KEY");
+  expect(deployReadme).toContain("otomatik döndürülür");
   expect(deployReadme).toContain("up -d --wait postgres");
   expect(deployReadme).toContain("Mevcut volume'u DDL yetkisiz runtime rolüne yükseltme");
   expect(deployReadme).toContain("database_create = false");
   expect(deployReadme).toContain("CREATE TABLE public.__runtime_ddl_probe");
-  expect(deployReadme).toContain("pg_restore --list");
-  expect(deployReadme).toContain("şifreli sunucu dışı kopya");
-  expect(deployReadme).toContain("geri yükleme veya rollback garantisi değildir");
+  expect(deployReadme).toContain("sunucu dışı ve immutable depolama");
+  expect(deployReadme).toContain("otomatik geri");
 
   expect(deployWorkflow).toContain("workflow_run:");
   expect(deployWorkflow).toContain("- Project quality");
   expect(deployWorkflow).toContain("- completed");
-  expect(deployWorkflow).toContain("workflow_dispatch:");
+  expect(deployWorkflow).not.toContain("workflow_dispatch:");
   expect(deployWorkflow).not.toMatch(/^\s*push:/m);
   expect(deployWorkflow).toContain("github.event.workflow_run.conclusion == 'success'");
   expect(deployWorkflow).toContain("github.event.workflow_run.event == 'push'");
   expect(deployWorkflow).toContain("github.event.workflow_run.head_branch == 'main'");
   expect(deployWorkflow).toContain("github.event.workflow_run.head_sha");
   expect(deployWorkflow).toMatch(/uses: appleboy\/ssh-action@[0-9a-f]{40}\s+# v1\.0\.3/);
+  expect(deployWorkflow).toContain("environment: production");
+  expect(deployWorkflow).toContain("fingerprint: ${{ env.SERVER_HOST_FINGERPRINT }}");
   expect(deployWorkflow).toContain('git cat-file -e "${DEPLOY_SHA}^{commit}"');
   expect(deployWorkflow).toContain('git reset --hard "$DEPLOY_SHA"');
   expect(deployWorkflow).not.toContain("git reset --hard origin/main");
-  expect(deployWorkflow).toContain("config -q");
-  expect(deployWorkflow).toContain("pg_dump");
-  expect(deployWorkflow).toContain("pg_restore --list");
-  expect(deployWorkflow.indexOf("pg_restore --list")).toBeLessThan(
-    deployWorkflow.indexOf("up -d --build --wait")
+  expect(deployWorkflow).toContain("bash deploy/deploy-production.sh");
+  expect(deployWorkflow).not.toContain('git reset --hard "$previous_sha"');
+  expect(deployWorkflow).toContain("git status --porcelain --untracked-files=all");
+  expect(deployWorkflow).toContain("BACKUP_RETENTION_DAYS");
+
+  expect(deployScript).toContain("config -q");
+  expect(deployScript).toContain("pg_dump");
+  expect(deployScript).toContain("pg_restore --exit-on-error");
+  expect(deployScript.indexOf("pg_restore --exit-on-error")).toBeLessThan(
+    deployScript.indexOf("up -d --build --wait")
   );
-  expect(deployWorkflow).toContain("up -d --build --wait");
-  expect(deployWorkflow).toContain("http://127.0.0.1:5000/api/v1/health");
-  expect(deployWorkflow).toContain("http://127.0.0.1:8080/healthz");
-  expect(deployWorkflow).toContain('"$PUBLIC_ORIGIN/healthz"');
-  expect(deployWorkflow).toContain('"$PUBLIC_ORIGIN/api/v1/health"');
-  expect(deployWorkflow).toContain("DEPLOYED_GIT_SHA=%s");
+  expect(deployScript).toContain("VALIDATED_ENCRYPTED_BACKUP=%s");
+  expect(deployScript).toContain("BACKUP_MIN_FREE_MIB");
+  expect(deployScript).toContain("PRUNED_BACKUP=%s");
+  expect(deployScript).toContain("PRUNED_LEGACY_PLAINTEXT_BACKUP=%s");
+  expect(deployScript).toContain('log "ROLLBACK_COMPLETED_SHA=$rollback_sha"');
+  expect(deployScript).toContain('git reset --hard "$rollback_sha"');
+  expect(deployScript).toContain("http://127.0.0.1:5000/api/v1/health");
+  expect(deployScript).toContain("http://127.0.0.1:8080/healthz");
+  expect(deployScript).toContain('"$PUBLIC_ORIGIN/healthz"');
+  expect(deployScript).toContain('"$PUBLIC_ORIGIN/api/v1/health"');
+  expect(deployScript).toContain("DEPLOYED_GIT_SHA=%s");
+
+  expect(backupCrypto).toContain('const ALGORITHM = "aes-256-gcm"');
+  expect(backupCrypto).toContain("cipher.setAAD(additionalData");
+  expect(backupCrypto).toContain("cipher.getAuthTag()");
+  expect(backupCrypto).toContain("decipher.setAuthTag(authTag)");
+  expect(backupCrypto).toContain("terminalFrameSeen");
+  expect(backupCrypto).toContain("uygulama güvenlik anahtarlarından farklı");
   expect(bootstrapAdmin).toContain("console.log('İlk admin başarıyla oluşturuldu.')");
   expect(bootstrapAdmin).not.toContain("admin.username");
 
@@ -188,6 +241,11 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(runtimeRoleScript).toContain("GRANT DELETE ON TABLE %I.%I");
   expect(runtimeRoleScript).toContain("ALTER DEFAULT PRIVILEGES FOR ROLE");
   expect(runtimeRoleScript).toContain("_prisma_migrations");
+  expect(runtimeTimeoutScript).toContain("ALTER ROLE %I SET statement_timeout");
+  expect(runtimeTimeoutScript).toContain("ALTER ROLE %I SET lock_timeout");
+  expect(runtimeTimeoutScript).toContain("BEGIN;");
+  expect(runtimeTimeoutScript).toContain("settings_valid");
+  expect(runtimeTimeoutScript).toContain("idle_in_transaction_session_timeout");
   expect(runtimeRoleScript).not.toMatch(
     /printf[^\n]*(?:runtime_password|POSTGRES_RUNTIME_PASSWORD)/
   );

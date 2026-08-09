@@ -6,7 +6,6 @@ on:
       - Project quality
     types:
       - completed
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,27 +17,41 @@ concurrency:
 jobs:
   deploy:
     name: Deploy to Production
+    environment: production
+    timeout-minutes: 55
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.head_repository.full_name == github.repository
-      )
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     env:
-      DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
       PUBLIC_ORIGIN: https://dugun.n8n-mustafa.me
+      BACKUP_MIN_FREE_MIB: "1024"
+      BACKUP_RETENTION_DAYS: "30"
+      BACKUP_MAX_FILES: "30"
+      SERVER_HOST_FINGERPRINT: ${{ secrets.SERVER_HOST_FINGERPRINT }}
     steps:
+      - name: Validate pinned SSH host identity
+        shell: bash
+        run: |
+          if [[ ! "$SERVER_HOST_FINGERPRINT" =~ ^SHA256:[A-Za-z0-9+/]{43}$ ]]; then
+            echo "SERVER_HOST_FINGERPRINT must be a non-empty SHA256 host-key fingerprint" >&2
+            exit 1
+          fi
+
       - name: Deploy the exact quality-checked revision
         uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
+          fingerprint: ${{ env.SERVER_HOST_FINGERPRINT }}
           port: ${{ secrets.SERVER_PORT || 22 }}
-          envs: DEPLOY_SHA,PUBLIC_ORIGIN
+          timeout: 60s
+          command_timeout: 45m
+          envs: DEPLOY_SHA,PUBLIC_ORIGIN,BACKUP_MIN_FREE_MIB,BACKUP_RETENTION_DAYS,BACKUP_MAX_FILES
           script_stop: true
           script: |
             set -eu
@@ -49,6 +62,12 @@ jobs:
             fi
 
             cd /opt/dugun-ajansim/app
+            previous_sha="$(git rev-parse HEAD)"
+            if ! printf '%s' "$previous_sha" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "Invalid previous SHA" >&2
+              exit 1
+            fi
+
             git fetch --prune origin main
             git cat-file -e "${DEPLOY_SHA}^{commit}"
 
@@ -60,32 +79,11 @@ jobs:
 
             git reset --hard "$DEPLOY_SHA"
             test "$(git rev-parse HEAD)" = "$DEPLOY_SHA"
-
-            compose="docker compose --env-file .env.production -f compose.production.yaml"
-            $compose config -q
-
-            umask 077
-            mkdir -p backups
-            chmod 700 backups
-            backup_path="backups/pre-deploy-${DEPLOY_SHA}-$(date -u +%Y%m%dT%H%M%SZ).dump"
-            $compose exec -T postgres sh -c \
-              'PGPASSWORD="$POSTGRES_PASSWORD" exec pg_dump --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --format=custom --no-owner --no-acl' \
-              > "$backup_path"
-            test -s "$backup_path"
-            $compose exec -T postgres pg_restore --list < "$backup_path" >/dev/null
-            printf 'VALIDATED_BACKUP=%s\n' "$backup_path"
-
-            $compose up -d --build --wait
-
-            $compose exec -T backend node -e \
-              "fetch('http://127.0.0.1:5000/api/v1/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));"
-            $compose exec -T frontend sh -c \
-              "wget -qO- http://127.0.0.1:8080/healthz | grep -qx ok"
-            curl -fsS --retry 5 --retry-delay 3 --retry-all-errors \
-              "$PUBLIC_ORIGIN/healthz" | grep -qx ok
-            curl -fsS --retry 5 --retry-delay 3 --retry-all-errors \
-              "$PUBLIC_ORIGIN/api/v1/health" >/dev/null
-
-            deployed_sha="$(git rev-parse HEAD)"
-            test "$deployed_sha" = "$DEPLOY_SHA"
-            printf 'DEPLOYED_GIT_SHA=%s\n' "$deployed_sha"
+            worktree_status="$(git status --porcelain --untracked-files=all)"
+            if [ -n "$worktree_status" ]; then
+              echo "Refusing to deploy a dirty or untracked worktree" >&2
+              printf '%s\n' "$worktree_status" >&2
+              exit 1
+            fi
+            export PREVIOUS_SHA="$previous_sha"
+            bash deploy/deploy-production.sh

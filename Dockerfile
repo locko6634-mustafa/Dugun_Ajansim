@@ -1,6 +1,9 @@
 FROM nginx:stable-alpine@sha256:97d490c12ba55b4946b01546d1c3ed324e8d41ab1c9fcb2a616aa470620e5b46
 
 ARG APP_ORIGIN
+ARG BUILD_REVISION=unknown
+
+LABEL org.opencontainers.image.revision="${BUILD_REVISION}"
 
 RUN test -n "${APP_ORIGIN}" \
     && case "${APP_ORIGIN}" in https://*) ;; *) exit 1 ;; esac \
@@ -24,6 +27,7 @@ RUN grep -RIl '__APP_ORIGIN__' /usr/share/nginx/html \
 
 USER nginx
 EXPOSE 8080
+STOPSIGNAL SIGQUIT
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -q --spider http://127.0.0.1:8080/healthz || exit 1

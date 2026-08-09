@@ -35,7 +35,7 @@ export function showCustomConfirm({
     <form class="form-shell custom-dialog-shell" method="dialog">
       <div class="sheet-heading">
         <div>
-          <p class="section-index custom-dialog-badge ${badgeClass}">${badge}</p>
+          <p class="section-index custom-dialog-badge ${badgeClass}">${escapeHtml(badge)}</p>
           <h2 class="custom-dialog-title">${escapeHtml(title)}</h2>
         </div>
         <button class="dialog-close js-dialog-cancel" type="button" aria-label="Kapat">×</button>
@@ -106,7 +106,7 @@ export function showCustomPrompt({
     <form class="form-shell custom-dialog-shell" method="dialog">
       <div class="sheet-heading">
         <div>
-          <p class="section-index custom-dialog-badge ${badgeClass}">${badge}</p>
+          <p class="section-index custom-dialog-badge ${badgeClass}">${escapeHtml(badge)}</p>
           <h2 class="custom-dialog-title">${escapeHtml(title)}</h2>
         </div>
         <button class="dialog-close js-dialog-cancel" type="button" aria-label="Kapat">×</button>

@@ -1,25 +1,32 @@
 import { Prisma, type BookingSource, type User } from "@prisma/client";
+import { randomBytes, randomUUID } from "node:crypto";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.config.js";
 import type { z } from "zod";
 import type { bookingBodySchema } from "../schemas/api.schemas.js";
 import { AppError } from "../utils/appError.js";
-import { encryptValue, hashPassword, hashToken, tokenHashesMatch } from "../utils/crypto.js";
+import {
+  createOpaqueToken,
+  hashPassword,
+  hashToken,
+  tokenHashesMatch
+} from "../utils/crypto.js";
 import {
   addCalendarDays,
   atIstanbulTime,
-  createTemporaryPasswordExpiry,
   createWeddingRange,
   formatIstanbulTime,
   getIstanbulDate,
   isStrictGregorianDate,
-  messageSecretEncryptionAad,
   normalizePhone,
-  normalizeUsername,
-  randomFourDigitCode,
-  randomReferenceCode,
-  randomTemporaryPassword
+  randomReferenceCode
 } from "../utils/domain.js";
+import {
+  buildBookingApplicationPiiData,
+  buildMessageTaskPiiData,
+  buildWeddingPiiData,
+  decryptBookingApplicationPii
+} from "../utils/pii-crypto.js";
 
 export type BookingInput = Omit<z.infer<typeof bookingBodySchema>, "privacyConsent"> & {
   privacyConsent: boolean;
@@ -244,6 +251,22 @@ export const createBookingApplication = async (
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
       const referenceCode = randomReferenceCode();
+      const applicationId = randomUUID();
+      const applicationPii = buildBookingApplicationPiiData(
+        applicationId,
+        {
+          brideFirstName: input.brideFirstName,
+          brideLastName: input.brideLastName,
+          bridePhone,
+          groomFirstName: input.groomFirstName,
+          groomLastName: input.groomLastName,
+          groomPhone,
+          primaryEmail: input.primaryEmail,
+          note: input.note || null,
+          rejectionReason: null
+        },
+        1
+      );
       return await prisma.$transaction(
         async (transaction) => {
           if (options.idempotencyKey) {
@@ -358,18 +381,13 @@ export const createBookingApplication = async (
               : null;
           const application = await transaction.bookingApplication.create({
             data: {
+              id: applicationId,
               referenceCode,
               idempotencyKey: options.idempotencyKey,
               idempotencyFingerprint: options.idempotencyKey ? idempotencyFingerprint : undefined,
               source: options.source,
-              brideFirstName: input.brideFirstName,
-              brideLastName: input.brideLastName,
-              bridePhone,
-              groomFirstName: input.groomFirstName,
-              groomLastName: input.groomLastName,
-              groomPhone,
+              ...applicationPii,
               primaryContact: input.primaryContact,
-              primaryEmail: input.primaryEmail,
               weddingStartsAt: startsAt,
               weddingEndsAt: endsAt,
               venueId: venue.id,
@@ -385,7 +403,6 @@ export const createBookingApplication = async (
                 ? hashToken(options.paymentFlowKey)
                 : null,
               paymentFlowExpiresAt,
-              note: input.note || null,
               privacyConsentAt: input.privacyConsent ? now : null,
               marketingConsentAt: input.marketingConsent ? now : null,
               services: {
@@ -514,18 +531,19 @@ const assertPaymentFlowNotExpired = (
 
 const toPaymentFlowResponse = (application: PaymentFlowApplication) => {
   const weddingDate = getIstanbulDate(application.weddingStartsAt);
+  const pii = decryptBookingApplicationPii(application.id, application);
   return {
     id: application.id,
     referenceCode: application.referenceCode,
     status: application.status,
-    brideFirstName: application.brideFirstName,
-    brideLastName: application.brideLastName,
-    bridePhone: application.bridePhone,
-    groomFirstName: application.groomFirstName,
-    groomLastName: application.groomLastName,
-    groomPhone: application.groomPhone,
+    brideFirstName: pii.brideFirstName,
+    brideLastName: pii.brideLastName,
+    bridePhone: pii.bridePhone,
+    groomFirstName: pii.groomFirstName,
+    groomLastName: pii.groomLastName,
+    groomPhone: pii.groomPhone,
     primaryContact: application.primaryContact,
-    primaryEmail: application.primaryEmail,
+    primaryEmail: pii.primaryEmail,
     weddingDate,
     startTime: formatIstanbulTime(application.weddingStartsAt),
     endTime: formatIstanbulTime(application.weddingEndsAt),
@@ -541,7 +559,7 @@ const toPaymentFlowResponse = (application: PaymentFlowApplication) => {
     paymentMethod: application.paymentMethod,
     totalPriceCents: application.totalPriceCents,
     payableNowCents: application.payableNowCents,
-    note: application.note || "",
+    note: pii.note || "",
     privacyConsent: application.privacyConsentAt !== null,
     marketingConsent: application.marketingConsentAt !== null,
     paymentFlowExpiresAt: application.paymentFlowExpiresAt,
@@ -550,18 +568,91 @@ const toPaymentFlowResponse = (application: PaymentFlowApplication) => {
   };
 };
 
-export const expireStalePaymentFlows = async (
-  now = new Date(),
-  _correlationId = `payment-expiry-${now.toISOString()}`,
-  applicationId?: string
-): Promise<number> => {
-  let totalExpiredCount = 0;
+export const PAYMENT_FLOW_SWEEP_BATCH_SIZE = 100;
+export const PAYMENT_FLOW_SWEEP_ADVISORY_LOCK_KEY = 1_940_667_981;
 
-  while (true) {
-    const batch = await prisma.$transaction(async (transaction) => {
+type ExpiredPaymentFlowCandidate = {
+  id: string;
+  venueId: string;
+};
+
+const purgeExpiredPaymentFlowCandidates = async (
+  transaction: Prisma.TransactionClient,
+  candidates: readonly ExpiredPaymentFlowCandidate[],
+  now: Date,
+  correlationId: string
+): Promise<number> => {
+  let expiredCount = 0;
+  for (const candidate of candidates) {
+    const purged = await transaction.bookingApplication.deleteMany({
+      where: {
+        id: candidate.id,
+        source: "PUBLIC_FORM",
+        status: "ONAY_BEKLIYOR",
+        deletedAt: null,
+        paymentFlowExpiredAt: null,
+        paymentFlowExpiresAt: { lte: now }
+      }
+    });
+    if (purged.count !== 1) continue;
+
+    await createAudit(transaction, {
+      action: "booking.payment_flow_expired",
+      targetType: "BookingApplication",
+      targetId: candidate.id,
+      correlationId,
+      metadata: { expiredAt: now.toISOString(), lifecycle: "stale_pii_purged" }
+    });
+    await deleteOrphanedCustomerVenue(transaction, candidate.venueId);
+    expiredCount += 1;
+  }
+  return expiredCount;
+};
+
+const expireStalePaymentFlow = async (
+  applicationId: string,
+  now: Date,
+  correlationId: string
+): Promise<number> =>
+  prisma.$transaction(
+    async (transaction) => {
       const expiredCandidates = await transaction.bookingApplication.findMany({
         where: {
-          ...(applicationId ? { id: applicationId } : {}),
+          id: applicationId,
+          source: "PUBLIC_FORM",
+          status: "ONAY_BEKLIYOR",
+          deletedAt: null,
+          paymentFlowExpiredAt: null,
+          paymentFlowExpiresAt: { lte: now }
+        },
+        select: { id: true, venueId: true },
+        take: 1
+      });
+      return purgeExpiredPaymentFlowCandidates(
+        transaction,
+        expiredCandidates,
+        now,
+        correlationId
+      );
+    },
+    { maxWait: 2_000, timeout: 10_000 }
+  );
+
+export const expireStalePaymentFlows = async (
+  now = new Date(),
+  correlationId = `payment-expiry-${now.toISOString()}`
+): Promise<number> =>
+  prisma.$transaction(
+    async (transaction) => {
+      const [lock] = await transaction.$queryRaw<Array<{ acquired: boolean }>>`
+        SELECT pg_try_advisory_xact_lock(
+          ${PAYMENT_FLOW_SWEEP_ADVISORY_LOCK_KEY}::bigint
+        ) AS "acquired"
+      `;
+      if (!lock?.acquired) return 0;
+
+      const expiredCandidates = await transaction.bookingApplication.findMany({
+        where: {
           source: "PUBLIC_FORM",
           status: "ONAY_BEKLIYOR",
           deletedAt: null,
@@ -570,36 +661,43 @@ export const expireStalePaymentFlows = async (
         },
         select: { id: true, venueId: true },
         orderBy: [{ paymentFlowExpiresAt: "asc" }, { id: "asc" }],
-        take: applicationId ? 1 : 100
+        take: PAYMENT_FLOW_SWEEP_BATCH_SIZE
       });
+      return purgeExpiredPaymentFlowCandidates(
+        transaction,
+        expiredCandidates,
+        now,
+        correlationId
+      );
+    },
+    { maxWait: 2_000, timeout: 30_000 }
+  );
 
-      let expiredCount = 0;
-      for (const candidate of expiredCandidates) {
-        const claimed = await transaction.bookingApplication.updateMany({
-          where: {
-            id: candidate.id,
-            source: "PUBLIC_FORM",
-            status: "ONAY_BEKLIYOR",
-            deletedAt: null,
-            paymentFlowExpiredAt: null,
-            paymentFlowExpiresAt: { lte: now }
-          },
-          data: { status: "IPTAL_EDILDI", paymentFlowExpiredAt: now }
-        });
-        if (claimed.count !== 1) continue;
-        await transaction.auditLog.deleteMany({
-          where: { targetType: "BookingApplication", targetId: candidate.id }
-        });
-        await transaction.bookingApplication.delete({ where: { id: candidate.id } });
-        await deleteOrphanedCustomerVenue(transaction, candidate.venueId);
-        expiredCount += 1;
-      }
-      return { candidateCount: expiredCandidates.length, expiredCount };
-    });
+const authorizePaymentFlowTarget = async (
+  applicationId: string,
+  paymentFlowKey: string,
+  now: Date,
+  correlationId: string
+): Promise<void> => {
+  const application = await prisma.bookingApplication.findUnique({
+    where: { id: applicationId },
+    select: {
+      source: true,
+      status: true,
+      deletedAt: true,
+      paymentFlowTokenHash: true,
+      paymentFlowExpiresAt: true,
+      paymentFlowExpiredAt: true
+    }
+  });
+  if (!application) throw new AppError("Ödeme akışı bulunamadı.", 404);
 
-    totalExpiredCount += batch.expiredCount;
-    if (applicationId || batch.candidateCount < 100) return totalExpiredCount;
+  assertPaymentFlowAccess(application, paymentFlowKey);
+  if (application.paymentFlowExpiresAt && application.paymentFlowExpiresAt <= now) {
+    await expireStalePaymentFlow(applicationId, now, correlationId);
+    throw new AppError("Ödeme akışı bulunamadı.", 404);
   }
+  assertPaymentFlowNotExpired(application, now);
 };
 
 export const getPaymentFlowApplication = async (
@@ -615,7 +713,7 @@ export const getPaymentFlowApplication = async (
   if (!application) throw new AppError("Ödeme akışı bulunamadı.", 404);
   assertPaymentFlowAccess(application, paymentFlowKey);
   if (application.paymentFlowExpiresAt && application.paymentFlowExpiresAt <= now) {
-    await expireStalePaymentFlows(now, correlationId, application.id);
+    await expireStalePaymentFlow(application.id, now, correlationId);
     throw new AppError("Ödeme akışı bulunamadı.", 404);
   }
   assertPaymentFlowNotExpired(application, now);
@@ -629,7 +727,7 @@ export const updatePaymentFlowApplication = async (
   correlationId: string
 ) => {
   const now = new Date();
-  await expireStalePaymentFlows(now, correlationId);
+  await authorizePaymentFlowTarget(applicationId, paymentFlowKey, now, correlationId);
   const { startsAt, endsAt } = createWeddingRange(
     input.weddingDate,
     input.startTime,
@@ -655,6 +753,7 @@ export const updatePaymentFlowApplication = async (
       if (current.status !== "ONAY_BEKLIYOR" || current.whatsappHandoffAt) {
         throw new AppError("WhatsApp aşamasına geçilen başvuru artık düzenlenemez.", 409);
       }
+      const currentPii = decryptBookingApplicationPii(current.id, current);
 
       const customVenueName = input.customVenueName?.trim();
       const venue = input.venueId
@@ -704,18 +803,27 @@ export const updatePaymentFlowApplication = async (
         groomPhone,
         serviceCodes
       );
-      const updated = await transaction.bookingApplication.update({
-        where: { id: current.id },
-        data: {
-          idempotencyFingerprint: fingerprint,
+      const nextPii = buildBookingApplicationPiiData(
+        current.id,
+        {
           brideFirstName: input.brideFirstName,
           brideLastName: input.brideLastName,
           bridePhone,
           groomFirstName: input.groomFirstName,
           groomLastName: input.groomLastName,
           groomPhone,
-          primaryContact: input.primaryContact,
           primaryEmail: input.primaryEmail,
+          note: input.note || null,
+          rejectionReason: currentPii.rejectionReason
+        },
+        current.piiRevision + 1
+      );
+      const updated = await transaction.bookingApplication.update({
+        where: { id: current.id, piiRevision: current.piiRevision },
+        data: {
+          idempotencyFingerprint: fingerprint,
+          ...nextPii,
+          primaryContact: input.primaryContact,
           weddingStartsAt: startsAt,
           weddingEndsAt: endsAt,
           venueId: venue.id,
@@ -726,7 +834,6 @@ export const updatePaymentFlowApplication = async (
           totalPriceCents,
           paymentMethod: input.paymentMethod,
           payableNowCents,
-          note: input.note || null,
           privacyConsentAt: input.privacyConsent ? current.privacyConsentAt || now : null,
           marketingConsentAt: input.marketingConsent ? current.marketingConsentAt || now : null,
           services: {
@@ -767,7 +874,7 @@ export const markWhatsappHandoff = async (
   correlationId: string
 ) => {
   const now = new Date();
-  await expireStalePaymentFlows(now, correlationId);
+  await authorizePaymentFlowTarget(applicationId, paymentFlowKey, now, correlationId);
   return prisma.$transaction(async (transaction) => {
     const application = await transaction.bookingApplication.findUnique({
       where: { id: applicationId },
@@ -814,15 +921,11 @@ export const markWhatsappHandoff = async (
 };
 
 export const createUniqueCustomerUsername = async (
-  brideLastName: string,
-  groomLastName: string
+  _brideLastName?: string,
+  _groomLastName?: string
 ): Promise<string> => {
-  const normalizedParts = [normalizeUsername(brideLastName), normalizeUsername(groomLastName)]
-    .filter(Boolean)
-    .join("-");
-  const prefix = (normalizedParts || "musteri").slice(0, 59).replace(/-+$/g, "") || "musteri";
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const username = `${prefix}-${randomFourDigitCode()}`;
+    const username = `m-${randomBytes(16).toString("hex")}`;
     const exists = await prisma.user.findUnique({ where: { username }, select: { id: true } });
     if (!exists) return username;
   }
@@ -830,7 +933,7 @@ export const createUniqueCustomerUsername = async (
 };
 
 type ApprovalDependencies = {
-  createUsername?: (brideLastName: string, groomLastName: string) => Promise<string>;
+  createUsername?: () => Promise<string>;
 };
 
 const isUsernameUniqueConflict = (error: unknown): boolean => {
@@ -867,12 +970,10 @@ export const approveBookingApplication = async (
   dependencies: ApprovalDependencies = {}
 ) => {
   const approvalStartedAt = new Date();
-  await expireStalePaymentFlows(approvalStartedAt, correlationId);
+  await expireStalePaymentFlow(applicationId, approvalStartedAt, correlationId);
   const applicationIdentity = await prisma.bookingApplication.findFirst({
     where: { id: applicationId, deletedAt: null },
     select: {
-      brideLastName: true,
-      groomLastName: true,
       status: true,
       source: true,
       whatsappHandoffAt: true,
@@ -893,11 +994,10 @@ export const approveBookingApplication = async (
     throw new AppError("WhatsApp dekont bildirimi başlatılmamış başvuru onaylanamaz.", 409);
   }
 
-  const temporaryPassword = randomTemporaryPassword();
-  const passwordHash = await hashPassword(temporaryPassword);
+  const passwordHash = await hashPassword(createOpaqueToken(48));
   const createUsername = dependencies.createUsername ?? createUniqueCustomerUsername;
   return retryUsernameConflict(
-    () => createUsername(applicationIdentity.brideLastName, applicationIdentity.groomLastName),
+    () => createUsername(),
     (username) =>
       prisma.$transaction(
         async (transaction) => {
@@ -906,6 +1006,7 @@ export const approveBookingApplication = async (
             include: { services: true }
           });
           if (!application) throw new AppError("Başvuru bulunamadı.", 404);
+          const applicationPii = decryptBookingApplicationPii(application.id, application);
           const approvalClaimedAt = new Date();
           assertPaymentFlowNotExpired(application, approvalClaimedAt);
           if (application.status !== "ONAY_BEKLIYOR") {
@@ -952,17 +1053,12 @@ export const approveBookingApplication = async (
 
           const weddingDate = getIstanbulDate(application.weddingStartsAt);
           const activeAt = atIstanbulTime(addCalendarDays(weddingDate, 1), "09:00");
-          const now = new Date();
-          const temporaryPasswordExpiresAt = createTemporaryPasswordExpiry(
-            env.TEMPORARY_PASSWORD_TTL_HOURS,
-            activeAt > now ? activeAt : now
-          );
           const preparationDueAt = atIstanbulTime(addCalendarDays(weddingDate, 2), "10:00");
           const dueDate = new Date(`${addCalendarDays(weddingDate, 21)}T00:00:00.000Z`);
           const recipientPhone =
             application.primaryContact === "GELIN"
-              ? application.bridePhone
-              : application.groomPhone;
+              ? applicationPii.bridePhone
+              : applicationPii.groomPhone;
 
           const user = await transaction.user.create({
             data: {
@@ -970,22 +1066,31 @@ export const approveBookingApplication = async (
               passwordHash,
               role: "MUSTERI",
               mustChangePassword: true,
-              temporaryPasswordExpiresAt,
+              temporaryPasswordExpiresAt: null,
               activeAt
             }
           });
+          const weddingId = randomUUID();
           const wedding = await transaction.wedding.create({
             data: {
+              id: weddingId,
               applicationId: application.id,
               customerUserId: user.id,
-              brideFirstName: application.brideFirstName,
-              brideLastName: application.brideLastName,
-              bridePhone: application.bridePhone,
-              groomFirstName: application.groomFirstName,
-              groomLastName: application.groomLastName,
-              groomPhone: application.groomPhone,
+              ...buildWeddingPiiData(
+                weddingId,
+                {
+                  brideFirstName: applicationPii.brideFirstName,
+                  brideLastName: applicationPii.brideLastName,
+                  bridePhone: applicationPii.bridePhone,
+                  groomFirstName: applicationPii.groomFirstName,
+                  groomLastName: applicationPii.groomLastName,
+                  groomPhone: applicationPii.groomPhone,
+                  primaryEmail: applicationPii.primaryEmail,
+                  note: applicationPii.note
+                },
+                1
+              ),
               primaryContact: application.primaryContact,
-              primaryEmail: application.primaryEmail,
               startsAt: application.weddingStartsAt,
               endsAt: application.weddingEndsAt,
               venueId: application.venueId,
@@ -1000,7 +1105,6 @@ export const approveBookingApplication = async (
                   priceCents: service.priceCents
                 }))
               },
-              note: application.note,
               delivery: {
                 create: {
                   dueDate,
@@ -1010,27 +1114,23 @@ export const approveBookingApplication = async (
             }
           });
 
-          const encryptedPassword = encryptValue(
-            temporaryPassword,
-            messageSecretEncryptionAad(wedding.id, "ACCOUNT_ACTIVATION")
-          );
+          const activationTaskId = randomUUID();
+          const preparationTaskId = randomUUID();
           await transaction.messageTask.createMany({
             data: [
               {
+                id: activationTaskId,
                 weddingId: wedding.id,
                 kind: "ACCOUNT_ACTIVATION",
                 dueAt: activeAt,
-                recipientPhone,
-                secretCiphertext: encryptedPassword.ciphertext,
-                secretIv: encryptedPassword.iv,
-                secretAuthTag: encryptedPassword.authTag,
-                encryptionVersion: 2
+                ...buildMessageTaskPiiData(activationTaskId, { recipientPhone }, 1)
               },
               {
+                id: preparationTaskId,
                 weddingId: wedding.id,
                 kind: "PREPARATION_UPDATE",
                 dueAt: preparationDueAt,
-                recipientPhone
+                ...buildMessageTaskPiiData(preparationTaskId, { recipientPhone }, 1)
               }
             ]
           });
@@ -1073,12 +1173,30 @@ export const rejectBookingApplication = async (
   correlationId: string
 ) =>
   prisma.$transaction(async (transaction) => {
+    const current = await transaction.bookingApplication.findFirst({
+      where: { id: applicationId, status: "ONAY_BEKLIYOR", deletedAt: null }
+    });
+    if (!current) {
+      throw new AppError("Başvuru bulunamadı veya artık onay beklemiyor.", 409);
+    }
+    const currentPii = decryptBookingApplicationPii(current.id, current);
+    const nextPii = buildBookingApplicationPiiData(
+      current.id,
+      { ...currentPii, rejectionReason: reason },
+      current.piiRevision + 1
+    );
     const updated = await transaction.bookingApplication.updateMany({
-      where: { id: applicationId, status: "ONAY_BEKLIYOR", deletedAt: null },
+      where: {
+        id: applicationId,
+        status: "ONAY_BEKLIYOR",
+        deletedAt: null,
+        updatedAt: current.updatedAt,
+        piiRevision: current.piiRevision
+      },
       data: {
+        ...nextPii,
         status: "REDDEDILDI",
         paymentFlowTokenHash: null,
-        rejectionReason: reason,
         reviewedAt: new Date(),
         reviewedById: actorUserId
       }
@@ -1091,8 +1209,7 @@ export const rejectBookingApplication = async (
       action: "booking.rejected",
       targetType: "BookingApplication",
       targetId: applicationId,
-      correlationId,
-      metadata: { reason }
+      correlationId
     });
     return { id: applicationId, status: "REDDEDILDI" as const };
   });

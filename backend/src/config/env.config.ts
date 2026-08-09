@@ -110,6 +110,15 @@ const booleanStringSchema = (name: string) =>
 
 const DEVELOPMENT_ENCRYPTION_KEY =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+const DEVELOPMENT_PII_BLIND_INDEX_KEY =
+  'f1e2d3c4b5a69788776655443322110089abcdef0123456776543210fedcba98';
+const DEVELOPMENT_RATE_LIMIT_HMAC_KEY =
+  'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789';
+const DEFAULT_DATA_ENCRYPTION_KEYRING_JSON = JSON.stringify({
+  legacy: DEVELOPMENT_ENCRYPTION_KEY,
+});
+const ENCRYPTION_KEY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+const HEX_32_BYTE_PATTERN = /^[a-fA-F0-9]{64}$/;
 const CSRF_COOKIE_NAME = 'dugunajansim_csrf';
 const TEST_PAYMENT_BANK_NAME = 'TEST BANKASI';
 const TEST_PAYMENT_ACCOUNT_HOLDER = 'Düğün Ajansım Test Hesabı';
@@ -118,8 +127,42 @@ const TEST_PAYMENT_WHATSAPP_PHONE = '905555555555';
 
 const isKnownExampleOrWeakEncryptionKey = (value: string): boolean =>
   value === DEVELOPMENT_ENCRYPTION_KEY ||
+  value === DEVELOPMENT_PII_BLIND_INDEX_KEY ||
   /^([a-f0-9])\1{63}$/i.test(value) ||
   value.slice(0, 32) === value.slice(32);
+
+export const parseDataEncryptionKeyring = (rawValue: string): Record<string, string> => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawValue);
+  } catch {
+    throw new Error('DATA_ENCRYPTION_KEYRING_JSON geçerli JSON olmalıdır');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('DATA_ENCRYPTION_KEYRING_JSON bir JSON nesnesi olmalıdır');
+  }
+
+  const entries = Object.entries(parsed);
+  if (entries.length < 1 || entries.length > 16) {
+    throw new Error('DATA_ENCRYPTION_KEYRING_JSON 1-16 anahtar içermelidir');
+  }
+
+  const keyring: Record<string, string> = Object.create(null) as Record<string, string>;
+  const uniqueKeyMaterial = new Set<string>();
+  for (const [keyId, rawKey] of entries) {
+    if (!ENCRYPTION_KEY_ID_PATTERN.test(keyId) || typeof rawKey !== 'string') {
+      throw new Error('DATA_ENCRYPTION_KEYRING_JSON key ID veya anahtar biçimi geçersiz');
+    }
+    const normalizedKey = rawKey.toLowerCase();
+    if (!HEX_32_BYTE_PATTERN.test(normalizedKey) || uniqueKeyMaterial.has(normalizedKey)) {
+      throw new Error('DATA_ENCRYPTION_KEYRING_JSON anahtarları benzersiz 32 bayt hex olmalıdır');
+    }
+    uniqueKeyMaterial.add(normalizedKey);
+    keyring[keyId] = normalizedKey;
+  }
+  return keyring;
+};
 
 // Ortam değişkenlerinin tamamını denetleyen ana Zod şeması
 const envSchema = z
@@ -135,23 +178,65 @@ const envSchema = z
     HEALTHCHECK_TIMEOUT_MS: boundedIntegerSchema('HEALTHCHECK_TIMEOUT_MS', 250, 10_000).default(
       '3000',
     ),
+    HTTP_REQUEST_TIMEOUT_MS: boundedIntegerSchema(
+      'HTTP_REQUEST_TIMEOUT_MS',
+      1_000,
+      120_000,
+    ).default('15000'),
+    HTTP_HEADERS_TIMEOUT_MS: boundedIntegerSchema(
+      'HTTP_HEADERS_TIMEOUT_MS',
+      1_000,
+      60_000,
+    ).default('10000'),
+    HTTP_KEEP_ALIVE_TIMEOUT_MS: boundedIntegerSchema(
+      'HTTP_KEEP_ALIVE_TIMEOUT_MS',
+      1_000,
+      30_000,
+    ).default('5000'),
     DATA_ENCRYPTION_KEY: z
       .string()
       .regex(/^[a-fA-F0-9]{64}$/, 'DATA_ENCRYPTION_KEY 32 baytlık hex değer olmalıdır')
       .default(DEVELOPMENT_ENCRYPTION_KEY),
+    DATA_ENCRYPTION_ACTIVE_KEY_ID: z
+      .string()
+      .regex(ENCRYPTION_KEY_ID_PATTERN, 'DATA_ENCRYPTION_ACTIVE_KEY_ID biçimi geçersiz')
+      .default('legacy'),
+    DATA_ENCRYPTION_KEYRING_JSON: z
+      .string()
+      .superRefine((value, context) => {
+        try {
+          parseDataEncryptionKeyring(value);
+        } catch (error) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: error instanceof Error ? error.message : 'Encryption keyring geçersiz',
+          });
+        }
+      })
+      .default(DEFAULT_DATA_ENCRYPTION_KEYRING_JSON),
+    PII_BLIND_INDEX_KEY: z
+      .string()
+      .regex(HEX_32_BYTE_PATTERN, 'PII_BLIND_INDEX_KEY 32 baytlık hex değer olmalıdır')
+      .default(DEVELOPMENT_PII_BLIND_INDEX_KEY),
+    RATE_LIMIT_HMAC_KEY: z
+      .string()
+      .regex(HEX_32_BYTE_PATTERN, 'RATE_LIMIT_HMAC_KEY 32 baytlık hex değer olmalıdır')
+      .default(DEVELOPMENT_RATE_LIMIT_HMAC_KEY),
+    PII_ENCRYPTION_MODE: z.enum(['dual', 'encrypted', 'strict']).default('encrypted'),
     SESSION_COOKIE_NAME: z
       .string()
       .regex(/^[A-Za-z0-9_-]+$/)
       .default('dugunajansim_session'),
     SESSION_TTL_HOURS: boundedIntegerSchema('SESSION_TTL_HOURS', 1, 720).default('12'),
+    ADMIN_SESSION_TTL_HOURS: boundedIntegerSchema('ADMIN_SESSION_TTL_HOURS', 1, 24).default('8'),
     REMEMBER_SESSION_TTL_DAYS: boundedIntegerSchema('REMEMBER_SESSION_TTL_DAYS', 1, 90).default(
       '30',
     ),
     ADMIN_SESSION_IDLE_MINUTES: boundedIntegerSchema('ADMIN_SESSION_IDLE_MINUTES', 5, 1440).default(
-      '720',
+      '30',
     ),
     SALON_SESSION_IDLE_MINUTES: boundedIntegerSchema('SALON_SESSION_IDLE_MINUTES', 5, 1440).default(
-      '720',
+      '60',
     ),
     CUSTOMER_SESSION_IDLE_HOURS: boundedIntegerSchema(
       'CUSTOMER_SESSION_IDLE_HOURS',
@@ -190,6 +275,14 @@ const envSchema = z
   })
   // Production moduna özel ek güvenlik ve SSL kontrollerini gerçekleştiren geliştirilmiş doğrulama (superRefine)
   .superRefine((environment, context) => {
+    if (environment.HTTP_HEADERS_TIMEOUT_MS > environment.HTTP_REQUEST_TIMEOUT_MS) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['HTTP_HEADERS_TIMEOUT_MS'],
+        message: 'HTTP_HEADERS_TIMEOUT_MS, HTTP_REQUEST_TIMEOUT_MS değerini aşamaz',
+      });
+    }
+
     if (environment.SESSION_COOKIE_NAME === CSRF_COOKIE_NAME) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -294,6 +387,58 @@ const envSchema = z
         path: ['DATA_ENCRYPTION_KEY'],
         message:
           'Production ortamında örneklerden farklı, kriptografik olarak rastgele DATA_ENCRYPTION_KEY zorunludur',
+      });
+    }
+
+    let keyring: Record<string, string> | undefined;
+    try {
+      keyring = parseDataEncryptionKeyring(environment.DATA_ENCRYPTION_KEYRING_JSON);
+    } catch {
+      // Alan doğrulaması ayrıntılı hatayı zaten üretir.
+    }
+    if (!keyring || !keyring[environment.DATA_ENCRYPTION_ACTIVE_KEY_ID]) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DATA_ENCRYPTION_ACTIVE_KEY_ID'],
+        message: 'Aktif encryption key ID keyring içinde bulunmalıdır',
+      });
+    }
+    if (
+      keyring &&
+      (Object.values(keyring).some(isKnownExampleOrWeakEncryptionKey) ||
+        isKnownExampleOrWeakEncryptionKey(environment.PII_BLIND_INDEX_KEY))
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DATA_ENCRYPTION_KEYRING_JSON'],
+        message: 'Production PII anahtarları örneklerden farklı ve kriptografik rastgele olmalıdır',
+      });
+    }
+    if (
+      keyring &&
+      Object.values(keyring).some(
+        (encryptionKey) => encryptionKey === environment.PII_BLIND_INDEX_KEY.toLowerCase(),
+      )
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PII_BLIND_INDEX_KEY'],
+        message: 'PII blind-index anahtarı encryption keyring anahtarlarından ayrı olmalıdır',
+      });
+    }
+    if (
+      environment.NODE_ENV === 'production' &&
+      (environment.RATE_LIMIT_HMAC_KEY === DEVELOPMENT_RATE_LIMIT_HMAC_KEY ||
+        environment.RATE_LIMIT_HMAC_KEY.toLowerCase() ===
+          environment.PII_BLIND_INDEX_KEY.toLowerCase() ||
+        Object.values(keyring ?? {}).some(
+          (encryptionKey) => encryptionKey === environment.RATE_LIMIT_HMAC_KEY.toLowerCase(),
+        ))
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['RATE_LIMIT_HMAC_KEY'],
+        message: 'Production rate-limit HMAC anahtarı benzersiz ve rastgele olmalıdır',
       });
     }
 

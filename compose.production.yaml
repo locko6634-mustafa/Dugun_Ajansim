@@ -11,7 +11,21 @@ services:
     image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
     restart: unless-stopped
     stop_grace_period: 30s
-    pids_limit: 200
+    read_only: true
+    cpus: ${POSTGRES_CPU_LIMIT:-2.0}
+    mem_limit: ${POSTGRES_MEMORY_LIMIT:-2g}
+    mem_reservation: ${POSTGRES_MEMORY_RESERVATION:-512m}
+    pids_limit: 300
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
     logging: *default-logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-dugun_ajansim}
@@ -19,9 +33,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD zorunludur}
       POSTGRES_RUNTIME_USER: ${POSTGRES_RUNTIME_USER:-dugun_runtime}
       POSTGRES_RUNTIME_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./deploy/postgres/init-runtime-role.sh:/docker-entrypoint-initdb.d/20-runtime-role.sh:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+      - /var/run/postgresql:rw,noexec,nosuid,nodev,size=16m,mode=3775
     healthcheck:
       test:
         ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dugun_app} -d ${POSTGRES_DB:-dugun_ajansim}"]
@@ -39,7 +57,7 @@ services:
       dockerfile: backend/Dockerfile
       target: migrate
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-dugun_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dugun_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,11 +65,18 @@ services:
       - internal
     restart: "no"
     stop_grace_period: 10s
+    init: true
+    read_only: true
+    cpus: ${MIGRATE_CPU_LIMIT:-1.0}
+    mem_limit: ${MIGRATE_MEMORY_LIMIT:-1g}
+    mem_reservation: ${MIGRATE_MEMORY_RESERVATION:-256m}
     pids_limit: 100
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     logging: *default-logging
 
   seed:
@@ -60,19 +85,26 @@ services:
     profiles:
       - bootstrap
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
     depends_on:
-      db-role-bootstrap:
+      db-runtime-hardening:
         condition: service_completed_successfully
     networks:
       - internal
     restart: "no"
     stop_grace_period: 10s
+    init: true
+    read_only: true
+    cpus: ${SEED_CPU_LIMIT:-0.75}
+    mem_limit: ${SEED_MEMORY_LIMIT:-512m}
+    mem_reservation: ${SEED_MEMORY_RESERVATION:-128m}
     pids_limit: 100
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     logging: *default-logging
 
   admin-bootstrap:
@@ -83,14 +115,20 @@ services:
     environment:
       NODE_ENV: production
       CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
-      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
       ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY zorunludur}
+      DATA_ENCRYPTION_ACTIVE_KEY_ID: ${DATA_ENCRYPTION_ACTIVE_KEY_ID:?DATA_ENCRYPTION_ACTIVE_KEY_ID zorunludur}
+      DATA_ENCRYPTION_KEYRING_JSON: ${DATA_ENCRYPTION_KEYRING_JSON:?DATA_ENCRYPTION_KEYRING_JSON zorunludur}
+      PII_BLIND_INDEX_KEY: ${PII_BLIND_INDEX_KEY:?PII_BLIND_INDEX_KEY zorunludur}
+      RATE_LIMIT_HMAC_KEY: ${RATE_LIMIT_HMAC_KEY:?RATE_LIMIT_HMAC_KEY zorunludur}
+      PII_ENCRYPTION_MODE: ${PII_ENCRYPTION_MODE:-encrypted}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-dugunajansim_session}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      ADMIN_SESSION_TTL_HOURS: ${ADMIN_SESSION_TTL_HOURS:-8}
       REMEMBER_SESSION_TTL_DAYS: ${REMEMBER_SESSION_TTL_DAYS:-30}
-      ADMIN_SESSION_IDLE_MINUTES: ${ADMIN_SESSION_IDLE_MINUTES:-720}
-      SALON_SESSION_IDLE_MINUTES: ${SALON_SESSION_IDLE_MINUTES:-720}
+      ADMIN_SESSION_IDLE_MINUTES: ${ADMIN_SESSION_IDLE_MINUTES:-30}
+      SALON_SESSION_IDLE_MINUTES: ${SALON_SESSION_IDLE_MINUTES:-60}
       CUSTOMER_SESSION_IDLE_HOURS: ${CUSTOMER_SESSION_IDLE_HOURS:-12}
       TEMPORARY_PASSWORD_TTL_HOURS: ${TEMPORARY_PASSWORD_TTL_HOURS:-72}
       PAYMENT_MODE: ${PAYMENT_MODE:?PAYMENT_MODE zorunludur}
@@ -100,17 +138,24 @@ services:
       PAYMENT_IBAN: ${PAYMENT_IBAN:?PAYMENT_IBAN zorunludur}
       PAYMENT_WHATSAPP_PHONE: ${PAYMENT_WHATSAPP_PHONE:?PAYMENT_WHATSAPP_PHONE zorunludur}
     depends_on:
-      db-role-bootstrap:
+      db-runtime-hardening:
         condition: service_completed_successfully
     networks:
       - internal
     restart: "no"
     stop_grace_period: 10s
+    init: true
+    read_only: true
+    cpus: ${ADMIN_BOOTSTRAP_CPU_LIMIT:-0.75}
+    mem_limit: ${ADMIN_BOOTSTRAP_MEMORY_LIMIT:-512m}
+    mem_reservation: ${ADMIN_BOOTSTRAP_MEMORY_RESERVATION:-128m}
     pids_limit: 100
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     logging: *default-logging
 
   db-role-bootstrap:
@@ -133,11 +178,118 @@ services:
       - internal
     restart: "no"
     stop_grace_period: 10s
+    init: true
+    read_only: true
+    cpus: ${DB_BOOTSTRAP_CPU_LIMIT:-0.50}
+    mem_limit: ${DB_BOOTSTRAP_MEMORY_LIMIT:-256m}
+    mem_reservation: ${DB_BOOTSTRAP_MEMORY_RESERVATION:-64m}
     pids_limit: 100
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    logging: *default-logging
+
+  db-runtime-hardening:
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    command: ["sh", "/usr/local/bin/configure-runtime-timeouts.sh"]
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD zorunludur}
+      POSTGRES_DB: ${POSTGRES_DB:-dugun_ajansim}
+      POSTGRES_USER: ${POSTGRES_USER:-dugun_app}
+      POSTGRES_RUNTIME_USER: ${POSTGRES_RUNTIME_USER:-dugun_runtime}
+      POSTGRES_RUNTIME_STATEMENT_TIMEOUT_MS: ${POSTGRES_RUNTIME_STATEMENT_TIMEOUT_MS:-30000}
+      POSTGRES_RUNTIME_LOCK_TIMEOUT_MS: ${POSTGRES_RUNTIME_LOCK_TIMEOUT_MS:-5000}
+      POSTGRES_RUNTIME_IDLE_TRANSACTION_TIMEOUT_MS: ${POSTGRES_RUNTIME_IDLE_TRANSACTION_TIMEOUT_MS:-30000}
+    volumes:
+      - ./deploy/postgres/configure-runtime-timeouts.sh:/usr/local/bin/configure-runtime-timeouts.sh:ro
+    depends_on:
+      db-role-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - internal
+    restart: "no"
+    stop_grace_period: 10s
+    init: true
+    read_only: true
+    cpus: ${DB_HARDENING_CPU_LIMIT:-0.50}
+    mem_limit: ${DB_HARDENING_MEMORY_LIMIT:-256m}
+    mem_reservation: ${DB_HARDENING_MEMORY_RESERVATION:-64m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    logging: *default-logging
+
+  backup-crypto:
+    image: dugun-ajansim-backup-crypto
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: backup-crypto
+    command: ["validate"]
+    profiles:
+      - operations
+    environment:
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY zorunludur}
+      APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS: ${APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS:?APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS zorunludur}
+    network_mode: none
+    restart: "no"
+    stop_grace_period: 5s
+    init: true
+    read_only: true
+    cpus: ${BACKUP_CRYPTO_CPU_LIMIT:-0.75}
+    mem_limit: ${BACKUP_CRYPTO_MEMORY_LIMIT:-512m}
+    mem_reservation: ${BACKUP_CRYPTO_MEMORY_RESERVATION:-128m}
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+  pii-maintenance:
+    image: dugun-ajansim-migrate
+    command: ["node", "dist/scripts/maintainPiiEncryption.js", "--verify"]
+    profiles:
+      - operations
+    environment:
+      NODE_ENV: production
+      CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
+      ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY zorunludur}
+      DATA_ENCRYPTION_ACTIVE_KEY_ID: ${DATA_ENCRYPTION_ACTIVE_KEY_ID:?DATA_ENCRYPTION_ACTIVE_KEY_ID zorunludur}
+      DATA_ENCRYPTION_KEYRING_JSON: ${DATA_ENCRYPTION_KEYRING_JSON:?DATA_ENCRYPTION_KEYRING_JSON zorunludur}
+      PII_BLIND_INDEX_KEY: ${PII_BLIND_INDEX_KEY:?PII_BLIND_INDEX_KEY zorunludur}
+      RATE_LIMIT_HMAC_KEY: ${RATE_LIMIT_HMAC_KEY:?RATE_LIMIT_HMAC_KEY zorunludur}
+      PII_ENCRYPTION_MODE: ${PII_ENCRYPTION_MODE:-encrypted}
+    depends_on:
+      db-runtime-hardening:
+        condition: service_completed_successfully
+    networks:
+      - internal
+    restart: "no"
+    stop_grace_period: 10s
+    init: true
+    read_only: true
+    cpus: ${PII_MAINTENANCE_CPU_LIMIT:-0.75}
+    mem_limit: ${PII_MAINTENANCE_MEMORY_LIMIT:-512m}
+    mem_reservation: ${PII_MAINTENANCE_MEMORY_RESERVATION:-128m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     logging: *default-logging
 
   backend:
@@ -145,28 +297,46 @@ services:
       context: .
       dockerfile: backend/Dockerfile
       target: runtime
+      args:
+        BUILD_REVISION: ${DEPLOY_SHA:-unknown}
     restart: unless-stopped
     stop_grace_period: 30s
+    init: true
+    read_only: true
+    cpus: ${BACKEND_CPU_LIMIT:-1.50}
+    mem_limit: ${BACKEND_MEMORY_LIMIT:-768m}
+    mem_reservation: ${BACKEND_MEMORY_RESERVATION:-256m}
     pids_limit: 200
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     logging: *default-logging
     environment:
       NODE_ENV: production
       PORT: 5000
       CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
-      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
       ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
       TRUST_PROXY: ${TRUST_PROXY:?TRUST_PROXY kesin Traefik IP adresi zorunludur}
       HEALTHCHECK_TIMEOUT_MS: 3000
+      HTTP_REQUEST_TIMEOUT_MS: ${HTTP_REQUEST_TIMEOUT_MS:-15000}
+      HTTP_HEADERS_TIMEOUT_MS: ${HTTP_HEADERS_TIMEOUT_MS:-10000}
+      HTTP_KEEP_ALIVE_TIMEOUT_MS: ${HTTP_KEEP_ALIVE_TIMEOUT_MS:-5000}
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY zorunludur}
+      DATA_ENCRYPTION_ACTIVE_KEY_ID: ${DATA_ENCRYPTION_ACTIVE_KEY_ID:?DATA_ENCRYPTION_ACTIVE_KEY_ID zorunludur}
+      DATA_ENCRYPTION_KEYRING_JSON: ${DATA_ENCRYPTION_KEYRING_JSON:?DATA_ENCRYPTION_KEYRING_JSON zorunludur}
+      PII_BLIND_INDEX_KEY: ${PII_BLIND_INDEX_KEY:?PII_BLIND_INDEX_KEY zorunludur}
+      RATE_LIMIT_HMAC_KEY: ${RATE_LIMIT_HMAC_KEY:?RATE_LIMIT_HMAC_KEY zorunludur}
+      PII_ENCRYPTION_MODE: ${PII_ENCRYPTION_MODE:-encrypted}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-dugunajansim_session}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      ADMIN_SESSION_TTL_HOURS: ${ADMIN_SESSION_TTL_HOURS:-8}
       REMEMBER_SESSION_TTL_DAYS: ${REMEMBER_SESSION_TTL_DAYS:-30}
-      ADMIN_SESSION_IDLE_MINUTES: ${ADMIN_SESSION_IDLE_MINUTES:-720}
-      SALON_SESSION_IDLE_MINUTES: ${SALON_SESSION_IDLE_MINUTES:-720}
+      ADMIN_SESSION_IDLE_MINUTES: ${ADMIN_SESSION_IDLE_MINUTES:-30}
+      SALON_SESSION_IDLE_MINUTES: ${SALON_SESSION_IDLE_MINUTES:-60}
       CUSTOMER_SESSION_IDLE_HOURS: ${CUSTOMER_SESSION_IDLE_HOURS:-12}
       TEMPORARY_PASSWORD_TTL_HOURS: ${TEMPORARY_PASSWORD_TTL_HOURS:-72}
       PAYMENT_MODE: ${PAYMENT_MODE:?PAYMENT_MODE zorunludur}
@@ -176,7 +346,7 @@ services:
       PAYMENT_IBAN: ${PAYMENT_IBAN:?PAYMENT_IBAN zorunludur}
       PAYMENT_WHATSAPP_PHONE: ${PAYMENT_WHATSAPP_PHONE:?PAYMENT_WHATSAPP_PHONE zorunludur}
     depends_on:
-      db-role-bootstrap:
+      db-runtime-hardening:
         condition: service_completed_successfully
     healthcheck:
       test:
@@ -217,13 +387,23 @@ services:
       dockerfile: Dockerfile
       args:
         APP_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
+        BUILD_REVISION: ${DEPLOY_SHA:-unknown}
     restart: unless-stopped
     stop_grace_period: 10s
+    init: true
+    read_only: true
+    cpus: ${FRONTEND_CPU_LIMIT:-0.75}
+    mem_limit: ${FRONTEND_MEMORY_LIMIT:-256m}
+    mem_reservation: ${FRONTEND_MEMORY_RESERVATION:-64m}
     pids_limit: 100
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+      - /var/cache/nginx:rw,noexec,nosuid,nodev,size=32m,mode=1777
+      - /var/run:rw,noexec,nosuid,nodev,size=8m,mode=1777
     logging: *default-logging
     depends_on:
       backend:

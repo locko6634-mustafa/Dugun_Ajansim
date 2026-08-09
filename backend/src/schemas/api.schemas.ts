@@ -87,11 +87,58 @@ const blockedPasswords = new Set([
   "passwordpassword",
   "qwertyuiopasdfgh",
   "dugunajansim123",
-  "sifrem123456789"
+  "sifrem123456789",
+  "ilkgiristedegistirilecekgucluparola"
 ]);
 
 const normalizePasswordForBlocklist = (value: string): string =>
   value.normalize("NFKC").trim().toLowerCase();
+
+const passwordHasPredictablePattern = (value: string): boolean => {
+  const normalized = normalizePasswordForBlocklist(value).replace(/\s+/g, "");
+  if (/(.)\1{5,}/u.test(normalized)) return true;
+
+  for (let unitLength = 1; unitLength <= 4; unitLength += 1) {
+    if (normalized.length % unitLength !== 0) continue;
+    const unit = normalized.slice(0, unitLength);
+    if (unit.repeat(normalized.length / unitLength) === normalized) return true;
+  }
+
+  const sequences = [
+    "0123456789",
+    "9876543210",
+    "abcdefghijklmnopqrstuvwxyz",
+    "zyxwvutsrqponmlkjihgfedcba",
+    "qwertyuiopasdfghjklzxcvbnm",
+    "mnbvcxzlkjhgfdsaqpoiuytrewq"
+  ];
+  for (let index = 0; index <= normalized.length - 6; index += 1) {
+    const fragment = normalized.slice(index, index + 6);
+    if (sequences.some((sequence) => sequence.includes(fragment))) return true;
+  }
+  return false;
+};
+
+const normalizeCredentialComparison = (value: string): string =>
+  value
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[013457]/g, (character) => ({
+      "0": "o",
+      "1": "i",
+      "3": "e",
+      "4": "a",
+      "5": "s",
+      "7": "t"
+    })[character]!)
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+
+export const isPasswordSimilarToUsername = (password: string, username: string): boolean => {
+  const passwordKey = normalizeCredentialComparison(password);
+  const usernameKey = normalizeCredentialComparison(username);
+  return usernameKey.length >= 3 && passwordKey.includes(usernameKey);
+};
 
 export const strongPasswordSchema = z
   .string()
@@ -100,7 +147,26 @@ export const strongPasswordSchema = z
   .refine(
     (value) => !blockedPasswords.has(normalizePasswordForBlocklist(value)),
     "Daha az yaygın bir parola seçin."
+  )
+  .refine(
+    (value) => !passwordHasPredictablePattern(value),
+    "Parolanız tekrar eden veya sıralı bir desen içeremez."
   );
+
+const addUsernamePasswordIssue = (
+  value: { username?: string; password?: string },
+  context: z.RefinementCtx
+): void => {
+  if (value.username && value.password && isPasswordSimilarToUsername(value.password, value.username)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["password"],
+      message: "Parola kullanıcı adına benzememelidir."
+    });
+  }
+};
+
+export const totpCodeSchema = z.string().trim().regex(/^\d{6}$/, "6 haneli doğrulama kodunu girin.");
 
 const bookingBodyBaseSchema = z
   .object({
@@ -171,6 +237,7 @@ export const loginBodySchema = z
   .object({
     username: z.string().trim().min(3).max(64),
     password: z.string().min(6).max(256),
+    totpCode: totpCodeSchema.optional(),
     remember: z.boolean().default(false)
   })
   .strict();
@@ -179,6 +246,24 @@ export const passwordChangeBodySchema = z
   .object({
     currentPassword: z.string().min(6).max(256),
     newPassword: strongPasswordSchema
+  })
+  .strict();
+
+export const passwordSetupBodySchema = z
+  .object({
+    token: z.string().regex(/^[A-Za-z0-9_-]{43}$/, 'Kurulum bağlantısı geçersiz'),
+    newPassword: strongPasswordSchema,
+  })
+  .strict();
+
+export const mfaEnrollmentBodySchema = z
+  .object({ currentPassword: z.string().min(6).max(256) })
+  .strict();
+
+export const mfaProtectedActionBodySchema = z
+  .object({
+    currentPassword: z.string().min(6).max(256),
+    totpCode: totpCodeSchema
   })
   .strict();
 
@@ -365,7 +450,8 @@ export const venueManagerBodySchema = z
     venueId: z.string().uuid(),
     status: z.enum(["ACTIVE", "DISABLED"]).default("ACTIVE")
   })
-  .strict();
+  .strict()
+  .superRefine(addUsernamePasswordIssue);
 
 export const venueManagerUpdateBodySchema = z
   .object({
@@ -380,6 +466,7 @@ export const venueManagerUpdateBodySchema = z
     status: z.enum(["ACTIVE", "DISABLED"]).optional()
   })
   .strict()
+  .superRefine(addUsernamePasswordIssue)
   .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
 
 export const operationalWeddingUpdateBodySchema = z

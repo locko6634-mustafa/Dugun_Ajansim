@@ -30,6 +30,7 @@ import {
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
 const STATUS_LABELS = DELIVERY_STATUS_LABELS;
 const MESSAGE_LABELS = MESSAGE_KIND_LABELS;
+const CATALOG_FALLBACK_IMAGE = "assets/images/hero-couple.webp";
 
 function domainOptions(labels) {
   return Object.entries(labels)
@@ -1075,7 +1076,7 @@ function renderCatalogRows(container, rows, type) {
   const isPackage = type === "packages";
   container.innerHTML = rows
     .map((item) => {
-      const img = item.imagePath || "assets/images/hero-couple.webp";
+      const img = item.imagePath || CATALOG_FALLBACK_IMAGE;
       const priceFormatted = (item.priceCents / 100).toLocaleString(APP_LOCALE);
       const subInfo = [
         `Kod: ${escapeHtml(item.code)}`,
@@ -1088,7 +1089,7 @@ function renderCatalogRows(container, rows, type) {
       return `
         <article class="catalog-row" data-catalog-row="${item.id}" data-catalog-type="${type}" data-catalog-name="${escapeHtml(item.name)}">
           <div class="catalog-thumb">
-            <img src="${escapeHtml(img)}" alt="${escapeHtml(item.name)}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='assets/images/hero-couple.webp'" />
+            <img class="js-catalog-image" src="${escapeHtml(img)}" alt="${escapeHtml(item.name)}" style="width: 100%; height: 100%; object-fit: cover;" />
           </div>
           <div class="catalog-info">
             <div class="catalog-title-row">
@@ -1115,6 +1116,18 @@ function renderCatalogRows(container, rows, type) {
         </article>`;
     })
     .join("");
+
+  container.querySelectorAll(".js-catalog-image").forEach((image) => {
+    image.addEventListener(
+      "error",
+      () => {
+        if (image.getAttribute("src") !== CATALOG_FALLBACK_IMAGE) {
+          image.setAttribute("src", CATALOG_FALLBACK_IMAGE);
+        }
+      },
+      { once: true }
+    );
+  });
 }
 
 function renderVenueRows(container, rows) {
@@ -1469,9 +1482,9 @@ detailContent.addEventListener("click", async (event) => {
       setMessage("Teslimat müşteriye açıldı ve mesaj görevi oluşturuldu.", true);
     } else if (resetButton) {
       const confirmed = await showCustomConfirm({
-        title: "Geçici Parola Oluştur",
-        message: "Müşteri için yeni geçici parola hazırlansın mı?",
-        confirmText: "Parola Hazırla",
+        title: "Parola Bağlantısı Oluştur",
+        message: "Müşteri için tek kullanımlık parola belirleme bağlantısı hazırlansın mı?",
+        confirmText: "Bağlantı Hazırla",
         cancelText: "Vazgeç"
       });
       if (!confirmed) return;
@@ -1482,7 +1495,7 @@ detailContent.addEventListener("click", async (event) => {
           { method: "POST" }
         );
         await openWhatsAppMessage(response.data, popup);
-        setMessage("Geçici parola mesajı panoya kopyalandı ve WhatsApp açıldı.", true);
+        setMessage("Tek kullanımlık bağlantı panoya kopyalandı ve WhatsApp açıldı.", true);
       } catch (error) {
         popup?.close();
         throw error;
@@ -1695,7 +1708,8 @@ document.querySelector(".js-messages").addEventListener("click", async (event) =
       const popup = openBlankPopup();
       try {
         const response = await apiRequest(
-          `/admin/message-tasks/${openButton.dataset.openMessage}/render`
+          `/admin/message-tasks/${openButton.dataset.openMessage}/render`,
+          { method: "POST", body: {} }
         );
         await openWhatsAppMessage(response.data, popup);
         const markButton = document.querySelector(

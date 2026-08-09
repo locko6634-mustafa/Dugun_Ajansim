@@ -11,6 +11,7 @@ import { AppError } from '../utils/appError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { decryptValue } from '../utils/crypto.js';
 import { deliveryEncryptionAad } from '../utils/domain.js';
+import { decryptWeddingPii } from '../utils/pii-crypto.js';
 
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole('MUSTERI'));
@@ -32,7 +33,25 @@ const customerDashboardSchema = z.object({
 const getCustomerWedding = (userId: string) =>
   prisma.wedding.findUnique({
     where: { customerUserId: userId },
-    include: {
+    select: {
+      id: true,
+      brideFirstName: true,
+      brideLastName: true,
+      bridePhone: true,
+      groomFirstName: true,
+      groomLastName: true,
+      groomPhone: true,
+      primaryEmail: true,
+      note: true,
+      piiCiphertext: true,
+      piiIv: true,
+      piiAuthTag: true,
+      piiKeyId: true,
+      piiEncryptionVersion: true,
+      piiSchemaVersion: true,
+      startsAt: true,
+      endsAt: true,
+      packageSummary: true,
       venue: { select: { name: true } },
       delivery: {
         include: { history: { orderBy: { createdAt: 'asc' } } },
@@ -46,14 +65,30 @@ router.get(
   asyncHandler(async (req, res) => {
     const wedding = await getCustomerWedding(req.auth!.userId);
     if (!wedding || !wedding.delivery) throw new AppError('Düğün kaydı bulunamadı.', 404);
+    const weddingPii = decryptWeddingPii(wedding.id, {
+      brideFirstName: wedding.brideFirstName ?? undefined,
+      brideLastName: wedding.brideLastName ?? undefined,
+      bridePhone: wedding.bridePhone ?? undefined,
+      groomFirstName: wedding.groomFirstName ?? undefined,
+      groomLastName: wedding.groomLastName ?? undefined,
+      groomPhone: wedding.groomPhone ?? undefined,
+      primaryEmail: wedding.primaryEmail ?? undefined,
+      note: wedding.note,
+      piiCiphertext: wedding.piiCiphertext,
+      piiIv: wedding.piiIv,
+      piiAuthTag: wedding.piiAuthTag,
+      piiKeyId: wedding.piiKeyId,
+      piiEncryptionVersion: wedding.piiEncryptionVersion,
+      piiSchemaVersion: wedding.piiSchemaVersion,
+    });
 
     res.set('Cache-Control', 'no-store');
     res.json({
       success: true,
       data: {
         couple: {
-          bride: `${wedding.brideFirstName} ${wedding.brideLastName}`,
-          groom: `${wedding.groomFirstName} ${wedding.groomLastName}`,
+          bride: `${weddingPii.brideFirstName} ${weddingPii.brideLastName}`,
+          groom: `${weddingPii.groomFirstName} ${weddingPii.groomLastName}`,
         },
         venue: wedding.venue.name,
         startsAt: wedding.startsAt,

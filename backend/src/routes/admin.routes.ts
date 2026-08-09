@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { env } from "../config/env.config.js";
@@ -19,6 +20,7 @@ import {
   calendarQuerySchema,
   dashboardQuerySchema,
   deliveryUpdateBodySchema,
+  isPasswordSimilarToUsername,
   packageBodySchema,
   permanentDeleteBodySchema,
   rejectBookingBodySchema,
@@ -43,7 +45,7 @@ import {
 } from "../services/booking.service.js";
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { decryptValue, encryptValue, hashPassword } from "../utils/crypto.js";
+import { createOpaqueToken, decryptValue, encryptValue, hashPassword } from "../utils/crypto.js";
 import {
   assertGoogleDriveUrl,
   addCalendarDays,
@@ -52,10 +54,21 @@ import {
   createWeddingRange,
   deliveryEncryptionAad,
   getIstanbulDate,
-  messageSecretEncryptionAad,
-  normalizePhone,
-  randomTemporaryPassword
+  normalizePhone
 } from "../utils/domain.js";
+import {
+  bookingApplicationWithDecryptedPii,
+  buildBookingApplicationPiiData,
+  buildMessageTaskPiiData,
+  buildWeddingPiiData,
+  decryptBookingApplicationPii,
+  decryptMessageTaskPii,
+  decryptWeddingPii,
+  messageTaskWithDecryptedPii,
+  weddingWithDecryptedPii
+} from "../utils/pii-crypto.js";
+import { createPasswordSetupUrl, issuePasswordSetupToken } from "../utils/passwordSetup.js";
+import { findBoundedIntervalConflicts } from "../utils/intervalConflicts.js";
 
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole("ADMIN"));
@@ -89,6 +102,36 @@ const dashboardWeddingInclude = {
   }
 } satisfies Prisma.WeddingInclude;
 
+const weddingPiiSelect = {
+  id: true,
+  brideFirstName: true,
+  brideLastName: true,
+  bridePhone: true,
+  groomFirstName: true,
+  groomLastName: true,
+  groomPhone: true,
+  primaryEmail: true,
+  note: true,
+  piiCiphertext: true,
+  piiIv: true,
+  piiAuthTag: true,
+  piiKeyId: true,
+  piiEncryptionVersion: true,
+  piiSchemaVersion: true
+} satisfies Prisma.WeddingSelect;
+
+type WeddingPiiSelection = Prisma.WeddingGetPayload<{ select: typeof weddingPiiSelect }>;
+
+const weddingNames = (wedding: WeddingPiiSelection) => {
+  const pii = decryptWeddingPii(wedding.id, wedding);
+  return {
+    brideFirstName: pii.brideFirstName,
+    brideLastName: pii.brideLastName,
+    groomFirstName: pii.groomFirstName,
+    groomLastName: pii.groomLastName
+  };
+};
+
 const mondayOf = (date: string): string => {
   const day = new Date(`${date}T12:00:00.000Z`).getUTCDay();
   return addCalendarDays(date, -(day === 0 ? 6 : day - 1));
@@ -102,19 +145,22 @@ const nextMonthOf = (month: string): string => {
 
 const dashboardWedding = (
   wedding: Prisma.WeddingGetPayload<{ include: typeof dashboardWeddingInclude }>
-) => ({
-  id: wedding.id,
-  brideFirstName: wedding.brideFirstName,
-  brideLastName: wedding.brideLastName,
-  groomFirstName: wedding.groomFirstName,
-  groomLastName: wedding.groomLastName,
-  startsAt: wedding.startsAt,
-  endsAt: wedding.endsAt,
-  venue: wedding.venue,
-  packageSummary: wedding.packageSummary,
-  delivery: wedding.delivery,
-  assignments: wedding.assignments
-});
+) => {
+  const pii = decryptWeddingPii(wedding.id, wedding);
+  return {
+    id: wedding.id,
+    brideFirstName: pii.brideFirstName,
+    brideLastName: pii.brideLastName,
+    groomFirstName: pii.groomFirstName,
+    groomLastName: pii.groomLastName,
+    startsAt: wedding.startsAt,
+    endsAt: wedding.endsAt,
+    venue: wedding.venue,
+    packageSummary: wedding.packageSummary,
+    delivery: wedding.delivery,
+    assignments: wedding.assignments
+  };
+};
 
 const isPrismaError = (error: unknown, code: string): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
@@ -200,14 +246,15 @@ router.get(
       orderBy: { createdAt: "desc" },
       take: 200
     });
-    const safeApplications = applications.map(
-      ({
+    const safeApplications = applications.map((rawApplication) => {
+      const {
         idempotencyKey: _key,
         idempotencyFingerprint: _fingerprint,
         paymentFlowTokenHash: _paymentFlowTokenHash,
         ...application
-      }) => application
-    );
+      } = bookingApplicationWithDecryptedPii(rawApplication);
+      return application;
+    });
     res.json({ success: true, data: safeApplications, correlationId: req.correlationId });
   })
 );
@@ -238,13 +285,22 @@ router.get(
       }
     });
     if (!application) throw new AppError("Başvuru bulunamadı.", 404);
+    const decryptedApplication = bookingApplicationWithDecryptedPii(application);
     const {
       idempotencyKey: _key,
       idempotencyFingerprint: _fingerprint,
       paymentFlowTokenHash: _paymentFlowTokenHash,
+      wedding: rawWedding,
       ...safeApplication
-    } = application;
-    res.json({ success: true, data: safeApplication, correlationId: req.correlationId });
+    } = decryptedApplication;
+    res.json({
+      success: true,
+      data: {
+        ...safeApplication,
+        wedding: rawWedding ? weddingWithDecryptedPii(rawWedding) : null
+      },
+      correlationId: req.correlationId
+    });
   })
 );
 
@@ -331,7 +387,8 @@ router.post(
       });
       return transaction.bookingApplication.findUniqueOrThrow({ where: { id: req.params.id } });
     });
-    const { paymentFlowTokenHash: _paymentFlowTokenHash, ...safeApplication } = application;
+    const { paymentFlowTokenHash: _paymentFlowTokenHash, ...safeApplication } =
+      bookingApplicationWithDecryptedPii(application);
     res.json({ success: true, data: safeApplication, correlationId: req.correlationId });
   })
 );
@@ -393,7 +450,8 @@ router.post(
         }
         throw error;
       });
-    const { paymentFlowTokenHash: _paymentFlowTokenHash, ...safeApplication } = application;
+    const { paymentFlowTokenHash: _paymentFlowTokenHash, ...safeApplication } =
+      bookingApplicationWithDecryptedPii(application);
     res.json({ success: true, data: safeApplication, correlationId: req.correlationId });
   })
 );
@@ -521,9 +579,7 @@ router.get(
               id: true,
               wedding: {
                 select: {
-                  id: true,
-                  brideFirstName: true,
-                  groomFirstName: true,
+                  ...weddingPiiSelect,
                   startsAt: true,
                   endsAt: true
                 }
@@ -554,7 +610,7 @@ router.get(
           id: true,
           status: true,
           dueDate: true,
-          wedding: { select: { id: true, brideFirstName: true, groomFirstName: true } }
+          wedding: { select: weddingPiiSelect }
         },
         orderBy: { dueDate: "asc" }
       })
@@ -568,24 +624,16 @@ router.get(
     const assignments = weekWeddings.flatMap((wedding) =>
       wedding.assignments.map((assignment) => ({ assignment, wedding }))
     );
-    const conflicts: Array<Record<string, unknown>> = [];
-    for (let leftIndex = 0; leftIndex < assignments.length; leftIndex += 1) {
-      const left = assignments[leftIndex]!;
-      for (let rightIndex = leftIndex + 1; rightIndex < assignments.length; rightIndex += 1) {
-        const right = assignments[rightIndex]!;
-        if (
-          left.assignment.staffId === right.assignment.staffId &&
-          left.wedding.startsAt < right.wedding.endsAt &&
-          left.wedding.endsAt > right.wedding.startsAt
-        ) {
-          conflicts.push({
-            staff: left.assignment.staff,
-            firstWedding: dashboardWedding(left.wedding),
-            secondWedding: dashboardWedding(right.wedding)
-          });
-        }
-      }
-    }
+    const conflictResult = findBoundedIntervalConflicts(assignments, {
+      groupKey: ({ assignment }) => assignment.staffId,
+      startsAt: ({ wedding }) => wedding.startsAt,
+      endsAt: ({ wedding }) => wedding.endsAt
+    });
+    const conflicts = conflictResult.pairs.map(([left, right]) => ({
+      staff: left.assignment.staff,
+      firstWedding: dashboardWedding(left.wedding),
+      secondWedding: dashboardWedding(right.wedding)
+    }));
 
     const distribution = Object.fromEntries(
       ["PHOTOGRAPHY", "VIDEO", "DRONE", "JIMMY_JIB", "ASSISTANT", "EDITING", "ALBUM"].map(
@@ -620,11 +668,34 @@ router.get(
         staffAvailability: activeStaff.map(({ assignments, ...staff }) => ({
           ...staff,
           isAvailable: assignments.length === 0,
-          assignments
+          assignments: assignments.map(({ wedding, ...assignment }) => {
+            const names = weddingNames(wedding);
+            return {
+              ...assignment,
+              wedding: {
+                id: wedding.id,
+                brideFirstName: names.brideFirstName,
+                groomFirstName: names.groomFirstName,
+                startsAt: wedding.startsAt,
+                endsAt: wedding.endsAt
+              }
+            };
+          })
         })),
         distribution,
         conflicts,
-        upcomingDeliveries
+        conflictsTruncated: conflictResult.truncated,
+        upcomingDeliveries: upcomingDeliveries.map(({ wedding, ...delivery }) => {
+          const names = weddingNames(wedding);
+          return {
+            ...delivery,
+            wedding: {
+              id: wedding.id,
+              brideFirstName: names.brideFirstName,
+              groomFirstName: names.groomFirstName
+            }
+          };
+        })
       },
       correlationId: req.correlationId
     });
@@ -691,9 +762,7 @@ router.get(
             specialty: true,
             wedding: {
               select: {
-                id: true,
-                brideFirstName: true,
-                groomFirstName: true,
+                ...weddingPiiSelect,
                 startsAt: true,
                 endsAt: true
               }
@@ -705,7 +774,23 @@ router.get(
       },
       orderBy: [{ isActive: "desc" }, { lastName: "asc" }, { firstName: "asc" }]
     });
-    res.json({ success: true, data: staff, correlationId: req.correlationId });
+    const safeStaff = staff.map(({ assignments, ...member }) => ({
+      ...member,
+      assignments: assignments.map(({ wedding, ...assignment }) => {
+        const names = weddingNames(wedding);
+        return {
+          ...assignment,
+          wedding: {
+            id: wedding.id,
+            brideFirstName: names.brideFirstName,
+            groomFirstName: names.groomFirstName,
+            startsAt: wedding.startsAt,
+            endsAt: wedding.endsAt
+          }
+        };
+      })
+    }));
+    res.json({ success: true, data: safeStaff, correlationId: req.correlationId });
   })
 );
 
@@ -920,6 +1005,12 @@ router.patch(
           where: { id: req.params.id, role: "SALON_YETKILISI" }
         });
         if (!current) throw new AppError("Salon sorumlusu bulunamadı.", 404);
+        if (
+          req.body.password &&
+          isPasswordSimilarToUsername(req.body.password, req.body.username ?? current.username)
+        ) {
+          throw new AppError("Parola kullanıcı adına benzememelidir.", 400);
+        }
         const updated = await transaction.user.update({
           where: { id: current.id },
           data: {
@@ -1005,7 +1096,7 @@ router.get(
       take: 200
     });
     const safeWeddings = weddings.map((wedding) => ({
-      ...wedding,
+      ...weddingWithDecryptedPii(wedding),
       delivery: wedding.delivery
         ? {
             id: wedding.delivery.id,
@@ -1041,6 +1132,14 @@ router.get(
             status: true,
             dueAt: true,
             recipientPhone: true,
+            piiCiphertext: true,
+            piiIv: true,
+            piiAuthTag: true,
+            piiKeyId: true,
+            piiEncryptionVersion: true,
+            piiSchemaVersion: true,
+            piiRevision: true,
+            recipientPhoneBlindIndex: true,
             sentAt: true,
             createdAt: true,
             updatedAt: true,
@@ -1071,7 +1170,8 @@ router.get(
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }]
     });
 
-    const { delivery, ...safeWedding } = wedding;
+    const { delivery, ...safeWedding } = weddingWithDecryptedPii(wedding);
+    const safeMessageTasks = wedding.messageTasks.map(messageTaskWithDecryptedPii);
     let driveUrl: string | null = null;
     if (delivery?.driveUrlCiphertext && delivery.driveUrlIv && delivery.driveUrlAuthTag) {
       driveUrl = decryptValue(
@@ -1087,6 +1187,7 @@ router.get(
       success: true,
       data: {
         ...safeWedding,
+        messageTasks: safeMessageTasks,
         delivery: delivery
           ? {
               id: delivery.id,
@@ -1172,17 +1273,14 @@ router.delete(
         const wedding = await transaction.wedding.findUnique({
           where: { id: req.params.id },
           select: {
-            id: true,
+            ...weddingPiiSelect,
             applicationId: true,
-            customerUserId: true,
-            brideFirstName: true,
-            brideLastName: true,
-            groomFirstName: true,
-            groomLastName: true
+            customerUserId: true
           }
         });
         if (!wedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
-        const confirmation = `${wedding.brideFirstName} ${wedding.brideLastName} & ${wedding.groomFirstName} ${wedding.groomLastName}`;
+        const names = weddingNames(wedding);
+        const confirmation = `${names.brideFirstName} ${names.brideLastName} & ${names.groomFirstName} ${names.groomLastName}`;
         if (
           normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation(confirmation) &&
           req.body.confirmText.trim() !== wedding.id
@@ -1273,9 +1371,7 @@ router.post(
             id: true,
             wedding: {
               select: {
-                id: true,
-                brideFirstName: true,
-                groomFirstName: true,
+                ...weddingPiiSelect,
                 startsAt: true,
                 endsAt: true,
                 venue: { select: { name: true } }
@@ -1286,7 +1382,17 @@ router.post(
         if (conflicts.length > 0 && !req.body.allowConflict) {
           throw new AppError("Personelin bu saatlerde başka bir görevi var.", 409, true, {
             code: "STAFF_CONFLICT",
-            conflicts: conflicts.map(({ wedding: conflictingWedding }) => conflictingWedding)
+            conflicts: conflicts.map(({ wedding: conflictingWedding }) => {
+              const names = weddingNames(conflictingWedding);
+              return {
+                id: conflictingWedding.id,
+                brideFirstName: names.brideFirstName,
+                groomFirstName: names.groomFirstName,
+                startsAt: conflictingWedding.startsAt,
+                endsAt: conflictingWedding.endsAt,
+                venue: conflictingWedding.venue
+              };
+            })
           });
         }
 
@@ -1441,11 +1547,16 @@ router.patch(
     );
     const oldWeddingDate = getIstanbulDate(wedding.startsAt);
     const dateChanged = oldWeddingDate !== req.body.weddingDate;
+    const currentWeddingPii = decryptWeddingPii(wedding.id, wedding);
+    const currentApplicationPii = decryptBookingApplicationPii(
+      wedding.application.id,
+      wedding.application
+    );
     const namesChanged =
-      wedding.brideFirstName !== req.body.brideFirstName ||
-      wedding.brideLastName !== req.body.brideLastName ||
-      wedding.groomFirstName !== req.body.groomFirstName ||
-      wedding.groomLastName !== req.body.groomLastName;
+      currentWeddingPii.brideFirstName !== req.body.brideFirstName ||
+      currentWeddingPii.brideLastName !== req.body.brideLastName ||
+      currentWeddingPii.groomFirstName !== req.body.groomFirstName ||
+      currentWeddingPii.groomLastName !== req.body.groomLastName;
     const canRegenerateCredentials =
       wedding.customerUser.mustChangePassword && !wedding.customerUser.passwordChangedAt;
     const regenerateCredentials = canRegenerateCredentials && (dateChanged || namesChanged);
@@ -1453,22 +1564,41 @@ router.patch(
     const activationAt = atIstanbulTime(addCalendarDays(req.body.weddingDate, 1), "09:00");
     const preparationAt = atIstanbulTime(addCalendarDays(req.body.weddingDate, 2), "10:00");
     const dueDate = new Date(`${addCalendarDays(req.body.weddingDate, 21)}T00:00:00.000Z`);
+    const nextWeddingPii = buildWeddingPiiData(
+      wedding.id,
+      {
+        brideFirstName: req.body.brideFirstName,
+        brideLastName: req.body.brideLastName,
+        bridePhone,
+        groomFirstName: req.body.groomFirstName,
+        groomLastName: req.body.groomLastName,
+        groomPhone,
+        primaryEmail: req.body.primaryEmail,
+        note: req.body.note || null
+      },
+      wedding.piiRevision + 1
+    );
+    const nextApplicationPii = buildBookingApplicationPiiData(
+      wedding.application.id,
+      {
+        brideFirstName: req.body.brideFirstName,
+        brideLastName: req.body.brideLastName,
+        bridePhone,
+        groomFirstName: req.body.groomFirstName,
+        groomLastName: req.body.groomLastName,
+        groomPhone,
+        primaryEmail: req.body.primaryEmail,
+        note: req.body.note || null,
+        rejectionReason: currentApplicationPii.rejectionReason
+      },
+      wedding.application.piiRevision + 1
+    );
 
     let nextUsername: string | undefined;
     let nextPasswordHash: string | undefined;
-    let encryptedPassword: { ciphertext: string; iv: string; authTag: string } | undefined;
     const now = new Date();
-    const temporaryPasswordExpiresAt = createTemporaryPasswordExpiry(
-      env.TEMPORARY_PASSWORD_TTL_HOURS,
-      activationAt > now ? activationAt : now
-    );
     if (regenerateCredentials) {
-      const temporaryPassword = randomTemporaryPassword();
-      nextPasswordHash = await hashPassword(temporaryPassword);
-      encryptedPassword = encryptValue(
-        temporaryPassword,
-        messageSecretEncryptionAad(wedding.id, "ACCOUNT_ACTIVATION")
-      );
+      nextPasswordHash = await hashPassword(createOpaqueToken(48));
     }
 
     const updateWedding = () =>
@@ -1504,23 +1634,17 @@ router.patch(
               where: {
                 id: wedding.id,
                 updatedAt: wedding.updatedAt,
+                piiRevision: wedding.piiRevision,
                 cancelledAt: null,
                 deletedAt: null
               },
               data: {
-                brideFirstName: req.body.brideFirstName,
-                brideLastName: req.body.brideLastName,
-                bridePhone,
-                groomFirstName: req.body.groomFirstName,
-                groomLastName: req.body.groomLastName,
-                groomPhone,
+                ...nextWeddingPii,
                 primaryContact: req.body.primaryContact,
-                primaryEmail: req.body.primaryEmail,
                 startsAt,
                 endsAt,
                 venueId: req.body.venueId,
-                packageSummary,
-                note: req.body.note || null
+                packageSummary
               }
             });
             if (claimedWedding.count !== 1) {
@@ -1528,16 +1652,14 @@ router.patch(
             }
 
             await transaction.bookingApplication.update({
-              where: { id: wedding.applicationId },
+              where: {
+                id: wedding.applicationId,
+                updatedAt: wedding.application.updatedAt,
+                piiRevision: wedding.application.piiRevision
+              },
               data: {
-                brideFirstName: req.body.brideFirstName,
-                brideLastName: req.body.brideLastName,
-                bridePhone,
-                groomFirstName: req.body.groomFirstName,
-                groomLastName: req.body.groomLastName,
-                groomPhone,
+                ...nextApplicationPii,
                 primaryContact: req.body.primaryContact,
-                primaryEmail: req.body.primaryEmail,
                 weddingStartsAt: startsAt,
                 weddingEndsAt: endsAt,
                 venueId: req.body.venueId,
@@ -1546,8 +1668,7 @@ router.patch(
                 packageNameSnapshot: selectedPackage.name,
                 packagePriceCents: selectedPackage.priceCents,
                 totalPriceCents,
-                payableNowCents,
-                note: req.body.note || null
+                payableNowCents
               }
             });
 
@@ -1566,7 +1687,7 @@ router.patch(
               });
             }
 
-            if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
+            if (regenerateCredentials && nextUsername && nextPasswordHash) {
               const claimedUser = await transaction.user.updateMany({
                 where: {
                   id: wedding.customerUserId,
@@ -1579,7 +1700,7 @@ router.patch(
                   passwordHash: nextPasswordHash,
                   activeAt: activationAt,
                   mustChangePassword: true,
-                  temporaryPasswordExpiresAt,
+                  temporaryPasswordExpiresAt: null,
                   passwordChangedAt: null
                 }
               });
@@ -1588,6 +1709,10 @@ router.patch(
               }
               await transaction.authSession.updateMany({
                 where: { userId: wedding.customerUserId, revokedAt: null },
+                data: { revokedAt: now }
+              });
+              await transaction.passwordSetupToken.updateMany({
+                where: { userId: wedding.customerUserId, usedAt: null, revokedAt: null },
                 data: { revokedAt: now }
               });
             }
@@ -1605,10 +1730,28 @@ router.patch(
               }
             }
 
-            await transaction.messageTask.updateMany({
+            const pendingMessageTasks = await transaction.messageTask.findMany({
               where: { weddingId: wedding.id, status: "PENDING" },
-              data: { recipientPhone }
+              select: { id: true, updatedAt: true, piiRevision: true }
             });
+            for (const pendingTask of pendingMessageTasks) {
+              const claimedTask = await transaction.messageTask.updateMany({
+                where: {
+                  id: pendingTask.id,
+                  status: "PENDING",
+                  updatedAt: pendingTask.updatedAt,
+                  piiRevision: pendingTask.piiRevision
+                },
+                data: buildMessageTaskPiiData(
+                  pendingTask.id,
+                  { recipientPhone },
+                  pendingTask.piiRevision + 1
+                )
+              });
+              if (claimedTask.count !== 1) {
+                throw new AppError("Mesaj görevi başka bir işlemde güncellendi.", 409);
+              }
+            }
 
             if (dateChanged) {
               await transaction.messageTask.updateMany({
@@ -1621,7 +1764,7 @@ router.patch(
               });
             }
 
-            if (regenerateCredentials && nextUsername && nextPasswordHash && encryptedPassword) {
+            if (regenerateCredentials && nextUsername && nextPasswordHash) {
               await transaction.messageTask.updateMany({
                 where: {
                   weddingId: wedding.id,
@@ -1637,35 +1780,51 @@ router.patch(
                   secretAuthTag: null
                 }
               });
-              await transaction.messageTask.upsert({
+              const existingActivationTask = await transaction.messageTask.findUnique({
                 where: {
                   weddingId_kind: {
                     weddingId: wedding.id,
                     kind: "ACCOUNT_ACTIVATION"
                   }
-                },
-                create: {
-                  weddingId: wedding.id,
-                  kind: "ACCOUNT_ACTIVATION",
-                  dueAt: activationAt,
-                  recipientPhone,
-                  secretCiphertext: encryptedPassword.ciphertext,
-                  secretIv: encryptedPassword.iv,
-                  secretAuthTag: encryptedPassword.authTag,
-                  encryptionVersion: 2
-                },
-                update: {
-                  status: "PENDING",
-                  dueAt: activationAt,
-                  recipientPhone,
-                  sentAt: null,
-                  sentById: null,
-                  secretCiphertext: encryptedPassword.ciphertext,
-                  secretIv: encryptedPassword.iv,
-                  secretAuthTag: encryptedPassword.authTag,
-                  encryptionVersion: 2
                 }
               });
+              if (existingActivationTask) {
+                await transaction.messageTask.update({
+                  where: {
+                    id: existingActivationTask.id,
+                    piiRevision: existingActivationTask.piiRevision
+                  },
+                  data: {
+                    ...buildMessageTaskPiiData(
+                      existingActivationTask.id,
+                      { recipientPhone },
+                      existingActivationTask.piiRevision + 1
+                    ),
+                    status: "PENDING",
+                    dueAt: activationAt,
+                    sentAt: null,
+                    sentById: null,
+                    secretCiphertext: null,
+                    secretIv: null,
+                    secretAuthTag: null
+                  }
+                });
+              } else {
+                const activationTaskId = randomUUID();
+                await transaction.messageTask.create({
+                  data: {
+                    id: activationTaskId,
+                    weddingId: wedding.id,
+                    kind: "ACCOUNT_ACTIVATION",
+                    dueAt: activationAt,
+                    ...buildMessageTaskPiiData(
+                      activationTaskId,
+                      { recipientPhone },
+                      1
+                    )
+                  }
+                });
+              }
             }
 
             await createAudit(transaction, {
@@ -1725,7 +1884,7 @@ router.patch(
     res.json({
       success: true,
       data: {
-        ...updated,
+        ...weddingWithDecryptedPii(updated),
         credentialsRegenerated: regenerateCredentials,
         username: nextUsername ?? updated.customerUser.username
       },
@@ -1853,17 +2012,13 @@ router.post(
         FOR UPDATE
       `;
       const currentWedding = await transaction.wedding.findUniqueOrThrow({
-        where: { id: delivery.weddingId },
-        select: {
-          primaryContact: true,
-          bridePhone: true,
-          groomPhone: true
-        }
+        where: { id: delivery.weddingId }
       });
+      const currentWeddingPii = decryptWeddingPii(currentWedding.id, currentWedding);
       const recipientPhone =
         currentWedding.primaryContact === "GELIN"
-          ? currentWedding.bridePhone
-          : currentWedding.groomPhone;
+          ? currentWeddingPii.bridePhone
+          : currentWeddingPii.groomPhone;
       const claimed = await transaction.delivery.updateMany({
         where: {
           id: delivery.id,
@@ -1884,27 +2039,44 @@ router.post(
           actorUserId: req.auth!.userId
         }
       });
-      await transaction.messageTask.upsert({
+      const existingDeliveryTask = await transaction.messageTask.findUnique({
         where: {
           weddingId_kind: {
             weddingId: delivery.weddingId,
             kind: "DELIVERY_READY"
           }
-        },
-        create: {
-          weddingId: delivery.weddingId,
-          kind: "DELIVERY_READY",
-          dueAt: now,
-          recipientPhone
-        },
-        update: {
-          status: "PENDING",
-          dueAt: now,
-          recipientPhone,
-          sentAt: null,
-          sentById: null
         }
       });
+      if (existingDeliveryTask) {
+        await transaction.messageTask.update({
+          where: {
+            id: existingDeliveryTask.id,
+            piiRevision: existingDeliveryTask.piiRevision
+          },
+          data: {
+            ...buildMessageTaskPiiData(
+              existingDeliveryTask.id,
+              { recipientPhone },
+              existingDeliveryTask.piiRevision + 1
+            ),
+            status: "PENDING",
+            dueAt: now,
+            sentAt: null,
+            sentById: null
+          }
+        });
+      } else {
+        const deliveryTaskId = randomUUID();
+        await transaction.messageTask.create({
+          data: {
+            id: deliveryTaskId,
+            weddingId: delivery.weddingId,
+            kind: "DELIVERY_READY",
+            dueAt: now,
+            ...buildMessageTaskPiiData(deliveryTaskId, { recipientPhone }, 1)
+          }
+        });
+      }
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
         action: "delivery.released",
@@ -2206,10 +2378,21 @@ router.get(
       include: {
         wedding: {
           select: {
+            id: true,
             brideFirstName: true,
             brideLastName: true,
+            bridePhone: true,
             groomFirstName: true,
-            groomLastName: true
+            groomLastName: true,
+            groomPhone: true,
+            primaryEmail: true,
+            note: true,
+            piiCiphertext: true,
+            piiIv: true,
+            piiAuthTag: true,
+            piiKeyId: true,
+            piiEncryptionVersion: true,
+            piiSchemaVersion: true
           }
         },
         sentBy: { select: { username: true } }
@@ -2217,14 +2400,26 @@ router.get(
       orderBy: [{ status: "asc" }, { dueAt: "asc" }],
       take: 300
     });
-    const safeTasks = tasks.map(
-      ({ secretCiphertext: _ciphertext, secretIv: _iv, secretAuthTag: _tag, ...task }) => task
-    );
+    const safeTasks = tasks.map((rawTask) => {
+      const decryptedTask = messageTaskWithDecryptedPii(rawTask);
+      const {
+        secretCiphertext: _ciphertext,
+        secretIv: _iv,
+        secretAuthTag: _tag,
+        wedding: rawWedding,
+        ...task
+      } = decryptedTask;
+      return { ...task, wedding: weddingNames(rawWedding) };
+    });
     res.json({ success: true, data: safeTasks, correlationId: req.correlationId });
   })
 );
 
-const renderMessage = async (taskId: string, transaction: Prisma.TransactionClient = prisma) => {
+const renderMessage = async (
+  taskId: string,
+  actorUserId: string,
+  transaction: Prisma.TransactionClient = prisma
+) => {
   const task = await transaction.messageTask.findUnique({
     where: { id: taskId },
     include: {
@@ -2237,39 +2432,35 @@ const renderMessage = async (taskId: string, transaction: Prisma.TransactionClie
     }
   });
   if (!task) throw new AppError("Mesaj görevi bulunamadı.", 404);
+  if (
+    (task.kind === "ACCOUNT_ACTIVATION" || task.kind === "PASSWORD_RESET") &&
+    task.status !== "PENDING"
+  ) {
+    throw new AppError("Bu parola bağlantısı görevi artık etkin değil.", 409);
+  }
 
-  const couple = `${task.wedding.brideFirstName} & ${task.wedding.groomFirstName}`;
+  const weddingPii = decryptWeddingPii(task.wedding.id, task.wedding);
+  const taskPii = decryptMessageTaskPii(task.id, task);
+  const couple = `${weddingPii.brideFirstName} & ${weddingPii.groomFirstName}`;
   let message: string;
   if (task.kind === "ACCOUNT_ACTIVATION") {
-    if (!task.secretCiphertext || !task.secretIv || !task.secretAuthTag) {
-      throw new AppError("Aktivasyon mesajı güvenlik bilgisi eksik.", 409);
-    }
-    const password = decryptValue(
-      {
-        ciphertext: task.secretCiphertext,
-        iv: task.secretIv,
-        authTag: task.secretAuthTag
-      },
-      task.encryptionVersion >= 2
-        ? messageSecretEncryptionAad(task.weddingId, task.kind)
-        : undefined
-    );
-    message = `Merhaba ${couple}.\n\nDüğün Ajansım teslimat paneliniz hazır.\nKullanıcı adı: ${task.wedding.customerUser.username}\nGeçici parola: ${password}\n\nİlk girişte parolanızı değiştirmeniz istenecektir.`;
+    const setup = await issuePasswordSetupToken(transaction, {
+      userId: task.wedding.customerUser.id,
+      purpose: "ACCOUNT_ACTIVATION",
+      createdById: actorUserId,
+      notBefore: task.wedding.customerUser.activeAt
+    });
+    const setupUrl = createPasswordSetupUrl(setup.token);
+    message = `Merhaba ${couple}.\n\nDüğün Ajansım teslimat paneliniz hazır.\nKullanıcı adı: ${task.wedding.customerUser.username}\nTek kullanımlık parola belirleme bağlantısı: ${setupUrl}\n\nBağlantı yalnız bir kez kullanılabilir.`;
   } else if (task.kind === "PASSWORD_RESET") {
-    if (!task.secretCiphertext || !task.secretIv || !task.secretAuthTag) {
-      throw new AppError("Parola sıfırlama bilgisi eksik.", 409);
-    }
-    const password = decryptValue(
-      {
-        ciphertext: task.secretCiphertext,
-        iv: task.secretIv,
-        authTag: task.secretAuthTag
-      },
-      task.encryptionVersion >= 2
-        ? messageSecretEncryptionAad(task.weddingId, task.kind)
-        : undefined
-    );
-    message = `Merhaba ${couple}.\n\nGeçici parolanız: ${password}\nİlk girişte yeni bir parola belirlemeniz gerekecektir.`;
+    const setup = await issuePasswordSetupToken(transaction, {
+      userId: task.wedding.customerUser.id,
+      purpose: "PASSWORD_RESET",
+      createdById: actorUserId,
+      notBefore: task.wedding.customerUser.activeAt
+    });
+    const setupUrl = createPasswordSetupUrl(setup.token);
+    message = `Merhaba ${couple}.\n\nKullanıcı adı: ${task.wedding.customerUser.username}\nTek kullanımlık parola sıfırlama bağlantısı: ${setupUrl}\n\nBağlantı yalnız bir kez kullanılabilir.`;
   } else if (task.kind === "PREPARATION_UPDATE") {
     if (!task.wedding.delivery?.dueDate) {
       throw new AppError("Teslimat tahmini tarihi bulunamadı.", 409);
@@ -2282,7 +2473,7 @@ const renderMessage = async (taskId: string, transaction: Prisma.TransactionClie
     message = `Merhaba ${couple}.\n\nDüğün fotoğraf ve videolarınız hazırlandı.\nDosyalarınıza Düğün Ajansım müşteri panelinden ulaşabilirsiniz.\n\nİyi günlerde kullanmanızı dileriz.`;
   }
 
-  const phone = task.recipientPhone.replace(/\D/g, "");
+  const phone = taskPii.recipientPhone.replace(/\D/g, "");
   if (!/^\d{8,15}$/.test(phone)) {
     throw new AppError("Mesaj görevinin alıcı telefonu geçersiz.", 409);
   }
@@ -2293,16 +2484,17 @@ const renderMessage = async (taskId: string, transaction: Prisma.TransactionClie
   };
 };
 
-router.get(
+router.post(
   "/message-tasks/:id/render",
+  verifyCsrf,
   validateRequest(uuidRequest),
   asyncHandler(async (req, res) => {
     const rendered = await prisma.$transaction(async (transaction) => {
-      const result = await renderMessage(req.params.id, transaction);
+      const result = await renderMessage(req.params.id, req.auth!.userId, transaction);
       if (result.task.kind === "ACCOUNT_ACTIVATION" || result.task.kind === "PASSWORD_RESET") {
         await createAudit(transaction, {
           actorUserId: req.auth!.userId,
-          action: "message.secret_viewed",
+          action: "message.password_setup_link_issued",
           targetType: "MessageTask",
           targetId: result.task.id,
           correlationId: req.correlationId,
@@ -2387,17 +2579,8 @@ router.post(
       throw new AppError("Müşteri hesabı bulunamadı.", 404);
     }
 
-    const password = randomTemporaryPassword();
-    const passwordHash = await hashPassword(password);
+    const passwordHash = await hashPassword(createOpaqueToken(48));
     const now = new Date();
-    const temporaryPasswordExpiresAt = createTemporaryPasswordExpiry(
-      env.TEMPORARY_PASSWORD_TTL_HOURS,
-      user.activeAt !== null && user.activeAt > now ? user.activeAt : now
-    );
-    const encrypted = encryptValue(
-      password,
-      messageSecretEncryptionAad(user.customerWedding.id, "PASSWORD_RESET")
-    );
     const task = await prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw`
         SELECT "id" FROM "weddings"
@@ -2410,23 +2593,19 @@ router.post(
         FOR UPDATE
       `;
       const currentWedding = await transaction.wedding.findUniqueOrThrow({
-        where: { id: user.customerWedding!.id },
-        select: {
-          primaryContact: true,
-          bridePhone: true,
-          groomPhone: true
-        }
+        where: { id: user.customerWedding!.id }
       });
+      const currentWeddingPii = decryptWeddingPii(currentWedding.id, currentWedding);
       const recipientPhone =
         currentWedding.primaryContact === "GELIN"
-          ? currentWedding.bridePhone
-          : currentWedding.groomPhone;
+          ? currentWeddingPii.bridePhone
+          : currentWeddingPii.groomPhone;
       const claimedUser = await transaction.user.updateMany({
         where: { id: user.id, updatedAt: user.updatedAt, role: "MUSTERI" },
         data: {
           passwordHash,
           mustChangePassword: true,
-          temporaryPasswordExpiresAt,
+          temporaryPasswordExpiresAt: null,
           passwordChangedAt: null
         }
       });
@@ -2435,6 +2614,10 @@ router.post(
       }
       await transaction.authSession.updateMany({
         where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: now }
+      });
+      await transaction.passwordSetupToken.updateMany({
+        where: { userId: user.id, usedAt: null, revokedAt: null },
         data: { revokedAt: now }
       });
       await transaction.messageTask.updateMany({
@@ -2452,35 +2635,47 @@ router.post(
           secretAuthTag: null
         }
       });
-      const messageTask = await transaction.messageTask.upsert({
+      const existingResetTask = await transaction.messageTask.findUnique({
         where: {
           weddingId_kind: {
             weddingId: user.customerWedding!.id,
             kind: "PASSWORD_RESET"
           }
-        },
-        create: {
-          weddingId: user.customerWedding!.id,
-          kind: "PASSWORD_RESET",
-          dueAt: now,
-          recipientPhone,
-          secretCiphertext: encrypted.ciphertext,
-          secretIv: encrypted.iv,
-          secretAuthTag: encrypted.authTag,
-          encryptionVersion: 2
-        },
-        update: {
-          status: "PENDING",
-          dueAt: now,
-          recipientPhone,
-          sentAt: null,
-          sentById: null,
-          secretCiphertext: encrypted.ciphertext,
-          secretIv: encrypted.iv,
-          secretAuthTag: encrypted.authTag,
-          encryptionVersion: 2
         }
       });
+      const messageTask = existingResetTask
+        ? await transaction.messageTask.update({
+            where: {
+              id: existingResetTask.id,
+              piiRevision: existingResetTask.piiRevision
+            },
+            data: {
+              ...buildMessageTaskPiiData(
+                existingResetTask.id,
+                { recipientPhone },
+                existingResetTask.piiRevision + 1
+              ),
+              status: "PENDING",
+              dueAt: now,
+              sentAt: null,
+              sentById: null,
+              secretCiphertext: null,
+              secretIv: null,
+              secretAuthTag: null
+            }
+          })
+        : await (() => {
+            const resetTaskId = randomUUID();
+            return transaction.messageTask.create({
+              data: {
+                id: resetTaskId,
+                weddingId: user.customerWedding!.id,
+                kind: "PASSWORD_RESET",
+                dueAt: now,
+                ...buildMessageTaskPiiData(resetTaskId, { recipientPhone }, 1)
+              }
+            });
+          })();
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
         action: "customer.password_reset",
@@ -2490,7 +2685,7 @@ router.post(
       });
       return messageTask;
     });
-    const rendered = await renderMessage(task.id);
+    const rendered = await renderMessage(task.id, req.auth!.userId);
     res.set("Cache-Control", "no-store");
     res.json({
       success: true,

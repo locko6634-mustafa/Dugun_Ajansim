@@ -61,6 +61,11 @@ enum MessageStatus {
   CANCELLED
 }
 
+enum PasswordSetupPurpose {
+  ACCOUNT_ACTIVATION
+  PASSWORD_RESET
+}
+
 enum AuditOutcome {
   SUCCESS
   FAILURE
@@ -117,6 +122,13 @@ model User {
   activeAt                   DateTime?
   passwordChangedAt          DateTime?
   lastLoginAt                DateTime?
+  totpSecretCiphertext       String?
+  totpSecretIv               String?
+  totpSecretAuthTag          String?
+  totpKeyId                  String?
+  totpEnrollmentExpiresAt    DateTime?
+  totpEnabledAt              DateTime?
+  totpLastUsedStep           BigInt?
   venueId                    String?
   venue                      Venue?                  @relation(fields: [venueId], references: [id], onDelete: SetNull)
   createdAt                  DateTime                @default(now())
@@ -129,6 +141,8 @@ model User {
   sentMessages               MessageTask[]           @relation("MessageSender")
   archivedApplications       BookingApplication[]    @relation("ApplicationArchivedBy")
   archivedWeddings           Wedding[]               @relation("WeddingArchivedBy")
+  passwordSetupTokens        PasswordSetupToken[]     @relation("PasswordSetupTokenUser")
+  issuedPasswordSetupTokens  PasswordSetupToken[]     @relation("PasswordSetupTokenIssuer")
 
   @@index([role, status])
   @@index([venueId])
@@ -143,6 +157,7 @@ model AuthSession {
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt     DateTime
   lastUsedAt    DateTime  @default(now())
+  mfaVerifiedAt DateTime?
   revokedAt     DateTime?
   createdAt     DateTime  @default(now())
 
@@ -150,6 +165,35 @@ model AuthSession {
   @@index([expiresAt, revokedAt])
   @@index([revokedAt])
   @@map("auth_sessions")
+}
+
+model RateLimitBucket {
+  keyHash   String   @id
+  hits      Int
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@map("rate_limit_buckets")
+}
+
+model PasswordSetupToken {
+  id          String               @id @default(uuid())
+  tokenHash   String               @unique @db.Char(64)
+  userId      String
+  user        User                 @relation("PasswordSetupTokenUser", fields: [userId], references: [id], onDelete: Cascade)
+  purpose     PasswordSetupPurpose
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  createdById String?
+  createdBy   User?                @relation("PasswordSetupTokenIssuer", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime             @default(now())
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt, usedAt, revokedAt])
+  @@index([createdById])
+  @@map("password_setup_tokens")
 }
 
 model Package {
@@ -199,14 +243,24 @@ model BookingApplication {
   idempotencyFingerprint String?
   source                 BookingSource
   status                 BookingStatus               @default(ONAY_BEKLIYOR)
-  brideFirstName         String
-  brideLastName          String
-  bridePhone             String
-  groomFirstName         String
-  groomLastName          String
-  groomPhone             String
+  brideFirstName         String?
+  brideLastName          String?
+  bridePhone             String?
+  groomFirstName         String?
+  groomLastName          String?
+  groomPhone             String?
   primaryContact         PrimaryContact
-  primaryEmail           String
+  primaryEmail           String?
+  piiCiphertext          String?
+  piiIv                  String?
+  piiAuthTag             String?
+  piiKeyId               String?
+  piiEncryptionVersion   Int?
+  piiSchemaVersion       Int?
+  piiRevision            Int                         @default(0)
+  primaryEmailBlindIndex String?                     @db.Char(64)
+  bridePhoneBlindIndex   String?                     @db.Char(64)
+  groomPhoneBlindIndex   String?                     @db.Char(64)
   weddingStartsAt        DateTime
   weddingEndsAt          DateTime
   venueId                String
@@ -271,14 +325,24 @@ model Wedding {
   application    BookingApplication  @relation(fields: [applicationId], references: [id], onDelete: Restrict)
   customerUserId String              @unique
   customerUser   User                @relation("CustomerWedding", fields: [customerUserId], references: [id], onDelete: Restrict)
-  brideFirstName String
-  brideLastName  String
-  bridePhone     String
-  groomFirstName String
-  groomLastName  String
-  groomPhone     String
+  brideFirstName String?
+  brideLastName  String?
+  bridePhone     String?
+  groomFirstName String?
+  groomLastName  String?
+  groomPhone     String?
   primaryContact PrimaryContact
-  primaryEmail   String
+  primaryEmail   String?
+  piiCiphertext  String?
+  piiIv          String?
+  piiAuthTag     String?
+  piiKeyId       String?
+  piiEncryptionVersion Int?
+  piiSchemaVersion Int?
+  piiRevision    Int                 @default(0)
+  primaryEmailBlindIndex String?     @db.Char(64)
+  bridePhoneBlindIndex String?       @db.Char(64)
+  groomPhoneBlindIndex String?       @db.Char(64)
   startsAt       DateTime
   endsAt         DateTime
   venueId        String
@@ -376,7 +440,15 @@ model MessageTask {
   kind              MessageKind
   status            MessageStatus @default(PENDING)
   dueAt             DateTime
-  recipientPhone    String
+  recipientPhone    String?
+  piiCiphertext     String?
+  piiIv             String?
+  piiAuthTag        String?
+  piiKeyId          String?
+  piiEncryptionVersion Int?
+  piiSchemaVersion  Int?
+  piiRevision       Int           @default(0)
+  recipientPhoneBlindIndex String? @db.Char(64)
   secretCiphertext  String?
   secretIv          String?
   secretAuthTag     String?

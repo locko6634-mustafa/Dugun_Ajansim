@@ -23,7 +23,11 @@
     "prisma:migrate": "prisma migrate dev",
     "seed": "tsx prisma/seed.ts",
     "seed:test": "tsx --env-file=tests/test.env src/scripts/seedTestDatabase.ts",
-    "admin:bootstrap": "tsx src/scripts/bootstrapAdmin.ts"
+    "admin:bootstrap": "tsx src/scripts/bootstrapAdmin.ts",
+    "mfa:recovery-reset": "tsx src/scripts/resetPrivilegedMfa.ts",
+    "pii:backfill": "tsx src/scripts/maintainPiiEncryption.ts --backfill",
+    "pii:redact-legacy": "tsx src/scripts/maintainPiiEncryption.ts --redact-legacy",
+    "pii:verify": "tsx src/scripts/maintainPiiEncryption.ts --verify"
   },
   "dependencies": {
     "@prisma/client": "^6.3.0",

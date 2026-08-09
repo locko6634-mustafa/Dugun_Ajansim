@@ -24,6 +24,7 @@ import {
 } from "../services/booking.service.js";
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { findBoundedIntervalConflicts } from "../utils/intervalConflicts.js";
 import {
   addCalendarDays,
   atIstanbulTime,
@@ -31,6 +32,12 @@ import {
   getIstanbulDate,
   normalizePhone
 } from "../utils/domain.js";
+import {
+  buildBookingApplicationPiiData,
+  buildWeddingPiiData,
+  decryptBookingApplicationPii,
+  decryptWeddingPii
+} from "../utils/pii-crypto.js";
 
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole("SALON_YETKILISI"));
@@ -63,16 +70,70 @@ const nextMonthOf = (month: string): string => {
   return probe.toISOString().slice(0, 7);
 };
 
-const weddingSelectForVenue = (venueId: string) => ({
+const weddingPiiRecordSelect = {
   id: true,
   brideFirstName: true,
+  brideLastName: true,
   bridePhone: true,
   groomFirstName: true,
+  groomLastName: true,
   groomPhone: true,
+  primaryEmail: true,
+  note: true,
+  piiCiphertext: true,
+  piiIv: true,
+  piiAuthTag: true,
+  piiKeyId: true,
+  piiEncryptionVersion: true,
+  piiSchemaVersion: true
+} satisfies Prisma.WeddingSelect;
+
+const bookingApplicationPiiRecordSelect = {
+  id: true,
+  brideFirstName: true,
+  brideLastName: true,
+  bridePhone: true,
+  groomFirstName: true,
+  groomLastName: true,
+  groomPhone: true,
+  primaryEmail: true,
+  note: true,
+  rejectionReason: true,
+  piiCiphertext: true,
+  piiIv: true,
+  piiAuthTag: true,
+  piiKeyId: true,
+  piiEncryptionVersion: true,
+  piiSchemaVersion: true
+} satisfies Prisma.BookingApplicationSelect;
+
+type SelectedWeddingPiiRecord = Prisma.WeddingGetPayload<{
+  select: typeof weddingPiiRecordSelect;
+}>;
+
+const decryptSelectedWeddingPii = (wedding: SelectedWeddingPiiRecord) =>
+  decryptWeddingPii(wedding.id, {
+    brideFirstName: wedding.brideFirstName ?? undefined,
+    brideLastName: wedding.brideLastName ?? undefined,
+    bridePhone: wedding.bridePhone ?? undefined,
+    groomFirstName: wedding.groomFirstName ?? undefined,
+    groomLastName: wedding.groomLastName ?? undefined,
+    groomPhone: wedding.groomPhone ?? undefined,
+    primaryEmail: wedding.primaryEmail ?? undefined,
+    note: wedding.note,
+    piiCiphertext: wedding.piiCiphertext,
+    piiIv: wedding.piiIv,
+    piiAuthTag: wedding.piiAuthTag,
+    piiKeyId: wedding.piiKeyId,
+    piiEncryptionVersion: wedding.piiEncryptionVersion,
+    piiSchemaVersion: wedding.piiSchemaVersion
+  });
+
+const weddingSelectForVenue = (venueId: string) => ({
+  ...weddingPiiRecordSelect,
   startsAt: true,
   endsAt: true,
   packageSummary: true,
-  note: true,
   assignments: {
     where: { staff: { venueId } },
     include: { staff: true },
@@ -84,18 +145,29 @@ type VenueOperationsWedding = Prisma.WeddingGetPayload<{
   select: ReturnType<typeof weddingSelectForVenue>;
 }>;
 
-const venueOperationsWeddingDto = (wedding: VenueOperationsWedding) => ({
-  ...wedding,
-  packageSummary: {
-    name:
-      wedding.packageSummary &&
-      typeof wedding.packageSummary === "object" &&
-      !Array.isArray(wedding.packageSummary) &&
-      typeof wedding.packageSummary.name === "string"
-        ? wedding.packageSummary.name
-        : null
-  }
-});
+const venueOperationsWeddingDto = (wedding: VenueOperationsWedding) => {
+  const pii = decryptSelectedWeddingPii(wedding);
+  return {
+    id: wedding.id,
+    brideFirstName: pii.brideFirstName,
+    bridePhone: pii.bridePhone,
+    groomFirstName: pii.groomFirstName,
+    groomPhone: pii.groomPhone,
+    startsAt: wedding.startsAt,
+    endsAt: wedding.endsAt,
+    packageSummary: {
+      name:
+        wedding.packageSummary &&
+        typeof wedding.packageSummary === "object" &&
+        !Array.isArray(wedding.packageSummary) &&
+        typeof wedding.packageSummary.name === "string"
+          ? wedding.packageSummary.name
+          : null
+    },
+    note: pii.note,
+    assignments: wedding.assignments
+  };
+};
 
 router.get(
   "/dashboard",
@@ -161,21 +233,16 @@ router.get(
     const assignments = weekWeddingDtos.flatMap((wedding) =>
       wedding.assignments.map((assignment) => ({ assignment, wedding }))
     );
-    const conflicts = assignments.flatMap((left, leftIndex) =>
-      assignments.slice(leftIndex + 1).flatMap((right) =>
-        left.assignment.staffId === right.assignment.staffId &&
-        left.wedding.startsAt < right.wedding.endsAt &&
-        left.wedding.endsAt > right.wedding.startsAt
-          ? [
-              {
-                staff: left.assignment.staff,
-                firstWedding: left.wedding,
-                secondWedding: right.wedding
-              }
-            ]
-          : []
-      )
-    );
+    const conflictResult = findBoundedIntervalConflicts(assignments, {
+      groupKey: ({ assignment }) => assignment.staffId,
+      startsAt: ({ wedding }) => wedding.startsAt,
+      endsAt: ({ wedding }) => wedding.endsAt
+    });
+    const conflicts = conflictResult.pairs.map(([left, right]) => ({
+      staff: left.assignment.staff,
+      firstWedding: left.wedding,
+      secondWedding: right.wedding
+    }));
 
     res.json({
       success: true,
@@ -196,7 +263,8 @@ router.get(
         idleStaff: activeStaff
           .filter((staff) => staff.assignments.length === 0)
           .map(({ assignments: _assignments, ...staff }) => staff),
-        conflicts
+        conflicts,
+        conflictsTruncated: conflictResult.truncated
       },
       correlationId: req.correlationId
     });
@@ -263,9 +331,7 @@ router.get(
             specialty: true,
             wedding: {
               select: {
-                id: true,
-                brideFirstName: true,
-                groomFirstName: true,
+                ...weddingPiiRecordSelect,
                 startsAt: true,
                 endsAt: true
               }
@@ -277,7 +343,24 @@ router.get(
       },
       orderBy: [{ isActive: "desc" }, { lastName: "asc" }, { firstName: "asc" }]
     });
-    res.json({ success: true, data: staff, correlationId: req.correlationId });
+    const staffDtos = staff.map(({ assignments, ...staffMember }) => ({
+      ...staffMember,
+      assignments: assignments.map((assignment) => {
+        const weddingPii = decryptSelectedWeddingPii(assignment.wedding);
+        return {
+          id: assignment.id,
+          specialty: assignment.specialty,
+          wedding: {
+            id: assignment.wedding.id,
+            brideFirstName: weddingPii.brideFirstName,
+            groomFirstName: weddingPii.groomFirstName,
+            startsAt: assignment.wedding.startsAt,
+            endsAt: assignment.wedding.endsAt
+          }
+        };
+      })
+    }));
+    res.json({ success: true, data: staffDtos, correlationId: req.correlationId });
   })
 );
 
@@ -414,7 +497,23 @@ router.patch(
         async (transaction) => {
           const current = await transaction.wedding.findFirst({
             where: { id: req.params.id, venueId, deletedAt: null, cancelledAt: null },
-            include: { delivery: true }
+            select: {
+              ...weddingPiiRecordSelect,
+              applicationId: true,
+              startsAt: true,
+              updatedAt: true,
+              piiRevision: true,
+              delivery: {
+                select: { id: true, status: true, releasedAt: true }
+              },
+              application: {
+                select: {
+                  ...bookingApplicationPiiRecordSelect,
+                  updatedAt: true,
+                  piiRevision: true
+                }
+              }
+            }
           });
           if (!current) throw new AppError("Düğün kaydı bulunamadı.", 404);
 
@@ -427,26 +526,67 @@ router.patch(
           });
 
           const dateChanged = getIstanbulDate(current.startsAt) !== req.body.weddingDate;
+          const nextNote = req.body.note || null;
+          const weddingPii = decryptSelectedWeddingPii(current);
+          const applicationPii = decryptBookingApplicationPii(current.application.id, {
+            brideFirstName: current.application.brideFirstName ?? undefined,
+            brideLastName: current.application.brideLastName ?? undefined,
+            bridePhone: current.application.bridePhone ?? undefined,
+            groomFirstName: current.application.groomFirstName ?? undefined,
+            groomLastName: current.application.groomLastName ?? undefined,
+            groomPhone: current.application.groomPhone ?? undefined,
+            primaryEmail: current.application.primaryEmail ?? undefined,
+            note: current.application.note,
+            rejectionReason: current.application.rejectionReason,
+            piiCiphertext: current.application.piiCiphertext,
+            piiIv: current.application.piiIv,
+            piiAuthTag: current.application.piiAuthTag,
+            piiKeyId: current.application.piiKeyId,
+            piiEncryptionVersion: current.application.piiEncryptionVersion,
+            piiSchemaVersion: current.application.piiSchemaVersion
+          });
+          const nextWeddingPii = buildWeddingPiiData(
+            current.id,
+            { ...weddingPii, note: nextNote },
+            current.piiRevision + 1
+          );
+          const nextApplicationPii = buildBookingApplicationPiiData(
+            current.application.id,
+            { ...applicationPii, note: nextNote },
+            current.application.piiRevision + 1
+          );
           const claimed = await transaction.wedding.updateMany({
             where: {
               id: current.id,
               updatedAt: current.updatedAt,
+              piiRevision: current.piiRevision,
               deletedAt: null,
               cancelledAt: null
             },
-            data: { startsAt: range.startsAt, endsAt: range.endsAt, note: req.body.note || null }
+            data: {
+              startsAt: range.startsAt,
+              endsAt: range.endsAt,
+              ...nextWeddingPii
+            }
           });
           if (claimed.count !== 1) {
             throw new AppError("Düğün kaydı başka bir işlemde güncellendi.", 409);
           }
-          await transaction.bookingApplication.update({
-            where: { id: current.applicationId },
+          const applicationClaimed = await transaction.bookingApplication.updateMany({
+            where: {
+              id: current.applicationId,
+              updatedAt: current.application.updatedAt,
+              piiRevision: current.application.piiRevision
+            },
             data: {
               weddingStartsAt: range.startsAt,
               weddingEndsAt: range.endsAt,
-              note: req.body.note || null
+              ...nextApplicationPii
             }
           });
+          if (applicationClaimed.count !== 1) {
+            throw new AppError("Başvuru kaydı başka bir işlemde güncellendi.", 409);
+          }
           if (dateChanged) {
             if (
               current.delivery &&

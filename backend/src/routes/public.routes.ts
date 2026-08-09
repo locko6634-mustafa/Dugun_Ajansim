@@ -7,6 +7,7 @@ import {
   createRateLimitHandler,
   rateLimitKeyGenerator
 } from "../middlewares/rateLimit.middleware.js";
+import { DatabaseRateLimitStore } from "../middlewares/databaseRateLimitStore.js";
 import { validateRequest } from "../middlewares/validate.middleware.js";
 import {
   bookingBodySchema,
@@ -31,6 +32,7 @@ const publicBookingLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: rateLimitKeyGenerator,
+  store: new DatabaseRateLimitStore("public-booking-ip"),
   handler: createRateLimitHandler("Çok fazla başvuru denemesi yaptınız.")
 });
 

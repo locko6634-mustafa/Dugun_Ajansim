@@ -6,9 +6,11 @@ import {
   bookingFormConstraints,
   bookingSchedulePolicy,
   deliveryUpdateBodySchema,
+  isPasswordSimilarToUsername,
   packageBodySchema,
   passwordChangeBodySchema,
   strongPasswordSchema,
+  venueManagerBodySchema,
   weddingUpdateBodySchema
 } from "../src/schemas/api.schemas.js";
 import { calculatePayment, paymentPolicy } from "../src/services/booking.service.js";
@@ -129,7 +131,24 @@ test("kalıcı parola uzunluk ve normalize edilmiş blocklist kurallarını uygu
     false
   );
   assert.equal(strongPasswordSchema.safeParse("DUGUNAJANSIM123").success, false);
+  assert.equal(strongPasswordSchema.safeParse("IlkGiristeDegistirilecekGucluParola").success, false);
+  assert.equal(strongPasswordSchema.safeParse("a".repeat(15)).success, false);
+  assert.equal(strongPasswordSchema.safeParse("abc".repeat(5)).success, false);
+  assert.equal(strongPasswordSchema.safeParse("Guclu!0123456789-Parola").success, false);
   assert.equal(strongPasswordSchema.safeParse("a".repeat(129)).success, false);
+  assert.equal(
+    isPasswordSimilarToUsername("Cess-Sorumlu!Kutuphanesi-2026", "cess-sorumlu"),
+    true
+  );
+  assert.equal(
+    venueManagerBodySchema.safeParse({
+      username: "cess-sorumlu",
+      password: "Cess-Sorumlu!Kutuphanesi-2026",
+      venueId: "11111111-1111-4111-8111-111111111111",
+      status: "ACTIVE"
+    }).success,
+    false
+  );
 });
 
 test("teslimat PATCH boş body ve geçersiz takvim tarihi kabul etmez", () => {

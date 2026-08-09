@@ -1,7 +1,7 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
-import { env } from '../config/env.config.js';
+import { env, parseDataEncryptionKeyring } from '../config/env.config.js';
 import { prisma } from '../config/prisma.js';
 import {
   authenticate,
@@ -9,27 +9,56 @@ import {
   csrfCookieOptions,
   CSRF_COOKIE_NAME,
   getSessionAbsoluteTtlMs,
+  isMfaEnrollmentRequired,
+  isPrivilegedRole,
   isTemporaryPasswordExpired,
   sessionCookieOptions,
   verifyCsrf,
 } from '../middlewares/auth.middleware.js';
 import {
   createRateLimitHandler,
+  loginAccountRateLimitKeyGenerator,
   rateLimitKeyGenerator,
 } from '../middlewares/rateLimit.middleware.js';
+import { DatabaseRateLimitStore } from '../middlewares/databaseRateLimitStore.js';
 import { validateRequest } from '../middlewares/validate.middleware.js';
-import { loginBodySchema, passwordChangeBodySchema } from '../schemas/api.schemas.js';
-import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from '../utils/crypto.js';
+import {
+  isPasswordSimilarToUsername,
+  loginBodySchema,
+  mfaEnrollmentBodySchema,
+  mfaProtectedActionBodySchema,
+  passwordChangeBodySchema,
+  passwordSetupBodySchema,
+} from '../schemas/api.schemas.js';
+import {
+  createOpaqueToken,
+  decryptValueWithKey,
+  decryptValue,
+  encryptValueWithKey,
+  hashPassword,
+  hashToken,
+  verifyPassword,
+} from '../utils/crypto.js';
 import { AppError } from '../utils/appError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { normalizeUsername } from '../utils/domain.js';
 import { logFailedLoginSecurityEvent } from '../utils/securityLogger.js';
 import { cleanupStaleSessions } from '../utils/sessionMaintenance.js';
+import {
+  createTotpEnrollmentUri,
+  createTotpSecret,
+  findMatchingTotpStep,
+  TOTP_ENROLLMENT_TTL_MINUTES,
+  totpEncryptionAad,
+} from '../utils/totp.js';
 
 const router = Router();
 const INVALID_CREDENTIALS_MESSAGE = 'Kullanıcı adı veya parola hatalı.';
+const INVALID_MFA_MESSAGE = 'Kullanıcı adı, parola veya doğrulama kodu hatalı.';
+const MFA_RESTRICTED_SESSION_TTL_MS = 10 * 60 * 1000;
 const DUMMY_LOGIN_PASSWORD_HASH =
   '$argon2id$v=19$m=19456,t=2,p=1$aoZyQyB8eVS3LeO40/kqYQ$c0LhPvExxPfDSalntYXGc0qjrgJKJPj7Npz2xelpmnk';
+const dataEncryptionKeyring = parseDataEncryptionKeyring(env.DATA_ENCRYPTION_KEYRING_JSON);
 const emptyRequestSchema = z.object({
   body: z.object({}).strict().optional().default({}),
   query: z.object({}).strict(),
@@ -41,24 +70,104 @@ router.use((_req, res, next) => {
   next();
 });
 
-const loginLimiter = rateLimit({
+const isSuccessfulLoginAttempt = (_req: Request, res: Response): boolean =>
+  res.statusCode < 400 || res.locals.authPasswordVerified === true;
+
+const loginIpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: rateLimitKeyGenerator,
+  store: new DatabaseRateLimitStore('auth-login-ip'),
+  skipSuccessfulRequests: true,
+  requestWasSuccessful: isSuccessfulLoginAttempt,
   handler: createRateLimitHandler('Çok fazla giriş denemesi yaptınız.'),
 });
 
+const loginAccountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: loginAccountRateLimitKeyGenerator,
+  store: new DatabaseRateLimitStore('auth-login-account'),
+  skipSuccessfulRequests: true,
+  requestWasSuccessful: isSuccessfulLoginAttempt,
+  handler: createRateLimitHandler('Çok fazla giriş denemesi yaptınız.'),
+});
+
+const mfaManagementLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: rateLimitKeyGenerator,
+  store: new DatabaseRateLimitStore('auth-mfa-management-ip'),
+  skipSuccessfulRequests: true,
+  handler: createRateLimitHandler('Çok fazla iki adımlı doğrulama denemesi yaptınız.'),
+});
+
+const passwordSetupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: rateLimitKeyGenerator,
+  store: new DatabaseRateLimitStore('auth-password-setup-ip'),
+  handler: createRateLimitHandler('Çok fazla parola kurulum denemesi yaptınız.'),
+});
+
+const decryptTotpSecret = (user: {
+  id: string;
+  totpSecretCiphertext: string | null;
+  totpSecretIv: string | null;
+  totpSecretAuthTag: string | null;
+  totpKeyId: string | null;
+}): string => {
+  if (!user.totpSecretCiphertext || !user.totpSecretIv || !user.totpSecretAuthTag) {
+    throw new Error('Etkin iki adımlı doğrulama kaydı eksik.');
+  }
+  const envelope = {
+    ciphertext: user.totpSecretCiphertext,
+    iv: user.totpSecretIv,
+    authTag: user.totpSecretAuthTag,
+  };
+  if (user.totpKeyId === null) return decryptValue(envelope, totpEncryptionAad(user.id));
+  const key = dataEncryptionKeyring[user.totpKeyId];
+  if (!key) throw new Error('TOTP şifreleme anahtarı keyring içinde bulunamadı.');
+  return decryptValueWithKey(envelope, key, totpEncryptionAad(user.id));
+};
+
 router.post(
   '/login',
-  loginLimiter,
+  loginIpLimiter,
+  loginAccountLimiter,
   validateRequest(
     z.object({ body: loginBodySchema, query: z.object({}).strict(), params: z.object({}).strict() }),
   ),
   asyncHandler(async (req, res) => {
     const username = normalizeUsername(req.body.username);
-    const user = await prisma.user.findUnique({ where: { username } });
+    const user = await prisma.user.findUnique({
+      where: { username },
+      select: {
+        id: true,
+        username: true,
+        passwordHash: true,
+        role: true,
+        status: true,
+        activeAt: true,
+        mustChangePassword: true,
+        temporaryPasswordExpiresAt: true,
+        venueId: true,
+        totpSecretCiphertext: true,
+        totpSecretIv: true,
+        totpSecretAuthTag: true,
+        totpKeyId: true,
+        totpEnabledAt: true,
+        totpLastUsedStep: true,
+      },
+    });
     const validPassword = await verifyPassword(
       user?.passwordHash ?? DUMMY_LOGIN_PASSWORD_HASH,
       req.body.password,
@@ -76,10 +185,47 @@ router.post(
       logFailedLoginSecurityEvent(req.correlationId);
       throw new AppError(INVALID_CREDENTIALS_MESSAGE, 401);
     }
+    res.locals.authPasswordVerified = true;
+
+    let matchedTotpStep: bigint | undefined;
+    let rotatedTotpSecret:
+      | { ciphertext: string; iv: string; authTag: string; keyId: string }
+      | undefined;
+    if (user.totpEnabledAt !== null) {
+      if (!req.body.totpCode) {
+        throw new AppError('İki adımlı doğrulama kodu gerekli.', 401, true, {
+          code: 'MFA_REQUIRED',
+        });
+      }
+      const totpSecret = decryptTotpSecret(user);
+      matchedTotpStep = findMatchingTotpStep(totpSecret, req.body.totpCode, now);
+      if (
+        matchedTotpStep === undefined ||
+        (user.totpLastUsedStep !== null && matchedTotpStep <= user.totpLastUsedStep)
+      ) {
+        logFailedLoginSecurityEvent(req.correlationId);
+        throw new AppError(INVALID_MFA_MESSAGE, 401);
+      }
+      if (user.totpKeyId !== env.DATA_ENCRYPTION_ACTIVE_KEY_ID) {
+        const rotated = encryptValueWithKey(
+          totpSecret,
+          dataEncryptionKeyring[env.DATA_ENCRYPTION_ACTIVE_KEY_ID]!,
+          totpEncryptionAad(user.id),
+        );
+        rotatedTotpSecret = {
+          ...rotated,
+          keyId: env.DATA_ENCRYPTION_ACTIVE_KEY_ID,
+        };
+      }
+    }
 
     const token = createOpaqueToken();
     const csrfToken = createOpaqueToken();
-    const maxAgeMs = getSessionAbsoluteTtlMs(user.role, req.body.remember);
+    const mustEnrollMfa = isMfaEnrollmentRequired(user.role, user.totpEnabledAt !== null);
+    const configuredMaxAgeMs = getSessionAbsoluteTtlMs(user.role, req.body.remember);
+    const maxAgeMs = mustEnrollMfa
+      ? Math.min(configuredMaxAgeMs, MFA_RESTRICTED_SESSION_TTL_MS)
+      : configuredMaxAgeMs;
     const expiresAt = new Date(now.valueOf() + maxAgeMs);
 
     await prisma.$transaction(async (transaction) => {
@@ -101,9 +247,33 @@ router.post(
                 },
               ],
             },
+            ...(matchedTotpStep === undefined
+              ? []
+              : [
+                  {
+                    OR: [
+                      { totpLastUsedStep: null },
+                      { totpLastUsedStep: { lt: matchedTotpStep } },
+                    ],
+                  },
+                ]),
+            ...(matchedTotpStep === undefined
+              ? []
+              : [{ totpSecretCiphertext: user.totpSecretCiphertext }]),
           ],
         },
-        data: { lastLoginAt: now },
+        data: {
+          lastLoginAt: now,
+          ...(matchedTotpStep === undefined ? {} : { totpLastUsedStep: matchedTotpStep }),
+          ...(rotatedTotpSecret
+            ? {
+                totpSecretCiphertext: rotatedTotpSecret.ciphertext,
+                totpSecretIv: rotatedTotpSecret.iv,
+                totpSecretAuthTag: rotatedTotpSecret.authTag,
+                totpKeyId: rotatedTotpSecret.keyId,
+              }
+            : {}),
+        },
       });
       if (claimedUser.count !== 1) {
         logFailedLoginSecurityEvent(req.correlationId);
@@ -116,6 +286,7 @@ router.post(
           csrfTokenHash: hashToken(csrfToken),
           userId: user.id,
           expiresAt,
+          mfaVerifiedAt: user.totpEnabledAt === null ? null : now,
         },
       });
       await transaction.auditLog.create({
@@ -139,6 +310,9 @@ router.post(
         username: user.username,
         role: user.role,
         mustChangePassword: user.mustChangePassword,
+        mfaEnabled: user.totpEnabledAt !== null,
+        mfaVerified: user.totpEnabledAt !== null,
+        mustEnrollMfa,
         venueId: user.venueId,
       },
       correlationId: req.correlationId,
@@ -157,8 +331,122 @@ router.get(
         username: req.auth!.username,
         role: req.auth!.role,
         mustChangePassword: req.auth!.mustChangePassword,
+        mfaEnabled: req.auth!.mfaEnabled,
+        mfaVerified: req.auth!.mfaVerified,
+        mustEnrollMfa: req.auth!.mustEnrollMfa,
         venueId: req.auth!.venueId,
       },
+      correlationId: req.correlationId,
+    });
+  }),
+);
+
+router.post(
+  '/password/setup',
+  passwordSetupLimiter,
+  validateRequest(
+    z.object({
+      body: passwordSetupBodySchema,
+      query: z.object({}).strict(),
+      params: z.object({}).strict(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const now = new Date();
+    const tokenHash = hashToken(req.body.token);
+    const setupToken = await prisma.passwordSetupToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+    const invalidToken =
+      !setupToken ||
+      setupToken.usedAt !== null ||
+      setupToken.revokedAt !== null ||
+      setupToken.expiresAt <= now ||
+      setupToken.user.status !== 'ACTIVE' ||
+      (setupToken.user.activeAt !== null && setupToken.user.activeAt > now);
+    if (invalidToken || !setupToken) {
+      throw new AppError('Parola kurulum bağlantısı geçersiz veya süresi dolmuş.', 410);
+    }
+    if (isPasswordSimilarToUsername(req.body.newPassword, setupToken.user.username)) {
+      throw new AppError('Yeni parola kullanıcı adına benzememelidir.', 400);
+    }
+
+    const passwordHash = await hashPassword(req.body.newPassword);
+    await prisma.$transaction(async (transaction) => {
+      const claimedToken = await transaction.passwordSetupToken.updateMany({
+        where: {
+          id: setupToken.id,
+          tokenHash,
+          usedAt: null,
+          revokedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: { usedAt: now },
+      });
+      if (claimedToken.count !== 1) {
+        throw new AppError('Parola kurulum bağlantısı geçersiz veya süresi dolmuş.', 410);
+      }
+
+      const changedUser = await transaction.user.updateMany({
+        where: {
+          id: setupToken.user.id,
+          updatedAt: setupToken.user.updatedAt,
+          status: 'ACTIVE',
+          OR: [{ activeAt: null }, { activeAt: { lte: now } }],
+        },
+        data: {
+          passwordHash,
+          mustChangePassword: false,
+          temporaryPasswordExpiresAt: null,
+          passwordChangedAt: now,
+        },
+      });
+      if (changedUser.count !== 1) {
+        throw new AppError('Hesap başka bir işlemde güncellendi.', 409);
+      }
+      await transaction.passwordSetupToken.updateMany({
+        where: {
+          userId: setupToken.user.id,
+          id: { not: setupToken.id },
+          usedAt: null,
+          revokedAt: null,
+        },
+        data: { revokedAt: now },
+      });
+      await transaction.authSession.updateMany({
+        where: { userId: setupToken.user.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await transaction.messageTask.updateMany({
+        where: {
+          wedding: { customerUserId: setupToken.user.id },
+          kind: { in: ['ACCOUNT_ACTIVATION', 'PASSWORD_RESET'] },
+          status: 'PENDING',
+        },
+        data: {
+          status: 'CANCELLED',
+          sentAt: null,
+          sentById: null,
+          secretCiphertext: null,
+          secretIv: null,
+          secretAuthTag: null,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          action: 'auth.password_setup',
+          targetType: 'User',
+          targetId: setupToken.user.id,
+          correlationId: req.correlationId,
+          metadata: { purpose: setupToken.purpose },
+        },
+      });
+    });
+
+    res.json({
+      success: true,
+      data: { username: setupToken.user.username },
       correlationId: req.correlationId,
     });
   }),
@@ -176,12 +464,26 @@ router.post(
     }),
   ),
   asyncHandler(async (req, res) => {
-    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: req.auth!.userId },
+      select: {
+        id: true,
+        username: true,
+        passwordHash: true,
+        status: true,
+        activeAt: true,
+        mustChangePassword: true,
+        temporaryPasswordExpiresAt: true,
+      },
+    });
     if (!user || !(await verifyPassword(user.passwordHash, req.body.currentPassword))) {
       throw new AppError('Mevcut parola hatalı.', 401);
     }
     if (await verifyPassword(user.passwordHash, req.body.newPassword)) {
       throw new AppError('Yeni parola mevcut paroladan farklı olmalıdır.', 400);
+    }
+    if (isPasswordSimilarToUsername(req.body.newPassword, user.username)) {
+      throw new AppError('Yeni parola kullanıcı adına benzememelidir.', 400);
     }
 
     const passwordHash = await hashPassword(req.body.newPassword);
@@ -219,6 +521,11 @@ router.post(
       if (changedUser.count !== 1) {
         throw new AppError('Parola başka bir işlem tarafından değiştirildi.', 409);
       }
+
+      await transaction.passwordSetupToken.updateMany({
+        where: { userId: user.id, usedAt: null, revokedAt: null },
+        data: { revokedAt: now },
+      });
 
       const currentSession = await transaction.authSession.findUnique({
         where: { id: req.auth!.sessionId },
@@ -287,7 +594,340 @@ router.post(
 
     res.json({
       success: true,
-      data: { mustChangePassword: false },
+      data: {
+        role: req.auth!.role,
+        mustChangePassword: false,
+        mfaEnabled: req.auth!.mfaEnabled,
+        mfaVerified: req.auth!.mfaVerified,
+        mustEnrollMfa: req.auth!.mustEnrollMfa,
+      },
+      correlationId: req.correlationId,
+    });
+  }),
+);
+
+router.post(
+  '/mfa/enroll',
+  mfaManagementLimiter,
+  authenticate,
+  verifyCsrf,
+  validateRequest(
+    z.object({
+      body: mfaEnrollmentBodySchema,
+      query: z.object({}).strict(),
+      params: z.object({}).strict(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.auth!.userId },
+      select: {
+        id: true,
+        username: true,
+        passwordHash: true,
+        role: true,
+        status: true,
+        mustChangePassword: true,
+        totpEnabledAt: true,
+        updatedAt: true,
+      },
+    });
+    if (!user || user.status !== 'ACTIVE' || !isPrivilegedRole(user.role)) {
+      throw new AppError('Bu hesap iki adımlı doğrulama kurulumunu desteklemiyor.', 403);
+    }
+    if (user.mustChangePassword) {
+      throw new AppError('Önce geçici parolanızı değiştirin.', 428, true, {
+        code: 'PASSWORD_CHANGE_REQUIRED',
+      });
+    }
+    if (user.totpEnabledAt !== null) {
+      throw new AppError('İki adımlı doğrulama zaten etkin.', 409);
+    }
+    if (!(await verifyPassword(user.passwordHash, req.body.currentPassword))) {
+      throw new AppError('Mevcut parola hatalı.', 401);
+    }
+
+    const secret = createTotpSecret();
+    const encrypted = encryptValueWithKey(
+      secret,
+      dataEncryptionKeyring[env.DATA_ENCRYPTION_ACTIVE_KEY_ID]!,
+      totpEncryptionAad(user.id),
+    );
+    const now = new Date();
+    const enrollmentExpiresAt = new Date(
+      now.valueOf() + TOTP_ENROLLMENT_TTL_MINUTES * 60 * 1000,
+    );
+    await prisma.$transaction(async (transaction) => {
+      const claimed = await transaction.user.updateMany({
+        where: {
+          id: user.id,
+          updatedAt: user.updatedAt,
+          status: 'ACTIVE',
+          totpEnabledAt: null,
+        },
+        data: {
+          totpSecretCiphertext: encrypted.ciphertext,
+          totpSecretIv: encrypted.iv,
+          totpSecretAuthTag: encrypted.authTag,
+          totpKeyId: env.DATA_ENCRYPTION_ACTIVE_KEY_ID,
+          totpEnrollmentExpiresAt: enrollmentExpiresAt,
+          totpLastUsedStep: null,
+        },
+      });
+      if (claimed.count !== 1) {
+        throw new AppError('MFA kurulumu başka bir işlem tarafından değiştirildi.', 409);
+      }
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: user.id,
+          action: 'auth.mfa_enrollment_started',
+          targetType: 'User',
+          targetId: user.id,
+          correlationId: req.correlationId,
+        },
+      });
+    });
+
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      success: true,
+      data: {
+        secret,
+        otpauthUri: createTotpEnrollmentUri(secret, user.username),
+        expiresAt: enrollmentExpiresAt,
+      },
+      correlationId: req.correlationId,
+    });
+  }),
+);
+
+router.post(
+  '/mfa/confirm',
+  mfaManagementLimiter,
+  authenticate,
+  verifyCsrf,
+  validateRequest(
+    z.object({
+      body: mfaProtectedActionBodySchema,
+      query: z.object({}).strict(),
+      params: z.object({}).strict(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.auth!.userId },
+      select: {
+        id: true,
+        passwordHash: true,
+        role: true,
+        status: true,
+        mustChangePassword: true,
+        totpSecretCiphertext: true,
+        totpSecretIv: true,
+        totpSecretAuthTag: true,
+        totpKeyId: true,
+        totpEnrollmentExpiresAt: true,
+        totpEnabledAt: true,
+        updatedAt: true,
+      },
+    });
+    if (!user || user.status !== 'ACTIVE' || !isPrivilegedRole(user.role)) {
+      throw new AppError('Bu hesap iki adımlı doğrulama kurulumunu desteklemiyor.', 403);
+    }
+    if (user.mustChangePassword) {
+      throw new AppError('Önce geçici parolanızı değiştirin.', 428, true, {
+        code: 'PASSWORD_CHANGE_REQUIRED',
+      });
+    }
+    if (user.totpEnabledAt !== null) {
+      throw new AppError('İki adımlı doğrulama zaten etkin.', 409);
+    }
+    const now = new Date();
+    if (!user.totpEnrollmentExpiresAt || user.totpEnrollmentExpiresAt <= now) {
+      throw new AppError('MFA kurulumu süresi doldu. Kurulumu yeniden başlatın.', 410);
+    }
+    if (!(await verifyPassword(user.passwordHash, req.body.currentPassword))) {
+      throw new AppError('Mevcut parola hatalı.', 401);
+    }
+    const matchedStep = findMatchingTotpStep(
+      decryptTotpSecret(user),
+      req.body.totpCode,
+      now,
+    );
+    if (matchedStep === undefined) {
+      throw new AppError('Doğrulama kodu hatalı.', 401);
+    }
+
+    const token = createOpaqueToken();
+    const csrfToken = createOpaqueToken();
+    const { expiresAt } = await prisma.$transaction(async (transaction) => {
+      const claimed = await transaction.user.updateMany({
+        where: {
+          id: user.id,
+          updatedAt: user.updatedAt,
+          status: 'ACTIVE',
+          totpEnabledAt: null,
+          totpEnrollmentExpiresAt: { gt: now },
+          totpSecretCiphertext: user.totpSecretCiphertext,
+        },
+        data: {
+          totpEnabledAt: now,
+          totpEnrollmentExpiresAt: null,
+          totpLastUsedStep: matchedStep,
+        },
+      });
+      if (claimed.count !== 1) {
+        throw new AppError('MFA kurulumu başka bir işlem tarafından değiştirildi.', 409);
+      }
+
+      const currentSession = await transaction.authSession.findUnique({
+        where: { id: req.auth!.sessionId },
+        select: { expiresAt: true },
+      });
+      if (!currentSession || currentSession.expiresAt <= now) {
+        throw new AppError('Oturum geçersiz veya süresi dolmuş.', 401);
+      }
+      const rotated = await transaction.authSession.updateMany({
+        where: {
+          id: req.auth!.sessionId,
+          userId: user.id,
+          revokedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: {
+          tokenHash: hashToken(token),
+          csrfTokenHash: hashToken(csrfToken),
+          lastUsedAt: now,
+          mfaVerifiedAt: now,
+        },
+      });
+      if (rotated.count !== 1) {
+        throw new AppError('Oturum geçersiz veya süresi dolmuş.', 401);
+      }
+      await transaction.authSession.updateMany({
+        where: { userId: user.id, id: { not: req.auth!.sessionId }, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: user.id,
+          action: 'auth.mfa_enabled',
+          targetType: 'User',
+          targetId: user.id,
+          correlationId: req.correlationId,
+        },
+      });
+      return currentSession;
+    });
+
+    const remainingMaxAgeMs = Math.max(1, expiresAt.valueOf() - Date.now());
+    res.cookie(env.SESSION_COOKIE_NAME, token, sessionCookieOptions(remainingMaxAgeMs));
+    res.cookie(CSRF_COOKIE_NAME, csrfToken, csrfCookieOptions(remainingMaxAgeMs));
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      success: true,
+      data: { mfaEnabled: true, mustEnrollMfa: false },
+      correlationId: req.correlationId,
+    });
+  }),
+);
+
+router.post(
+  '/mfa/disable',
+  mfaManagementLimiter,
+  authenticate,
+  verifyCsrf,
+  validateRequest(
+    z.object({
+      body: mfaProtectedActionBodySchema,
+      query: z.object({}).strict(),
+      params: z.object({}).strict(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.auth!.userId },
+      select: {
+        id: true,
+        passwordHash: true,
+        role: true,
+        status: true,
+        totpSecretCiphertext: true,
+        totpSecretIv: true,
+        totpSecretAuthTag: true,
+        totpKeyId: true,
+        totpEnabledAt: true,
+        totpLastUsedStep: true,
+        updatedAt: true,
+      },
+    });
+    if (
+      !user ||
+      user.status !== 'ACTIVE' ||
+      !isPrivilegedRole(user.role) ||
+      user.totpEnabledAt === null ||
+      user.totpLastUsedStep === null
+    ) {
+      throw new AppError('Etkin iki adımlı doğrulama kaydı bulunamadı.', 409);
+    }
+    if (!(await verifyPassword(user.passwordHash, req.body.currentPassword))) {
+      throw new AppError('Mevcut parola hatalı.', 401);
+    }
+    const now = new Date();
+    const matchedStep = findMatchingTotpStep(
+      decryptTotpSecret(user),
+      req.body.totpCode,
+      now,
+    );
+    if (matchedStep === undefined || matchedStep <= user.totpLastUsedStep) {
+      throw new AppError('Doğrulama kodu hatalı veya daha önce kullanılmış.', 401);
+    }
+
+    await prisma.$transaction(async (transaction) => {
+      const claimed = await transaction.user.updateMany({
+        where: {
+          id: user.id,
+          updatedAt: user.updatedAt,
+          status: 'ACTIVE',
+          totpEnabledAt: { not: null },
+          totpLastUsedStep: user.totpLastUsedStep,
+        },
+        data: {
+          totpSecretCiphertext: null,
+          totpSecretIv: null,
+          totpSecretAuthTag: null,
+          totpKeyId: null,
+          totpEnrollmentExpiresAt: null,
+          totpEnabledAt: null,
+          totpLastUsedStep: null,
+        },
+      });
+      if (claimed.count !== 1) {
+        throw new AppError('MFA ayarı başka bir işlem tarafından değiştirildi.', 409);
+      }
+      await transaction.authSession.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: user.id,
+          action: 'auth.mfa_disabled',
+          targetType: 'User',
+          targetId: user.id,
+          correlationId: req.correlationId,
+        },
+      });
+    });
+
+    clearAuthCookies(res);
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      success: true,
+      data: {
+        mfaEnabled: false,
+        mustEnrollMfa: isMfaEnrollmentRequired(user.role, false),
+      },
       correlationId: req.correlationId,
     });
   }),

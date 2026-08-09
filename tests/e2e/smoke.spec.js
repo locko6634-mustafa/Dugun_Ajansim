@@ -625,6 +625,37 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       })
     })
   );
+  await page.route("**/api/v1/admin/packages", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: [
+          {
+            id: "d71c54c4-58df-4c2d-b153-72222dcb0b90",
+            code: "mini",
+            name: "Mini Paket",
+            description: "Katalog görseli hata toleransı",
+            imagePath: "assets/images/missing-catalog-image.webp",
+            priceCents: 2_000_000,
+            isActive: true
+          }
+        ]
+      })
+    })
+  );
+  await page.route("**/api/v1/admin/services", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] })
+    })
+  );
+  await page.route("**/api/v1/admin/venues", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] })
+    })
+  );
   await page.route("**/api/v1/admin/message-tasks**", (route) => {
     if (route.request().url().endsWith("/render")) {
       return route.fulfill({
@@ -632,7 +663,8 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
         body: JSON.stringify({
           success: true,
           data: {
-            message: "Geçici parola: yalnız-panoda",
+            message:
+              "Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda",
             whatsappUrl: "https://wa.me/905551112233",
             expectedUpdatedAt: "2026-08-10T10:00:00.000Z"
           }
@@ -752,10 +784,15 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await page.getByRole("button", { name: "WhatsApp" }).click();
   await expect
     .poll(() => page.evaluate(() => window.__copiedAdminMessages[0]))
-    .toBe("Geçici parola: yalnız-panoda");
+    .toBe("Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda");
   const openedWhatsAppUrl = await page.evaluate(() => window.__adminWhatsAppUrls[0]);
   expect(new URL(openedWhatsAppUrl).search).toBe("");
   expect(openedWhatsAppUrl).not.toContain("yalnız-panoda");
+  await clickPanel(page, "catalog");
+  const catalogImage = page.locator(".js-packages .js-catalog-image");
+  await expect(catalogImage).toHaveCount(1);
+  expect(await catalogImage.getAttribute("onerror")).toBeNull();
+  await expect(catalogImage).toHaveAttribute("src", "assets/images/hero-couple.webp");
 });
 
 test("@frontend-smoke müşteri teslimat paneli linki teslim öncesinde göstermiyor", async ({
@@ -1095,6 +1132,15 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
         JSON.stringify({ applicationId: id, paymentFlowKey: key })
       );
       window.__whatsappUrls = [];
+      window.__copiedPaymentReferences = [];
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: async (value) => {
+            window.__copiedPaymentReferences.push(String(value));
+          }
+        }
+      });
       window.open = () => ({
         opener: null,
         close() {},
@@ -1174,11 +1220,18 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
   );
 
   await page.goto("/paketini-olustur.html");
+  await expect(page.locator(".privacy-note")).toContainText(
+    "WhatsApp yönlendirme adresine kişisel bilgileriniz eklenmez"
+  );
   await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-777888");
   await page.locator(".js-complete-with-whatsapp").click();
   await expect
     .poll(() => page.evaluate(() => window.__whatsappUrls[0]))
-    .toContain("https://wa.me/905551112233?text=");
+    .toBe("https://wa.me/905551112233");
+  expect(await page.evaluate(() => window.__copiedPaymentReferences)).toEqual(["DA-2026-777888"]);
+  expect(
+    await page.evaluate(() => window.sessionStorage.getItem("dugunajansim_payment_flow"))
+  ).toBeNull();
   await expect(page.locator(".js-transfer-layout")).toBeVisible();
   await expect(page.locator(".js-edit-package")).toBeDisabled();
   await expect(page.locator(".js-payment-notification-status")).toContainText(
@@ -1187,6 +1240,90 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
   await expect(page.locator(".js-payment-flow-expiry")).toContainText(
     "Yönetici onayı için kalan süre"
   );
+});
+
+test("@frontend-smoke ortak istemci askıda isteği keser ve güvenli anahtar üretir", async ({
+  page
+}) => {
+  await page.goto("/gizlilik-politikasi.html");
+
+  const result = await page.evaluate(async () => {
+    const { apiRequest, createIdempotencyKey } = await import(
+      `/js/shared/api-client.js?security-regression=${Date.now()}`
+    );
+    const deterministicKey = createIdempotencyKey({
+      getRandomValues(target) {
+        target.forEach((_, index) => {
+          target[index] = index;
+        });
+        return target;
+      }
+    });
+    let failedClosed = false;
+    try {
+      createIdempotencyKey({});
+    } catch {
+      failedClosed = true;
+    }
+
+    const originalFetch = window.fetch;
+    let fetchCalls = 0;
+    let requestMethod = "";
+    window.fetch = (_url, options = {}) => {
+      fetchCalls += 1;
+      requestMethod = options.method;
+      return new Promise((_resolve, reject) => {
+        options.signal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("İstek iptal edildi.", "AbortError")),
+          { once: true }
+        );
+      });
+    };
+
+    const timeoutResult = await Promise.race([
+      apiRequest("/askida-mutation", {
+        method: "POST",
+        body: { probe: true },
+        timeoutMs: 25
+      }).then(
+        () => ({ outcome: "resolved" }),
+        (error) => ({ outcome: "rejected", code: error.code, message: error.message })
+      ),
+      new Promise((resolve) => window.setTimeout(() => resolve({ outcome: "not-aborted" }), 250))
+    ]);
+    window.fetch = originalFetch;
+
+    return { deterministicKey, failedClosed, fetchCalls, requestMethod, timeoutResult };
+  });
+
+  expect(result.deterministicKey).toBe("00010203-0405-4607-8809-0a0b0c0d0e0f");
+  expect(result.failedClosed).toBe(true);
+  expect(result.fetchCalls).toBe(1);
+  expect(result.requestMethod).toBe("POST");
+  expect(result.timeoutResult).toEqual({
+    outcome: "rejected",
+    code: "REQUEST_TIMEOUT",
+    message: "Sunucu zamanında yanıt vermedi. Lütfen tekrar deneyin."
+  });
+});
+
+test("@frontend-smoke ortak dialog dinamik rozet içeriğini metin olarak işler", async ({
+  page
+}) => {
+  await page.goto("/gizlilik-politikasi.html");
+  await page.evaluate(async () => {
+    const { showCustomConfirm } = await import("/js/shared/custom-dialogs.js");
+    void showCustomConfirm({
+      badge: '<img src="/missing-dialog-badge.png" alt="unsafe">',
+      title: "Güvenlik doğrulaması"
+    });
+  });
+
+  const badge = page.locator(".custom-dialog-badge");
+  await expect(badge).toHaveText('<img src="/missing-dialog-badge.png" alt="unsafe">');
+  await expect(badge.locator("img")).toHaveCount(0);
+  await page.locator(".js-dialog-cancel").first().click();
 });
 
 test("@frontend-smoke zorunlu parola değişim ekranı 15–128 karakter sözleşmesini uygular", async ({
@@ -1229,6 +1366,148 @@ test("@frontend-smoke zorunlu parola değişim ekranı 15–128 karakter sözle�
     "Yeni parolanız 15–128 karakter arasında olmalıdır."
   );
   expect(passwordChangeRequestCount).toBe(0);
+});
+
+test("@frontend-smoke tek kullanımlık parola bağlantısı fragmenti temizlenir ve bir kez gönderilir", async ({
+  page
+}) => {
+  const setupToken = "a".repeat(43);
+  let submittedBody;
+  await page.route("**/api/v1/auth/password/setup", async (route) => {
+    submittedBody = route.request().postDataJSON();
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { username: "m-guvenlihesap" } })
+    });
+  });
+
+  await page.goto(`/login.html#setup=${setupToken}`);
+  await expect(page).toHaveURL(/\/login\.html$/);
+  await expect(page.getByLabel("Geçici / mevcut parola")).toBeHidden();
+  await page.getByLabel("Yeni parola (15–128 karakter)").fill("Kurulum-Icin-Guvenli-Parola-2026!");
+  await page
+    .getByLabel("Yeni parola tekrar (15–128 karakter)")
+    .fill("Kurulum-Icin-Guvenli-Parola-2026!");
+  await page.getByRole("button", { name: "Parolayı Kaydet" }).click();
+
+  await expect
+    .poll(() => submittedBody)
+    .toEqual({
+      token: setupToken,
+      newPassword: "Kurulum-Icin-Guvenli-Parola-2026!"
+    });
+  await expect(page.getByLabel("Kullanıcı adı")).toHaveValue("m-guvenlihesap");
+  await expect(page.getByText("Parolanız belirlendi. Şimdi giriş yapabilirsiniz.")).toBeVisible();
+});
+
+test("@frontend-smoke ayrıcalıklı giriş MFA kodunu yalnız challenge sonrasında gönderir", async ({
+  page
+}) => {
+  const loginBodies = [];
+  await page.route("**/api/v1/auth/login", async (route) => {
+    const body = route.request().postDataJSON();
+    loginBodies.push(body);
+    if (!body.totpCode) {
+      return route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          message: "İki adımlı doğrulama kodu gerekli.",
+          errors: { code: "MFA_REQUIRED" }
+        })
+      });
+    }
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          role: "ADMIN",
+          mustChangePassword: false,
+          mfaEnabled: true,
+          mfaVerified: true,
+          mustEnrollMfa: false
+        }
+      })
+    });
+  });
+
+  await page.goto("/login.html?mfa-login=1");
+  await page.locator("#username").fill("admin");
+  await page.locator("#password").fill("guvenli-admin-parolasi");
+  await page.getByRole("button", { name: "Giriş Yap" }).click();
+  await expect(page.locator(".mfa-login-field")).toBeVisible();
+  await expect(page.locator(".login-form .form-message")).toContainText("doğrulama kodu");
+
+  await page.locator("#totp-code").fill("123456");
+  await page.getByRole("button", { name: "Giriş Yap" }).click();
+  await expect(page).toHaveURL(/admin\.html$/);
+  expect(loginBodies).toHaveLength(2);
+  expect(loginBodies[0]).not.toHaveProperty("totpCode");
+  expect(loginBodies[1]).toMatchObject({ totpCode: "123456" });
+});
+
+test("@frontend-smoke production enrollment sırrını yalnız kurulum adımında gösterir", async ({
+  page
+}) => {
+  const enrollmentBodies = [];
+  const confirmationBodies = [];
+  let enrollmentConfirmed = false;
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          role: "ADMIN",
+          username: "admin",
+          mustChangePassword: false,
+          mfaEnabled: enrollmentConfirmed,
+          mfaVerified: enrollmentConfirmed,
+          mustEnrollMfa: !enrollmentConfirmed
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/auth/mfa/enroll", async (route) => {
+    enrollmentBodies.push(route.request().postDataJSON());
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          secret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP",
+          otpauthUri:
+            "otpauth://totp/D%C3%BC%C4%9F%C3%BCn%20Ajans%C4%B1m%3Aadmin?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+        }
+      })
+    });
+  });
+  await page.route("**/api/v1/auth/mfa/confirm", async (route) => {
+    confirmationBodies.push(route.request().postDataJSON());
+    enrollmentConfirmed = true;
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { mfaEnabled: true } })
+    });
+  });
+
+  await page.goto("/login.html?mfa-enrollment=1");
+  await expect(page.locator(".mfa-enrollment-form")).toBeVisible();
+  await expect(page.locator("#mfa-secret")).toHaveValue("");
+  await page.locator("#mfa-current-password").fill("guvenli-admin-parolasi");
+  await page.getByRole("button", { name: "Kurulumu Başlat" }).click();
+  await expect(page.locator("#mfa-secret")).toHaveValue("JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP");
+  await expect(page.locator(".mfa-otpauth-link")).toHaveAttribute("href", /^otpauth:\/\/totp\//);
+
+  await page.locator("#mfa-confirm-code").fill("654321");
+  await page.getByRole("button", { name: "Kurulumu Doğrula" }).click();
+  await expect(page).toHaveURL(/admin\.html$/);
+  expect(enrollmentBodies).toEqual([{ currentPassword: "guvenli-admin-parolasi" }]);
+  expect(confirmationBodies).toEqual([
+    { currentPassword: "guvenli-admin-parolasi", totpCode: "654321" }
+  ]);
 });
 
 test("@frontend-smoke oturum acilmis kullanici anasayfada role uygun paneli ve cikis butonunu gorur", async ({

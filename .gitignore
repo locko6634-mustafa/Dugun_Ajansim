@@ -7,10 +7,10 @@ out/
 .cache/
 
 # Ortam Değişkenleri ve Gizli Dosyalar
-.env
-.env.local
-.env.production
-.env.*.local
+.env*
+!.env.production.example
+!backend/.env.example
+!backend/tests/test.env
 *.pem
 *.key
 

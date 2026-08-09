@@ -48,9 +48,14 @@ export const tokenHashesMatch = (plainToken: string, storedHash: string): boolea
   return candidate.length === stored.length && timingSafeEqual(candidate, stored);
 };
 
-export const encryptValue = (value: string, aad?: string): EncryptedValue => {
+const parseEncryptionKey = (keyHex: string): Buffer => {
+  if (!/^[a-fA-F0-9]{64}$/.test(keyHex)) throw new Error('Şifreleme anahtarı biçimi geçersiz.');
+  return Buffer.from(keyHex, 'hex');
+};
+
+const encryptValueWithBuffer = (value: string, key: Buffer, aad?: string): EncryptedValue => {
   const iv = randomBytes(GCM_IV_BYTES);
-  const cipher = createCipheriv('aes-256-gcm', encryptionKey, iv, {
+  const cipher = createCipheriv('aes-256-gcm', key, iv, {
     authTagLength: GCM_AUTH_TAG_BYTES,
   });
   if (aad !== undefined) cipher.setAAD(Buffer.from(aad, 'utf8'));
@@ -63,7 +68,7 @@ export const encryptValue = (value: string, aad?: string): EncryptedValue => {
   };
 };
 
-export const decryptValue = (value: EncryptedValue, aad?: string): string => {
+const decryptValueWithBuffer = (value: EncryptedValue, key: Buffer, aad?: string): string => {
   const iv = decodeCanonicalBase64(value.iv);
   const authTag = decodeCanonicalBase64(value.authTag);
   const ciphertext = decodeCanonicalBase64(value.ciphertext);
@@ -71,7 +76,7 @@ export const decryptValue = (value: EncryptedValue, aad?: string): string => {
     throw new Error('Şifreli veri biçimi geçersiz.');
   }
 
-  const decipher = createDecipheriv('aes-256-gcm', encryptionKey, iv, {
+  const decipher = createDecipheriv('aes-256-gcm', key, iv, {
     authTagLength: GCM_AUTH_TAG_BYTES,
   });
   if (aad !== undefined) decipher.setAAD(Buffer.from(aad, 'utf8'));
@@ -79,3 +84,18 @@ export const decryptValue = (value: EncryptedValue, aad?: string): string => {
 
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
 };
+
+export const encryptValueWithKey = (value: string, keyHex: string, aad?: string): EncryptedValue =>
+  encryptValueWithBuffer(value, parseEncryptionKey(keyHex), aad);
+
+export const decryptValueWithKey = (
+  value: EncryptedValue,
+  keyHex: string,
+  aad?: string,
+): string => decryptValueWithBuffer(value, parseEncryptionKey(keyHex), aad);
+
+export const encryptValue = (value: string, aad?: string): EncryptedValue =>
+  encryptValueWithBuffer(value, encryptionKey, aad);
+
+export const decryptValue = (value: EncryptedValue, aad?: string): string =>
+  decryptValueWithBuffer(value, encryptionKey, aad);

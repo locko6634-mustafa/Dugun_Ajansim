@@ -726,7 +726,8 @@ function applyPaymentFlowSummary(data) {
   state.transferReference = data.referenceCode;
   state.paymentFlowExpiresAt = data.paymentFlowExpiresAt;
   state.whatsappHandoffAt = data.whatsappHandoffAt;
-  persistPaymentFlowSession();
+  if (state.whatsappHandoffAt) clearPaymentFlowSession();
+  else persistPaymentFlowSession();
   updateTransferUI();
   updatePaymentFlowState();
 }
@@ -1335,8 +1336,10 @@ async function copyTransferValue(value, label) {
       if (!copied) throw new Error("copy-failed");
     }
     setCopyFeedback(`${label} panoya kopyalandı.`);
+    return true;
   } catch {
     setCopyFeedback(`${label} kopyalanamadı. Lütfen elle kopyalayın.`);
+    return false;
   }
 }
 
@@ -1353,29 +1356,10 @@ document.querySelectorAll(".js-copy-transfer").forEach((button) => {
   });
 });
 
-function generateWhatsAppMessage() {
-  const payment = getPaymentDetails();
-  const base = basePackages[state.base];
-  const extras =
-    getSelectedExtras()
-      .map((s) => s.name)
-      .join(", ") || "Yok";
-  const refNo = state.transferReference || "—";
-
-  const couple = `${state.customer.brideFirstName || "—"} ${
-    state.customer.brideLastName || ""
-  } & ${state.customer.groomFirstName || "—"} ${state.customer.groomLastName || ""}`.trim();
-  const primaryPhone =
-    state.customer.primaryContact === "DAMAT"
-      ? state.customer.groomPhone
-      : state.customer.bridePhone;
-  return `Merhaba Düğünajansım Ekibi,\n\nPaket başvurumu oluşturdum. Dekontumu paylaşmak istiyorum.\n\n📋 *Başvuru Kodu:* ${refNo}\n💍 *Çift:* ${couple}\n📞 *Birincil Telefon:* ${primaryPhone || "—"}\n📅 *Düğün Tarihi:* ${formatWeddingDate(state.customer.weddingDate)}\n⏰ *Saat:* ${state.customer.startTime || "—"} - ${state.customer.endTime || ""}${state.customer.endsNextDay ? " (ertesi gün)" : ""}\n📍 *Salon:* ${getVenueDisplayName()}\n\n🎁 *Paket:* ${base?.name || "Mini Paket"}\n➕ *Ek Hizmetler:* ${extras}\n💰 *Ödenecek Tutar:* ${formatPrice(payment.payable)} (${payment.payableLabel})\n\n⚠️ Havale/EFT açıklamasına *${refNo}* referans numarasını yazdım. Dekontumu bu mesaja ekliyorum.`;
-}
-
 function getWhatsAppUrl() {
   const phone = String(transferAccount?.whatsappPhone || "").replace(/\D/g, "");
   if (!phone) return null;
-  return `https://wa.me/${phone}?text=${encodeURIComponent(generateWhatsAppMessage())}`;
+  return `https://wa.me/${phone}`;
 }
 
 function validatePaymentNotificationForm() {
@@ -1439,6 +1423,7 @@ if (paymentNotificationForm) {
       );
       applyPaymentFlowSummary(response.data);
       renderOrderReview();
+      await copyTransferValue(state.transferReference, "Başvuru kodu");
       const waUrl = getWhatsAppUrl();
       if (waUrl) {
         whatsappWindow.location.href = waUrl;
