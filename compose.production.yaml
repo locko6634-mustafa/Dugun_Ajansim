@@ -272,6 +272,44 @@ services:
       - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     logging: *default-logging
 
+  data-retention:
+    image: dugun-ajansim-migrate
+    command: ["node", "dist/scripts/maintainDataRetention.js"]
+    profiles:
+      - operations
+    environment:
+      NODE_ENV: production
+      APP_PROCESS_ROLE: data-retention
+      CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
+      ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
+      PUBLIC_APPLICATION_RETENTION_DAYS: ${PUBLIC_APPLICATION_RETENTION_DAYS:-90}
+      ARCHIVED_APPLICATION_RETENTION_DAYS: ${ARCHIVED_APPLICATION_RETENTION_DAYS:-365}
+      ARCHIVED_WEDDING_RETENTION_DAYS: ${ARCHIVED_WEDDING_RETENTION_DAYS:-3650}
+      SECURITY_ARTIFACT_RETENTION_DAYS: ${SECURITY_ARTIFACT_RETENTION_DAYS:-30}
+      DATA_RETENTION_BATCH_SIZE: ${DATA_RETENTION_BATCH_SIZE:-100}
+      DATA_RETENTION_MAX_BATCHES: ${DATA_RETENTION_MAX_BATCHES:-1000}
+    depends_on:
+      db-runtime-hardening:
+        condition: service_completed_successfully
+    networks:
+      - internal
+    restart: "no"
+    stop_grace_period: 10s
+    init: true
+    read_only: true
+    cpus: ${DATA_RETENTION_CPU_LIMIT:-0.50}
+    mem_limit: ${DATA_RETENTION_MEMORY_LIMIT:-512m}
+    mem_reservation: ${DATA_RETENTION_MEMORY_RESERVATION:-128m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    logging: *default-logging
+
   backend:
     build:
       context: .

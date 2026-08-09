@@ -95,6 +95,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(compose).toContain("APP_PROCESS_ROLE: api");
   expect(compose).toContain("APP_PROCESS_ROLE: admin-bootstrap");
   expect(compose).toContain("APP_PROCESS_ROLE: pii-maintenance");
+  expect(compose).toContain("APP_PROCESS_ROLE: data-retention");
+  expect(compose).toContain("data-retention:");
   expect(compose).toContain("PII_ENCRYPTION_MODE: ${PII_ENCRYPTION_MODE:-strict}");
   const adminBootstrapEnvironment = compose.match(
     /admin-bootstrap:[\s\S]*?environment:([\s\S]*?)depends_on:/
@@ -107,6 +109,9 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(adminBootstrapEnvironment).not.toContain("DATA_ENCRYPTION_KEY:");
   expect(piiMaintenanceEnvironment).not.toContain("DATA_ENCRYPTION_KEY:");
   expect(piiMaintenanceEnvironment).not.toContain("RATE_LIMIT_HMAC_KEY");
+  expect(compose).toMatch(
+    /data-retention:[\s\S]*?APP_PROCESS_ROLE: data-retention[\s\S]*?PUBLIC_APPLICATION_RETENTION_DAYS:/
+  );
   expect(compose).toContain("TRUST_PROXY: ${TRUST_PROXY:?");
   expect(compose).not.toMatch(/TRUST_PROXY:\s*1(?:\s|$)/);
   expect(compose).toContain(
@@ -184,6 +189,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(exampleEnv).toMatch(/^TURNSTILE_SITE_KEY=$/m);
   expect(exampleEnv).toMatch(/^TURNSTILE_SECRET_KEY=$/m);
   expect(exampleEnv).toMatch(/^PII_ENCRYPTION_MODE=strict$/m);
+  expect(exampleEnv).toMatch(/^PUBLIC_APPLICATION_RETENTION_DAYS=90$/m);
+  expect(exampleEnv).toMatch(/^ARCHIVED_WEDDING_RETENTION_DAYS=3650$/m);
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_AVERAGE=20");
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_PERIOD=1s");
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_BURST=40");
@@ -231,6 +238,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(deployWorkflow).not.toContain('git reset --hard "$previous_sha"');
   expect(deployWorkflow).toContain("git status --porcelain --untracked-files=all");
   expect(deployWorkflow).toContain("BACKUP_RETENTION_DAYS");
+  expect(deployScript).toContain("--profile operations run --rm --no-deps -T data-retention");
+  expect(runtimeRoleScript).toContain("'rate_limit_buckets', 'password_setup_tokens'");
 
   expect(deployScript).toContain("config -q");
   expect(deployScript).toContain("pg_dump");

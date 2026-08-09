@@ -39,6 +39,11 @@ import { validateCorsOrigin } from '../src/middlewares/security.middleware.js';
 import { validateRequest } from '../src/middlewares/validate.middleware.js';
 import { AppError } from '../src/utils/appError.js';
 import { decryptValue, encryptValue } from '../src/utils/crypto.js';
+import {
+  buildRetentionCutoffs,
+  countRetentionDeletes,
+  runDataRetentionBatch,
+} from '../src/utils/dataRetention.js';
 import { findBoundedIntervalConflicts } from '../src/utils/intervalConflicts.js';
 import {
   BOOKING_APPLICATION_PII_SCHEMA_VERSION,
@@ -199,6 +204,10 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   assert.equal(parsed.SALON_SESSION_IDLE_MINUTES, 60);
   assert.equal(parsed.CUSTOMER_SESSION_IDLE_HOURS, 12);
   assert.equal(parsed.TEMPORARY_PASSWORD_TTL_HOURS, 72);
+  assert.equal(parsed.PUBLIC_APPLICATION_RETENTION_DAYS, 90);
+  assert.equal(parsed.ARCHIVED_APPLICATION_RETENTION_DAYS, 365);
+  assert.equal(parsed.ARCHIVED_WEDDING_RETENTION_DAYS, 3650);
+  assert.equal(parsed.SECURITY_ARTIFACT_RETENTION_DAYS, 30);
   assert.equal(parsed.PAYMENT_MODE, 'test');
   assert.equal(parsed.PAYMENT_IBAN, 'TR000000000000000000000000');
   assert.throws(() => parseEnvironment({ ...validEnvironment, PORT: '5000abc' }));
@@ -518,6 +527,85 @@ test('başarısız giriş güvenlik kaydı yalnız sabit ve kişisel veri içerm
     'timestamp',
   ]);
   assert.equal(createFailedLoginSecurityEvent('geçersiz\nkimlik').correlationId, 'unavailable');
+});
+
+test('veri saklama politikası yalnız süresi dolan ve ilişkisiz kayıtları sınırlı partide siler', async () => {
+  const now = new Date('2030-01-01T00:00:00.000Z');
+  const policy = {
+    publicApplicationDays: 90,
+    archivedApplicationDays: 365,
+    archivedWeddingDays: 3650,
+    securityArtifactDays: 30,
+    batchSize: 25,
+  };
+  const cutoffs = buildRetentionCutoffs(policy, now);
+  assert.equal(cutoffs.publicApplication.toISOString(), '2029-10-03T00:00:00.000Z');
+  assert.equal(cutoffs.securityArtifact.toISOString(), '2029-12-02T00:00:00.000Z');
+
+  const bookingFindResponses = [[{ id: 'public-application' }], [{ id: 'archived-application' }]];
+  const bookingDeleteWhere: unknown[] = [];
+  const auditEntries: unknown[] = [];
+  const transaction = {
+    rateLimitBucket: {
+      findMany: async () => [{ keyHash: 'bucket' }],
+      deleteMany: async () => ({ count: 1 }),
+    },
+    authSession: {
+      findMany: async () => [{ id: 'session' }],
+      deleteMany: async () => ({ count: 1 }),
+    },
+    passwordSetupToken: {
+      findMany: async () => [{ id: 'setup-token' }],
+      deleteMany: async () => ({ count: 1 }),
+    },
+    bookingApplication: {
+      findMany: async () => bookingFindResponses.shift() ?? [],
+      deleteMany: async (args: { where: unknown }) => {
+        bookingDeleteWhere.push(args.where);
+        return { count: 1 };
+      },
+    },
+    wedding: {
+      findMany: async () => [
+        { id: 'wedding', applicationId: 'approved-application', customerUserId: 'customer' },
+      ],
+      deleteMany: async () => ({ count: 1 }),
+    },
+    user: {
+      deleteMany: async () => ({ count: 1 }),
+    },
+    auditLog: {
+      create: async (args: { data: unknown }) => {
+        auditEntries.push(args.data);
+        return args.data;
+      },
+    },
+  };
+  let isolationLevel: unknown;
+  const client = {
+    $transaction: async (
+      operation: (value: typeof transaction) => Promise<unknown>,
+      options: { isolationLevel: unknown },
+    ) => {
+      isolationLevel = options.isolationLevel;
+      return operation(transaction);
+    },
+  } as unknown as PrismaClient;
+
+  const result = await runDataRetentionBatch(client, policy, now);
+  assert.equal(countRetentionDeletes(result), 7);
+  assert.equal(isolationLevel, 'Serializable');
+  assert.equal(bookingDeleteWhere.length, 3);
+  assert.equal(auditEntries.length, 1);
+  assert.deepEqual(bookingDeleteWhere[0], {
+    id: { in: ['public-application'] },
+    source: 'PUBLIC_FORM',
+    wedding: null,
+  });
+  assert.deepEqual(bookingDeleteWhere[2], {
+    id: { in: ['approved-application'] },
+    wedding: null,
+  });
 });
 
 test('oturum temizliği yalnız 30 günden eski kayıtları ve en fazla 100 kimliği siler', async () => {

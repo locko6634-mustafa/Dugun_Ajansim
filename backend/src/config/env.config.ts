@@ -260,6 +260,36 @@ const envSchema = z
       1,
       168,
     ).default('72'),
+    PUBLIC_APPLICATION_RETENTION_DAYS: boundedIntegerSchema(
+      'PUBLIC_APPLICATION_RETENTION_DAYS',
+      30,
+      3650,
+    ).default('90'),
+    ARCHIVED_APPLICATION_RETENTION_DAYS: boundedIntegerSchema(
+      'ARCHIVED_APPLICATION_RETENTION_DAYS',
+      30,
+      3650,
+    ).default('365'),
+    ARCHIVED_WEDDING_RETENTION_DAYS: boundedIntegerSchema(
+      'ARCHIVED_WEDDING_RETENTION_DAYS',
+      365,
+      3650,
+    ).default('3650'),
+    SECURITY_ARTIFACT_RETENTION_DAYS: boundedIntegerSchema(
+      'SECURITY_ARTIFACT_RETENTION_DAYS',
+      7,
+      365,
+    ).default('30'),
+    DATA_RETENTION_BATCH_SIZE: boundedIntegerSchema(
+      'DATA_RETENTION_BATCH_SIZE',
+      10,
+      500,
+    ).default('100'),
+    DATA_RETENTION_MAX_BATCHES: boundedIntegerSchema(
+      'DATA_RETENTION_MAX_BATCHES',
+      1,
+      10_000,
+    ).default('1000'),
     PAYMENT_MODE: z.enum(['test', 'live']).default('test'),
     PAYMENT_HANDOFF_TTL_MINUTES: boundedIntegerSchema(
       'PAYMENT_HANDOFF_TTL_MINUTES',

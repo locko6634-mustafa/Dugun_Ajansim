@@ -497,6 +497,7 @@ deployment_verified=1
 run_pii_batches --redact-legacy
 "${compose[@]}" --profile operations run --rm --no-deps -T pii-maintenance \
   node dist/scripts/maintainPiiEncryption.js --verify
+"${compose[@]}" --profile operations run --rm --no-deps -T data-retention
 
 trap - ERR
 printf 'DEPLOYED_GIT_SHA=%s\n' "$deployed_sha"
