@@ -233,17 +233,17 @@ export const verifyCsrf = (req: Request, _res: Response, next: NextFunction): vo
     .catch(next);
 };
 
-export const sessionCookieOptions = (maxAgeMs: number) => ({
+export const sessionCookieOptions = (maxAgeMs: number, environment = env.NODE_ENV) => ({
   httpOnly: true,
-  secure: env.NODE_ENV === 'production',
+  secure: environment === 'production',
   sameSite: 'lax' as const,
   path: '/',
   maxAge: maxAgeMs,
 });
 
-export const csrfCookieOptions = (maxAgeMs: number) => ({
+export const csrfCookieOptions = (maxAgeMs: number, environment = env.NODE_ENV) => ({
   httpOnly: false,
-  secure: env.NODE_ENV === 'production',
+  secure: environment === 'production',
   sameSite: 'lax' as const,
   path: '/',
   maxAge: maxAgeMs,

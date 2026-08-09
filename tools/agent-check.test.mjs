@@ -43,7 +43,11 @@ test("backend yardımcı kodu veritabanı olmadan hedefli birim grubunu seçer",
 });
 
 test("auth ve Prisma değişikliği auth grubuna yönelir", () => {
-  for (const file of ["backend/src/auth/session.ts", "backend/prisma/schema.prisma"]) {
+  for (const file of [
+    "backend/src/auth/session.ts",
+    "backend/src/routes/auth.routes.ts",
+    "backend/prisma/schema.prisma"
+  ]) {
     const plan = createPlan([file]);
     assert.match(plan.at(-1).args.join(" "), /auth/);
     assert.equal(
@@ -67,8 +71,14 @@ test("bilinmeyen dosya güvenli geniş yerel grupları seçer", () => {
 test("sınıflandırma katmanlar arası değişiklikleri birlikte korur", () => {
   assert.deepEqual([...classifyChanges(["admin.html", "backend/src/routes/admin.ts"])].sort(), [
     "admin",
-    "backend-auth"
+    "backend-unit"
   ]);
+});
+
+test("public route degisikligi tum backend birim testlerini secer", () => {
+  const plan = createPlan(["backend/src/routes/public.routes.ts"]);
+  assert.match(plan.at(-1).args.join(" "), /backend-unit/);
+  assert.doesNotMatch(plan.at(-1).args.join(" "), /--test-name-pattern=auth/);
 });
 
 test("komut bütçesi dolunca yalnız başlatılan süreç zaman aşımına uğrar", async () => {

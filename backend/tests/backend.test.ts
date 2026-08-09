@@ -18,11 +18,13 @@ import {
 import { createSystemHealthHandler } from '../src/controllers/health.controller.js';
 import {
   calculateSessionTouchIntervalMs,
+  csrfCookieOptions,
   getSessionAbsoluteTtlMs,
   getSessionIdleTimeoutMs,
   getSessionTouchIntervalMs,
   isMfaEnrollmentRequired,
   isTemporaryPasswordExpired,
+  sessionCookieOptions,
 } from '../src/middlewares/auth.middleware.js';
 import { createGlobalErrorHandler } from '../src/middlewares/error.middleware.js';
 import { hashRateLimitKey } from '../src/middlewares/databaseRateLimitStore.js';
@@ -93,6 +95,23 @@ authTest('login kotası yalnız tam MFA dahil başarılı oturumu sayaçtan dü�
   assert.equal(isSuccessfulLoginAttempt(requestStub, { statusCode: 200 } as Response), true);
   assert.equal(isSuccessfulLoginAttempt(requestStub, { statusCode: 401 } as Response), false);
   assert.equal(isSuccessfulLoginAttempt(requestStub, { statusCode: 429 } as Response), false);
+});
+
+authTest('production oturum ve CSRF cookie bayrakları güvenli kalır', () => {
+  assert.deepEqual(sessionCookieOptions(60_000, 'production'), {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60_000,
+  });
+  assert.deepEqual(csrfCookieOptions(60_000, 'production'), {
+    httpOnly: false,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60_000,
+  });
 });
 
 test('production seed kullanıcı, parola veya operasyon personeli oluşturmaz', async () => {

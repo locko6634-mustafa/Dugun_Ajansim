@@ -2880,15 +2880,20 @@ test("rate limit sayaçları farklı uygulama süreçleri arasında atomik payla
   firstStore.init(options);
   secondStore.init(options);
 
-  const first = await firstStore.increment(key);
-  const second = await secondStore.increment(key);
-  assert.equal(first.totalHits, 1);
-  assert.equal(second.totalHits, 2);
-  assert.ok(second.resetTime instanceof Date);
+  const increments = await Promise.all(
+    Array.from({ length: 50 }, (_, index) =>
+      (index % 2 === 0 ? firstStore : secondStore).increment(key)
+    )
+  );
+  assert.deepEqual(
+    increments.map(({ totalHits }) => totalHits).sort((left, right) => left - right),
+    Array.from({ length: 50 }, (_, index) => index + 1)
+  );
+  assert.ok(increments.every(({ resetTime }) => resetTime instanceof Date));
 
-  await firstStore.decrement(key);
+  await Promise.all([firstStore.decrement(key), secondStore.decrement(key)]);
   const third = await secondStore.increment(key);
-  assert.equal(third.totalHits, 2);
+  assert.equal(third.totalHits, 49);
 
   await secondStore.resetKey(key);
   const reset = await firstStore.increment(key);

@@ -10,6 +10,7 @@ const readProjectFile = (relativePath) =>
 
 test("bağımlılık audit kapısı ve güvenli transitive sürümler korunur", () => {
   const manifest = JSON.parse(readProjectFile("package.json"));
+  const backendManifest = JSON.parse(readProjectFile("backend/package.json"));
   const lockfile = JSON.parse(readProjectFile("package-lock.json"));
   const expectedVersions = {
     "brace-expansion": "1.1.18",
@@ -19,6 +20,7 @@ test("bağımlılık audit kapısı ve güvenli transitive sürümler korunur", 
   };
 
   assert.equal(manifest.scripts["audit:dependencies"], "npm audit");
+  assert.equal(backendManifest.scripts["audit:dependencies"], "npm audit");
   assert.match(manifest.scripts.validate, /npm run validate:dependency-security/);
 
   for (const [packageName, expectedVersion] of Object.entries(expectedVersions)) {
@@ -41,6 +43,7 @@ test("kalite workflow'u en az yetki, audit ve immutable action SHA'ları kullan�
 
   assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   assert.match(workflow, /- run: npm run audit:dependencies/);
+  assert.equal(workflow.match(/- run: npm run audit:dependencies/g)?.length, 2);
   assert.equal(actionReferences.length, 5);
 
   for (const [, actionName, sha] of actionReferences) {

@@ -34,7 +34,12 @@ export function classifyChanges(files) {
     if (DOC_EXTENSIONS.test(file) || file === "AGENT.md") categories.add("docs");
     else if (file.startsWith("backend/prisma/") || file === "backend/compose.test.yaml")
       categories.add("backend-db");
-    else if (/^backend\/src\/(?:routes|middleware|auth|security)\//.test(file))
+    else if (
+      file === "backend/src/routes/auth.routes.ts" ||
+      /^backend\/src\/(?:auth|security)\//.test(file) ||
+      /^backend\/src\/middlewares\/(?:auth|security|rateLimit)\.middleware\.ts$/.test(file) ||
+      file === "backend/src/middlewares/databaseRateLimitStore.ts"
+    )
       categories.add("backend-auth");
     else if (file.startsWith("backend/") && /\.(?:ts|json)$/.test(file))
       categories.add("backend-unit");
