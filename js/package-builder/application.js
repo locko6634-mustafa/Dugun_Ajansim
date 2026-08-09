@@ -248,42 +248,36 @@ async function hydrateRemoteData() {
       if (!activePackageCodes.has(code)) delete basePackages[code];
     });
     remotePackages.forEach((item) => {
-      const current = basePackages[item.code] || {};
       basePackages[item.code] = {
-        ...current,
         name: item.name,
-        subtitle: item.subtitle || current.subtitle,
-        description: item.description || current.description,
-        deliveryText: item.deliveryText || current.deliveryText,
+        subtitle: item.subtitle || "Temel çekim paketi",
+        description: item.description || "Düğün gününüze özel profesyonel çekim planı",
+        deliveryText: item.deliveryText || "Teslim planı paket detaylarına göre belirlenir",
         price: item.priceCents / 100,
-        image: item.imagePath || current.image || "assets/images/hero-couple.webp"
+        image: item.imagePath || "assets/images/hero-couple.webp"
       };
     });
     renderBasePackages(remotePackages);
 
     const remoteServices = remoteServiceItems.map((item) => {
-      const current = services.find((service) => service.id === item.code);
       const parsedFeatures =
-        Array.isArray(item.features) && item.features.length > 0
-          ? item.features
-          : current?.features || [];
+        Array.isArray(item.features) && item.features.length > 0 ? item.features : [];
       const parsedGallery =
         Array.isArray(item.gallery) && item.gallery.length > 0
           ? item.gallery
-          : current?.gallery || [item.imagePath || "assets/images/hero-couple.webp"];
+          : [item.imagePath || "assets/images/hero-couple.webp"];
 
       return {
         id: item.code,
         category: item.category,
         name: item.name,
-        eyebrow: item.eyebrow || current?.eyebrow || "Ek Hizmet",
+        eyebrow: item.eyebrow || "Ek Hizmet",
         price: item.priceCents / 100,
-        image: item.imagePath || current?.image || "assets/images/hero-couple.webp",
+        image: item.imagePath || "assets/images/hero-couple.webp",
         gallery: parsedGallery,
-        description:
-          item.description || current?.description || "Düğününüze özel olarak planlanan ek hizmet.",
+        description: item.description || "Düğününüze özel olarak planlanan ek hizmet.",
         features: parsedFeatures,
-        delivery: item.delivery || current?.delivery || "Paket teslim planına göre"
+        delivery: item.delivery || "Paket teslim planına göre"
       };
     });
     services.splice(0, services.length, ...remoteServices);

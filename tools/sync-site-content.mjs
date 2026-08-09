@@ -91,6 +91,12 @@ function renderFaqHeading() {
           </header>`;
 }
 
+function renderServicesPlaceholder() {
+  return `          <div class="services-grid" aria-live="polite">
+            <p class="services-empty">Hizmet kataloğu yükleniyor…</p>
+          </div>`;
+}
+
 function renderFaqItems() {
   return content.home.faq.items
     .map((item, index) => {
@@ -169,6 +175,7 @@ for (const [file, page] of Object.entries(content.pages)) {
   }
 
   if (file === "index.html") {
+    generated = replaceGeneratedBlock(generated, "services-catalog", renderServicesPlaceholder());
     generated = replaceGeneratedBlock(generated, "faq-heading", renderFaqHeading());
     generated = replaceGeneratedBlock(generated, "faq-items", renderFaqItems());
     generated = replaceGeneratedBlock(generated, "footer-top", renderFooterTop());

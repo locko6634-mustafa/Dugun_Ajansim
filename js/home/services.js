@@ -1,4 +1,3 @@
-import { services as homeServices } from "../shared/service-catalog.js";
 import { apiRequest, hasApiEndpoint } from "../shared/api-client.js";
 import { formatAppCurrency } from "../shared/runtime-config.js";
 
@@ -33,11 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return code && icon ? [[code, icon.cloneNode(true)]] : [];
     })
   );
-  let catalogServices = homeServices.map((service) => ({
-    ...service,
-    features: [...service.features],
-    gallery: [...service.gallery]
-  }));
+  let catalogServices = [];
   let activeServiceId = null;
 
   function createFallbackIcon() {
@@ -104,6 +99,14 @@ document.addEventListener("DOMContentLoaded", () => {
     servicesGrid.replaceChildren(...catalogServices.map(createServiceCard));
   }
 
+  function renderCatalogUnavailable() {
+    const message = document.createElement("p");
+    message.className = "services-empty";
+    message.textContent = "Hizmet kataloğu şu anda yüklenemiyor. Lütfen daha sonra tekrar deneyin.";
+    catalogServices = [];
+    servicesGrid.replaceChildren(message);
+  }
+
   function normalizeCatalogServices(remoteServices) {
     if (!Array.isArray(remoteServices)) throw new Error("Hizmet kataloğu geçersiz.");
     return remoteServices.map((item) => {
@@ -146,6 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function hydrateCatalog() {
     if (!hasApiEndpoint()) {
       if (startingPrice) startingPrice.textContent = "Paket oluşturucuda güncel fiyatı görün";
+      renderCatalogUnavailable();
       return;
     }
     try {
@@ -169,6 +173,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch {
       if (startingPrice) startingPrice.textContent = "Paket oluşturucuda güncel fiyatı görün";
+      renderCatalogUnavailable();
     }
   }
 
