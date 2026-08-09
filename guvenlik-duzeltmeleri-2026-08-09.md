@@ -1,6 +1,7 @@
 # Güvenlik Düzeltme Raporu
 
-**Tarih:** 9 Ağustos 2026  
+**Tarih:** 9 Ağustos 2026
+
 **Kapsam:** Depodaki frontend, API, kimlik doğrulama, veri koruma, spam önleme, bağımlılıklar ve üretim yapılandırması. Sunucu erişilemediği için canlı TLS, DNS, firewall, çalışan secret'lar, veritabanı durumu ve gerçek yedek çıktıları kapsam dışıdır.
 
 ## Sonuç
