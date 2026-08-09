@@ -1,4 +1,5 @@
 import { apiRequest, hasApiEndpoint } from "../shared/api-client.js";
+import { isSafeImageAssetPath, safeImageAssetPath } from "../shared/asset-url.js";
 import { formatAppCurrency } from "../shared/runtime-config.js";
 
 const fallbackImage = "assets/images/hero-couple.webp";
@@ -122,10 +123,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const gallery = Array.isArray(item.gallery)
-        ? item.gallery.filter((value) => typeof value === "string" && value)
+        ? item.gallery.filter(isSafeImageAssetPath).map((value) => value.trim())
         : [];
-      const image =
-        (typeof item.imagePath === "string" && item.imagePath) || gallery[0] || fallbackImage;
+      const image = isSafeImageAssetPath(item.imagePath)
+        ? safeImageAssetPath(item.imagePath, fallbackImage)
+        : gallery[0] || fallbackImage;
       return {
         id: item.code,
         category: typeof item.category === "string" ? item.category : "other",

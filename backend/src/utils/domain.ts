@@ -133,7 +133,13 @@ export const assertGoogleDriveUrl = (value: string): string => {
   }
 
   const allowedHosts = new Set(['drive.google.com', 'docs.google.com']);
-  if (url.protocol !== 'https:' || !allowedHosts.has(url.hostname.toLowerCase())) {
+  if (
+    url.protocol !== 'https:' ||
+    !allowedHosts.has(url.hostname.toLowerCase()) ||
+    url.username ||
+    url.password ||
+    url.port
+  ) {
     throw new AppError('Yalnızca güvenli Google Drive bağlantıları kabul edilir.', 400);
   }
 
@@ -157,4 +163,3 @@ export const formatIstanbulTime = (date: Date): string => {
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${values.hour}:${values.minute}`;
 };
-

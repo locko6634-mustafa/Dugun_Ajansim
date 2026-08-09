@@ -15,7 +15,13 @@ const safeDeliveryUrl = (value) => {
   } catch {
     throw new Error("Geçerli bir teslimat bağlantısı alınamadı.");
   }
-  if (url.protocol !== "https:" || url.username || url.password) {
+  if (
+    url.protocol !== "https:" ||
+    !["drive.google.com", "docs.google.com"].includes(url.hostname.toLowerCase()) ||
+    url.username ||
+    url.password ||
+    url.port
+  ) {
     throw new Error("Güvenli bir teslimat bağlantısı alınamadı.");
   }
   return url.href;

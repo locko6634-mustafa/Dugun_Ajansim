@@ -1,4 +1,5 @@
 import { apiRequest } from "../shared/api-client.js";
+import { isSafeImageAssetPath, safeImageAssetPath } from "../shared/asset-url.js";
 
 const COLLAPSED_VENUE_COUNT = 4;
 const FALLBACK_IMAGE = "assets/images/venue-pavilion.webp";
@@ -17,7 +18,7 @@ function createVenueCard(venue, index, total) {
 
   const image = document.createElement("img");
   image.className = "venue-card__image";
-  image.src = venue.imagePath;
+  image.src = safeImageAssetPath(venue.imagePath, FALLBACK_IMAGE);
   image.alt = `${name} düğün mekânı`;
   image.width = 1280;
   image.height = 853;
@@ -74,8 +75,7 @@ async function loadVenues() {
     const venues = response.data.filter(
       (venue) =>
         venue?.isFeatured === true &&
-        typeof venue.imagePath === "string" &&
-        venue.imagePath.trim() &&
+        isSafeImageAssetPath(venue.imagePath) &&
         (typeof venue.displayName === "string" || typeof venue.name === "string")
     );
 

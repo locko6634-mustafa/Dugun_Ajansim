@@ -1,4 +1,4 @@
-import { Router, type Request } from "express";
+import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
@@ -9,6 +9,7 @@ import {
 } from "../middlewares/rateLimit.middleware.js";
 import { DatabaseRateLimitStore } from "../middlewares/databaseRateLimitStore.js";
 import { validateRequest } from "../middlewares/validate.middleware.js";
+import { getCookie } from "../middlewares/auth.middleware.js";
 import {
   bookingBodySchema,
   bookingFormConstraints,
@@ -25,9 +26,28 @@ import {
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { normalizePhone } from "../utils/domain.js";
+import { createOpaqueToken } from "../utils/crypto.js";
 import { BOOKING_TURNSTILE_ACTION, verifyBookingBotChallenge } from "../utils/turnstile.js";
 
 const router = Router();
+export const PAYMENT_FLOW_COOKIE_NAME = "dugunajansim_payment_flow";
+export const paymentFlowCookieOptions = (
+  maxAgeMs: number,
+  environment: "development" | "production" | "test" = env.NODE_ENV
+) => ({
+  httpOnly: true,
+  secure: environment === "production",
+  sameSite: "strict" as const,
+  path: "/api/v1/booking-applications",
+  maxAge: maxAgeMs
+});
+const clearPaymentFlowCookie = (res: Response): void => {
+  res.clearCookie(PAYMENT_FLOW_COOKIE_NAME, {
+    secure: env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/api/v1/booking-applications"
+  });
+};
 const publicBookingLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -97,7 +117,7 @@ const paymentFlowUpdateSchema = z.object({
 });
 
 const getPaymentFlowKey = (req: Request): string => {
-  const key = req.get("Payment-Flow-Key");
+  const key = getCookie(req, PAYMENT_FLOW_COOKIE_NAME) ?? req.get("Payment-Flow-Key");
   if (!key || !/^[A-Za-z0-9._~-]{32,128}$/.test(key)) {
     throw new AppError("Ödeme akışı anahtarı geçersiz.", 400);
   }
@@ -219,13 +239,22 @@ router.post(
   asyncHandler(async (req, res) => {
     const rawKey = req.get("Idempotency-Key");
     const idempotencyKey = z.string().uuid().parse(rawKey);
-    const paymentFlowKey = getPaymentFlowKey(req);
+    const paymentFlowKey =
+      getCookie(req, PAYMENT_FLOW_COOKIE_NAME) ?? req.get("Payment-Flow-Key") ?? createOpaqueToken();
+    if (!/^[A-Za-z0-9._~-]{32,128}$/.test(paymentFlowKey)) {
+      throw new AppError("Ödeme akışı anahtarı geçersiz.", 400);
+    }
     const application = await createBookingApplication(req.body, {
       source: "PUBLIC_FORM",
       idempotencyKey,
       paymentFlowKey,
       correlationId: req.correlationId
     });
+    res.cookie(
+      PAYMENT_FLOW_COOKIE_NAME,
+      paymentFlowKey,
+      paymentFlowCookieOptions(env.PAYMENT_HANDOFF_TTL_MINUTES * 60 * 1000)
+    );
     res.set("Cache-Control", "no-store");
     res.status(201).json({
       success: true,
@@ -275,6 +304,7 @@ router.post(
       getPaymentFlowKey(req),
       req.correlationId
     );
+    clearPaymentFlowCookie(res);
     res.set("Cache-Control", "no-store");
     res.json({ success: true, data: application, correlationId: req.correlationId });
   })

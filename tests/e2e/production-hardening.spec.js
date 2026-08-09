@@ -21,7 +21,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     homePage,
     homeBootstrap,
     packageBuilderApplication,
-    packageBuilderPage
+    packageBuilderPage,
+    customerPanelApplication
   ] = await Promise.all([
     readProjectFile("backend/Dockerfile"),
     readProjectFile("Dockerfile"),
@@ -38,7 +39,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     readProjectFile("index.html"),
     readProjectFile("js/home/bootstrap.js"),
     readProjectFile("js/package-builder/application.js"),
-    readProjectFile("paketini-olustur.html")
+    readProjectFile("paketini-olustur.html"),
+    readProjectFile("js/customer-panel/app.js")
   ]);
 
   expect(backendDockerfile).toContain("FROM build AS migrate");
@@ -173,6 +175,9 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(packageBuilderApplication).toContain('"Turnstile-Token": state.botChallengeToken');
   expect(packageBuilderApplication).toContain("turnstile.render(container");
   expect(packageBuilderPage).toContain("js-turnstile");
+  expect(packageBuilderApplication).not.toContain("paymentFlowKey:");
+  expect(packageBuilderApplication).not.toContain('"Payment-Flow-Key"');
+  expect(customerPanelApplication).toContain('["drive.google.com", "docs.google.com"]');
 
   expect(exampleEnv).toMatch(/^POSTGRES_PASSWORD=$/m);
   expect(exampleEnv).toMatch(/^POSTGRES_RUNTIME_USER=dugun_runtime$/m);

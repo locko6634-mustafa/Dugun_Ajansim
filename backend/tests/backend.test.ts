@@ -12,6 +12,10 @@ import { createApp } from '../src/app.js';
 import { parseEnvironment } from '../src/config/env.config.js';
 import { isSuccessfulLoginAttempt } from '../src/routes/auth.routes.js';
 import {
+  PAYMENT_FLOW_COOKIE_NAME,
+  paymentFlowCookieOptions,
+} from '../src/routes/public.routes.js';
+import {
   createDatabaseConnectionChecker,
   createPrismaDatabaseHealthQuery,
 } from '../src/config/prisma.js';
@@ -122,6 +126,14 @@ authTest('production oturum ve CSRF cookie bayrakları güvenli kalır', () => {
     secure: true,
     sameSite: 'lax',
     path: '/',
+    maxAge: 60_000,
+  });
+  assert.equal(PAYMENT_FLOW_COOKIE_NAME, 'dugunajansim_payment_flow');
+  assert.deepEqual(paymentFlowCookieOptions(60_000, 'production'), {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict',
+    path: '/api/v1/booking-applications',
     maxAge: 60_000,
   });
 });

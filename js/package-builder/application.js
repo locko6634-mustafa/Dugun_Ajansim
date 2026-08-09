@@ -10,6 +10,7 @@ import {
   parseBookingSchedulePolicy
 } from "../shared/booking-schedule-policy.js";
 import { APP_LOCALE } from "../shared/runtime-config.js";
+import { isSafeImageAssetPath, safeImageAssetPath } from "../shared/asset-url.js";
 const moneyFormatter = new Intl.NumberFormat(APP_LOCALE, { maximumFractionDigits: 2 });
 const formatPrice = (value) =>
   Number.isFinite(value) ? `${moneyFormatter.format(value)} TL` : "—";
@@ -59,7 +60,6 @@ const state = {
   customer: {},
   transferReference: "",
   idempotencyKey: createIdempotencyKey(),
-  paymentFlowKey: createIdempotencyKey(),
   applicationId: null,
   paymentFlowExpiresAt: null,
   whatsappHandoffAt: null,
@@ -78,12 +78,9 @@ let turnstileWidgetId = null;
 let turnstileScriptPromise = null;
 
 function persistPaymentFlowSession() {
-  if (!state.applicationId || !state.paymentFlowKey) return;
+  if (!state.applicationId) return;
   try {
-    window.sessionStorage.setItem(
-      PAYMENT_FLOW_SESSION_KEY,
-      JSON.stringify({ applicationId: state.applicationId, paymentFlowKey: state.paymentFlowKey })
-    );
+    window.sessionStorage.setItem(PAYMENT_FLOW_SESSION_KEY, state.applicationId);
   } catch {
     // Akış açık sekmede çalışmaya devam eder; yalnız yenileme geri yüklemesi kullanılamaz.
   }
@@ -329,7 +326,7 @@ async function hydrateRemoteData() {
         description: item.description || "Düğün gününüze özel profesyonel çekim planı",
         deliveryText: item.deliveryText || "Teslim planı paket detaylarına göre belirlenir",
         price: item.priceCents / 100,
-        image: item.imagePath || "assets/images/hero-couple.webp"
+        image: safeImageAssetPath(item.imagePath)
       };
     });
     renderBasePackages(remotePackages);
@@ -339,8 +336,8 @@ async function hydrateRemoteData() {
         Array.isArray(item.features) && item.features.length > 0 ? item.features : [];
       const parsedGallery =
         Array.isArray(item.gallery) && item.gallery.length > 0
-          ? item.gallery
-          : [item.imagePath || "assets/images/hero-couple.webp"];
+          ? item.gallery.filter(isSafeImageAssetPath).map((value) => value.trim())
+          : [safeImageAssetPath(item.imagePath)];
 
       return {
         id: item.code,
@@ -348,8 +345,8 @@ async function hydrateRemoteData() {
         name: item.name,
         eyebrow: item.eyebrow || "Ek Hizmet",
         price: item.priceCents / 100,
-        image: item.imagePath || "assets/images/hero-couple.webp",
-        gallery: parsedGallery,
+        image: safeImageAssetPath(item.imagePath),
+        gallery: parsedGallery.length ? parsedGallery : [safeImageAssetPath(item.imagePath)],
         description: item.description || "Düğününüze özel olarak planlanan ek hizmet.",
         features: parsedFeatures,
         delivery: item.delivery || "Paket teslim planına göre"
@@ -865,7 +862,6 @@ async function savePaymentFlow() {
       {
         method: isUpdate ? "PATCH" : "POST",
         headers: {
-          "Payment-Flow-Key": state.paymentFlowKey,
           ...(!isUpdate
             ? {
                 "Idempotency-Key": state.idempotencyKey,
@@ -1514,7 +1510,6 @@ if (paymentNotificationForm) {
         `/booking-applications/${state.applicationId}/whatsapp-handoff`,
         {
           method: "POST",
-          headers: { "Payment-Flow-Key": state.paymentFlowKey },
           body: {}
         }
       );
@@ -1739,20 +1734,20 @@ function applyRestoredPaymentFlow(data) {
 }
 
 async function restorePaymentFlowSession() {
-  let saved;
+  let applicationId;
   try {
-    saved = JSON.parse(window.sessionStorage.getItem(PAYMENT_FLOW_SESSION_KEY) || "null");
+    applicationId = window.sessionStorage.getItem(PAYMENT_FLOW_SESSION_KEY);
   } catch {
     clearPaymentFlowSession();
     return;
   }
-  if (!saved?.applicationId || !saved?.paymentFlowKey) return;
-  state.applicationId = saved.applicationId;
-  state.paymentFlowKey = saved.paymentFlowKey;
+  if (!applicationId || !/^[0-9a-f-]{36}$/i.test(applicationId)) {
+    clearPaymentFlowSession();
+    return;
+  }
+  state.applicationId = applicationId;
   try {
-    const response = await apiRequest(`/booking-applications/${saved.applicationId}/payment-flow`, {
-      headers: { "Payment-Flow-Key": saved.paymentFlowKey }
-    });
+    const response = await apiRequest(`/booking-applications/${applicationId}/payment-flow`);
     applyRestoredPaymentFlow(response.data);
   } catch (error) {
     if (error.status === 410) showPaymentFlowExpired();

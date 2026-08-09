@@ -26,6 +26,7 @@ import {
   OPERATIONS_CITY,
   formatAppCurrency
 } from "../shared/runtime-config.js";
+import { safeImageAssetPath } from "../shared/asset-url.js";
 
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
 const STATUS_LABELS = DELIVERY_STATUS_LABELS;
@@ -1076,7 +1077,7 @@ function renderCatalogRows(container, rows, type) {
   const isPackage = type === "packages";
   container.innerHTML = rows
     .map((item) => {
-      const img = item.imagePath || CATALOG_FALLBACK_IMAGE;
+      const img = safeImageAssetPath(item.imagePath, CATALOG_FALLBACK_IMAGE);
       const priceFormatted = (item.priceCents / 100).toLocaleString(APP_LOCALE);
       const subInfo = [
         `Kod: ${escapeHtml(item.code)}`,
@@ -1138,7 +1139,7 @@ function renderVenueRows(container, rows) {
 
   container.innerHTML = rows
     .map((venue) => {
-      const imagePath = venue.imagePath || "assets/images/venue-pavilion.webp";
+      const imagePath = safeImageAssetPath(venue.imagePath, "assets/images/venue-pavilion.webp");
       const visibility = [
         `Kod: ${escapeHtml(venue.slug)}`,
         venue.isPartner ? "İş ortağı" : "Müşteri mekânı",

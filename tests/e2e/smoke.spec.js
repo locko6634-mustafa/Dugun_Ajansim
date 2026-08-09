@@ -1078,7 +1078,7 @@ test("@frontend-smoke referans WhatsApp'tan önce oluşturulur ve yapılandırı
   expect(bookingRequest.body.venueId).toBeUndefined();
   expect(bookingRequest.body.customVenueName).toBe("Yıldızlar Düğün Salonu");
   expect(bookingRequest.idempotencyKey).toBeTruthy();
-  expect(bookingRequest.paymentFlowKey).toBeTruthy();
+  expect(bookingRequest.paymentFlowKey).toBeUndefined();
 
   const whatsappUrls = await page.evaluate(() => window.__whatsappUrls);
   expect(whatsappUrls).toEqual([]);
@@ -1091,7 +1091,6 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
   page
 }) => {
   const applicationId = "4a68ef8c-65df-4899-a560-e4c79b47b455";
-  const paymentFlowKey = "payment-flow-key-1234567890-abcdef";
   const paymentFlowData = {
     id: applicationId,
     referenceCode: "DA-2026-777888",
@@ -1126,11 +1125,8 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
     paymentFlowExpiredAt: null
   };
   await page.addInitScript(
-    ({ id, key }) => {
-      window.sessionStorage.setItem(
-        "dugunajansim_payment_flow",
-        JSON.stringify({ applicationId: id, paymentFlowKey: key })
-      );
+    ({ id }) => {
+      window.sessionStorage.setItem("dugunajansim_payment_flow", id);
       window.__whatsappUrls = [];
       window.__copiedPaymentReferences = [];
       Object.defineProperty(navigator, "clipboard", {
@@ -1151,7 +1147,7 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
         }
       });
     },
-    { id: applicationId, key: paymentFlowKey }
+    { id: applicationId }
   );
   await page.route("**/api/v1/catalog", (route) =>
     route.fulfill({

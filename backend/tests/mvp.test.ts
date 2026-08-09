@@ -8,6 +8,7 @@ import {
   deliveryUpdateBodySchema,
   isPasswordSimilarToUsername,
   packageBodySchema,
+  serviceBodySchema,
   passwordChangeBodySchema,
   strongPasswordSchema,
   venueManagerBodySchema,
@@ -255,6 +256,23 @@ test("admin katalog sınırları backend doğrulama şemasıyla aynı kaynaktan 
     }).success,
     false
   );
+  assert.equal(
+    packageBodySchema.safeParse({
+      ...basePackage,
+      imagePath: "https://tracker.example/customer.gif"
+    }).success,
+    false
+  );
+  assert.equal(
+    serviceBodySchema.safeParse({
+      code: "guvenli-hizmet",
+      category: "foto",
+      name: "Güvenli Hizmet",
+      priceCents: 1,
+      gallery: ["assets/images/services/fotograf-cekimi.webp", "../secret.svg"]
+    }).success,
+    false
+  );
 });
 
 test("public düğün saati politikası tam günü ve gece yarısı geçişini destekler", () => {
@@ -286,6 +304,7 @@ test("yalnızca HTTPS Google Drive bağlantıları kabul edilir", () => {
   );
   assert.throws(() => assertGoogleDriveUrl("https://attacker.example/file"));
   assert.throws(() => assertGoogleDriveUrl("http://drive.google.com/file/d/ornek"));
+  assert.throws(() => assertGoogleDriveUrl("https://user@drive.google.com/file/d/ornek"));
 });
 
 test("admin düğün güncellemesinde çift, iletişim ve gerçek zaman aralığı birlikte doğrulanır", () => {

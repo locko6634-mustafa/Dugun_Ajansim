@@ -43,6 +43,15 @@ export const adminCatalogFormConstraints = Object.freeze({
   }
 });
 
+const imageAssetPathSchema = z
+  .string()
+  .trim()
+  .max(adminCatalogFormConstraints.imagePath.maxLength)
+  .regex(
+    /^assets\/images\/(?:[A-Za-z0-9][A-Za-z0-9_-]*\/)*[A-Za-z0-9][A-Za-z0-9_-]*\.(?:avif|gif|jpe?g|png|webp)$/i,
+    "Görsel yolu assets/images altında güvenli bir resim dosyası olmalıdır."
+  );
+
 const nameSchema = z
   .string()
   .trim()
@@ -289,12 +298,7 @@ export const packageBodySchema = z
       .max(adminCatalogFormConstraints.description.maxLength)
       .optional()
       .nullable(),
-    imagePath: z
-      .string()
-      .trim()
-      .max(adminCatalogFormConstraints.imagePath.maxLength)
-      .optional()
-      .nullable(),
+    imagePath: imageAssetPathSchema.optional().nullable(),
     priceCents: z
       .number()
       .int()
@@ -331,12 +335,7 @@ export const serviceBodySchema = z
       .max(adminCatalogFormConstraints.description.maxLength)
       .optional()
       .nullable(),
-    imagePath: z
-      .string()
-      .trim()
-      .max(adminCatalogFormConstraints.imagePath.maxLength)
-      .optional()
-      .nullable(),
+    imagePath: imageAssetPathSchema.optional().nullable(),
     priceCents: z
       .number()
       .int()
@@ -352,10 +351,7 @@ export const serviceBodySchema = z
       .array(z.string().trim().max(adminCatalogFormConstraints.feature.maxLength))
       .optional()
       .default([]),
-    gallery: z
-      .array(z.string().trim().max(adminCatalogFormConstraints.galleryItem.maxLength))
-      .optional()
-      .default([]),
+    gallery: z.array(imageAssetPathSchema).optional().default([]),
     isActive: z.boolean().default(true)
   })
   .strict();
@@ -371,12 +367,7 @@ export const venueBodySchema = z
       .max(adminCatalogFormConstraints.venue.displayName.maxLength)
       .optional()
       .nullable(),
-    imagePath: z
-      .string()
-      .trim()
-      .max(adminCatalogFormConstraints.imagePath.maxLength)
-      .optional()
-      .nullable(),
+    imagePath: imageAssetPathSchema.optional().nullable(),
     displayOrder: z
       .number()
       .int()
