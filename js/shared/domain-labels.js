@@ -34,6 +34,34 @@ export const MESSAGE_KIND_LABELS = Object.freeze({
   PASSWORD_RESET: "Parola sıfırlama"
 });
 
+export const BOOKING_STATUS_LABELS = Object.freeze({
+  ONAY_BEKLIYOR: "Onay Bekliyor",
+  ONAYLANDI: "Onaylandı",
+  REDDEDILDI: "Reddedildi",
+  IPTAL_EDILDI: "İptal Edildi"
+});
+
+export const PAYMENT_METHOD_LABELS = Object.freeze({
+  CASH: "Peşin",
+  DEPOSIT: "Kapora"
+});
+
+export const PRIMARY_CONTACT_LABELS = Object.freeze({
+  GELIN: "Gelin",
+  DAMAT: "Damat"
+});
+
+export const MESSAGE_STATUS_LABELS = Object.freeze({
+  PENDING: "Bekliyor",
+  SENT: "Gönderildi",
+  CANCELLED: "İptal"
+});
+
+export const ACCOUNT_STATUS_LABELS = Object.freeze({
+  ACTIVE: "Aktif",
+  DISABLED: "Pasif"
+});
+
 export function getPanelUrlForRole(role) {
   return ROLE_PANEL_CONFIG[role]?.url || "index.html";
 }

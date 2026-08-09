@@ -88,19 +88,6 @@ Güncel durumda en önemli açıklar şunlardır:
 
 **Öneri:** Public katalog için build-time snapshot/SSR benzeri tek bir üretim kaynağı kullanın ya da yerel fallback'i açıkça sürümlenmiş, API'den üretilen bir manifest haline getirin. Aynı hizmet metnini elle üç yerde yönetmeyin.
 
-### HC-06 — Başvuru, ödeme ve hesap durum etiketleri hâlâ tekrarlı (P2)
-
-**Kanıt**
-
-- `js/shared/domain-labels.js`: Rol/panel, personel uzmanlığı, teslimat durumu ve mesaj türü etiketleri merkezileştirilmiş.
-- `admin.html:253-257,527-542,578-579`: Başvuru durumu, birincil kişi ve ödeme yöntemi option/etiketleri statik.
-- `js/admin/app.js:525-579` ile `:642-674`: `GELIN/DAMAT`, `CASH/DEPOSIT` ve dört başvuru durumu iki render akışında ayrı ayrı eşleniyor.
-- `js/admin/app.js:920,1025,1061-1064`: Mesaj gönderim ve hesap aktiflik durumları yeniden inline eşleniyor.
-
-**Risk:** Backende yeni enum eklendiğinde bazı ekranlar ham anahtar, yanlış sınıf veya eksik filtre gösterebilir. Mevcut domain sözleşme kontrolü bu kalan eşlemelerin tamamını kapsamıyor.
-
-**Öneri:** `BOOKING_STATUS_LABELS`, `PAYMENT_METHOD_LABELS`, `PRIMARY_CONTACT_LABELS`, `MESSAGE_STATUS_LABELS` ve `ACCOUNT_STATUS_LABELS` haritalarını ortak domain modülüne alın; backend enum/şema anahtarlarıyla otomatik sözleşme kontrolüne ekleyin.
-
 ### HC-07 — Admin katalog formu sınırları backend şemasından türemiyor (P2)
 
 **Kanıt**
@@ -175,7 +162,7 @@ Bu maddeler güncel kaynakta tekrar doğrulandı; yeniden açık bulgu sayılmad
 - **Ödeme talimatları:** Banka, hesap sahibi, IBAN ve WhatsApp numarası frontend kaynaklarında gömülü değil; `/payment-instructions` yanıtından geliyor.
 - **Form doğrulaması:** Başvuru ad/telefon/e-posta/özel salon/not sınırları backend `bookingFormConstraints` kaynağından public ve admin formlarına uygulanıyor. HC-07'deki admin katalog formları bunun dışında.
 - **Referans mekânlar:** Vitrin adı, görsel, sıra ve görünürlük backend/admin/API ile yönetiliyor. `COLLAPSED_VENUE_COUNT = 4` yalnız mobil sunum tercihidir.
-- **Rol, teslimat, uzmanlık ve mesaj türü etiketleri:** `js/shared/domain-labels.js` içinde ortak. HC-06, bu modüle henüz alınmamış diğer enumları kapsıyor.
+- **HC-06 — Başvuru, ödeme ve hesap durum etiketleri (9 Ağustos 2026):** Başvuru, ödeme yöntemi, birincil kişi, mesaj ve hesap durum etiketleri `js/shared/domain-labels.js` içinde merkezileştirildi. Admin seçenekleri ve render akışları bu haritaları kullanıyor; `tools/check-domain-contract.mjs` beş alanı Prisma enumlarıyla otomatik doğruluyor.
 - **Locale/currency/timezone:** Dağınık tekrarlar `js/shared/runtime-config.js` içinde toplanmış ve formatter yardımcıları kullanılıyor.
 - **Copyright yılı ve cache-busting:** Yıl çalışma zamanında üretiliyor; elle yönetilen `?v=` asset sürümleri kaldırılmış ve cache politikası deploy katmanında.
 - **Doğrulanmamış sayısal pazarlama iddiaları:** Eski ekip/düğün/adet/hedef iddiaları kaldırılmış ve içerik kontrolü kalite kapısına eklenmiş.
@@ -201,7 +188,7 @@ Bu maddeler güncel kaynakta tekrar doğrulandı; yeniden açık bulgu sayılmad
 2. **Saat sözleşmesi:** Public, admin ve backend için tek düğün saat/slot politikası belirleyin ve API'den dağıtın.
 3. **Public içerik modeli:** Galeri, video, FAQ, SEO, marka ve iletişim verilerini yönetilen içerik kaynağına alın.
 4. **Katalog snapshotı:** API ile HTML/yerel fallback içeriğini aynı kaynaktan üretin.
-5. **Domain ve form sözleşmesi:** Kalan başvuru/ödeme/hesap enumlarını ve admin katalog sınırlarını ortaklaştırın.
+5. **Form sözleşmesi:** Admin katalog sınırlarını backend şemasıyla ortaklaştırın.
 6. **Tasarım borcu:** Panel kabuğu ve ortak CSS token katmanını ayırın.
 
 ## Kabul ölçütleri

@@ -2,9 +2,14 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import {
+  ACCOUNT_STATUS_LABELS,
+  BOOKING_STATUS_LABELS,
   DELIVERY_STATUS_LABELS,
   DELIVERY_STATUS_ORDER,
   MESSAGE_KIND_LABELS,
+  MESSAGE_STATUS_LABELS,
+  PAYMENT_METHOD_LABELS,
+  PRIMARY_CONTACT_LABELS,
   ROLE_PANEL_CONFIG,
   STAFF_SPECIALTY_LABELS
 } from "../js/shared/domain-labels.js";
@@ -33,8 +38,13 @@ function assertSameMembers(enumName, frontendValues) {
 }
 
 assertSameMembers("UserRole", Object.keys(ROLE_PANEL_CONFIG));
+assertSameMembers("UserStatus", Object.keys(ACCOUNT_STATUS_LABELS));
+assertSameMembers("BookingStatus", Object.keys(BOOKING_STATUS_LABELS));
+assertSameMembers("PrimaryContact", Object.keys(PRIMARY_CONTACT_LABELS));
+assertSameMembers("PaymentMethod", Object.keys(PAYMENT_METHOD_LABELS));
 assertSameMembers("DeliveryStatus", Object.keys(DELIVERY_STATUS_LABELS));
 assertSameMembers("MessageKind", Object.keys(MESSAGE_KIND_LABELS));
+assertSameMembers("MessageStatus", Object.keys(MESSAGE_STATUS_LABELS));
 assertSameMembers("StaffSpecialty", Object.keys(STAFF_SPECIALTY_LABELS));
 
 const deliveryStatuses = readEnumValues("DeliveryStatus");

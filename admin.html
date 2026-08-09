@@ -249,12 +249,7 @@
                 type="search"
                 placeholder="DA-... referans kodu"
                 aria-label="Başvuru referans kodu"
-              /><select class="js-application-filter" aria-label="Başvuru durumu">
-                <option value="ONAY_BEKLIYOR">Onay bekleyen</option>
-                <option value="">Tümü</option>
-                <option value="ONAYLANDI">Onaylanan</option>
-                <option value="REDDEDILDI">Reddedilen</option>
-                <option value="ARCHIVED">Arşiv</option></select
+              /><select class="js-application-filter" aria-label="Başvuru durumu"></select
               ><button class="mini-button" type="submit">Bul</button>
             </form>
           </div>
@@ -523,10 +518,10 @@
           ><label>Damat soyadı<input name="groomLastName" type="text" required /></label
           ><label>Damat telefonu<input name="groomPhone" type="tel" required /></label
           ><label
-            >Birincil kişi<select name="primaryContact">
-              <option value="GELIN">Gelin</option>
-              <option value="DAMAT">Damat</option>
-            </select></label
+            >Birincil kişi<select
+              data-domain-options="primary-contact"
+              name="primaryContact"
+            ></select></label
           ><label>Birincil e-posta<input name="primaryEmail" type="email" required /></label
           ><label>Düğün tarihi<input name="weddingDate" type="date" required /></label
           ><label>Başlangıç<input name="startTime" type="time" required /></label
@@ -537,11 +532,8 @@
           ><label
             >Paket<select class="js-manual-package" name="packageCode" required></select></label
           ><label
-            >Ödeme<select name="paymentMethod">
-              <option value="CASH">Peşin</option>
-              <option value="DEPOSIT">Kapora</option>
-            </select></label
-          >
+            >Ödeme<select data-domain-options="payment-method" name="paymentMethod"></select
+          ></label>
           <fieldset class="wide specialty-choices">
             <legend>Ek hizmetler</legend>
             <div class="js-manual-services"></div>
@@ -574,10 +566,10 @@
           ><label>Damat soyadı<input name="groomLastName" type="text" required /></label
           ><label>Damat telefonu<input name="groomPhone" type="tel" required /></label
           ><label
-            >Birincil kişi<select name="primaryContact">
-              <option value="GELIN">Gelin</option>
-              <option value="DAMAT">Damat</option>
-            </select></label
+            >Birincil kişi<select
+              data-domain-options="primary-contact"
+              name="primaryContact"
+            ></select></label
           ><label>Birincil e-posta<input name="primaryEmail" type="email" required /></label
           ><label>Düğün tarihi<input name="weddingDate" type="date" required /></label
           ><label>Başlangıç<input name="startTime" type="time" required /></label

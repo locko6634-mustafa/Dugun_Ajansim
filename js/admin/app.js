@@ -11,8 +11,13 @@ import {
   parseBookingFormConstraints
 } from "../shared/booking-form-constraints.js";
 import {
+  ACCOUNT_STATUS_LABELS,
+  BOOKING_STATUS_LABELS,
   DELIVERY_STATUS_LABELS,
   MESSAGE_KIND_LABELS,
+  MESSAGE_STATUS_LABELS,
+  PAYMENT_METHOD_LABELS,
+  PRIMARY_CONTACT_LABELS,
   STAFF_SPECIALTY_LABELS
 } from "../shared/domain-labels.js";
 import {
@@ -25,6 +30,25 @@ import {
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
 const STATUS_LABELS = DELIVERY_STATUS_LABELS;
 const MESSAGE_LABELS = MESSAGE_KIND_LABELS;
+
+function domainOptions(labels) {
+  return Object.entries(labels)
+    .map(([value, label]) => `<option value="${value}">${label}</option>`)
+    .join("");
+}
+
+document.querySelectorAll('[data-domain-options="primary-contact"]').forEach((select) => {
+  select.innerHTML = domainOptions(PRIMARY_CONTACT_LABELS);
+});
+document.querySelectorAll('[data-domain-options="payment-method"]').forEach((select) => {
+  select.innerHTML = domainOptions(PAYMENT_METHOD_LABELS);
+});
+document.querySelector(".js-application-filter").innerHTML = `${domainOptions({
+  ONAY_BEKLIYOR: BOOKING_STATUS_LABELS.ONAY_BEKLIYOR,
+  "": "Tümü",
+  ONAYLANDI: BOOKING_STATUS_LABELS.ONAYLANDI,
+  REDDEDILDI: BOOKING_STATUS_LABELS.REDDEDILDI
+})}<option value="ARCHIVED">Arşiv</option>`;
 const state = {
   dashboard: null,
   weekStart: "",
@@ -525,14 +549,8 @@ function renderApplicationCard(item) {
 
   const isBridePrimary = item.primaryContact === "GELIN";
   const isGroomPrimary = item.primaryContact === "DAMAT";
-  const primaryLabel = isBridePrimary ? "Gelin" : isGroomPrimary ? "Damat" : "Diğer";
-
-  const paymentLabel =
-    item.paymentMethod === "CASH"
-      ? "Peşin"
-      : item.paymentMethod === "DEPOSIT"
-        ? "Kapora"
-        : item.paymentMethod;
+  const primaryLabel = PRIMARY_CONTACT_LABELS[item.primaryContact] || item.primaryContact;
+  const paymentLabel = PAYMENT_METHOD_LABELS[item.paymentMethod] || item.paymentMethod;
   const paymentFlowIsActive = hasActivePaymentFlow(item);
   const canApprove =
     item.source === "ADMIN" || (Boolean(item.whatsappHandoffAt) && paymentFlowIsActive);
@@ -545,16 +563,7 @@ function renderApplicationCard(item) {
           ? `Dekont kontrolü bekleniyor — son süre ${formatDate(item.paymentFlowExpiresAt, true)}`
           : "WhatsApp geçişi bekleniyor";
 
-  const statusLabel =
-    item.status === "ONAY_BEKLIYOR"
-      ? "Onay Bekliyor"
-      : item.status === "ONAYLANDI"
-        ? "Onaylandı"
-        : item.status === "REDDEDILDI"
-          ? "Reddedildi"
-          : item.status === "IPTAL_EDILDI"
-            ? "İptal Edildi"
-            : item.status;
+  const statusLabel = BOOKING_STATUS_LABELS[item.status] || item.status;
 
   const statusClass =
     item.status === "ONAYLANDI"
@@ -639,14 +648,8 @@ function renderApplicationDetailModal(item) {
   const brideFullName = `${item.brideFirstName} ${item.brideLastName}`.trim();
   const groomFullName = `${item.groomFirstName} ${item.groomLastName}`.trim();
 
-  const primaryLabel =
-    item.primaryContact === "GELIN" ? "Gelin" : item.primaryContact === "DAMAT" ? "Damat" : "Diğer";
-  const paymentLabel =
-    item.paymentMethod === "CASH"
-      ? "Peşin Ödeme"
-      : item.paymentMethod === "DEPOSIT"
-        ? "Kapora Ödeme"
-        : item.paymentMethod;
+  const primaryLabel = PRIMARY_CONTACT_LABELS[item.primaryContact] || item.primaryContact;
+  const paymentLabel = PAYMENT_METHOD_LABELS[item.paymentMethod] || item.paymentMethod;
   const paymentFlowIsActive = hasActivePaymentFlow(item);
   const canApprove =
     item.source === "ADMIN" || (Boolean(item.whatsappHandoffAt) && paymentFlowIsActive);
@@ -659,16 +662,7 @@ function renderApplicationDetailModal(item) {
           ? `Dekont kontrolü bekleniyor (${formatDate(item.whatsappHandoffAt, true)}) — son süre ${formatDate(item.paymentFlowExpiresAt, true)}`
           : `WhatsApp geçişi bekleniyor${item.paymentFlowExpiresAt ? ` — son süre ${formatDate(item.paymentFlowExpiresAt, true)}` : ""}`;
 
-  const statusLabel =
-    item.status === "ONAY_BEKLIYOR"
-      ? "Onay Bekliyor"
-      : item.status === "ONAYLANDI"
-        ? "Onaylandı"
-        : item.status === "REDDEDILDI"
-          ? "Reddedildi"
-          : item.status === "IPTAL_EDILDI"
-            ? "İptal Edildi"
-            : item.status;
+  const statusLabel = BOOKING_STATUS_LABELS[item.status] || item.status;
   const statusClass =
     item.status === "ONAYLANDI"
       ? "status-tag--approved"
@@ -918,7 +912,7 @@ function renderWeddingDetail(wedding) {
         ? wedding.messageTasks
             .map(
               (task) =>
-                `<article class="timeline-item ${task.status === "SENT" ? "is-sent" : ""}"><span><strong>${escapeHtml(MESSAGE_LABELS[task.kind] || task.kind)}</strong><small>${escapeHtml(task.recipientPhone)} · Planlanan ${formatDate(task.dueAt, true)}</small></span><span><strong>${task.status === "SENT" ? "Gönderildi" : task.status === "PENDING" ? "Bekliyor" : "İptal"}</strong><small>${task.sentAt ? formatDate(task.sentAt, true) : "—"}</small></span></article>`
+                `<article class="timeline-item ${task.status === "SENT" ? "is-sent" : ""}"><span><strong>${escapeHtml(MESSAGE_LABELS[task.kind] || task.kind)}</strong><small>${escapeHtml(task.recipientPhone)} · Planlanan ${formatDate(task.dueAt, true)}</small></span><span><strong>${escapeHtml(MESSAGE_STATUS_LABELS[task.status] || task.status)}</strong><small>${task.sentAt ? formatDate(task.sentAt, true) : "—"}</small></span></article>`
             )
             .join("")
         : empty("Mesaj kaydı yok.")
@@ -1023,7 +1017,7 @@ async function loadManagers() {
       ? state.managers
           .map(
             (manager) =>
-              `<article class="staff-card ${manager.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(manager.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${manager.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${manager.status === "ACTIVE" ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(manager.username)}</h3><p>${escapeHtml(manager.venue?.name || "Salon atanmamış")}</p><small>${manager.lastLoginAt ? `Son giriş: ${formatDate(manager.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${manager.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-manager="${manager.id}">Düzenle</button></footer></article>`
+              `<article class="staff-card ${manager.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(manager.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${manager.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[manager.status] || manager.status)}</span></div><h3>${escapeHtml(manager.username)}</h3><p>${escapeHtml(manager.venue?.name || "Salon atanmamış")}</p><small>${manager.lastLoginAt ? `Son giriş: ${formatDate(manager.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${manager.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-manager="${manager.id}">Düzenle</button></footer></article>`
           )
           .join("")
       : empty("Henüz salon sorumlusu hesabı yok.");
@@ -1062,7 +1056,7 @@ async function loadMessages() {
               `<article class="data-row"><div><strong>${escapeHtml(task.wedding.brideFirstName)} &amp; ${escapeHtml(task.wedding.groomFirstName)}</strong><small>${escapeHtml(MESSAGE_LABELS[task.kind] || task.kind)}</small></div><div><small>Alıcı</small><strong>${escapeHtml(task.recipientPhone)}</strong></div><div><small>${task.status === "SENT" ? "Gönderilen" : "Planlanan"}</small><strong>${formatDate(task.sentAt || task.dueAt, true)}</strong></div><div class="data-row__actions">${
                 task.status === "PENDING"
                   ? `<button class="mini-button mini-button--primary" type="button" data-open-message="${task.id}">WhatsApp</button><button class="mini-button" type="button" data-mark-sent="${task.id}" data-task-updated-at="${escapeHtml(task.updatedAt)}">Gönderildi</button>`
-                  : `<span class="status-dot" data-status="TESLIM_EDILDI">Gönderildi</span>`
+                  : `<span class="status-dot" data-status="TESLIM_EDILDI">${escapeHtml(MESSAGE_STATUS_LABELS[task.status] || task.status)}</span>`
               }</div></article>`
           )
           .join("")
