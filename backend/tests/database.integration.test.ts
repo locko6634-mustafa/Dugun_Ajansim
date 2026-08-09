@@ -2772,6 +2772,20 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
     activeSessionsBeforeMissingCode
   );
 
+  const mfaBruteForceIp = '198.51.100.43';
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const rejectedAttempt = await request(app)
+      .post('/api/v1/auth/login')
+      .set('X-Forwarded-For', mfaBruteForceIp)
+      .send({ username: user.username, password, totpCode: confirmationCode });
+    assert.equal(rejectedAttempt.status, 401);
+  }
+  const rateLimitedMfaAttempt = await request(app)
+    .post('/api/v1/auth/login')
+    .set('X-Forwarded-For', mfaBruteForceIp)
+    .send({ username: user.username, password, totpCode: confirmationCode });
+  assert.equal(rateLimitedMfaAttempt.status, 429);
+
   const loginStep = BigInt(Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS));
   await prisma.user.update({
     where: { id: user.id },

@@ -70,8 +70,8 @@ router.use((_req, res, next) => {
   next();
 });
 
-const isSuccessfulLoginAttempt = (_req: Request, res: Response): boolean =>
-  res.statusCode < 400 || res.locals.authPasswordVerified === true;
+export const isSuccessfulLoginAttempt = (_req: Request, res: Response): boolean =>
+  res.statusCode < 400;
 
 const loginIpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -185,8 +185,6 @@ router.post(
       logFailedLoginSecurityEvent(req.correlationId);
       throw new AppError(INVALID_CREDENTIALS_MESSAGE, 401);
     }
-    res.locals.authPasswordVerified = true;
-
     let matchedTotpStep: bigint | undefined;
     let rotatedTotpSecret:
       | { ciphertext: string; iv: string; authTag: string; keyId: string }

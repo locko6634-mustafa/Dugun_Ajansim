@@ -10,6 +10,7 @@ import request from 'supertest';
 import { z } from 'zod';
 import { createApp } from '../src/app.js';
 import { parseEnvironment } from '../src/config/env.config.js';
+import { isSuccessfulLoginAttempt } from '../src/routes/auth.routes.js';
 import {
   createDatabaseConnectionChecker,
   createPrismaDatabaseHealthQuery,
@@ -85,6 +86,14 @@ const validEnvironment: NodeJS.ProcessEnv = {
 };
 const validProductionEncryptionKey =
   '7d9f3c1a5e8b2d4f6a0c9e7b3d1f5a8c2e4b6d0f9a7c3e1b5d8f2a4c6e0b9d7f';
+
+authTest('login kotası yalnız tam MFA dahil başarılı oturumu sayaçtan düşer', () => {
+  const requestStub = {} as Request;
+
+  assert.equal(isSuccessfulLoginAttempt(requestStub, { statusCode: 200 } as Response), true);
+  assert.equal(isSuccessfulLoginAttempt(requestStub, { statusCode: 401 } as Response), false);
+  assert.equal(isSuccessfulLoginAttempt(requestStub, { statusCode: 429 } as Response), false);
+});
 
 test('production seed kullanıcı, parola veya operasyon personeli oluşturmaz', async () => {
   const seedSource = await readFile(new URL('../prisma/seed.ts', import.meta.url), 'utf8');
