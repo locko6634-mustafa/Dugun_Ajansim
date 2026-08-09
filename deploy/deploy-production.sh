@@ -11,6 +11,18 @@ readonly backup_max_files="${BACKUP_MAX_FILES:-30}"
 readonly pii_maintenance_batch_size="${PII_MAINTENANCE_BATCH_SIZE:-100}"
 readonly pii_maintenance_max_batches="${PII_MAINTENANCE_MAX_BATCHES:-1000}"
 readonly allow_deploy_without_rollback="${ALLOW_DEPLOY_WITHOUT_ROLLBACK:-0}"
+readonly backend_replicas="${BACKEND_REPLICAS:-2}"
+readonly operation="${1:-deploy}"
+
+backup_only=0
+case "$operation" in
+  deploy) ;;
+  --backup-only) backup_only=1 ;;
+  *)
+    printf '%s\n' "Kullanım: deploy-production.sh [--backup-only]" >&2
+    exit 2
+    ;;
+esac
 
 deploy_started=0
 deployment_verified=0
@@ -144,7 +156,8 @@ rollback_deployment() {
       "${rollback_compose[@]}" config -q || rollback_failed=1
       "${rollback_compose[@]}" up -d --no-build --force-recreate --no-deps --wait postgres ||
         rollback_failed=1
-      "${rollback_compose[@]}" up -d --no-build --force-recreate --no-deps --wait backend ||
+      "${rollback_compose[@]}" up -d --no-build --force-recreate --no-deps --wait \
+        --scale backend="$backend_replicas" backend ||
         rollback_failed=1
       "${rollback_compose[@]}" up -d --no-build --force-recreate --no-deps --wait frontend ||
         rollback_failed=1
@@ -189,7 +202,9 @@ handle_error() {
   set +e
   drop_restore_database || true
   cleanup_temporary_files
-  rollback_deployment
+  if (( backup_only == 0 )); then
+    rollback_deployment
+  fi
   exit "$exit_code"
 }
 
@@ -198,7 +213,7 @@ safe_remove_backup() {
   local filename="${candidate##*/}"
 
   [[ "${candidate%/*}" == "$backup_directory" &&
-    "$filename" =~ ^pre-deploy-[0-9a-f]{40}-[0-9]{8}T[0-9]{6}Z\.dump\.gcm$ ]] ||
+    "$filename" =~ ^(pre-deploy-[0-9a-f]{40}|scheduled)-[0-9]{8}T[0-9]{6}Z\.dump\.gcm$ ]] ||
     fail "Beklenmeyen yedek yolu silme kapsamına girdi: $candidate"
   [[ "$candidate" != "$backup_path" ]] || fail "Yeni doğrulanmış yedek budanamaz."
   [[ ! -L "$candidate" ]] || fail "Yedek sembolik bağlantı olarak budanamaz."
@@ -225,7 +240,7 @@ safe_remove_legacy_backup() {
 prune_backups() {
   local backup_listing
   local candidate
-  local filename_pattern='.*/pre-deploy-[0-9a-f]{40}-[0-9]{8}T[0-9]{6}Z\.dump'
+  local filename_pattern='.*/(pre-deploy-[0-9a-f]{40}|scheduled)-[0-9]{8}T[0-9]{6}Z\.dump'
 
   backup_listing="$(
     find "$backup_directory" -mindepth 1 -maxdepth 1 -regextype posix-extended -type f \
@@ -265,40 +280,66 @@ prune_backups() {
 
 capture_rollback_image() {
   local service="$1"
+  local container_output
+  local -a container_ids=()
   local container_id
   local health_status
   local image_id
   local image_revision
   local original_image
+  local expected_image_id=""
+  local expected_original_image=""
 
-  container_id="$("${compose[@]}" ps -q "$service")"
-  if [[ -z "$container_id" ]]; then
+  container_output="$("${compose[@]}" ps -q "$service")"
+  if [[ -z "$container_output" ]]; then
     rollback_available=0
     return
   fi
+  mapfile -t container_ids <<<"$container_output"
 
-  health_status="$(
-    docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
-      "$container_id"
-  )"
-  image_id="$(docker inspect --format '{{.Image}}' "$container_id")"
-  original_image="$(docker inspect --format '{{.Config.Image}}' "$container_id")"
-  image_revision="$(
-    docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
-      "$container_id"
-  )"
-  if [[ "$health_status" != "healthy" || -z "$image_id" || -z "$original_image" ||
-    "$image_revision" != "${PREVIOUS_SHA:-}" ]]; then
-    rollback_available=0
-    return
-  fi
+  for container_id in "${container_ids[@]}"; do
+    health_status="$(
+      docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+        "$container_id"
+    )"
+    image_id="$(docker inspect --format '{{.Image}}' "$container_id")"
+    original_image="$(docker inspect --format '{{.Config.Image}}' "$container_id")"
+    image_revision="$(
+      docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+        "$container_id"
+    )"
+    if [[ "$health_status" != "healthy" || -z "$image_id" || -z "$original_image" ||
+      "$image_revision" != "${PREVIOUS_SHA:-}" ||
+      ( -n "$expected_image_id" && "$image_id" != "$expected_image_id" ) ]]; then
+      rollback_available=0
+      return
+    fi
+    expected_image_id="$image_id"
+    expected_original_image="$original_image"
+  done
 
-  docker image tag "$image_id" "dugun-ajansim-rollback-${service}:previous" >/dev/null
+  docker image tag "$expected_image_id" "dugun-ajansim-rollback-${service}:previous" >/dev/null
   if [[ "$service" == "backend" ]]; then
-    backend_original_image="$original_image"
+    backend_original_image="$expected_original_image"
   else
-    frontend_original_image="$original_image"
+    frontend_original_image="$expected_original_image"
   fi
+}
+
+verify_backend_replicas() {
+  local container_output
+  local -a container_ids=()
+  local container_id
+
+  container_output="$("${compose[@]}" ps -q backend)"
+  [[ -n "$container_output" ]] || fail "Çalışan backend konteyneri bulunamadı."
+  mapfile -t container_ids <<<"$container_output"
+  [[ "${#container_ids[@]}" == "$backend_replicas" ]] ||
+    fail "Backend replika sayısı beklenen değerle eşleşmiyor."
+  for container_id in "${container_ids[@]}"; do
+    docker exec "$container_id" node -e \
+      "fetch('http://127.0.0.1:5000/api/v1/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));"
+  done
 }
 
 trap 'handle_error "$?"' ERR
@@ -307,19 +348,22 @@ trap 'handle_signal 129' HUP
 trap 'handle_signal 130' INT
 trap 'handle_signal 143' TERM
 
-for required_command in awk chmod curl date df docker find git grep id mkdir mv rm sha256sum sort stat tr; do
+for required_command in awk chmod curl date df docker find flock git grep id mkdir mv rm sha256sum sort stat tr; do
   require_command "$required_command"
 done
 
 is_sha "${DEPLOY_SHA:-}" || fail "DEPLOY_SHA 40 karakterlik küçük harf SHA olmalıdır."
-is_sha "${PREVIOUS_SHA:-}" || fail "PREVIOUS_SHA 40 karakterlik küçük harf SHA olmalıdır."
-[[ "${PUBLIC_ORIGIN:-}" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] ||
-  fail "PUBLIC_ORIGIN yalnızca güvenli HTTPS origin olmalıdır."
+if (( backup_only == 0 )); then
+  is_sha "${PREVIOUS_SHA:-}" || fail "PREVIOUS_SHA 40 karakterlik küçük harf SHA olmalıdır."
+  [[ "${PUBLIC_ORIGIN:-}" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] ||
+    fail "PUBLIC_ORIGIN yalnızca güvenli HTTPS origin olmalıdır."
+fi
 require_integer_range "BACKUP_MIN_FREE_MIB" "$minimum_backup_reserve_mib" 256 1048576
 require_integer_range "BACKUP_RETENTION_DAYS" "$backup_retention_days" 1 3650
 require_integer_range "BACKUP_MAX_FILES" "$backup_max_files" 2 1000
 require_integer_range "PII_MAINTENANCE_BATCH_SIZE" "$pii_maintenance_batch_size" 50 100
 require_integer_range "PII_MAINTENANCE_MAX_BATCHES" "$pii_maintenance_max_batches" 1 10000
+require_integer_range "BACKEND_REPLICAS" "$backend_replicas" 2 8
 [[ "$allow_deploy_without_rollback" == "0" || "$allow_deploy_without_rollback" == "1" ]] ||
   fail "ALLOW_DEPLOY_WITHOUT_ROLLBACK yalnızca 0 veya 1 olabilir."
 
@@ -327,7 +371,10 @@ repository_root="$(git rev-parse --show-toplevel)"
 [[ "$(pwd -P)" == "$(cd "$repository_root" && pwd -P)" ]] ||
   fail "Betik proje kökünden çalıştırılmalıdır."
 [[ "$(git rev-parse HEAD)" == "$DEPLOY_SHA" ]] || fail "Çalışma ağacı DEPLOY_SHA üzerinde değil."
-git cat-file -e "${PREVIOUS_SHA}^{commit}" || fail "PREVIOUS_SHA yerel Git nesnelerinde bulunamadı."
+if (( backup_only == 0 )); then
+  git cat-file -e "${PREVIOUS_SHA}^{commit}" ||
+    fail "PREVIOUS_SHA yerel Git nesnelerinde bulunamadı."
+fi
 worktree_status="$(git status --porcelain --untracked-files=all)"
 [[ -z "$worktree_status" ]] ||
   fail "İzlenen veya izlenmeyen proje dosyaları mevcut; yalnız temiz Git ağacı dağıtılabilir."
@@ -357,10 +404,18 @@ chmod 700 "$backup_directory"
 [[ "$(stat -c '%u' "$backup_directory")" == "$current_user_id" ]] ||
   fail "Yedek dizini dağıtım kullanıcısına ait olmalıdır."
 
-capture_rollback_image backend
-capture_rollback_image frontend
+operations_lock_path="$backup_directory/.operations.lock"
+[[ ! -L "$operations_lock_path" ]] || fail "Operasyon kilidi sembolik bağlantı olamaz."
+exec 9>"$operations_lock_path"
+chmod 600 "$operations_lock_path"
+flock -n 9 || fail "Başka bir dağıtım veya yedekleme işlemi devam ediyor."
 
-if (( rollback_available == 0 )); then
+if (( backup_only == 0 )); then
+  capture_rollback_image backend
+  capture_rollback_image frontend
+fi
+
+if (( backup_only == 0 && rollback_available == 0 )); then
   (( allow_deploy_without_rollback == 1 )) ||
     fail "Sağlıklı ve PREVIOUS_SHA ile eşleşen önceki backend/frontend image seti bulunamadı. İlk kurulumda açık ALLOW_DEPLOY_WITHOUT_ROLLBACK=1 onayı gerekir."
   log "ROLLBACK_UNAVAILABLE_EXPLICITLY_ACCEPTED=1"
@@ -410,7 +465,11 @@ required_postgres_bytes=$((database_bytes * 2 + minimum_reserve_bytes))
   fail "Geçici restore tatbikatı için PostgreSQL disk alanı yetersiz."
 
 backup_timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-backup_path="$backup_directory/pre-deploy-${DEPLOY_SHA}-${backup_timestamp}.dump.gcm"
+backup_prefix="pre-deploy-${DEPLOY_SHA}"
+if (( backup_only == 1 )); then
+  backup_prefix="scheduled"
+fi
+backup_path="$backup_directory/${backup_prefix}-${backup_timestamp}.dump.gcm"
 temporary_backup_path="${backup_path}.tmp"
 restore_log_path="$backup_directory/restore-${DEPLOY_SHA}-${backup_timestamp}.log"
 [[ ! -e "$backup_path" && ! -e "$temporary_backup_path" ]] ||
@@ -456,8 +515,14 @@ restore_log_path=""
 printf 'VALIDATED_ENCRYPTED_BACKUP=%s\n' "$backup_path"
 prune_backups
 
+if (( backup_only == 1 )); then
+  trap - ERR
+  printf 'SCHEDULED_BACKUP_COMPLETED=%s\n' "$backup_path"
+  exit 0
+fi
+
 deploy_started=1
-"${compose[@]}" up -d --build --wait
+"${compose[@]}" up -d --build --wait --scale backend="$backend_replicas"
 
 run_pii_batches() {
   local operation="$1"
@@ -477,8 +542,7 @@ run_pii_batches() {
   fail "PII bakım işlemi güvenli parti sınırı içinde tamamlanamadı: $operation"
 }
 
-"${compose[@]}" exec -T backend node -e \
-  "fetch('http://127.0.0.1:5000/api/v1/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));"
+verify_backend_replicas
 "${compose[@]}" exec -T frontend sh -c \
   "wget -qO- http://127.0.0.1:8080/healthz | grep -qx ok"
 curl -fsS --max-time 10 --retry 5 --retry-delay 3 --retry-all-errors \
