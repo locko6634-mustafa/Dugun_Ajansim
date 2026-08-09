@@ -16,7 +16,9 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     deployReadme,
     deployWorkflow,
     bootstrapAdmin,
-    runtimeRoleScript
+    runtimeRoleScript,
+    homePage,
+    homeBootstrap
   ] = await Promise.all([
     readProjectFile("backend/Dockerfile"),
     readProjectFile("Dockerfile"),
@@ -26,7 +28,9 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     readProjectFile("deploy/README.md"),
     readProjectFile(".github/workflows/deploy.yml"),
     readProjectFile("backend/src/scripts/bootstrapAdmin.ts"),
-    readProjectFile("deploy/postgres/init-runtime-role.sh")
+    readProjectFile("deploy/postgres/init-runtime-role.sh"),
+    readProjectFile("index.html"),
+    readProjectFile("js/home/bootstrap.js")
   ]);
 
   expect(backendDockerfile).toContain("FROM build AS migrate");
@@ -103,8 +107,18 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(nginx).toContain("max-age=3600, must-revalidate");
   expect(nginx).toContain('Cache-Control "no-store"');
   expect(nginx).toContain("Content-Security-Policy");
+  expect(nginx.match(/script-src [^;]+/g)).not.toBeNull();
+  expect(nginx.match(/script-src [^;]+/g)).toEqual(
+    expect.arrayContaining([expect.not.stringContaining("'unsafe-inline'")])
+  );
+  expect(nginx).not.toMatch(/script-src [^;]*'unsafe-inline'/);
   expect(nginx).not.toContain("immutable");
   expect(nginx).not.toContain("expires 1y");
+
+  expect(homePage).toContain('<script src="js/home/bootstrap.js"></script>');
+  expect(homePage).not.toMatch(/\sonload\s*=/i);
+  expect(homePage).not.toContain('document.documentElement.classList.add("js")');
+  expect(homeBootstrap).toContain('document.documentElement.classList.add("js")');
 
   expect(exampleEnv).toMatch(/^POSTGRES_PASSWORD=$/m);
   expect(exampleEnv).toMatch(/^POSTGRES_RUNTIME_USER=dugun_runtime$/m);
