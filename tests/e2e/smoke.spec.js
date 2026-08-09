@@ -34,6 +34,22 @@ const defaultBookingSchedulePolicy = Object.freeze({
   stepMinutes: 30,
   allowNextDay: true
 });
+const defaultAdminCatalogFormConstraints = Object.freeze({
+  code: { minLength: 1, maxLength: 80, pattern: "^[a-z0-9-]+$" },
+  name: { minLength: 2, maxLength: 80 },
+  subtitle: { maxLength: 200 },
+  eyebrow: { maxLength: 100 },
+  description: { maxLength: 2_000 },
+  imagePath: { maxLength: 500 },
+  delivery: { maxLength: 200 },
+  feature: { maxLength: 500 },
+  galleryItem: { maxLength: 500 },
+  priceCents: { minimum: 0, maximum: 100_000_000, step: 1 },
+  venue: {
+    displayName: { minLength: 2, maxLength: 140 },
+    displayOrder: { minimum: 0, maximum: 10_000, step: 1 }
+  }
+});
 
 test("@frontend-smoke yayın manifesti SEO, FAQ ve footer içeriğine yansır", async ({ page }) => {
   const homePage = siteContent.pages["index.html"];
@@ -505,6 +521,12 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
           upcomingDeliveries: []
         }
       })
+    })
+  );
+  await page.route("**/api/v1/admin/catalog-form-constraints", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: defaultAdminCatalogFormConstraints })
     })
   );
   const secondVenueId = "a430c729-e45a-4ce9-9c98-62a94d2b8581";

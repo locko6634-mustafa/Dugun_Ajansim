@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import nodeTest from "node:test";
 import {
+  adminCatalogFormConstraints,
   bookingBodySchema,
   bookingFormConstraints,
   bookingSchedulePolicy,
   deliveryUpdateBodySchema,
+  packageBodySchema,
   passwordChangeBodySchema,
   strongPasswordSchema,
   weddingUpdateBodySchema
@@ -208,6 +210,30 @@ test("başvuru formu sınırları backend doğrulama şemasıyla aynı kaynaktan
   );
   assert.equal(
     bookingBodySchema.safeParse({ ...validInternationalPhone, note: "a".repeat(2_001) }).success,
+    false
+  );
+});
+
+test("admin katalog sınırları backend doğrulama şemasıyla aynı kaynaktan gelir", () => {
+  const basePackage = {
+    code: "kurus-adimli-paket",
+    name: "Kuruş Adımlı Paket",
+    priceCents: adminCatalogFormConstraints.priceCents.step
+  };
+
+  assert.equal(packageBodySchema.safeParse(basePackage).success, true);
+  assert.equal(
+    packageBodySchema.safeParse({
+      ...basePackage,
+      description: "a".repeat(adminCatalogFormConstraints.description.maxLength + 1)
+    }).success,
+    false
+  );
+  assert.equal(
+    packageBodySchema.safeParse({
+      ...basePackage,
+      priceCents: adminCatalogFormConstraints.priceCents.maximum + 1
+    }).success,
     false
   );
 });

@@ -64,6 +64,7 @@ const state = {
   catalogVenues: [],
   packages: [],
   services: [],
+  catalogFormConstraints: null,
   currentWedding: null
 };
 
@@ -1743,13 +1744,15 @@ document
         type === "venues"
           ? await showVenueFormModal({
               title: "Mekân Bilgilerini Düzenle",
-              initialData: currentItem
+              initialData: currentItem,
+              constraints: state.catalogFormConstraints
             })
           : await showCatalogFormModal({
               type,
               title:
                 type === "packages" ? "Paket Bilgilerini Düzenle" : "Ek Hizmet Bilgilerini Düzenle",
-              initialData: currentItem
+              initialData: currentItem,
+              constraints: state.catalogFormConstraints
             });
 
       if (!formData) return;
@@ -1849,10 +1852,14 @@ document.querySelectorAll("[data-add-catalog]").forEach((button) => {
     const type = button.dataset.addCatalog;
     const formData =
       type === "venues"
-        ? await showVenueFormModal({ title: "Yeni Mekân Oluştur" })
+        ? await showVenueFormModal({
+            title: "Yeni Mekân Oluştur",
+            constraints: state.catalogFormConstraints
+          })
         : await showCatalogFormModal({
             type,
-            title: type === "packages" ? "Yeni Paket Oluştur" : "Yeni Ek Hizmet Oluştur"
+            title: type === "packages" ? "Yeni Paket Oluştur" : "Yeni Ek Hizmet Oluştur",
+            constraints: state.catalogFormConstraints
           });
     if (!formData) return;
 
@@ -2154,6 +2161,9 @@ document.querySelector(".js-current-date").textContent = `${new Intl.DateTimeFor
 if (await ensureAdmin()) {
   await Promise.all([
     loadDashboard(),
+    apiRequest("/admin/catalog-form-constraints").then((response) => {
+      state.catalogFormConstraints = response.data;
+    }),
     apiRequest("/catalog").then((response) => {
       const constraints = parseBookingFormConstraints(response.data?.bookingFormConstraints);
       applyBookingFormConstraints(document, constraints);

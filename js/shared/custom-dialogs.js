@@ -167,7 +167,13 @@ export function showCustomPrompt({
 /**
  * Show a form modal specifically for adding or editing catalog packages or services
  */
-export function showCatalogFormModal({ type = "packages", title = "", initialData = null } = {}) {
+export function showCatalogFormModal({
+  type = "packages",
+  title = "",
+  initialData = null,
+  constraints
+} = {}) {
+  if (!constraints) throw new Error("Admin katalog formu sınırları yüklenemedi.");
   const dialog = getOrCreateDialog();
   const isPackage = type === "packages";
   const isEdit = Boolean(initialData && initialData.id);
@@ -222,6 +228,9 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
     : initialData?.gallery || "";
   const currentIsActive =
     initialData?.isActive !== undefined ? Boolean(initialData.isActive) : true;
+  const priceMinimum = constraints.priceCents.minimum / 100;
+  const priceMaximum = constraints.priceCents.maximum / 100;
+  const priceStep = constraints.priceCents.step / 100;
 
   dialog.innerHTML = `
     <form class="form-shell custom-dialog-shell" method="dialog" style="max-width: 680px; max-height: 85vh; overflow-y: auto;">
@@ -235,26 +244,26 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
       <div class="form-grid custom-catalog-grid">
         <label>
           Benzersiz Kısa Kod *
-          <input class="js-catalog-code" type="text" placeholder="Örn: PKG-VIP veya EXP-DRONE" value="${escapeHtml(
+          <input class="js-catalog-code" type="text" minlength="${constraints.code.minLength}" maxlength="${constraints.code.maxLength}" pattern="${escapeHtml(constraints.code.pattern)}" placeholder="Örn: premium-paket veya drone" value="${escapeHtml(
             currentCode
           )}" ${isEdit ? "readonly style='opacity:0.75; cursor:not-allowed;'" : "required"} />
         </label>
         <label>
           Görünen Ad / Başlık *
-          <input class="js-catalog-name" type="text" placeholder="Örn: Premium Düğün Paketi" value="${escapeHtml(
+          <input class="js-catalog-name" type="text" minlength="${constraints.name.minLength}" maxlength="${constraints.name.maxLength}" placeholder="Örn: Premium Düğün Paketi" value="${escapeHtml(
             currentName
           )}" required />
         </label>
         <label>
           Fiyat (TL) *
-          <input class="js-catalog-price" type="number" min="0" step="50" placeholder="0" value="${currentPrice}" required />
+          <input class="js-catalog-price" type="number" min="${priceMinimum}" max="${priceMaximum}" step="${priceStep}" placeholder="0" value="${currentPrice}" required />
         </label>
         ${
           isPackage
             ? `
         <label>
           Alt Başlık / Etiket
-          <input class="js-catalog-subtitle" type="text" placeholder="Örn: Temel çekim paketi" value="${escapeHtml(
+          <input class="js-catalog-subtitle" type="text" maxlength="${constraints.subtitle.maxLength}" placeholder="Örn: Temel çekim paketi" value="${escapeHtml(
             currentSubtitle
           )}" />
         </label>`
@@ -267,14 +276,14 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
         </label>
         <label>
           Üst Başlık (Eyebrow / Rozet)
-          <input class="js-catalog-eyebrow" type="text" placeholder="Örn: ZAMANSIZ KARELER" value="${escapeHtml(
+          <input class="js-catalog-eyebrow" type="text" maxlength="${constraints.eyebrow.maxLength}" placeholder="Örn: ZAMANSIZ KARELER" value="${escapeHtml(
             currentEyebrow
           )}" />
         </label>`
         }
         <label class="wide">
           Teslim Süresi Metni
-          <input class="js-catalog-delivery" type="text" placeholder="${
+          <input class="js-catalog-delivery" type="text" maxlength="${constraints.delivery.maxLength}" placeholder="${
             isPackage
               ? "Örn: En geç 21 takvim gününde dijital teslim"
               : "Örn: En geç 21 takvim günü"
@@ -282,7 +291,7 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
         </label>
         <label class="wide">
           Ana Görsel Yolu / URL
-          <input class="js-catalog-image" type="text" placeholder="Örn: assets/images/hero-couple.webp" value="${escapeHtml(
+          <input class="js-catalog-image" type="text" maxlength="${constraints.imagePath.maxLength}" placeholder="Örn: assets/images/hero-couple.webp" value="${escapeHtml(
             currentImagePath
           )}" />
           <small style="margin-top: 4px; display: block; color: var(--color-muted, #666);">
@@ -300,7 +309,7 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
             ? `
         <label class="wide">
           Ek Galeri Görselleri (Her satıra bir görsel yolu)
-          <textarea class="js-catalog-gallery" rows="2" placeholder="assets/images/story-1.webp&#10;assets/images/story-2.webp">${escapeHtml(
+          <textarea class="js-catalog-gallery" rows="2" data-item-maxlength="${constraints.galleryItem.maxLength}" placeholder="assets/images/story-1.webp&#10;assets/images/story-2.webp">${escapeHtml(
             currentGallery
           )}</textarea>
         </label>`
@@ -308,13 +317,13 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
         }
         <label class="wide">
           Genel Açıklama Metni
-          <textarea class="js-catalog-description" rows="3" placeholder="Hazırlık telaşından son dansa kadar günün gerçek duygusunu doğal, estetik ve zamansız karelerle anlatıyoruz...">${escapeHtml(
+          <textarea class="js-catalog-description" rows="3" maxlength="${constraints.description.maxLength}" placeholder="Hazırlık telaşından son dansa kadar günün gerçek duygusunu doğal, estetik ve zamansız karelerle anlatıyoruz...">${escapeHtml(
             currentDescription
           )}</textarea>
         </label>
         <label class="wide">
           Özellik Maddeleri (Tikli Liste - Her satıra bir madde yazın)
-          <textarea class="js-catalog-features" rows="4" placeholder="Hazırlık, tören ve davet boyunca profesyonel fotoğraf çekimi&#10;Gelin-damat, aile ve yakın çevre portreleri&#10;Doğal anlara odaklanan belgesel çekim yaklaşımı&#10;Seçilen karelerde renk, ışık ve rötuş düzenlemesi">${escapeHtml(
+          <textarea class="js-catalog-features" rows="4" data-item-maxlength="${constraints.feature.maxLength}" placeholder="Hazırlık, tören ve davet boyunca profesyonel fotoğraf çekimi&#10;Gelin-damat, aile ve yakın çevre portreleri&#10;Doğal anlara odaklanan belgesel çekim yaklaşımı&#10;Seçilen karelerde renk, ışık ve rötuş düzenlemesi">${escapeHtml(
             currentFeatures
           )}</textarea>
         </label>
@@ -404,6 +413,14 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
           errorEl.textContent = "Lütfen zorunlu alanları (Kod, Ad, Fiyat) doğru doldurun.";
         return;
       }
+      if (features.some((item) => item.length > constraints.feature.maxLength)) {
+        errorEl.textContent = `Her özellik en fazla ${constraints.feature.maxLength} karakter olabilir.`;
+        return;
+      }
+      if (gallery.some((item) => item.length > constraints.galleryItem.maxLength)) {
+        errorEl.textContent = `Her galeri yolu en fazla ${constraints.galleryItem.maxLength} karakter olabilir.`;
+        return;
+      }
 
       cleanup({
         code,
@@ -425,7 +442,8 @@ export function showCatalogFormModal({ type = "packages", title = "", initialDat
   });
 }
 
-export function showVenueFormModal({ title = "", initialData = null } = {}) {
+export function showVenueFormModal({ title = "", initialData = null, constraints } = {}) {
+  if (!constraints) throw new Error("Admin katalog formu sınırları yüklenemedi.");
   const dialog = getOrCreateDialog();
   const isEdit = Boolean(initialData?.id);
   const modalTitle = title || (isEdit ? "Mekân Bilgilerini Düzenle" : "Yeni Mekân Ekle");
@@ -446,23 +464,23 @@ export function showVenueFormModal({ title = "", initialData = null } = {}) {
       <div class="form-grid custom-catalog-grid">
         <label>
           Benzersiz Kısa Kod *
-          <input class="js-venue-slug" type="text" pattern="[a-z0-9-]+" placeholder="Örn: rena-garden" value="${escapeHtml(initialData?.slug || "")}" ${isEdit ? "readonly" : "required"} />
+          <input class="js-venue-slug" type="text" minlength="${constraints.code.minLength}" maxlength="${constraints.code.maxLength}" pattern="${escapeHtml(constraints.code.pattern)}" placeholder="Örn: rena-garden" value="${escapeHtml(initialData?.slug || "")}" ${isEdit ? "readonly" : "required"} />
         </label>
         <label>
           Operasyon Adı *
-          <input class="js-venue-name" type="text" placeholder="Örn: Rena Garden" value="${escapeHtml(initialData?.name || "")}" required />
+          <input class="js-venue-name" type="text" minlength="${constraints.name.minLength}" maxlength="${constraints.name.maxLength}" placeholder="Örn: Rena Garden" value="${escapeHtml(initialData?.name || "")}" required />
         </label>
         <label>
           Vitrin Adı
-          <input class="js-venue-display-name" type="text" placeholder="Örn: Rena" value="${escapeHtml(initialData?.displayName || "")}" />
+          <input class="js-venue-display-name" type="text" minlength="${constraints.venue.displayName.minLength}" maxlength="${constraints.venue.displayName.maxLength}" placeholder="Örn: Rena" value="${escapeHtml(initialData?.displayName || "")}" />
         </label>
         <label>
           Vitrin Sırası
-          <input class="js-venue-display-order" type="number" min="0" max="10000" step="1" value="${Number(initialData?.displayOrder || 0)}" />
+          <input class="js-venue-display-order" type="number" min="${constraints.venue.displayOrder.minimum}" max="${constraints.venue.displayOrder.maximum}" step="${constraints.venue.displayOrder.step}" value="${Number(initialData?.displayOrder || 0)}" />
         </label>
         <label class="wide">
           Mekân Görseli Yolu / URL
-          <input class="js-venue-image" type="text" placeholder="Örn: assets/images/venues/rena.webp" value="${escapeHtml(initialData?.imagePath || "")}" />
+          <input class="js-venue-image" type="text" maxlength="${constraints.imagePath.maxLength}" placeholder="Örn: assets/images/venues/rena.webp" value="${escapeHtml(initialData?.imagePath || "")}" />
           <small>Referans vitrininde yayınlanacak mekânlar için görsel zorunludur.</small>
         </label>
         <label class="switch-row wide">
@@ -521,7 +539,12 @@ export function showVenueFormModal({ title = "", initialData = null } = {}) {
       const displayOrder = Number(orderInput.value);
       const isFeatured = featuredInput.checked;
 
-      if (!slug || !name || !/^[a-z0-9-]+$/.test(slug) || !Number.isInteger(displayOrder)) {
+      if (
+        !slug ||
+        !name ||
+        !new RegExp(constraints.code.pattern).test(slug) ||
+        !Number.isInteger(displayOrder)
+      ) {
         errorEl.textContent = "Kısa kod, operasyon adı ve vitrin sırasını doğru doldurun.";
         return;
       }

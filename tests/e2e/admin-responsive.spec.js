@@ -17,6 +17,23 @@ const dashboard = {
   upcomingDeliveries: []
 };
 
+const catalogFormConstraints = {
+  code: { minLength: 1, maxLength: 80, pattern: "^[a-z0-9-]+$" },
+  name: { minLength: 2, maxLength: 80 },
+  subtitle: { maxLength: 200 },
+  eyebrow: { maxLength: 100 },
+  description: { maxLength: 2000 },
+  imagePath: { maxLength: 500 },
+  delivery: { maxLength: 200 },
+  feature: { maxLength: 500 },
+  galleryItem: { maxLength: 500 },
+  priceCents: { minimum: 0, maximum: 100000000, step: 1 },
+  venue: {
+    displayName: { minLength: 2, maxLength: 140 },
+    displayOrder: { minimum: 0, maximum: 10000, step: 1 }
+  }
+};
+
 async function expectNoPageOverflow(page) {
   await expect
     .poll(() =>
@@ -51,6 +68,12 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
     route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ success: true, data: dashboard })
+    })
+  );
+  await page.route("**/api/v1/admin/catalog-form-constraints", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: catalogFormConstraints })
     })
   );
   await page.route("**/api/v1/venues", (route) =>
@@ -117,6 +140,14 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await page.locator('[data-add-catalog="packages"]').click();
   const catalogDialog = page.locator(".custom-modal-dialog");
   await expect(catalogDialog).toBeVisible();
+  await expect(catalogDialog.locator(".js-catalog-code")).toHaveAttribute("maxlength", "80");
+  await expect(catalogDialog.locator(".js-catalog-name")).toHaveAttribute("minlength", "2");
+  await expect(catalogDialog.locator(".js-catalog-price")).toHaveAttribute("step", "0.01");
+  await expect(catalogDialog.locator(".js-catalog-price")).toHaveAttribute("max", "1000000");
+  await expect(catalogDialog.locator(".js-catalog-description")).toHaveAttribute(
+    "maxlength",
+    "2000"
+  );
   await expectMinimumHeight(catalogDialog.getByRole("button", { name: "Kapat" }));
   expect(
     await catalogDialog.locator(".custom-catalog-grid").evaluate((element) => ({
@@ -127,9 +158,15 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await catalogDialog.getByRole("button", { name: "Kapat" }).click();
   await page.locator('[data-add-catalog="venues"]').click();
   await expect(catalogDialog.getByRole("heading", { name: "Yeni Mekân Oluştur" })).toBeVisible();
+  await expect(catalogDialog.locator(".js-venue-slug")).toHaveAttribute(
+    "pattern",
+    catalogFormConstraints.code.pattern
+  );
   await expect(catalogDialog.locator(".js-venue-display-name")).toBeVisible();
+  await expect(catalogDialog.locator(".js-venue-display-name")).toHaveAttribute("maxlength", "140");
   await expect(catalogDialog.locator(".js-venue-image")).toBeVisible();
   await expect(catalogDialog.locator(".js-venue-display-order")).toBeVisible();
+  await expect(catalogDialog.locator(".js-venue-display-order")).toHaveAttribute("max", "10000");
   await catalogDialog.locator(".js-venue-slug").fill("responsive-garden");
   await catalogDialog.locator(".js-venue-name").fill("Responsive Garden");
   await catalogDialog.locator(".js-venue-display-name").fill("Responsive");

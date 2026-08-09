@@ -11,6 +11,7 @@ import {
 } from "../middlewares/auth.middleware.js";
 import { validateRequest } from "../middlewares/validate.middleware.js";
 import {
+  adminCatalogFormConstraints,
   adminBookingBodySchema,
   assignmentBodySchema,
   archivedQuerySchema,
@@ -159,6 +160,18 @@ const assertVenueShowcaseReady = (venue: {
     throw new AppError("Vitrinde gösterilecek mekân için vitrin adı ve görsel gereklidir.", 400);
   }
 };
+
+router.get(
+  "/catalog-form-constraints",
+  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
+  asyncHandler(async (req, res) => {
+    res.json({
+      success: true,
+      data: adminCatalogFormConstraints,
+      correlationId: req.correlationId
+    });
+  })
+);
 
 router.get(
   "/booking-applications",

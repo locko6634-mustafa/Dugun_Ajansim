@@ -26,6 +26,23 @@ export const bookingSchedulePolicy = Object.freeze({
   allowNextDay: true
 });
 
+export const adminCatalogFormConstraints = Object.freeze({
+  code: { minLength: 1, maxLength: 80, pattern: "^[a-z0-9-]+$" },
+  name: { minLength: 2, maxLength: 80 },
+  subtitle: { maxLength: 200 },
+  eyebrow: { maxLength: 100 },
+  description: { maxLength: 2_000 },
+  imagePath: { maxLength: 500 },
+  delivery: { maxLength: 200 },
+  feature: { maxLength: 500 },
+  galleryItem: { maxLength: 500 },
+  priceCents: { minimum: 0, maximum: 100_000_000, step: 1 },
+  venue: {
+    displayName: { minLength: 2, maxLength: 140 },
+    displayOrder: { minimum: 0, maximum: 10_000, step: 1 }
+  }
+});
+
 const nameSchema = z
   .string()
   .trim()
@@ -46,7 +63,16 @@ const dateSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine(isStrictGregorianDate, "Geçerli bir takvim tarihi girin.");
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-const codeSchema = z.string().trim().min(1).max(80);
+const codeSchema = z
+  .string()
+  .trim()
+  .min(adminCatalogFormConstraints.code.minLength)
+  .max(adminCatalogFormConstraints.code.maxLength);
+const catalogNameSchema = z
+  .string()
+  .trim()
+  .min(adminCatalogFormConstraints.name.minLength)
+  .max(adminCatalogFormConstraints.name.maxLength);
 export const staffSpecialtySchema = z.enum([
   "PHOTOGRAPHY",
   "VIDEO",
@@ -164,41 +190,114 @@ export const rejectBookingBodySchema = z
 
 export const packageBodySchema = z
   .object({
-    code: codeSchema.regex(/^[a-z0-9-]+$/),
-    name: nameSchema,
-    subtitle: z.string().trim().max(200).optional().nullable(),
-    description: z.string().trim().max(2_000).optional().nullable(),
-    imagePath: z.string().trim().max(500).optional().nullable(),
-    priceCents: z.number().int().min(0).max(100_000_000),
-    deliveryText: z.string().trim().max(200).optional().nullable(),
-    features: z.array(z.string().trim().max(500)).optional().default([]),
+    code: codeSchema.regex(new RegExp(adminCatalogFormConstraints.code.pattern)),
+    name: catalogNameSchema,
+    subtitle: z
+      .string()
+      .trim()
+      .max(adminCatalogFormConstraints.subtitle.maxLength)
+      .optional()
+      .nullable(),
+    description: z
+      .string()
+      .trim()
+      .max(adminCatalogFormConstraints.description.maxLength)
+      .optional()
+      .nullable(),
+    imagePath: z
+      .string()
+      .trim()
+      .max(adminCatalogFormConstraints.imagePath.maxLength)
+      .optional()
+      .nullable(),
+    priceCents: z
+      .number()
+      .int()
+      .min(adminCatalogFormConstraints.priceCents.minimum)
+      .max(adminCatalogFormConstraints.priceCents.maximum),
+    deliveryText: z
+      .string()
+      .trim()
+      .max(adminCatalogFormConstraints.delivery.maxLength)
+      .optional()
+      .nullable(),
+    features: z
+      .array(z.string().trim().max(adminCatalogFormConstraints.feature.maxLength))
+      .optional()
+      .default([]),
     isActive: z.boolean().default(true)
   })
   .strict();
 
 export const serviceBodySchema = z
   .object({
-    code: codeSchema.regex(/^[a-z0-9-]+$/),
+    code: codeSchema.regex(new RegExp(adminCatalogFormConstraints.code.pattern)),
     category: codeSchema,
-    name: nameSchema,
-    eyebrow: z.string().trim().max(100).optional().nullable(),
-    description: z.string().trim().max(2_000).optional().nullable(),
-    imagePath: z.string().trim().max(500).optional().nullable(),
-    priceCents: z.number().int().min(0).max(100_000_000),
-    delivery: z.string().trim().max(200).optional().nullable(),
-    features: z.array(z.string().trim().max(500)).optional().default([]),
-    gallery: z.array(z.string().trim().max(500)).optional().default([]),
+    name: catalogNameSchema,
+    eyebrow: z
+      .string()
+      .trim()
+      .max(adminCatalogFormConstraints.eyebrow.maxLength)
+      .optional()
+      .nullable(),
+    description: z
+      .string()
+      .trim()
+      .max(adminCatalogFormConstraints.description.maxLength)
+      .optional()
+      .nullable(),
+    imagePath: z
+      .string()
+      .trim()
+      .max(adminCatalogFormConstraints.imagePath.maxLength)
+      .optional()
+      .nullable(),
+    priceCents: z
+      .number()
+      .int()
+      .min(adminCatalogFormConstraints.priceCents.minimum)
+      .max(adminCatalogFormConstraints.priceCents.maximum),
+    delivery: z
+      .string()
+      .trim()
+      .max(adminCatalogFormConstraints.delivery.maxLength)
+      .optional()
+      .nullable(),
+    features: z
+      .array(z.string().trim().max(adminCatalogFormConstraints.feature.maxLength))
+      .optional()
+      .default([]),
+    gallery: z
+      .array(z.string().trim().max(adminCatalogFormConstraints.galleryItem.maxLength))
+      .optional()
+      .default([]),
     isActive: z.boolean().default(true)
   })
   .strict();
 
 export const venueBodySchema = z
   .object({
-    slug: codeSchema.regex(/^[a-z0-9-]+$/),
-    name: nameSchema,
-    displayName: z.string().trim().min(2).max(140).optional().nullable(),
-    imagePath: z.string().trim().max(500).optional().nullable(),
-    displayOrder: z.number().int().min(0).max(10_000).default(0),
+    slug: codeSchema.regex(new RegExp(adminCatalogFormConstraints.code.pattern)),
+    name: catalogNameSchema,
+    displayName: z
+      .string()
+      .trim()
+      .min(adminCatalogFormConstraints.venue.displayName.minLength)
+      .max(adminCatalogFormConstraints.venue.displayName.maxLength)
+      .optional()
+      .nullable(),
+    imagePath: z
+      .string()
+      .trim()
+      .max(adminCatalogFormConstraints.imagePath.maxLength)
+      .optional()
+      .nullable(),
+    displayOrder: z
+      .number()
+      .int()
+      .min(adminCatalogFormConstraints.venue.displayOrder.minimum)
+      .max(adminCatalogFormConstraints.venue.displayOrder.maximum)
+      .default(0),
     isFeatured: z.boolean().default(false),
     isActive: z.boolean().default(true),
     isPartner: z.boolean().default(true)

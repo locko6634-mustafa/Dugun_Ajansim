@@ -1185,6 +1185,21 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
   const adminCookie = `${env.SESSION_COOKIE_NAME}=${adminToken}`;
   const adminAuthCookie = `${adminCookie}; ${CSRF_COOKIE_NAME}=${adminCsrfToken}`;
+  const anonymousCatalogConstraints = await request(app).get(
+    "/api/v1/admin/catalog-form-constraints"
+  );
+  assert.equal(anonymousCatalogConstraints.status, 401);
+  const catalogConstraints = await request(app)
+    .get("/api/v1/admin/catalog-form-constraints")
+    .set("Cookie", adminCookie);
+  assert.equal(catalogConstraints.status, 200);
+  assert.deepEqual(catalogConstraints.body.data.priceCents, {
+    minimum: 0,
+    maximum: 100_000_000,
+    step: 1
+  });
+  assert.equal(catalogConstraints.body.data.description.maxLength, 2_000);
+  assert.equal(catalogConstraints.body.data.venue.displayOrder.maximum, 10_000);
   const archivedFlowKey = `${marker}-archived-payment-flow-key-1234567890`;
   const archivedFlowApplication = await createBookingApplication(
     {
