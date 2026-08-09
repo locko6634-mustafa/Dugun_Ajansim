@@ -91,7 +91,7 @@ const validEnvironment: NodeJS.ProcessEnv = {
     '{"active-2026":"7d9f3c1a5e8b2d4f6a0c9e7b3d1f5a8c2e4b6d0f9a7c3e1b5d8f2a4c6e0b9d7f"}',
   PII_BLIND_INDEX_KEY: 'b6d18a03f74ce9521a6b8d309f5e7c124a8d60f3b91e5c72d4a09b6e38f157c2',
   RATE_LIMIT_HMAC_KEY: 'c7e29b14a85df0632b7c9e401a6f8d235b9e71c4a02d6f83e5b1a9c60d347f28',
-  PII_ENCRYPTION_MODE: 'encrypted',
+  PII_ENCRYPTION_MODE: 'strict',
 };
 const validProductionEncryptionKey =
   '7d9f3c1a5e8b2d4f6a0c9e7b3d1f5a8c2e4b6d0f9a7c3e1b5d8f2a4c6e0b9d7f';
@@ -185,6 +185,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   const parsed = parseEnvironment(validEnvironment);
 
   assert.equal(parsed.PORT, 5000);
+  assert.equal(parsed.APP_PROCESS_ROLE, 'api');
   assert.deepEqual(parsed.CORS_ORIGIN, ['http://localhost:3000', 'https://example.com']);
   assert.equal(parsed.TRUST_PROXY, 0);
   assert.equal(parsed.HEALTHCHECK_TIMEOUT_MS, 3000);
@@ -287,6 +288,31 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   };
   const productionEnvironment = parseEnvironment(productionEnvironmentInput);
   assert.equal(productionEnvironment.NODE_ENV, 'production');
+  assert.equal(productionEnvironment.PII_ENCRYPTION_MODE, 'strict');
+  assert.throws(() =>
+    parseEnvironment({
+      ...productionEnvironmentInput,
+      PII_ENCRYPTION_MODE: 'encrypted',
+    }),
+  );
+  const piiMaintenanceEnvironment = parseEnvironment({
+    ...productionEnvironmentInput,
+    APP_PROCESS_ROLE: 'pii-maintenance',
+    DATA_ENCRYPTION_KEY: undefined,
+    RATE_LIMIT_HMAC_KEY: undefined,
+    PII_ENCRYPTION_MODE: 'encrypted',
+  });
+  assert.equal(piiMaintenanceEnvironment.APP_PROCESS_ROLE, 'pii-maintenance');
+  const adminBootstrapEnvironment = parseEnvironment({
+    ...productionEnvironmentInput,
+    APP_PROCESS_ROLE: 'admin-bootstrap',
+    DATA_ENCRYPTION_KEY: undefined,
+    DATA_ENCRYPTION_KEYRING_JSON: undefined,
+    PII_BLIND_INDEX_KEY: undefined,
+    RATE_LIMIT_HMAC_KEY: undefined,
+    PII_ENCRYPTION_MODE: 'encrypted',
+  });
+  assert.equal(adminBootstrapEnvironment.APP_PROCESS_ROLE, 'admin-bootstrap');
   const productionMaintenanceEnvironment = parseEnvironment({
     ...productionEnvironmentInput,
     BOT_PROTECTION_MODE: 'disabled',

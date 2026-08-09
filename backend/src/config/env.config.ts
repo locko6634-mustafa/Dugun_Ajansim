@@ -169,6 +169,9 @@ const envSchema = z
   .object({
     PORT: portSchema.default('5000'),
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    APP_PROCESS_ROLE: z
+      .enum(['api', 'admin-bootstrap', 'pii-maintenance', 'data-retention'])
+      .default('api'),
     CORS_ORIGIN: corsOriginSchema,
     BOT_PROTECTION_MODE: z.enum(['disabled', 'turnstile']).default('disabled'),
     TURNSTILE_SITE_KEY: z.string().trim().max(256).default(''),
@@ -305,6 +308,14 @@ const envSchema = z
       return;
     }
 
+    if (environment.APP_PROCESS_ROLE === 'api' && environment.PII_ENCRYPTION_MODE !== 'strict') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PII_ENCRYPTION_MODE'],
+        message: 'Production API yalnız PII_ENCRYPTION_MODE=strict ile başlatılabilir',
+      });
+    }
+
     if (environment.BOT_PROTECTION_MODE === 'turnstile' && !environment.TURNSTILE_SITE_KEY) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -419,7 +430,11 @@ const envSchema = z
       });
     }
 
-    if (isKnownExampleOrWeakEncryptionKey(environment.DATA_ENCRYPTION_KEY)) {
+    const requiresApplicationEncryptionKey = environment.APP_PROCESS_ROLE === 'api';
+    if (
+      requiresApplicationEncryptionKey &&
+      isKnownExampleOrWeakEncryptionKey(environment.DATA_ENCRYPTION_KEY)
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['DATA_ENCRYPTION_KEY'],
@@ -434,7 +449,8 @@ const envSchema = z
     } catch {
       // Alan doğrulaması ayrıntılı hatayı zaten üretir.
     }
-    if (!keyring || !keyring[environment.DATA_ENCRYPTION_ACTIVE_KEY_ID]) {
+    const requiresPiiKeys = ['api', 'pii-maintenance'].includes(environment.APP_PROCESS_ROLE);
+    if (requiresPiiKeys && (!keyring || !keyring[environment.DATA_ENCRYPTION_ACTIVE_KEY_ID])) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['DATA_ENCRYPTION_ACTIVE_KEY_ID'],
@@ -442,6 +458,7 @@ const envSchema = z
       });
     }
     if (
+      requiresPiiKeys &&
       keyring &&
       (Object.values(keyring).some(isKnownExampleOrWeakEncryptionKey) ||
         isKnownExampleOrWeakEncryptionKey(environment.PII_BLIND_INDEX_KEY))
@@ -453,6 +470,7 @@ const envSchema = z
       });
     }
     if (
+      requiresPiiKeys &&
       keyring &&
       Object.values(keyring).some(
         (encryptionKey) => encryptionKey === environment.PII_BLIND_INDEX_KEY.toLowerCase(),
@@ -465,7 +483,7 @@ const envSchema = z
       });
     }
     if (
-      environment.NODE_ENV === 'production' &&
+      environment.APP_PROCESS_ROLE === 'api' &&
       (environment.RATE_LIMIT_HMAC_KEY === DEVELOPMENT_RATE_LIMIT_HMAC_KEY ||
         environment.RATE_LIMIT_HMAC_KEY.toLowerCase() ===
           environment.PII_BLIND_INDEX_KEY.toLowerCase() ||
@@ -480,7 +498,7 @@ const envSchema = z
       });
     }
 
-    if (environment.PAYMENT_MODE === 'live') {
+    if (environment.APP_PROCESS_ROLE === 'api' && environment.PAYMENT_MODE === 'live') {
       const testValues = [
         environment.PAYMENT_BANK_NAME === TEST_PAYMENT_BANK_NAME,
         environment.PAYMENT_ACCOUNT_HOLDER === TEST_PAYMENT_ACCOUNT_HOLDER,

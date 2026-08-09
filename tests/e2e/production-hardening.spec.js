@@ -92,6 +92,21 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(compose).toContain("ADMIN_SESSION_TTL_HOURS:");
   expect(compose).toContain("CUSTOMER_SESSION_IDLE_HOURS:");
   expect(compose).toContain("TEMPORARY_PASSWORD_TTL_HOURS:");
+  expect(compose).toContain("APP_PROCESS_ROLE: api");
+  expect(compose).toContain("APP_PROCESS_ROLE: admin-bootstrap");
+  expect(compose).toContain("APP_PROCESS_ROLE: pii-maintenance");
+  expect(compose).toContain("PII_ENCRYPTION_MODE: ${PII_ENCRYPTION_MODE:-strict}");
+  const adminBootstrapEnvironment = compose.match(
+    /admin-bootstrap:[\s\S]*?environment:([\s\S]*?)depends_on:/
+  )?.[1];
+  const piiMaintenanceEnvironment = compose.match(
+    /pii-maintenance:[\s\S]*?environment:([\s\S]*?)depends_on:/
+  )?.[1];
+  expect(adminBootstrapEnvironment).not.toContain("PII_BLIND_INDEX_KEY");
+  expect(adminBootstrapEnvironment).not.toContain("RATE_LIMIT_HMAC_KEY");
+  expect(adminBootstrapEnvironment).not.toContain("DATA_ENCRYPTION_KEY:");
+  expect(piiMaintenanceEnvironment).not.toContain("DATA_ENCRYPTION_KEY:");
+  expect(piiMaintenanceEnvironment).not.toContain("RATE_LIMIT_HMAC_KEY");
   expect(compose).toContain("TRUST_PROXY: ${TRUST_PROXY:?");
   expect(compose).not.toMatch(/TRUST_PROXY:\s*1(?:\s|$)/);
   expect(compose).toContain(
@@ -168,6 +183,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(exampleEnv).toMatch(/^BOT_PROTECTION_MODE=turnstile$/m);
   expect(exampleEnv).toMatch(/^TURNSTILE_SITE_KEY=$/m);
   expect(exampleEnv).toMatch(/^TURNSTILE_SECRET_KEY=$/m);
+  expect(exampleEnv).toMatch(/^PII_ENCRYPTION_MODE=strict$/m);
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_AVERAGE=20");
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_PERIOD=1s");
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_BURST=40");

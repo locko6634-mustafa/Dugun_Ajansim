@@ -14,7 +14,6 @@ export type EncryptedValue = {
   authTag: string;
 };
 
-const encryptionKey = Buffer.from(env.DATA_ENCRYPTION_KEY, 'hex');
 const GCM_IV_BYTES = 12;
 const GCM_AUTH_TAG_BYTES = 16;
 
@@ -95,7 +94,7 @@ export const decryptValueWithKey = (
 ): string => decryptValueWithBuffer(value, parseEncryptionKey(keyHex), aad);
 
 export const encryptValue = (value: string, aad?: string): EncryptedValue =>
-  encryptValueWithBuffer(value, encryptionKey, aad);
+  encryptValueWithBuffer(value, parseEncryptionKey(env.DATA_ENCRYPTION_KEY), aad);
 
 export const decryptValue = (value: EncryptedValue, aad?: string): string =>
-  decryptValueWithBuffer(value, encryptionKey, aad);
+  decryptValueWithBuffer(value, parseEncryptionKey(env.DATA_ENCRYPTION_KEY), aad);
