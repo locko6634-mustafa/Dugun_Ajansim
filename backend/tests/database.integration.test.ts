@@ -6,7 +6,7 @@ import request from "supertest";
 import type { Options as RateLimitOptions } from "express-rate-limit";
 import { createApp } from "../src/app.js";
 import { env } from "../src/config/env.config.js";
-import { prisma } from "../src/config/prisma.js";
+import { prisma, runWithRlsContext } from "../src/config/prisma.js";
 import { CSRF_COOKIE_NAME } from "../src/middlewares/auth.middleware.js";
 import {
   DatabaseRateLimitStore,
@@ -29,16 +29,8 @@ import {
   hashToken,
   verifyPassword
 } from "../src/utils/crypto.js";
-import {
-  addCalendarDays,
-  deliveryEncryptionAad,
-  getIstanbulDate
-} from "../src/utils/domain.js";
-import {
-  generateTotpCode,
-  TOTP_PERIOD_SECONDS,
-  totpEncryptionAad
-} from "../src/utils/totp.js";
+import { addCalendarDays, deliveryEncryptionAad, getIstanbulDate } from "../src/utils/domain.js";
+import { generateTotpCode, TOTP_PERIOD_SECONDS, totpEncryptionAad } from "../src/utils/totp.js";
 import {
   decryptBookingApplicationPii,
   decryptMessageTaskPii,
@@ -200,6 +192,107 @@ test("migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalış�
   });
 });
 
+test("RLS politikaları kapalı enforcement kapısı ve transaction-local sunucu bağlamıyla hazırlanır", async () => {
+  const protectedTables = [
+    "venues",
+    "users",
+    "auth_sessions",
+    "password_setup_tokens",
+    "packages",
+    "services",
+    "booking_applications",
+    "booking_application_services",
+    "weddings",
+    "staff",
+    "wedding_assignments",
+    "deliveries",
+    "delivery_status_history",
+    "message_tasks",
+    "audit_logs"
+  ];
+  const rlsTables = await prisma.$queryRaw<Array<{ tableName: string; enabled: boolean }>>`
+    SELECT cls.relname AS "tableName", cls.relrowsecurity AS enabled
+    FROM pg_catalog.pg_class AS cls
+    JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = cls.relnamespace
+    WHERE namespace.nspname = 'public'
+      AND cls.relname IN (${Prisma.join(protectedTables)})
+    ORDER BY cls.relname
+  `;
+  assert.equal(rlsTables.length, protectedTables.length);
+  assert.equal(
+    rlsTables.every(({ enabled }) => enabled),
+    true
+  );
+
+  const [state] = await prisma.$queryRaw<Array<{ enabled: boolean }>>`
+    SELECT enabled FROM public.rls_enforcement_state WHERE singleton
+  `;
+  assert.equal(state?.enabled, false);
+
+  const [{ policyCount }] = await prisma.$queryRaw<Array<{ policyCount: bigint }>>`
+    SELECT count(*)::bigint AS "policyCount"
+    FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = ANY(${protectedTables}::text[])
+  `;
+  assert.equal(Number(policyCount) >= protectedTables.length, true);
+
+  const actorUserId = randomUUID();
+  const venueId = randomUUID();
+  const [observed] = await runWithRlsContext(
+    {
+      actorRole: "operations",
+      actorUserId,
+      venueId,
+      purpose: "http.operations",
+      resourceId: randomUUID()
+    },
+    () =>
+      prisma.$transaction(
+        (transaction) =>
+          transaction.$queryRaw<
+            Array<{ actorRole: string; actorUserId: string; venueId: string; purpose: string }>
+          >`
+          SELECT
+            current_setting('app.actor_role', true) AS "actorRole",
+            current_setting('app.actor_user_id', true) AS "actorUserId",
+            current_setting('app.venue_id', true) AS "venueId",
+            current_setting('app.purpose', true) AS purpose
+        `
+      )
+  );
+  assert.deepEqual(observed, {
+    actorRole: "operations",
+    actorUserId,
+    venueId,
+    purpose: "http.operations"
+  });
+
+  const [cleared] = await prisma.$transaction(
+    (transaction) =>
+      transaction.$queryRaw<Array<{ actorRole: string | null }>>`
+      SELECT NULLIF(current_setting('app.actor_role', true), '') AS "actorRole"
+    `
+  );
+  assert.equal(cleared?.actorRole, null);
+
+  const [availability] = await runWithRlsContext(
+    { actorRole: "public", purpose: "http.public" },
+    () =>
+      prisma.$queryRaw<Array<{ hasOccupancy: boolean }>>`
+        SELECT public.public_venue_has_conflict(
+          ${randomUUID()}::text,
+          ${new Date("2026-08-20T10:00:00Z")},
+          ${new Date("2026-08-20T12:00:00Z")},
+          NULL::text,
+          NULL::text
+        ) AS "hasOccupancy"
+      `
+  );
+  assert.equal(availability?.hasOccupancy, false);
+  assert.deepEqual(Object.keys(availability ?? {}), ["hasOccupancy"]);
+});
+
 test("çekirdek PII zarf constraintleri doğrulanır ve eksik zarfı reddeder", async (context) => {
   const marker = `pii-constraint-${randomUUID()}`;
   const venue = await prisma.venue.create({
@@ -246,9 +339,7 @@ test("çekirdek PII zarf constraintleri doğrulanır ve eksik zarfı reddeder", 
   );
   applicationId = application.id;
 
-  const constraints = await prisma.$queryRaw<
-    Array<{ constraintName: string; validated: boolean }>
-  >`
+  const constraints = await prisma.$queryRaw<Array<{ constraintName: string; validated: boolean }>>`
     SELECT conname AS "constraintName", convalidated AS "validated"
     FROM pg_catalog.pg_constraint
     WHERE conname IN (
@@ -1074,35 +1165,23 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Payment-Flow-Key", `${marker}-invalid-update-key-1234567890`)
     .send(applicationInput);
   assert.equal(invalidKeyUpdate.status, 404);
-  assert.equal(
-    await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }),
-    1
-  );
+  assert.equal(await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }), 1);
   const invalidKeyHandoff = await request(app)
     .post(`/api/v1/booking-applications/${publicRouteApplicationId}/whatsapp-handoff`)
     .set("Payment-Flow-Key", `${marker}-invalid-handoff-key-1234567890`)
     .send({});
   assert.equal(invalidKeyHandoff.status, 404);
-  assert.equal(
-    await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }),
-    1
-  );
+  assert.equal(await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }), 1);
   const invalidKeyRead = await request(app)
     .get(`/api/v1/booking-applications/${publicRouteApplicationId}/payment-flow`)
     .set("Payment-Flow-Key", `${marker}-invalid-sweep-key-1234567890`);
   assert.equal(invalidKeyRead.status, 404);
-  assert.equal(
-    await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }),
-    1
-  );
+  assert.equal(await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }), 1);
   const missingApplicationRead = await request(app)
     .get("/api/v1/booking-applications/00000000-0000-4000-8000-000000000000/payment-flow")
     .set("Payment-Flow-Key", expiringFlowKey);
   assert.equal(missingApplicationRead.status, 404);
-  assert.equal(
-    await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }),
-    1
-  );
+  assert.equal(await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }), 1);
   assert.equal(await expireStalePaymentFlows(new Date(), correlationId), 1);
   const expiredApplication = await prisma.bookingApplication.findUnique({
     where: { id: expiringApplication.id }
@@ -1377,10 +1456,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     where: { id: handedOffExpiringApplication.id },
     data: { paymentFlowExpiresAt: new Date(Date.now() - 1_000) }
   });
-  const handedOffExpiredAvailability = await getVenueAvailability(
-    venue.id,
-    handedOffExpiringDate
-  );
+  const handedOffExpiredAvailability = await getVenueAvailability(venue.id, handedOffExpiringDate);
   assert.equal(
     handedOffExpiredAvailability.occupiedSlots.some(
       (slot) => slot.startTime === "13:00" && slot.endTime === "15:00"
@@ -1448,21 +1524,16 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   );
   let approvalExpiryWasForced = false;
   await assert.rejects(
-    approveBookingApplication(
-      approvalExpiryRaceApplication.id,
-      admin.id,
-      correlationId,
-      {
-        createUsername: async () => {
-          approvalExpiryWasForced = true;
-          await prisma.bookingApplication.update({
-            where: { id: approvalExpiryRaceApplication.id },
-            data: { paymentFlowExpiresAt: new Date(Date.now() - 1_000) }
-          });
-          return `expiry-race-${marker}`;
-        }
+    approveBookingApplication(approvalExpiryRaceApplication.id, admin.id, correlationId, {
+      createUsername: async () => {
+        approvalExpiryWasForced = true;
+        await prisma.bookingApplication.update({
+          where: { id: approvalExpiryRaceApplication.id },
+          data: { paymentFlowExpiresAt: new Date(Date.now() - 1_000) }
+        });
+        return `expiry-race-${marker}`;
       }
-    ),
+    }),
     (error: unknown) =>
       error instanceof Error &&
       "statusCode" in error &&
@@ -2687,7 +2758,10 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(serializedLogs.includes(firstApproval.username), false);
   assert.equal(serializedLogs.includes(applicationInput.bridePhone), false);
   assert.equal(serializedLogs.includes(applicationInput.primaryEmail), false);
-  assert.equal(wedding.messageTasks.some((task) => task.secretCiphertext !== null), false);
+  assert.equal(
+    wedding.messageTasks.some((task) => task.secretCiphertext !== null),
+    false
+  );
 
   const currentWeddingSchedule = await prisma.wedding.findUniqueOrThrow({
     where: { id: wedding.id },
@@ -2756,8 +2830,8 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
   const csrfCookie = `${CSRF_COOKIE_NAME}=${csrfToken}`;
   const authCookies = `${sessionCookie}; ${csrfCookie}`;
   const app = createApp();
-  const mfaLoginClientIp = '198.51.100.42';
-  app.set('trust proxy', 1);
+  const mfaLoginClientIp = "198.51.100.42";
+  app.set("trust proxy", 1);
 
   const csrfRejectedEnrollment = await request(app)
     .post("/api/v1/auth/mfa/enroll")
@@ -2804,9 +2878,7 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
     )
   );
 
-  const confirmationStep = BigInt(
-    Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS)
-  );
+  const confirmationStep = BigInt(Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS));
   const confirmationCode = generateTotpCode(secret, confirmationStep);
   const confirmation = await request(app)
     .post("/api/v1/auth/mfa/confirm")
@@ -2833,7 +2905,7 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
   });
   const missingCodeLogin = await request(app)
     .post("/api/v1/auth/login")
-    .set('X-Forwarded-For', mfaLoginClientIp)
+    .set("X-Forwarded-For", mfaLoginClientIp)
     .send({
       username: user.username,
       password,
@@ -2849,7 +2921,7 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
 
   const replayedLogin = await request(app)
     .post("/api/v1/auth/login")
-    .set('X-Forwarded-For', mfaLoginClientIp)
+    .set("X-Forwarded-For", mfaLoginClientIp)
     .send({
       username: user.username,
       password,
@@ -2862,17 +2934,17 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
     activeSessionsBeforeMissingCode
   );
 
-  const mfaBruteForceIp = '198.51.100.43';
+  const mfaBruteForceIp = "198.51.100.43";
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const rejectedAttempt = await request(app)
-      .post('/api/v1/auth/login')
-      .set('X-Forwarded-For', mfaBruteForceIp)
+      .post("/api/v1/auth/login")
+      .set("X-Forwarded-For", mfaBruteForceIp)
       .send({ username: user.username, password, totpCode: confirmationCode });
     assert.equal(rejectedAttempt.status, 401);
   }
   const rateLimitedMfaAttempt = await request(app)
-    .post('/api/v1/auth/login')
-    .set('X-Forwarded-For', mfaBruteForceIp)
+    .post("/api/v1/auth/login")
+    .set("X-Forwarded-For", mfaBruteForceIp)
     .send({ username: user.username, password, totpCode: confirmationCode });
   assert.equal(rateLimitedMfaAttempt.status, 429);
 
@@ -2890,17 +2962,11 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
   const concurrentLogins = await Promise.all([
     request(app)
       .post("/api/v1/auth/login")
-      .set('X-Forwarded-For', mfaLoginClientIp)
+      .set("X-Forwarded-For", mfaLoginClientIp)
       .send(loginBody),
-    request(app)
-      .post("/api/v1/auth/login")
-      .set('X-Forwarded-For', mfaLoginClientIp)
-      .send(loginBody)
+    request(app).post("/api/v1/auth/login").set("X-Forwarded-For", mfaLoginClientIp).send(loginBody)
   ]);
-  assert.deepEqual(
-    concurrentLogins.map((response) => response.status).sort(),
-    [200, 401]
-  );
+  assert.deepEqual(concurrentLogins.map((response) => response.status).sort(), [200, 401]);
   const successfulLogin = concurrentLogins.find((response) => response.status === 200)!;
   assert.equal(successfulLogin.status, 200);
   assert.equal(successfulLogin.body.data.mfaEnabled, true);
@@ -2944,19 +3010,18 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
   assert.equal(disabledUser.totpKeyId, null);
   assert.equal(disabledUser.totpEnabledAt, null);
   assert.equal(disabledUser.totpLastUsedStep, null);
-  assert.equal(
-    await prisma.authSession.count({ where: { userId: user.id, revokedAt: null } }),
-    0
-  );
+  assert.equal(await prisma.authSession.count({ where: { userId: user.id, revokedAt: null } }), 0);
 
   const auditLogs = await prisma.auditLog.findMany({
     where: { actorUserId: user.id },
     select: { action: true, metadata: true }
   });
-  assert.deepEqual(
-    auditLogs.map((entry) => entry.action).sort(),
-    ["auth.login", "auth.mfa_disabled", "auth.mfa_enabled", "auth.mfa_enrollment_started"]
-  );
+  assert.deepEqual(auditLogs.map((entry) => entry.action).sort(), [
+    "auth.login",
+    "auth.mfa_disabled",
+    "auth.mfa_enabled",
+    "auth.mfa_enrollment_started"
+  ]);
   assert.equal(JSON.stringify(auditLogs).includes(secret), false);
   assert.equal(JSON.stringify(auditLogs).includes(confirmationCode), false);
 });
@@ -3070,10 +3135,7 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
   assert.equal(disabled.status, 200);
   assert.equal(disabled.body.data.mfaEnabled, false);
   assert.equal(disabled.body.data.mustEnrollMfa, false);
-  assert.equal(
-    await prisma.authSession.count({ where: { userId: user.id, revokedAt: null } }),
-    0
-  );
+  assert.equal(await prisma.authSession.count({ where: { userId: user.id, revokedAt: null } }), 0);
   const disabledUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
   assert.equal(disabledUser.totpEnabledAt, null);
   assert.equal(disabledUser.totpSecretCiphertext, null);
@@ -3130,13 +3192,14 @@ test("public uygunluk kotası iki bağımsız uygulama örneğinde ortak tüketi
 
   for (let index = 0; index < 31; index += 1) {
     responses.push(
-      await request(index % 2 === 0 ? firstApp : secondApp).get(
-        "/api/v1/test-public-availability"
-      )
+      await request(index % 2 === 0 ? firstApp : secondApp).get("/api/v1/test-public-availability")
     );
   }
 
-  assert.equal(responses.slice(0, 30).every((response) => response.status === 204), true);
+  assert.equal(
+    responses.slice(0, 30).every((response) => response.status === 204),
+    true
+  );
   assert.equal(responses[30]?.status, 429);
   assert.equal(responses[30]?.body.message, "Çok fazla uygunluk sorgusu yaptınız.");
 });

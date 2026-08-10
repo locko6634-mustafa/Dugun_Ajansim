@@ -136,6 +136,23 @@ FROM unnest(ARRAY[
 ]) AS t(tbl) WHERE to_regclass('public.' || t.tbl) IS NOT NULL \gexec
 SELECT format('REVOKE ALL PRIVILEGES ON TABLE %I.%I FROM %I', 'public', '_prisma_migrations', :'runtime_user')
 WHERE to_regclass('public."_prisma_migrations"') IS NOT NULL \gexec
+SELECT format('REVOKE ALL PRIVILEGES ON TABLE %I.%I FROM %I', 'public', 'rls_enforcement_state', :'runtime_user')
+WHERE to_regclass('public.rls_enforcement_state') IS NOT NULL \gexec
+
+SELECT format('GRANT EXECUTE ON FUNCTION public.%s TO %I', function_signature, :'runtime_user')
+FROM unnest(ARRAY[
+  'app_context_value(text)',
+  'app_context_is_role(text[])',
+  'app_maintenance_for(text[])',
+  'app_rls_is_enforced()',
+  'app_wedding_allowed(text)',
+  'app_application_allowed(text)',
+  'app_delivery_allowed(text)',
+  'public_venue_has_conflict(text,timestamp with time zone,timestamp with time zone,text,text)'
+]) AS allowed(function_signature)
+WHERE to_regprocedure('public.' || function_signature) IS NOT NULL \gexec
+SELECT format('REVOKE ALL ON FUNCTION public.%s FROM %I', 'set_rls_enforcement(boolean)', :'runtime_user')
+WHERE to_regprocedure('public.set_rls_enforcement(boolean)') IS NOT NULL \gexec
 
 SELECT format(
   'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC',

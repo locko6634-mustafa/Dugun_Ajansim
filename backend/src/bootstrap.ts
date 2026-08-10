@@ -1,12 +1,12 @@
 // Express uygulamamızı içe aktar
-import app from './app.js';
+import app from "./app.js";
 // Ortam değişkenlerimizi içe aktar
-import { env } from './config/env.config.js';
+import { env } from "./config/env.config.js";
 // Prisma veritabanı istemcimizi içe aktar
-import { prisma } from './config/prisma.js';
+import { prisma, runWithRlsContext } from "./config/prisma.js";
 // Graceful shutdown oluşturucusunu ve tipini içe aktar
-import { createGracefulShutdown, type GracefulShutdown } from './utils/processLifecycle.js';
-import { expireStalePaymentFlows } from './services/booking.service.js';
+import { createGracefulShutdown, type GracefulShutdown } from "./utils/processLifecycle.js";
+import { expireStalePaymentFlows } from "./services/booking.service.js";
 
 // Kapanış süreci için maksimum bekleme süresi (10 saniye)
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -19,10 +19,13 @@ export const startServer = (): GracefulShutdown => {
     if (paymentFlowSweepRunning) return;
     paymentFlowSweepRunning = true;
     try {
-      await expireStalePaymentFlows();
+      await runWithRlsContext(
+        { actorRole: "maintenance", purpose: "maintenance.payment-sweep" },
+        () => expireStalePaymentFlows()
+      );
     } catch (error) {
-      console.error('❌ Süresi dolan ödeme akışları temizlenemedi.');
-      if (env.NODE_ENV === 'development') console.error(error);
+      console.error("❌ Süresi dolan ödeme akışları temizlenemedi.");
+      if (env.NODE_ENV === "development") console.error(error);
     } finally {
       paymentFlowSweepRunning = false;
     }
@@ -30,7 +33,7 @@ export const startServer = (): GracefulShutdown => {
   void sweepExpiredPaymentFlows();
   const paymentFlowSweepTimer = setInterval(
     () => void sweepExpiredPaymentFlows(),
-    PAYMENT_FLOW_SWEEP_INTERVAL_MS,
+    PAYMENT_FLOW_SWEEP_INTERVAL_MS
   );
   paymentFlowSweepTimer.unref();
 
@@ -47,7 +50,7 @@ export const startServer = (): GracefulShutdown => {
 
   // Kapanış hatalarını ortama göre günlüğe kaydeden iç fonksiyon
   const logShutdownError = (message: string, error?: unknown): void => {
-    if (env.NODE_ENV === 'development' && error !== undefined) {
+    if (env.NODE_ENV === "development" && error !== undefined) {
       console.error(message, error);
     } else {
       console.error(message);
@@ -81,7 +84,7 @@ export const startServer = (): GracefulShutdown => {
     disconnectDatabase: () => prisma.$disconnect(),
     logInfo: console.log,
     logError: logShutdownError,
-    timeoutMs: SHUTDOWN_TIMEOUT_MS,
+    timeoutMs: SHUTDOWN_TIMEOUT_MS
   });
   const gracefulShutdown: GracefulShutdown = (signal, exitCode) => {
     clearInterval(paymentFlowSweepTimer);
@@ -89,16 +92,16 @@ export const startServer = (): GracefulShutdown => {
   };
 
   // İşlenmeyen asenkron Promise hatalarını (Unhandled Rejection) dinle ve güvenli kapanışı başlat
-  process.on('unhandledRejection', (error: unknown) => {
-    console.error('💥 UNHANDLED REJECTION! Sunucu kapatılıyor...');
-    logShutdownError('❌ İşlenmeyen asenkron hata oluştu.', error);
-    void gracefulShutdown('UNHANDLED_REJECTION', 1);
+  process.on("unhandledRejection", (error: unknown) => {
+    console.error("💥 UNHANDLED REJECTION! Sunucu kapatılıyor...");
+    logShutdownError("❌ İşlenmeyen asenkron hata oluştu.", error);
+    void gracefulShutdown("UNHANDLED_REJECTION", 1);
   });
 
   // İşletim sisteminden gelen SIGTERM (Sunucuyu Durdur) sinyalini dinle
-  process.on('SIGTERM', () => void gracefulShutdown('SIGTERM', 0));
+  process.on("SIGTERM", () => void gracefulShutdown("SIGTERM", 0));
   // İşletim sisteminden gelen SIGINT (Ctrl + C) sinyalini dinle
-  process.on('SIGINT', () => void gracefulShutdown('SIGINT', 0));
+  process.on("SIGINT", () => void gracefulShutdown("SIGINT", 0));
 
   // Oluşturulan Graceful Shutdown kontrolcüsünü döndür
   return gracefulShutdown;

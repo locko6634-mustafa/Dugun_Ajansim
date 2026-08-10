@@ -5,12 +5,7 @@ import { env } from "../config/env.config.js";
 import type { z } from "zod";
 import type { bookingBodySchema } from "../schemas/api.schemas.js";
 import { AppError } from "../utils/appError.js";
-import {
-  createOpaqueToken,
-  hashPassword,
-  hashToken,
-  tokenHashesMatch
-} from "../utils/crypto.js";
+import { createOpaqueToken, hashPassword, hashToken, tokenHashesMatch } from "../utils/crypto.js";
 import {
   addCalendarDays,
   atIstanbulTime,
@@ -84,10 +79,7 @@ const createAudit = (
     }
   });
 
-const deleteOrphanedCustomerVenue = (
-  transaction: Prisma.TransactionClient,
-  venueId: string
-) =>
+const deleteOrphanedCustomerVenue = (transaction: Prisma.TransactionClient, venueId: string) =>
   transaction.venue.deleteMany({
     where: {
       id: venueId,
@@ -132,9 +124,7 @@ type VenueScheduleAvailabilityInput = {
   excludeApplicationId?: string;
 };
 
-const activeScheduleApplicationWhere = (
-  now: Date
-): Prisma.BookingApplicationWhereInput => ({
+const activeScheduleApplicationWhere = (now: Date): Prisma.BookingApplicationWhereInput => ({
   OR: [
     { status: "ONAYLANDI" },
     { status: "ONAY_BEKLIYOR", source: "ADMIN" },
@@ -145,6 +135,22 @@ const activeScheduleApplicationWhere = (
     }
   ]
 });
+
+const hasPublicVenueConflict = async (
+  transaction: Prisma.TransactionClient,
+  input: VenueScheduleAvailabilityInput
+): Promise<boolean> => {
+  const [result] = await transaction.$queryRaw<Array<{ hasConflict: boolean }>>(Prisma.sql`
+    SELECT public.public_venue_has_conflict(
+      ${input.venueId}::text,
+      ${input.startsAt},
+      ${input.endsAt},
+      ${input.excludeWeddingId ?? null}::text,
+      ${input.excludeApplicationId ?? null}::text
+    ) AS "hasConflict"
+  `);
+  return result?.hasConflict ?? true;
+};
 
 export const assertVenueScheduleAvailable = async (
   transaction: Prisma.TransactionClient,
@@ -333,31 +339,49 @@ export const createBookingApplication = async (
             throw new AppError("Seçilen hizmetlerden biri artık aktif değil.", 400);
           }
 
-          const conflictingWedding = await transaction.wedding.findFirst({
-            where: {
-              venueId: venue.id,
-              cancelledAt: null,
-              deletedAt: null,
-              startsAt: { lt: endsAt },
-              endsAt: { gt: startsAt }
-            },
-            select: { startsAt: true, endsAt: true }
-          });
-
-          const conflictingApp = !conflictingWedding
-            ? await transaction.bookingApplication.findFirst({
-                where: {
+          const publicConflict =
+            options.source === "PUBLIC_FORM"
+              ? await hasPublicVenueConflict(transaction, {
                   venueId: venue.id,
-                  deletedAt: null,
-                  ...activeScheduleApplicationWhere(new Date()),
-                  weddingStartsAt: { lt: endsAt },
-                  weddingEndsAt: { gt: startsAt }
-                },
-                select: { weddingStartsAt: true, weddingEndsAt: true }
-              })
-            : null;
+                  startsAt,
+                  endsAt
+                })
+              : false;
+          const conflictingWedding =
+            options.source === "PUBLIC_FORM"
+              ? null
+              : await transaction.wedding.findFirst({
+                  where: {
+                    venueId: venue.id,
+                    cancelledAt: null,
+                    deletedAt: null,
+                    startsAt: { lt: endsAt },
+                    endsAt: { gt: startsAt }
+                  },
+                  select: { startsAt: true, endsAt: true }
+                });
 
-          if (conflictingWedding || conflictingApp) {
+          const conflictingApp =
+            options.source !== "PUBLIC_FORM" && !conflictingWedding
+              ? await transaction.bookingApplication.findFirst({
+                  where: {
+                    venueId: venue.id,
+                    deletedAt: null,
+                    ...activeScheduleApplicationWhere(new Date()),
+                    weddingStartsAt: { lt: endsAt },
+                    weddingEndsAt: { gt: startsAt }
+                  },
+                  select: { weddingStartsAt: true, weddingEndsAt: true }
+                })
+              : null;
+
+          if (publicConflict || conflictingWedding || conflictingApp) {
+            if (publicConflict) {
+              throw new AppError(
+                "Seçilen salonda bu saat aralığı doludur. Lütfen farklı bir saat seçin.",
+                400
+              );
+            }
             const conflStart = formatIstanbulTime(
               conflictingWedding?.startsAt || conflictingApp!.weddingStartsAt
             );
@@ -631,12 +655,7 @@ const expireStalePaymentFlow = async (
         select: { id: true, venueId: true },
         take: 1
       });
-      return purgeExpiredPaymentFlowCandidates(
-        transaction,
-        expiredCandidates,
-        now,
-        correlationId
-      );
+      return purgeExpiredPaymentFlowCandidates(transaction, expiredCandidates, now, correlationId);
     },
     { maxWait: 2_000, timeout: 10_000 }
   );
@@ -666,12 +685,7 @@ export const expireStalePaymentFlows = async (
         orderBy: [{ paymentFlowExpiresAt: "asc" }, { id: "asc" }],
         take: PAYMENT_FLOW_SWEEP_BATCH_SIZE
       });
-      return purgeExpiredPaymentFlowCandidates(
-        transaction,
-        expiredCandidates,
-        now,
-        correlationId
-      );
+      return purgeExpiredPaymentFlowCandidates(transaction, expiredCandidates, now, correlationId);
     },
     { maxWait: 2_000, timeout: 30_000 }
   );
@@ -1289,8 +1303,18 @@ export const getPublicVenueAvailability = async (
     );
   }
 
-  const availability = await getVenueAvailability(venueId, dateStr);
-  return { date: availability.date, hasOccupancy: availability.occupiedSlots.length > 0 };
+  const dayStartsAt = new Date(`${dateStr}T00:00:00+03:00`);
+  const dayEndsAt = new Date(`${dateStr}T23:59:59+03:00`);
+  const [result] = await prisma.$queryRaw<Array<{ hasOccupancy: boolean }>>(Prisma.sql`
+    SELECT public.public_venue_has_conflict(
+      ${venueId}::text,
+      ${dayStartsAt},
+      ${dayEndsAt},
+      NULL::text,
+      NULL::text
+    ) AS "hasOccupancy"
+  `);
+  return { date: dateStr, hasOccupancy: result?.hasOccupancy ?? true };
 };
 
 export { createAudit };

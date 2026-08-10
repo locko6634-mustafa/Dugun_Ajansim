@@ -1,5 +1,5 @@
-import { env } from '../config/env.config.js';
-import { prisma } from '../config/prisma.js';
+import { env } from "../config/env.config.js";
+import { prisma, runWithRlsContext } from "../config/prisma.js";
 import {
   buildBookingApplicationPiiData,
   buildMessageTaskPiiData,
@@ -8,8 +8,8 @@ import {
   decryptMessageTaskPii,
   decryptWeddingPii,
   piiCryptography,
-  type NullablePiiEnvelope,
-} from '../utils/pii-crypto.js';
+  type NullablePiiEnvelope
+} from "../utils/pii-crypto.js";
 
 const DEFAULT_BATCH_SIZE = 75;
 const MIN_BATCH_SIZE = 50;
@@ -35,7 +35,7 @@ type BookingRow = EnvelopeRow & {
   groomPhoneBlindIndex: string | null;
 };
 
-type WeddingRow = Omit<BookingRow, 'rejectionReason'>;
+type WeddingRow = Omit<BookingRow, "rejectionReason">;
 type MessageRow = EnvelopeRow & {
   recipientPhone: string | null;
   recipientPhoneBlindIndex: string | null;
@@ -56,13 +56,13 @@ const emptyVerification = (): Verification => ({
   invalidEnvelope: 0,
   blindIndexMismatch: 0,
   inactiveKey: 0,
-  legacyPlaintext: 0,
+  legacyPlaintext: 0
 });
 
 const parseBatchSize = (): number => {
-  const argument = process.argv.find((value) => value.startsWith('--batch-size='));
+  const argument = process.argv.find((value) => value.startsWith("--batch-size="));
   if (!argument) return DEFAULT_BATCH_SIZE;
-  const value = Number(argument.slice('--batch-size='.length));
+  const value = Number(argument.slice("--batch-size=".length));
   if (!Number.isInteger(value) || value < MIN_BATCH_SIZE || value > MAX_BATCH_SIZE) {
     throw new Error(`--batch-size ${MIN_BATCH_SIZE}-${MAX_BATCH_SIZE} arasında olmalıdır.`);
   }
@@ -78,9 +78,9 @@ const hasBookingLegacyPlaintext = (row: BookingRow | WeddingRow): boolean =>
     row.groomLastName,
     row.groomPhone,
     row.primaryEmail,
-    row.note,
+    row.note
   ].some((value) => value !== null) ||
-  ('rejectionReason' in row && row.rejectionReason !== null);
+  ("rejectionReason" in row && row.rejectionReason !== null);
 
 const backfillBookings = (batchSize: number) =>
   prisma.$transaction(async (transaction) => {
@@ -103,16 +103,17 @@ const backfillBookings = (batchSize: number) =>
     `;
     let updated = 0;
     for (const row of rows) {
-      const payload = decryptBookingApplicationPii(row.id, row, piiCryptography, 'dual');
-      const mode = row.piiCiphertext === null || hasBookingLegacyPlaintext(row) ? 'dual' : 'encrypted';
+      const payload = decryptBookingApplicationPii(row.id, row, piiCryptography, "dual");
+      const mode =
+        row.piiCiphertext === null || hasBookingLegacyPlaintext(row) ? "dual" : "encrypted";
       const result = await transaction.bookingApplication.updateMany({
         where: {
           id: row.id,
           piiRevision: row.piiRevision,
           piiCiphertext: row.piiCiphertext,
-          piiKeyId: row.piiKeyId,
+          piiKeyId: row.piiKeyId
         },
-        data: buildBookingApplicationPiiData(row.id, payload, row.piiRevision + 1, mode),
+        data: buildBookingApplicationPiiData(row.id, payload, row.piiRevision + 1, mode)
       });
       updated += result.count;
     }
@@ -140,16 +141,17 @@ const backfillWeddings = (batchSize: number) =>
     `;
     let updated = 0;
     for (const row of rows) {
-      const payload = decryptWeddingPii(row.id, row, piiCryptography, 'dual');
-      const mode = row.piiCiphertext === null || hasBookingLegacyPlaintext(row) ? 'dual' : 'encrypted';
+      const payload = decryptWeddingPii(row.id, row, piiCryptography, "dual");
+      const mode =
+        row.piiCiphertext === null || hasBookingLegacyPlaintext(row) ? "dual" : "encrypted";
       const result = await transaction.wedding.updateMany({
         where: {
           id: row.id,
           piiRevision: row.piiRevision,
           piiCiphertext: row.piiCiphertext,
-          piiKeyId: row.piiKeyId,
+          piiKeyId: row.piiKeyId
         },
-        data: buildWeddingPiiData(row.id, payload, row.piiRevision + 1, mode),
+        data: buildWeddingPiiData(row.id, payload, row.piiRevision + 1, mode)
       });
       updated += result.count;
     }
@@ -172,16 +174,16 @@ const backfillMessages = (batchSize: number) =>
     `;
     let updated = 0;
     for (const row of rows) {
-      const payload = decryptMessageTaskPii(row.id, row, piiCryptography, 'dual');
-      const mode = row.piiCiphertext === null || row.recipientPhone !== null ? 'dual' : 'encrypted';
+      const payload = decryptMessageTaskPii(row.id, row, piiCryptography, "dual");
+      const mode = row.piiCiphertext === null || row.recipientPhone !== null ? "dual" : "encrypted";
       const result = await transaction.messageTask.updateMany({
         where: {
           id: row.id,
           piiRevision: row.piiRevision,
           piiCiphertext: row.piiCiphertext,
-          piiKeyId: row.piiKeyId,
+          piiKeyId: row.piiKeyId
         },
-        data: buildMessageTaskPiiData(row.id, payload, row.piiRevision + 1, mode),
+        data: buildMessageTaskPiiData(row.id, payload, row.piiRevision + 1, mode)
       });
       updated += result.count;
     }
@@ -210,10 +212,10 @@ const redactBookingLegacy = (batchSize: number) =>
     `;
     let updated = 0;
     for (const row of rows) {
-      const payload = decryptBookingApplicationPii(row.id, row, piiCryptography, 'strict');
+      const payload = decryptBookingApplicationPii(row.id, row, piiCryptography, "strict");
       const result = await transaction.bookingApplication.updateMany({
         where: { id: row.id, piiRevision: row.piiRevision, piiCiphertext: row.piiCiphertext },
-        data: buildBookingApplicationPiiData(row.id, payload, row.piiRevision + 1, 'encrypted'),
+        data: buildBookingApplicationPiiData(row.id, payload, row.piiRevision + 1, "encrypted")
       });
       updated += result.count;
     }
@@ -242,10 +244,10 @@ const redactWeddingLegacy = (batchSize: number) =>
     `;
     let updated = 0;
     for (const row of rows) {
-      const payload = decryptWeddingPii(row.id, row, piiCryptography, 'strict');
+      const payload = decryptWeddingPii(row.id, row, piiCryptography, "strict");
       const result = await transaction.wedding.updateMany({
         where: { id: row.id, piiRevision: row.piiRevision, piiCiphertext: row.piiCiphertext },
-        data: buildWeddingPiiData(row.id, payload, row.piiRevision + 1, 'encrypted'),
+        data: buildWeddingPiiData(row.id, payload, row.piiRevision + 1, "encrypted")
       });
       updated += result.count;
     }
@@ -266,10 +268,10 @@ const redactMessageLegacy = (batchSize: number) =>
     `;
     let updated = 0;
     for (const row of rows) {
-      const payload = decryptMessageTaskPii(row.id, row, piiCryptography, 'strict');
+      const payload = decryptMessageTaskPii(row.id, row, piiCryptography, "strict");
       const result = await transaction.messageTask.updateMany({
         where: { id: row.id, piiRevision: row.piiRevision, piiCiphertext: row.piiCiphertext },
-        data: buildMessageTaskPiiData(row.id, payload, row.piiRevision + 1, 'encrypted'),
+        data: buildMessageTaskPiiData(row.id, payload, row.piiRevision + 1, "encrypted")
       });
       updated += result.count;
     }
@@ -281,16 +283,31 @@ const verifyBookings = async (): Promise<Verification> => {
   let cursor: string | undefined;
   while (true) {
     const rows = await prisma.bookingApplication.findMany({
-      orderBy: { id: 'asc' },
+      orderBy: { id: "asc" },
       take: MAX_BATCH_SIZE,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       select: {
-        id: true, brideFirstName: true, brideLastName: true, bridePhone: true,
-        groomFirstName: true, groomLastName: true, groomPhone: true, primaryEmail: true,
-        note: true, rejectionReason: true, piiCiphertext: true, piiIv: true, piiAuthTag: true,
-        piiKeyId: true, piiEncryptionVersion: true, piiSchemaVersion: true, piiRevision: true,
-        primaryEmailBlindIndex: true, bridePhoneBlindIndex: true, groomPhoneBlindIndex: true,
-      },
+        id: true,
+        brideFirstName: true,
+        brideLastName: true,
+        bridePhone: true,
+        groomFirstName: true,
+        groomLastName: true,
+        groomPhone: true,
+        primaryEmail: true,
+        note: true,
+        rejectionReason: true,
+        piiCiphertext: true,
+        piiIv: true,
+        piiAuthTag: true,
+        piiKeyId: true,
+        piiEncryptionVersion: true,
+        piiSchemaVersion: true,
+        piiRevision: true,
+        primaryEmailBlindIndex: true,
+        bridePhoneBlindIndex: true,
+        groomPhoneBlindIndex: true
+      }
     });
     if (rows.length === 0) break;
     for (const row of rows) {
@@ -301,13 +318,25 @@ const verifyBookings = async (): Promise<Verification> => {
         continue;
       }
       try {
-        const payload = decryptBookingApplicationPii(row.id, row, piiCryptography, 'strict');
+        const payload = decryptBookingApplicationPii(row.id, row, piiCryptography, "strict");
         if (row.piiKeyId !== env.DATA_ENCRYPTION_ACTIVE_KEY_ID) result.inactiveKey += 1;
         if (
-          row.primaryEmailBlindIndex !== piiCryptography.blindIndex('BookingApplication.primaryEmail', payload.primaryEmail, 'email') ||
-          row.bridePhoneBlindIndex !== piiCryptography.blindIndex('BookingApplication.bridePhone', payload.bridePhone, 'phone') ||
-          row.groomPhoneBlindIndex !== piiCryptography.blindIndex('BookingApplication.groomPhone', payload.groomPhone, 'phone')
-        ) result.blindIndexMismatch += 1;
+          row.primaryEmailBlindIndex !==
+            piiCryptography.blindIndex(
+              "BookingApplication.primaryEmail",
+              payload.primaryEmail,
+              "email"
+            ) ||
+          row.bridePhoneBlindIndex !==
+            piiCryptography.blindIndex(
+              "BookingApplication.bridePhone",
+              payload.bridePhone,
+              "phone"
+            ) ||
+          row.groomPhoneBlindIndex !==
+            piiCryptography.blindIndex("BookingApplication.groomPhone", payload.groomPhone, "phone")
+        )
+          result.blindIndexMismatch += 1;
       } catch {
         result.invalidEnvelope += 1;
       }
@@ -322,16 +351,30 @@ const verifyWeddings = async (): Promise<Verification> => {
   let cursor: string | undefined;
   while (true) {
     const rows = await prisma.wedding.findMany({
-      orderBy: { id: 'asc' },
+      orderBy: { id: "asc" },
       take: MAX_BATCH_SIZE,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       select: {
-        id: true, brideFirstName: true, brideLastName: true, bridePhone: true,
-        groomFirstName: true, groomLastName: true, groomPhone: true, primaryEmail: true,
-        note: true, piiCiphertext: true, piiIv: true, piiAuthTag: true, piiKeyId: true,
-        piiEncryptionVersion: true, piiSchemaVersion: true, piiRevision: true,
-        primaryEmailBlindIndex: true, bridePhoneBlindIndex: true, groomPhoneBlindIndex: true,
-      },
+        id: true,
+        brideFirstName: true,
+        brideLastName: true,
+        bridePhone: true,
+        groomFirstName: true,
+        groomLastName: true,
+        groomPhone: true,
+        primaryEmail: true,
+        note: true,
+        piiCiphertext: true,
+        piiIv: true,
+        piiAuthTag: true,
+        piiKeyId: true,
+        piiEncryptionVersion: true,
+        piiSchemaVersion: true,
+        piiRevision: true,
+        primaryEmailBlindIndex: true,
+        bridePhoneBlindIndex: true,
+        groomPhoneBlindIndex: true
+      }
     });
     if (rows.length === 0) break;
     for (const row of rows) {
@@ -342,13 +385,17 @@ const verifyWeddings = async (): Promise<Verification> => {
         continue;
       }
       try {
-        const payload = decryptWeddingPii(row.id, row, piiCryptography, 'strict');
+        const payload = decryptWeddingPii(row.id, row, piiCryptography, "strict");
         if (row.piiKeyId !== env.DATA_ENCRYPTION_ACTIVE_KEY_ID) result.inactiveKey += 1;
         if (
-          row.primaryEmailBlindIndex !== piiCryptography.blindIndex('Wedding.primaryEmail', payload.primaryEmail, 'email') ||
-          row.bridePhoneBlindIndex !== piiCryptography.blindIndex('Wedding.bridePhone', payload.bridePhone, 'phone') ||
-          row.groomPhoneBlindIndex !== piiCryptography.blindIndex('Wedding.groomPhone', payload.groomPhone, 'phone')
-        ) result.blindIndexMismatch += 1;
+          row.primaryEmailBlindIndex !==
+            piiCryptography.blindIndex("Wedding.primaryEmail", payload.primaryEmail, "email") ||
+          row.bridePhoneBlindIndex !==
+            piiCryptography.blindIndex("Wedding.bridePhone", payload.bridePhone, "phone") ||
+          row.groomPhoneBlindIndex !==
+            piiCryptography.blindIndex("Wedding.groomPhone", payload.groomPhone, "phone")
+        )
+          result.blindIndexMismatch += 1;
       } catch {
         result.invalidEnvelope += 1;
       }
@@ -363,14 +410,21 @@ const verifyMessages = async (): Promise<Verification> => {
   let cursor: string | undefined;
   while (true) {
     const rows = await prisma.messageTask.findMany({
-      orderBy: { id: 'asc' },
+      orderBy: { id: "asc" },
       take: MAX_BATCH_SIZE,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       select: {
-        id: true, recipientPhone: true, piiCiphertext: true, piiIv: true, piiAuthTag: true,
-        piiKeyId: true, piiEncryptionVersion: true, piiSchemaVersion: true, piiRevision: true,
-        recipientPhoneBlindIndex: true,
-      },
+        id: true,
+        recipientPhone: true,
+        piiCiphertext: true,
+        piiIv: true,
+        piiAuthTag: true,
+        piiKeyId: true,
+        piiEncryptionVersion: true,
+        piiSchemaVersion: true,
+        piiRevision: true,
+        recipientPhoneBlindIndex: true
+      }
     });
     if (rows.length === 0) break;
     for (const row of rows) {
@@ -381,11 +435,13 @@ const verifyMessages = async (): Promise<Verification> => {
         continue;
       }
       try {
-        const payload = decryptMessageTaskPii(row.id, row, piiCryptography, 'strict');
+        const payload = decryptMessageTaskPii(row.id, row, piiCryptography, "strict");
         if (row.piiKeyId !== env.DATA_ENCRYPTION_ACTIVE_KEY_ID) result.inactiveKey += 1;
         if (
-          row.recipientPhoneBlindIndex !== piiCryptography.blindIndex('MessageTask.recipientPhone', payload.recipientPhone, 'phone')
-        ) result.blindIndexMismatch += 1;
+          row.recipientPhoneBlindIndex !==
+          piiCryptography.blindIndex("MessageTask.recipientPhone", payload.recipientPhone, "phone")
+        )
+          result.blindIndexMismatch += 1;
       } catch {
         result.invalidEnvelope += 1;
       }
@@ -404,45 +460,45 @@ const hasVerificationFailure = (value: Verification): boolean =>
 
 const main = async () => {
   const operation = process.argv[2];
-  if (operation === '--backfill') {
+  if (operation === "--backfill") {
     const batchSize = parseBatchSize();
     const result = {
       bookingApplications: await backfillBookings(batchSize),
       weddings: await backfillWeddings(batchSize),
-      messageTasks: await backfillMessages(batchSize),
+      messageTasks: await backfillMessages(batchSize)
     };
-    console.log(JSON.stringify({ operation: 'backfill', batchSize, updated: result }));
+    console.log(JSON.stringify({ operation: "backfill", batchSize, updated: result }));
     return;
   }
-  if (operation === '--redact-legacy') {
+  if (operation === "--redact-legacy") {
     const batchSize = parseBatchSize();
     const result = {
       bookingApplications: await redactBookingLegacy(batchSize),
       weddings: await redactWeddingLegacy(batchSize),
-      messageTasks: await redactMessageLegacy(batchSize),
+      messageTasks: await redactMessageLegacy(batchSize)
     };
-    console.log(JSON.stringify({ operation: 'redact-legacy', batchSize, updated: result }));
+    console.log(JSON.stringify({ operation: "redact-legacy", batchSize, updated: result }));
     return;
   }
-  if (operation === '--verify') {
+  if (operation === "--verify") {
     const result = {
       bookingApplications: await verifyBookings(),
       weddings: await verifyWeddings(),
-      messageTasks: await verifyMessages(),
+      messageTasks: await verifyMessages()
     };
     const ready = !Object.values(result).some(hasVerificationFailure);
-    console.log(JSON.stringify({ operation: 'verify', ready, models: result }));
+    console.log(JSON.stringify({ operation: "verify", ready, models: result }));
     if (!ready) process.exitCode = 2;
     return;
   }
   throw new Error(
-    'Kullanım: maintainPiiEncryption.ts --verify | --backfill | --redact-legacy [--batch-size=50..100]',
+    "Kullanım: maintainPiiEncryption.ts --verify | --backfill | --redact-legacy [--batch-size=50..100]"
   );
 };
 
-main()
+runWithRlsContext({ actorRole: "maintenance", purpose: "maintenance.pii" }, main)
   .catch(() => {
-    console.error('PII bakım işlemi başarısız oldu; hassas veri ayrıntıları loglanmadı.');
+    console.error("PII bakım işlemi başarısız oldu; hassas veri ayrıntıları loglanmadı.");
     process.exitCode = 1;
   })
   .finally(async () => {

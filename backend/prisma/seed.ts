@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -103,6 +103,11 @@ const services = [
 
 const main = async () => {
   await prisma.$transaction([
+    prisma.$queryRaw(Prisma.sql`
+      SELECT
+        set_config('app.actor_role', 'maintenance', true),
+        set_config('app.purpose', 'maintenance.seed', true)
+    `),
     ...venues.map((venue) =>
       prisma.venue.upsert({
         where: { slug: venue.slug },

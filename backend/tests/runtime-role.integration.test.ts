@@ -97,15 +97,24 @@ test("sentetik runtime rolü uygulama CRUD yetkilerini korur ve yönetim işleml
       'CREATE TABLE public."runtime_role_forbidden_ddl" ("id" integer)'
     )
   );
-  await expectPermissionDenied(() =>
-    runtimePrisma.$executeRaw`UPDATE "audit_logs" SET "action" = 'forbidden' WHERE "id" = ${auditLog.id}`
+  await expectPermissionDenied(
+    () =>
+      runtimePrisma.$executeRaw`UPDATE "audit_logs" SET "action" = 'forbidden' WHERE "id" = ${auditLog.id}`
+  );
+  await expectPermissionDenied(
+    () => runtimePrisma.$executeRaw`DELETE FROM "audit_logs" WHERE "id" = ${auditLog.id}`
   );
   await expectPermissionDenied(() =>
-    runtimePrisma.$executeRaw`DELETE FROM "audit_logs" WHERE "id" = ${auditLog.id}`
+    runtimePrisma.$executeRawUnsafe('TRUNCATE TABLE "audit_logs"')
   );
-  await expectPermissionDenied(() => runtimePrisma.$executeRawUnsafe('TRUNCATE TABLE "audit_logs"'));
   await expectPermissionDenied(() =>
     runtimePrisma.$queryRawUnsafe('SELECT migration_name FROM "_prisma_migrations" LIMIT 1')
+  );
+  await expectPermissionDenied(() =>
+    runtimePrisma.$queryRawUnsafe("SELECT enabled FROM public.rls_enforcement_state")
+  );
+  await expectPermissionDenied(() =>
+    runtimePrisma.$queryRawUnsafe("SELECT public.set_rls_enforcement(false)")
   );
 
   assert.equal(

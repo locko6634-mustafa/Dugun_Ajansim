@@ -1,17 +1,17 @@
-import { env } from '../config/env.config.js';
-import { prisma } from '../config/prisma.js';
+import { env } from "../config/env.config.js";
+import { prisma, runWithRlsContext } from "../config/prisma.js";
 import {
   countRetentionDeletes,
   runDataRetentionBatch,
-  type DataRetentionBatchResult,
-} from '../utils/dataRetention.js';
+  type DataRetentionBatchResult
+} from "../utils/dataRetention.js";
 
 const policy = {
   publicApplicationDays: env.PUBLIC_APPLICATION_RETENTION_DAYS,
   archivedApplicationDays: env.ARCHIVED_APPLICATION_RETENTION_DAYS,
   archivedWeddingDays: env.ARCHIVED_WEDDING_RETENTION_DAYS,
   securityArtifactDays: env.SECURITY_ARTIFACT_RETENTION_DAYS,
-  batchSize: env.DATA_RETENTION_BATCH_SIZE,
+  batchSize: env.DATA_RETENTION_BATCH_SIZE
 };
 
 const emptyResult = (): DataRetentionBatchResult => ({
@@ -21,7 +21,7 @@ const emptyResult = (): DataRetentionBatchResult => ({
   publicApplications: 0,
   archivedApplications: 0,
   archivedWeddings: 0,
-  customerUsers: 0,
+  customerUsers: 0
 });
 
 const main = async () => {
@@ -32,18 +32,18 @@ const main = async () => {
       total[key] += result[key];
     }
     const deleted = countRetentionDeletes(result);
-    console.log(JSON.stringify({ operation: 'data-retention', batch, deleted, result }));
+    console.log(JSON.stringify({ operation: "data-retention", batch, deleted, result }));
     if (deleted === 0) {
-      console.log(JSON.stringify({ operation: 'data-retention-complete', total }));
+      console.log(JSON.stringify({ operation: "data-retention-complete", total }));
       return;
     }
   }
-  throw new Error('Veri saklama temizliği güvenli parti sınırı içinde tamamlanamadı.');
+  throw new Error("Veri saklama temizliği güvenli parti sınırı içinde tamamlanamadı.");
 };
 
-main()
+runWithRlsContext({ actorRole: "maintenance", purpose: "maintenance.retention" }, main)
   .catch(() => {
-    console.error('Veri saklama temizliği başarısız oldu; kayıt ayrıntıları loglanmadı.');
+    console.error("Veri saklama temizliği başarısız oldu; kayıt ayrıntıları loglanmadı.");
     process.exitCode = 1;
   })
   .finally(async () => {

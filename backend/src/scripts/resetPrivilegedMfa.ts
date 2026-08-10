@@ -1,13 +1,13 @@
-import { randomUUID } from 'node:crypto';
-import { prisma } from '../config/prisma.js';
-import { normalizeUsername } from '../utils/domain.js';
+import { randomUUID } from "node:crypto";
+import { prisma, runWithRlsContext } from "../config/prisma.js";
+import { normalizeUsername } from "../utils/domain.js";
 
 const main = async (): Promise<void> => {
-  const rawUsername = process.env.MFA_RECOVERY_USERNAME ?? '';
+  const rawUsername = process.env.MFA_RECOVERY_USERNAME ?? "";
   const username = normalizeUsername(rawUsername);
-  const confirmation = process.env.MFA_RECOVERY_CONFIRM ?? '';
+  const confirmation = process.env.MFA_RECOVERY_CONFIRM ?? "";
   if (!username || confirmation !== `RESET-MFA:${username}`) {
-    throw new Error('MFA recovery için kullanıcı adı ve birebir onay ifadesi zorunludur.');
+    throw new Error("MFA recovery için kullanıcı adı ve birebir onay ifadesi zorunludur.");
   }
 
   const user = await prisma.user.findUnique({
@@ -17,16 +17,16 @@ const main = async (): Promise<void> => {
       role: true,
       status: true,
       updatedAt: true,
-      totpEnabledAt: true,
-    },
+      totpEnabledAt: true
+    }
   });
   if (
     !user ||
-    user.status !== 'ACTIVE' ||
-    !['ADMIN', 'SALON_YETKILISI'].includes(user.role) ||
+    user.status !== "ACTIVE" ||
+    !["ADMIN", "SALON_YETKILISI"].includes(user.role) ||
     user.totpEnabledAt === null
   ) {
-    throw new Error('Sıfırlanabilir etkin ayrıcalıklı MFA kaydı bulunamadı.');
+    throw new Error("Sıfırlanabilir etkin ayrıcalıklı MFA kaydı bulunamadı.");
   }
 
   const now = new Date();
@@ -40,31 +40,31 @@ const main = async (): Promise<void> => {
         totpKeyId: null,
         totpEnrollmentExpiresAt: null,
         totpEnabledAt: null,
-        totpLastUsedStep: null,
-      },
+        totpLastUsedStep: null
+      }
     });
-    if (claimed.count !== 1) throw new Error('MFA kaydı eşzamanlı olarak değiştirildi.');
+    if (claimed.count !== 1) throw new Error("MFA kaydı eşzamanlı olarak değiştirildi.");
     await transaction.authSession.updateMany({
       where: { userId: user.id, revokedAt: null },
-      data: { revokedAt: now },
+      data: { revokedAt: now }
     });
     await transaction.auditLog.create({
       data: {
-        action: 'auth.mfa_recovery_reset',
-        targetType: 'User',
+        action: "auth.mfa_recovery_reset",
+        targetType: "User",
         targetId: user.id,
         correlationId: randomUUID(),
-        metadata: { role: user.role, recovery: 'offline-operator' },
-      },
+        metadata: { role: user.role, recovery: "offline-operator" }
+      }
     });
   });
 
   console.log(JSON.stringify({ success: true, userId: user.id, sessionsRevoked: true }));
 };
 
-main()
+runWithRlsContext({ actorRole: "maintenance", purpose: "maintenance.reset-mfa" }, main)
   .catch(() => {
-    console.error('MFA recovery işlemi tamamlanamadı; hesap ayrıntıları loglanmadı.');
+    console.error("MFA recovery işlemi tamamlanamadı; hesap ayrıntıları loglanmadı.");
     process.exitCode = 1;
   })
   .finally(async () => prisma.$disconnect());
