@@ -41,6 +41,14 @@ Genel puan yalnız aritmetik ortalama değildir; canlıda doğrulanan yüksek et
 
 Gerçek sır değerleri ve müşteri kayıt içerikleri okunmadı veya rapora alınmadı. PII için yalnız toplu sayaçlar sorgulandı. Penetrasyon testi, yük/chaos testi ve dış hesapların yönetim paneli denetimi yapılmadı. Firewall durumu yetkili okuma gerektirdiği için doğrulanamadı; yalnız işletim sisteminde dinleyen portlar görülebildi. `sshd -T` host key okuma yetkisi olmadan çalışmadığı için SSH etkin ayarı dosya düzeyindeki hardening konfigürasyonuyla sınırlı doğrulandı.
 
+### Düzeltme oturumu kapsam kararı
+
+- **Sunucu taşıması sonrasına ertelendi:** 2; 3'ün canlı düz metin yedek silme, off-site kopya ve PITR kısmı; 9'un canlı secret aktivasyonu, anahtar rotasyonu ve eski env kopyalarını temizleme kısmı; 18.
+- **Bu oturumda canlı mutasyon yapılmayacak:** SSH üzerinden dosya silme, anahtar rotasyonu, off-site/PITR veya HA kurulumu, mTLS değişikliği ve secret overlay aktivasyonu kapsam dışıdır.
+- **Repo desteği bu oturumun kapsamındadır:** 3 için pasif-varsayılanlı legacy yedek koruması; 9 için opt-in file-backed secret altyapısı. Bu hazırlıklar canlıda etkinleştirilmiş sayılmayacaktır.
+- **Bulgu 7:** E2EE olmayan sunucu-tarafı veri işleme modeli belgelenmiş ve kabul edilmiş bir tasarım sınırıdır; güvenlik açığı olarak izlenmeyecektir.
+- **Bulgu 13:** Asıl runtime rolü/audit yetki bulgusu çözülmüştür. Eklenecek gerçek PostgreSQL CI kontrolü, bulguyu yeniden açan bir düzeltme değil savunma-derinliği kalite kapısıdır.
+
 ## Canlı ortamda doğrulanan durum
 
 | Kontrol | Sonuç |
@@ -67,23 +75,23 @@ Gerçek sır değerleri ve müşteri kayıt içerikleri okunmadı veya rapora al
 | # | Önceki bulgu | Güncel durum | Kanıt / değerlendirme |
 | ---: | --- | --- | --- |
 | 1 | Hatalı MFA denemeleri login kotasından düşüyordu | **Çözüldü** | Yalnız `<400` tam giriş başarı sayılıyor; yanlış/eksik TOTP 401 kalıyor. `backend/src/routes/auth.routes.ts:73-97,192-205`; regresyon `backend/tests/backend.test.ts:108-114`. |
-| 2 | Tek host/tek PostgreSQL ve failover yok | **Kısmi, yüksek risk açık** | İki backend replika ve watchdog var; ikisi de aynı host ve aynı PostgreSQL'e bağlı. `compose.production.yaml:316-409`; `deploy/deploy-production.sh:525`. |
-| 3 | Yedek yalnız deploy öncesi ve aynı hostta | **Kısmi; canlıda gerileme bulundu** | Günlük şifreli/restore-testli yedek eklendi. Off-site/PITR yok; ayrıca canlıda iki boş olmayan plaintext dump kaldı. `.github/workflows/production-backup.yml:3-52`; `deploy/deploy-production.sh:467-516`. |
+| 2 | Tek host/tek PostgreSQL ve failover yok | **Sunucu taşıması sonrasına ertelendi** | İki backend replika ve watchdog var; ikisi de aynı host ve aynı PostgreSQL'e bağlı. Bu oturumda HA/failover değişikliği yapılmayacak. `compose.production.yaml:316-409`; `deploy/deploy-production.sh:525`. |
+| 3 | Yedek yalnız deploy öncesi ve aynı hostta | **Repo koruması bu oturumda; canlı işlemler taşıma sonrası** | Legacy plaintext dosyaları güvenli biçimde tanıyacak pasif-varsayılanlı repo koruması hazırlanacak. Canlı dosya silme, off-site/PITR ve anahtar değerlendirmesi taşıma sonrasına ertelendi. `.github/workflows/production-backup.yml:3-52`; `deploy/deploy-production.sh:467-516`. |
 | 4 | Backend dependency audit CI kapısında değildi | **Çözüldü** | Kök ve backend audit workflow'da çalışıyor; güncel auditler 0 bulgu. `.github/workflows/quality.yml:19-20,65-66`; `backend/package.json:21`. |
 | 5 | Public formda bot doğrulama/idempotency/iletişim kotası yoktu | **Çözüldü** | Production Turnstile fail-closed, zorunlu UUID idempotency ve iletişim bazlı paylaşımlı kota var; canlı Turnstile etkin. `backend/src/utils/turnstile.ts:30-93`; `backend/src/routes/public.routes.ts:70-85,216-251`. |
 | 6 | Rate-limit process-local ve ana iş DB'sine bağımlıydı | **Kısmi** | Kritik sayaçlar atomik/HMAC'li PostgreSQL store ve production fail-closed; global/availability limitleri hâlâ process-local, kritik sayaçlar iş DB'sini kullanıyor. `databaseRateLimitStore.ts:29-66`; `security.middleware.ts:83-96`; `public.routes.ts:61-68`. |
-| 7 | PII tam/E2EE değildi | **Tasarım sınırı sürüyor** | Temel PII güçlü biçimde şifreli; iş metadata'sı açık ve backend anahtara sahip olduğundan E2EE değil. Bu açık değil, belgelenmesi gereken güven sınırıdır. |
+| 7 | PII tam/E2EE değildi | **Kabul edilmiş tasarım sınırı — açık değil** | Temel PII güçlü biçimde şifreli; iş metadata'sı açık ve backend anahtara sahip olduğundan E2EE değildir. Sunucu-tarafı işleme gereksinimi kabul edilmiştir; güvenlik açığı olarak kapatılmıştır. |
 | 8 | Legacy plaintext PII ve production strict eksikliği | **Veri düzeyinde çözüldü, constraint kısmi** | Canlı toplu sayımlarda legacy plaintext `0`; healthy production API strict moda işaret ediyor. Üç `NOT VALID` constraint hâlâ validate edilmemiş. `env.config.ts:341-347`; migration `20260809150000...:51-135`. |
-| 9 | KMS/HSM/Docker Secrets yok | **Çözülmedi** | Anahtarlar Compose environment/.env güven alanında. Süreç secret kapsamı daraltılmış olsa da dış KMS/secret manager yok. |
+| 9 | KMS/HSM/Docker Secrets yok | **Repo desteği bu oturumda; canlı aktivasyon taşıma sonrası** | Allowlist tabanlı opt-in file-backed secret desteği hazırlanacak. Canlı aktivasyon, anahtar rotasyonu ve eski env kopyalarının temizliği sunucu taşıması sonrasına ertelendi. |
 | 10 | DB RLS yok, tenant sınırı uygulama filtrelerine bağlı | **Çözülmedi** | Canlı RLS sayısı `0`. Runtime rolü least-privilege ve app tenant filtreleri güçlü; DB ikinci bariyeri yok. `deploy/postgres/init-runtime-role.sh:74-126`. |
 | 11 | 72 saatlik setup/reset tokenı ve müşteri MFA eksikliği | **Çözülmedi** | Token CSPRNG/hash/tek kullanım açısından güçlü; varsayılan TTL hâlâ 72 saat ve MFA ayrıcalıklı rollerle sınırlı. `env.config.ts:258-262`; `auth.middleware.ts:57-63`. |
 | 12 | Payment capability `sessionStorage` içindeydi | **Çözüldü** | Capability HttpOnly/Secure/SameSite=Strict cookie'de; frontend storage yalnız application UUID tutuyor. `public.routes.ts:33-49,253-257`; `application.js:81-83`. |
-| 13 | Audit temizliği ve runtime DB rolü fazla yetkiliydi | **Büyük ölçüde çözüldü** | Runtime rolü DDL/superuser/BYPASSRLS değil; audit UPDATE/DELETE/TRUNCATE gerçek PostgreSQL testinde reddedildi. Ancak CI bunu runtime rolle gerçek DB üzerinde sürekli test etmiyor. |
+| 13 | Audit temizliği ve runtime DB rolü fazla yetkiliydi | **Asıl bulgu çözüldü; CI savunma-derinliği boşluğu açık** | Runtime rolü DDL/superuser/BYPASSRLS değil; audit UPDATE/DELETE/TRUNCATE gerçek PostgreSQL testinde reddedildi. Eklenecek CI testi bu yetki sınırını sürekli doğrulayan kalite kapısıdır. |
 | 14 | Public istek sınırsız global sweep tetikleyebiliyordu | **Çözüldü** | Hedefli sweep, 100 kayıt sınırı ve advisory lock var. `booking.service.ts:615-677`. |
 | 15 | HTTP/DB timeout ve container kaynak sınırı yoktu | **Çözüldü** | Node/DB timeoutları, CPU/RAM/PID/log sınırları ve healthcheckler mevcut ve canlı containerlarda uygulanmış. |
 | 16 | WhatsApp URL'sinde PII ve RNG fail-open | **Çözüldü** | URL'den PII çıkarılmış, CSPRNG fail-closed ve tek kullanımlık bağlantı akışı var. |
 | 17 | Veri yaşam döngüsü/retention yoktu | **Kısmi** | Bounded, transaction'lı retention kodu var; fakat yalnız deploy sonunda çağrılıyor, bağımsız zamanlayıcı yok. `compose.production.yaml:277-314`; `deploy-production.sh:560-564`. |
-| 18 | İç container ağında mTLS yoktu | **Açık düşük/orta tasarım riski** | PostgreSQL izole internal networkte ve host portu yok; servisler arası mTLS yok. |
+| 18 | İç container ağında mTLS yoktu | **Sunucu taşıması sonrasına ertelendi** | PostgreSQL izole internal networkte ve host portu yok; servisler arası mTLS kararı yeni sunucu topolojisi üzerinde yeniden değerlendirilecek. Bu oturumda değişiklik yapılmayacak. |
 | 19 | Yönetilebilir görsel/teslim URL allowlist eksikti | **Çözüldü** | Görsel yolu local asset regex'i, teslimat URL'si HTTPS Google Drive allowlist'i ile sınırlı. `api.schemas.ts:46-53`; `utils/domain.ts:127-146`. |
 
 ## Güncel açık bulgular
