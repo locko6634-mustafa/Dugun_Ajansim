@@ -49,3 +49,25 @@ test("dağıtım ve geri alma en az iki backend replikasını korur", () => {
   assert.equal(deployScript.match(/--scale backend="\$backend_replicas"/g)?.length, 2);
   assert.match(deployScript, /verify_backend_replicas/);
 });
+
+test("üretim bakım servisleri kesin proxy IP allowlist'ini devralır", () => {
+  const compose = readProjectFile("compose.production.yaml");
+  const services = ["admin-bootstrap", "pii-maintenance", "data-retention"];
+
+  for (const service of services) {
+    const start = compose.indexOf(`  ${service}:`);
+    assert.notEqual(start, -1, `${service} servisi bulunamadı`);
+    const remainder = compose.slice(start + 2);
+    const nextServiceOffset = remainder.search(/\n  [a-z][a-z0-9-]*:\r?\n/);
+    const serviceBlock =
+      nextServiceOffset === -1
+        ? compose.slice(start)
+        : compose.slice(start, start + 2 + nextServiceOffset);
+
+    assert.match(
+      serviceBlock,
+      /TRUST_PROXY: \$\{TRUST_PROXY:\?TRUST_PROXY kesin Traefik IP adresi zorunludur\}/,
+      `${service} TRUST_PROXY değerini devralmalıdır`
+    );
+  }
+});

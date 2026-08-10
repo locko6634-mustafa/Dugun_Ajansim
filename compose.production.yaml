@@ -118,6 +118,7 @@ services:
       CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
       DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
       ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
+      TRUST_PROXY: ${TRUST_PROXY:?TRUST_PROXY kesin Traefik IP adresi zorunludur}
       TEMPORARY_PASSWORD_TTL_HOURS: ${TEMPORARY_PASSWORD_TTL_HOURS:-72}
     depends_on:
       db-runtime-hardening:
@@ -248,6 +249,7 @@ services:
       CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
       DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
       ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
+      TRUST_PROXY: ${TRUST_PROXY:?TRUST_PROXY kesin Traefik IP adresi zorunludur}
       DATA_ENCRYPTION_ACTIVE_KEY_ID: ${DATA_ENCRYPTION_ACTIVE_KEY_ID:?DATA_ENCRYPTION_ACTIVE_KEY_ID zorunludur}
       DATA_ENCRYPTION_KEYRING_JSON: ${DATA_ENCRYPTION_KEYRING_JSON:?DATA_ENCRYPTION_KEYRING_JSON zorunludur}
       PII_BLIND_INDEX_KEY: ${PII_BLIND_INDEX_KEY:?PII_BLIND_INDEX_KEY zorunludur}
@@ -283,6 +285,7 @@ services:
       CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
       DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
       ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
+      TRUST_PROXY: ${TRUST_PROXY:?TRUST_PROXY kesin Traefik IP adresi zorunludur}
       PUBLIC_APPLICATION_RETENTION_DAYS: ${PUBLIC_APPLICATION_RETENTION_DAYS:-90}
       ARCHIVED_APPLICATION_RETENTION_DAYS: ${ARCHIVED_APPLICATION_RETENTION_DAYS:-365}
       ARCHIVED_WEDDING_RETENTION_DAYS: ${ARCHIVED_WEDDING_RETENTION_DAYS:-3650}
