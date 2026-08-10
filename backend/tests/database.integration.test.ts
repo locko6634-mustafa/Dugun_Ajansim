@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import request from "supertest";
 import type { Options as RateLimitOptions } from "express-rate-limit";
 import { createApp } from "../src/app.js";
@@ -45,6 +46,7 @@ import {
   piiCryptography,
   weddingWithDecryptedPii
 } from "../src/utils/pii-crypto.js";
+import { runDataRetentionBatch } from "../src/utils/dataRetention.js";
 
 assertSafeLocalTestDatabase();
 
@@ -3137,4 +3139,225 @@ test("public uygunluk kotası iki bağımsız uygulama örneğinde ortak tüketi
   assert.equal(responses.slice(0, 30).every((response) => response.status === 204), true);
   assert.equal(responses[30]?.status, 429);
   assert.equal(responses[30]?.body.message, "Çok fazla uygunluk sorgusu yaptınız.");
+});
+
+test("retention gerçek PostgreSQL üzerinde süre, batch, izolasyon ve audit toplamını korur", async (context) => {
+  const marker = `retention-${randomUUID()}`;
+  const now = new Date();
+  const expiredAt = new Date(now.valueOf() - 60 * 24 * 60 * 60 * 1_000);
+  const futureWeddingStart = new Date(now.valueOf() + 60 * 24 * 60 * 60 * 1_000);
+  const futureWeddingEnd = new Date(futureWeddingStart.valueOf() + 4 * 60 * 60 * 1_000);
+  const auditStartedAt = new Date(Date.now() - 1_000);
+  const auditLogIds: string[] = [];
+  const venue = await prisma.venue.create({
+    data: { slug: marker, name: `Retention ${marker}` }
+  });
+  const packageRecord = await prisma.package.create({
+    data: { code: marker, name: `Retention ${marker}`, priceCents: 100_000 }
+  });
+  const expiredBucketKey = marker.replaceAll("-", "").padEnd(64, "0").slice(0, 64);
+  const freshBucketKey = `${expiredBucketKey.slice(0, 63)}1`;
+
+  context.after(async () => {
+    await prisma.auditLog.deleteMany({
+      where: {
+        OR: [
+          { id: { in: auditLogIds } },
+          { action: "maintenance.data_retention", createdAt: { gte: auditStartedAt } }
+        ]
+      }
+    });
+    await prisma.wedding.deleteMany({
+      where: { application: { referenceCode: { startsWith: marker } } }
+    });
+    await prisma.bookingApplication.deleteMany({
+      where: { referenceCode: { startsWith: marker } }
+    });
+    await prisma.user.deleteMany({ where: { username: { startsWith: marker } } });
+    await prisma.rateLimitBucket.deleteMany({
+      where: { keyHash: { in: [expiredBucketKey, freshBucketKey] } }
+    });
+    await prisma.package.deleteMany({ where: { id: packageRecord.id } });
+    await prisma.venue.deleteMany({ where: { id: venue.id } });
+  });
+
+  const createApplication = (
+    suffix: string,
+    overrides: Partial<Prisma.BookingApplicationUncheckedCreateInput> = {}
+  ) =>
+    prisma.bookingApplication.create({
+      data: {
+        referenceCode: `${marker}-${suffix}`,
+        source: "PUBLIC_FORM",
+        status: "IPTAL_EDILDI",
+        primaryContact: "GELIN",
+        weddingStartsAt: futureWeddingStart,
+        weddingEndsAt: futureWeddingEnd,
+        venueId: venue.id,
+        packageId: packageRecord.id,
+        packageCodeSnapshot: packageRecord.code,
+        packageNameSnapshot: packageRecord.name,
+        packagePriceCents: packageRecord.priceCents,
+        totalPriceCents: packageRecord.priceCents,
+        paymentMethod: "CASH",
+        payableNowCents: packageRecord.priceCents,
+        paymentFlowExpiredAt: expiredAt,
+        privacyConsentAt: expiredAt,
+        updatedAt: expiredAt,
+        ...overrides
+      }
+    });
+
+  const expiredPublicApplications = await Promise.all([
+    createApplication("public-expired-1", { updatedAt: new Date(expiredAt.valueOf() - 3_000) }),
+    createApplication("public-expired-2", { updatedAt: new Date(expiredAt.valueOf() - 2_000) }),
+    createApplication("public-expired-3", { updatedAt: new Date(expiredAt.valueOf() - 1_000) })
+  ]);
+  const freshPublicApplication = await createApplication("public-fresh", { updatedAt: now });
+  const archivedApplication = await createApplication("archived-expired", {
+    source: "ADMIN",
+    deletedAt: expiredAt
+  });
+  const freshArchivedApplication = await createApplication("archived-fresh", {
+    source: "ADMIN",
+    deletedAt: now,
+    updatedAt: now
+  });
+  const archivedWeddingApplication = await createApplication("wedding-expired", {
+    source: "ADMIN"
+  });
+  const freshWeddingApplication = await createApplication("wedding-fresh", {
+    source: "ADMIN",
+    updatedAt: now
+  });
+  const archivedCustomer = await prisma.user.create({
+    data: {
+      username: `${marker}-customer-expired`,
+      passwordHash: "retention-integration-not-for-authentication",
+      role: "MUSTERI",
+      status: "ACTIVE",
+      mustChangePassword: false,
+      passwordChangedAt: expiredAt
+    }
+  });
+  const freshCustomer = await prisma.user.create({
+    data: {
+      username: `${marker}-customer-fresh`,
+      passwordHash: "retention-integration-not-for-authentication",
+      role: "MUSTERI",
+      status: "ACTIVE",
+      mustChangePassword: false,
+      passwordChangedAt: now
+    }
+  });
+  const archivedWedding = await prisma.wedding.create({
+    data: {
+      applicationId: archivedWeddingApplication.id,
+      customerUserId: archivedCustomer.id,
+      primaryContact: "GELIN",
+      startsAt: futureWeddingStart,
+      endsAt: futureWeddingEnd,
+      venueId: venue.id,
+      packageSummary: { name: packageRecord.name },
+      deletedAt: expiredAt
+    }
+  });
+  const freshWedding = await prisma.wedding.create({
+    data: {
+      applicationId: freshWeddingApplication.id,
+      customerUserId: freshCustomer.id,
+      primaryContact: "GELIN",
+      startsAt: new Date(futureWeddingStart.valueOf() + 24 * 60 * 60 * 1_000),
+      endsAt: new Date(futureWeddingEnd.valueOf() + 24 * 60 * 60 * 1_000),
+      venueId: venue.id,
+      packageSummary: { name: packageRecord.name },
+      deletedAt: now
+    }
+  });
+  await prisma.rateLimitBucket.createMany({
+    data: [
+      { keyHash: expiredBucketKey, hits: 1, expiresAt: expiredAt },
+      { keyHash: freshBucketKey, hits: 1, expiresAt: new Date(now.valueOf() + 60_000) }
+    ]
+  });
+
+  let observedIsolation: string | undefined;
+  const retentionClient = {
+    $transaction: async (
+      operation: (transaction: Prisma.TransactionClient) => Promise<unknown>,
+      options: { isolationLevel: Prisma.TransactionIsolationLevel }
+    ) =>
+      prisma.$transaction(async (transaction) => {
+        const isolationRows = await transaction.$queryRaw<Array<{ isolation: string }>>`
+          SELECT current_setting('transaction_isolation') AS "isolation"
+        `;
+        observedIsolation = isolationRows[0]?.isolation;
+        return operation(transaction);
+      }, options)
+  } as unknown as PrismaClient;
+  const result = await runDataRetentionBatch(
+    retentionClient,
+    {
+      publicApplicationDays: 30,
+      archivedApplicationDays: 30,
+      archivedWeddingDays: 30,
+      securityArtifactDays: 30,
+      batchSize: 2
+    },
+    now
+  );
+
+  assert.equal(observedIsolation, "serializable");
+  assert.deepEqual(result, {
+    rateLimitBuckets: 1,
+    authSessions: 0,
+    passwordSetupTokens: 0,
+    publicApplications: 2,
+    archivedApplications: 2,
+    archivedWeddings: 1,
+    customerUsers: 1
+  });
+  assert.equal(
+    await prisma.bookingApplication.count({
+      where: { id: { in: expiredPublicApplications.map(({ id }) => id) } }
+    }),
+    1
+  );
+  assert.equal(
+    await prisma.bookingApplication.count({
+      where: { id: { in: [freshPublicApplication.id, freshArchivedApplication.id] } }
+    }),
+    2
+  );
+  assert.equal(await prisma.bookingApplication.count({ where: { id: archivedApplication.id } }), 0);
+  assert.equal(await prisma.wedding.count({ where: { id: archivedWedding.id } }), 0);
+  assert.equal(await prisma.user.count({ where: { id: archivedCustomer.id } }), 0);
+  assert.equal(await prisma.wedding.count({ where: { id: freshWedding.id } }), 1);
+  assert.equal(await prisma.user.count({ where: { id: freshCustomer.id } }), 1);
+  assert.equal(await prisma.rateLimitBucket.count({ where: { keyHash: expiredBucketKey } }), 0);
+  assert.equal(await prisma.rateLimitBucket.count({ where: { keyHash: freshBucketKey } }), 1);
+
+  const auditLog = await prisma.auditLog.findFirstOrThrow({
+    where: { action: "maintenance.data_retention", createdAt: { gte: auditStartedAt } },
+    orderBy: { createdAt: "desc" }
+  });
+  auditLogIds.push(auditLog.id);
+  assert.deepEqual(auditLog.metadata, { deleted: result });
+
+  const retentionIndexes = await prisma.$queryRaw<Array<{ indexName: string }>>`
+    SELECT indexname AS "indexName"
+    FROM pg_catalog.pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname IN (
+        'auth_sessions_retention_expires_created_idx',
+        'auth_sessions_retention_revoked_created_idx',
+        'password_setup_tokens_retention_expires_created_idx',
+        'password_setup_tokens_retention_used_created_idx',
+        'password_setup_tokens_retention_revoked_created_idx',
+        'booking_applications_retention_public_updated_idx',
+        'booking_applications_retention_archived_idx',
+        'weddings_retention_archived_idx'
+      )
+  `;
+  assert.equal(retentionIndexes.length, 8);
 });

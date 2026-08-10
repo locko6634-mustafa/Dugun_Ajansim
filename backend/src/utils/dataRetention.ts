@@ -135,7 +135,7 @@ export const runDataRetentionBatch = async (
           customerWedding: null,
         },
       });
-      await transaction.bookingApplication.deleteMany({
+      const linkedArchivedApplications = await transaction.bookingApplication.deleteMany({
         where: {
           id: { in: staleArchivedWeddings.map(({ applicationId }) => applicationId) },
           wedding: null,
@@ -147,7 +147,7 @@ export const runDataRetentionBatch = async (
         authSessions: authSessions.count,
         passwordSetupTokens: passwordSetupTokens.count,
         publicApplications: publicApplications.count,
-        archivedApplications: archivedApplications.count,
+        archivedApplications: archivedApplications.count + linkedArchivedApplications.count,
         archivedWeddings: archivedWeddings.count,
         customerUsers: customerUsers.count,
       };

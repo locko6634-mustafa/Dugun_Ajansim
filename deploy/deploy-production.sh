@@ -551,6 +551,8 @@ printf 'VALIDATED_ENCRYPTED_BACKUP=%s\n' "$backup_path"
 prune_backups
 
 if (( backup_only == 1 )); then
+  "${compose[@]}" --profile operations run --rm --no-deps -T data-retention
+  printf 'SCHEDULED_RETENTION_COMPLETED=1\n'
   trap - ERR
   printf 'SCHEDULED_BACKUP_COMPLETED=%s\n' "$backup_path"
   exit 0

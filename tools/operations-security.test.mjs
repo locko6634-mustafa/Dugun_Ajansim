@@ -19,8 +19,17 @@ test("zamanlanmış yedek aynı şifreli geri-yükleme provasını ve operasyon 
   assert.match(deployScript, /flock -n 9/);
   assert.match(deployScript, /pg_restore --exit-on-error/);
   assert.match(deployScript, /SCHEDULED_BACKUP_COMPLETED=%s/);
+  assert.match(deployScript, /SCHEDULED_RETENTION_COMPLETED=1/);
   assert.ok(
     deployScript.indexOf("pg_restore --exit-on-error") <
+      deployScript.indexOf("SCHEDULED_BACKUP_COMPLETED=%s")
+  );
+  assert.ok(
+    deployScript.indexOf("pg_restore --exit-on-error") <
+      deployScript.indexOf("SCHEDULED_RETENTION_COMPLETED=1")
+  );
+  assert.ok(
+    deployScript.indexOf("SCHEDULED_RETENTION_COMPLETED=1") <
       deployScript.indexOf("SCHEDULED_BACKUP_COMPLETED=%s")
   );
 });

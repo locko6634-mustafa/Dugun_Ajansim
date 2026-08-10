@@ -605,10 +605,19 @@ test('veri saklama politikası yalnız süresi dolan ve ilişkisiz kayıtları s
   } as unknown as PrismaClient;
 
   const result = await runDataRetentionBatch(client, policy, now);
-  assert.equal(countRetentionDeletes(result), 7);
+  assert.equal(countRetentionDeletes(result), 8);
+  assert.equal(result.archivedApplications, 2);
   assert.equal(isolationLevel, 'Serializable');
   assert.equal(bookingDeleteWhere.length, 3);
   assert.equal(auditEntries.length, 1);
+  assert.deepEqual(auditEntries[0], {
+    action: 'maintenance.data_retention',
+    targetType: 'System',
+    targetId: null,
+    outcome: 'SUCCESS',
+    correlationId: (auditEntries[0] as { correlationId: string }).correlationId,
+    metadata: { deleted: result },
+  });
   assert.deepEqual(bookingDeleteWhere[0], {
     id: { in: ['public-application'] },
     source: 'PUBLIC_FORM',
