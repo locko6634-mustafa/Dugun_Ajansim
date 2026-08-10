@@ -108,3 +108,18 @@ test("file-backed secret modu opt-in kalır ve rollback aynı overlay'i kullanı
   assert.match(overlay, /BACKUP_ENCRYPTION_KEY: !reset null/);
   assert.match(overlay, /DATABASE_URL_FILE: \/run\/secrets\/database_url_runtime/);
 });
+
+test("RLS enforcement yalnız yeni backend sağlıklıyken açılır ve rollback öncesi kapanır", () => {
+  const deployScript = readProjectFile("deploy/deploy-production.sh");
+  const rollbackStart = deployScript.indexOf('log "ROLLBACK_STARTED_SHA=$rollback_sha"');
+  const rollbackDisable = deployScript.indexOf("set_rls_enforcement false", rollbackStart);
+  const rollbackCheckout = deployScript.indexOf('git reset --hard "$rollback_sha"', rollbackStart);
+  const firstHealth = deployScript.indexOf('"$PUBLIC_ORIGIN/api/v1/health" >/dev/null');
+  const enable = deployScript.indexOf("set_rls_enforcement true", firstHealth);
+  const verified = deployScript.indexOf("deployment_verified=1", enable);
+
+  assert.notEqual(rollbackStart, -1);
+  assert.ok(rollbackStart < rollbackDisable && rollbackDisable < rollbackCheckout);
+  assert.ok(firstHealth < enable && enable < verified);
+  assert.match(deployScript, /RLS enforcement kapatılamadığı için eski backend rollback'i/);
+});

@@ -96,6 +96,19 @@ postgres_owner_exec() {
   fi
 }
 
+set_rls_enforcement() {
+  local next_state="$1"
+  [[ "$next_state" == "true" || "$next_state" == "false" ]] ||
+    fail "RLS enforcement durumu yalnız true veya false olabilir."
+  if [[ "$next_state" == "true" ]]; then
+    postgres_owner_exec -- sh -eu -c \
+      'psql -X --quiet --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --set=ON_ERROR_STOP=1 --command="SELECT public.set_rls_enforcement(TRUE)" >/dev/null; result="$(psql -X --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --set=ON_ERROR_STOP=1 --command="SELECT public.app_rls_is_enforced()")"; [ "$result" = "t" ]'
+  else
+    postgres_owner_exec -- sh -eu -c \
+      'psql -X --quiet --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --set=ON_ERROR_STOP=1 --command="SELECT public.set_rls_enforcement(FALSE)" >/dev/null; result="$(psql -X --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --set=ON_ERROR_STOP=1 --command="SELECT public.app_rls_is_enforced()")"; [ "$result" = "f" ]'
+  fi
+}
+
 drop_restore_database() {
   if [[ -z "$restore_database" || "$restore_database_created" -ne 1 ]]; then
     return
@@ -161,6 +174,10 @@ rollback_deployment() {
   fi
 
   log "ROLLBACK_STARTED_SHA=$rollback_sha"
+  if (( deploy_started == 1 )) && ! set_rls_enforcement false; then
+    printf '%s\n' "RLS enforcement kapatılamadığı için eski backend rollback'i güvenli biçimde başlatılamadı." >&2
+    return
+  fi
   git reset --hard "$rollback_sha" >/dev/null || rollback_failed=1
 
   if (( deploy_started == 1 )); then
@@ -614,6 +631,12 @@ verify_backend_replicas
   "wget -qO- http://127.0.0.1:8080/healthz | grep -qx ok"
 curl -fsS --max-time 10 --retry 5 --retry-delay 3 --retry-all-errors \
   "$PUBLIC_ORIGIN/healthz" | grep -qx ok
+curl -fsS --max-time 10 --retry 5 --retry-delay 3 --retry-all-errors \
+  "$PUBLIC_ORIGIN/api/v1/health" >/dev/null
+
+# Önceki başarısız rollback enforcement'ı kapatmış olabilir; yalnız yeni backend sağlıklıyken aç.
+set_rls_enforcement true
+verify_backend_replicas
 curl -fsS --max-time 10 --retry 5 --retry-delay 3 --retry-all-errors \
   "$PUBLIC_ORIGIN/api/v1/health" >/dev/null
 

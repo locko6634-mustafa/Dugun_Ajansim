@@ -192,7 +192,7 @@ test("migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalış�
   });
 });
 
-test("RLS politikaları kapalı enforcement kapısı ve transaction-local sunucu bağlamıyla hazırlanır", async () => {
+test("RLS politikaları açık enforcement ve transaction-local sunucu bağlamıyla çalışır", async () => {
   const protectedTables = [
     "venues",
     "users",
@@ -227,7 +227,7 @@ test("RLS politikaları kapalı enforcement kapısı ve transaction-local sunucu
   const [state] = await prisma.$queryRaw<Array<{ enabled: boolean }>>`
     SELECT enabled FROM public.rls_enforcement_state WHERE singleton
   `;
-  assert.equal(state?.enabled, false);
+  assert.equal(state?.enabled, true);
 
   const [{ policyCount }] = await prisma.$queryRaw<Array<{ policyCount: bigint }>>`
     SELECT count(*)::bigint AS "policyCount"

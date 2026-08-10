@@ -270,7 +270,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(backupCrypto).toContain("decipher.setAuthTag(authTag)");
   expect(backupCrypto).toContain("terminalFrameSeen");
   expect(backupCrypto).toContain("uygulama güvenlik anahtarlarından farklı");
-  expect(bootstrapAdmin).toContain("console.log('İlk admin başarıyla oluşturuldu.')");
+  expect(bootstrapAdmin).toMatch(/console\.log\(["']İlk admin başarıyla oluşturuldu\.["']\)/);
   expect(bootstrapAdmin).not.toContain("admin.username");
 
   expect(runtimeRoleScript).toContain("NOSUPERUSER NOCREATEDB NOCREATEROLE");
