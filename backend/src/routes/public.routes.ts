@@ -58,14 +58,18 @@ const publicBookingLimiter = rateLimit({
   handler: createRateLimitHandler("Çok fazla başvuru denemesi yaptınız.")
 });
 
-const publicAvailabilityLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: rateLimitKeyGenerator,
-  handler: createRateLimitHandler("Çok fazla uygunluk sorgusu yaptınız.")
-});
+export const createPublicAvailabilityLimiter = () =>
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: rateLimitKeyGenerator,
+    store: new DatabaseRateLimitStore("public-availability-ip"),
+    handler: createRateLimitHandler("Çok fazla uygunluk sorgusu yaptınız.")
+  });
+
+const publicAvailabilityLimiter = createPublicAvailabilityLimiter();
 
 const publicBookingContactLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,

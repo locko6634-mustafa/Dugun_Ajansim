@@ -7,7 +7,11 @@ import { createApp } from "../src/app.js";
 import { env } from "../src/config/env.config.js";
 import { prisma } from "../src/config/prisma.js";
 import { CSRF_COOKIE_NAME } from "../src/middlewares/auth.middleware.js";
-import { DatabaseRateLimitStore } from "../src/middlewares/databaseRateLimitStore.js";
+import {
+  DatabaseRateLimitStore,
+  hashRateLimitKey
+} from "../src/middlewares/databaseRateLimitStore.js";
+import { createPublicAvailabilityLimiter } from "../src/routes/public.routes.js";
 import { assertSafeLocalTestDatabase } from "../src/scripts/testDatabaseGuard.js";
 import {
   approveBookingApplication,
@@ -2905,4 +2909,36 @@ test("rate limit sayaçları farklı uygulama süreçleri arasında atomik payla
   const reset = await firstStore.increment(key);
   assert.equal(reset.totalHits, 1);
   await firstStore.resetKey(key);
+});
+
+test("public uygunluk kotası iki bağımsız uygulama örneğinde ortak tüketilir", async (context) => {
+  const keyHash = hashRateLimitKey("public-availability-ip", "127.0.0.1");
+  await prisma.rateLimitBucket.deleteMany({ where: { keyHash } });
+  context.after(async () => {
+    await prisma.rateLimitBucket.deleteMany({ where: { keyHash } });
+  });
+
+  const createAvailabilityApp = () =>
+    createApp((application) => {
+      application.get(
+        "/api/v1/test-public-availability",
+        createPublicAvailabilityLimiter(),
+        (_req, res) => res.status(204).end()
+      );
+    });
+  const firstApp = createAvailabilityApp();
+  const secondApp = createAvailabilityApp();
+  const responses = [];
+
+  for (let index = 0; index < 31; index += 1) {
+    responses.push(
+      await request(index % 2 === 0 ? firstApp : secondApp).get(
+        "/api/v1/test-public-availability"
+      )
+    );
+  }
+
+  assert.equal(responses.slice(0, 30).every((response) => response.status === 204), true);
+  assert.equal(responses[30]?.status, 429);
+  assert.equal(responses[30]?.body.message, "Çok fazla uygunluk sorgusu yaptınız.");
 });
