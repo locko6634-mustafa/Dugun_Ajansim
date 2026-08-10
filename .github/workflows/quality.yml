@@ -67,3 +67,18 @@ jobs:
       - run: npx prisma migrate deploy
       - run: npm test
       - run: npm run test:integration
+      - name: Install synthetic least-privilege runtime role
+        env:
+          PGHOST: localhost
+          PGPORT: "55632"
+          PGPASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: dugun_ajansim_test
+          POSTGRES_RUNTIME_USER: ci_runtime
+          POSTGRES_RUNTIME_PASSWORD: Ci-Runtime-Only-2026_
+        run: sh ../deploy/postgres/init-runtime-role.sh
+      - name: Verify runtime role privileges on PostgreSQL
+        env:
+          RUNTIME_DATABASE_URL: postgresql://ci_runtime:Ci-Runtime-Only-2026_@localhost:55632/dugun_ajansim_test
+          RUNTIME_DATABASE_ROLE: ci_runtime
+        run: npm run test:runtime-role
