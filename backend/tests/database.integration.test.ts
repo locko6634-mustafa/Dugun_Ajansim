@@ -134,7 +134,7 @@ test("migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalış�
   assert.equal(env.ADMIN_SESSION_IDLE_MINUTES, 30);
   assert.equal(env.SALON_SESSION_IDLE_MINUTES, 60);
   assert.equal(env.CUSTOMER_SESSION_IDLE_HOURS, 12);
-  assert.equal(env.TEMPORARY_PASSWORD_TTL_HOURS, 72);
+  assert.equal(env.TEMPORARY_PASSWORD_TTL_HOURS, 24);
   const healthRecord = await prisma.systemHealth.create({
     data: { status: "integration-test" }
   });
@@ -2957,6 +2957,124 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
   );
   assert.equal(JSON.stringify(auditLogs).includes(secret), false);
   assert.equal(JSON.stringify(auditLogs).includes(confirmationCode), false);
+});
+
+test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akışını kullanır", async (context) => {
+  await prisma.rateLimitBucket.deleteMany();
+  const marker = `customer-mfa-${randomUUID()}`;
+  const password = "Musteri-Mfa!Guvenli-Parola-2026";
+  const user = await prisma.user.create({
+    data: {
+      username: marker,
+      passwordHash: await hashPassword(password),
+      role: "MUSTERI",
+      status: "ACTIVE",
+      mustChangePassword: false,
+      temporaryPasswordExpiresAt: null,
+      passwordChangedAt: new Date()
+    }
+  });
+  context.after(async () => {
+    await prisma.auditLog.deleteMany({ where: { actorUserId: user.id } });
+    await prisma.user.deleteMany({ where: { id: user.id } });
+  });
+
+  const sessionToken = `${marker}-session`;
+  const csrfToken = `${marker}-csrf`;
+  await prisma.authSession.create({
+    data: {
+      tokenHash: hashToken(sessionToken),
+      csrfTokenHash: hashToken(csrfToken),
+      userId: user.id,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000)
+    }
+  });
+  const authCookies = `${env.SESSION_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=${csrfToken}`;
+  const app = createApp();
+  app.set("trust proxy", 1);
+
+  const enrollment = await request(app)
+    .post("/api/v1/auth/mfa/enroll")
+    .set("Cookie", authCookies)
+    .set("X-CSRF-Token", csrfToken)
+    .send({ currentPassword: password });
+  assert.equal(enrollment.status, 200);
+  const secret = enrollment.body.data.secret as string;
+  assert.match(secret, /^[A-Z2-7]{32}$/);
+
+  const confirmationStep = BigInt(Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS));
+  const confirmationCode = generateTotpCode(secret, confirmationStep);
+  const confirmation = await request(app)
+    .post("/api/v1/auth/mfa/confirm")
+    .set("Cookie", authCookies)
+    .set("X-CSRF-Token", csrfToken)
+    .send({ currentPassword: password, totpCode: confirmationCode });
+  assert.equal(confirmation.status, 200);
+  assert.equal(confirmation.body.data.mustEnrollMfa, false);
+
+  const loginIp = "203.0.113.61";
+  const missingCodeLogin = await request(app)
+    .post("/api/v1/auth/login")
+    .set("X-Forwarded-For", loginIp)
+    .send({ username: marker, password, remember: true });
+  assert.equal(missingCodeLogin.status, 401);
+  assert.equal(missingCodeLogin.body.errors.code, "MFA_REQUIRED");
+
+  const replayedCodeLogin = await request(app)
+    .post("/api/v1/auth/login")
+    .set("X-Forwarded-For", loginIp)
+    .send({ username: marker, password, remember: true, totpCode: confirmationCode });
+  assert.equal(replayedCodeLogin.status, 401);
+
+  const loginStep = BigInt(Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS));
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { totpLastUsedStep: loginStep - 1n }
+  });
+  const successfulLogin = await request(app)
+    .post("/api/v1/auth/login")
+    .set("X-Forwarded-For", loginIp)
+    .send({
+      username: marker,
+      password,
+      remember: true,
+      totpCode: generateTotpCode(secret, loginStep)
+    });
+  assert.equal(successfulLogin.status, 200);
+  assert.equal(successfulLogin.body.data.role, "MUSTERI");
+  assert.equal(successfulLogin.body.data.mfaEnabled, true);
+  const loginCookies = successfulLogin.headers["set-cookie"] as unknown as string[];
+  const sessionCookie = loginCookies
+    .find((cookie) => cookie.startsWith(`${env.SESSION_COOKIE_NAME}=`))!
+    .split(";", 1)[0];
+  const csrfCookie = loginCookies
+    .find((cookie) => cookie.startsWith(`${CSRF_COOKIE_NAME}=`))!
+    .split(";", 1)[0];
+  const rotatedCsrfToken = csrfCookie.slice(`${CSRF_COOKIE_NAME}=`.length);
+  assert.match(
+    loginCookies.find((cookie) => cookie.startsWith(`${env.SESSION_COOKIE_NAME}=`))!,
+    /Max-Age=2592000/i
+  );
+
+  const disableStep = loginStep + 1n;
+  const disabled = await request(app)
+    .post("/api/v1/auth/mfa/disable")
+    .set("Cookie", `${sessionCookie}; ${csrfCookie}`)
+    .set("X-CSRF-Token", rotatedCsrfToken)
+    .send({
+      currentPassword: password,
+      totpCode: generateTotpCode(secret, disableStep)
+    });
+  assert.equal(disabled.status, 200);
+  assert.equal(disabled.body.data.mfaEnabled, false);
+  assert.equal(disabled.body.data.mustEnrollMfa, false);
+  assert.equal(
+    await prisma.authSession.count({ where: { userId: user.id, revokedAt: null } }),
+    0
+  );
+  const disabledUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+  assert.equal(disabledUser.totpEnabledAt, null);
+  assert.equal(disabledUser.totpSecretCiphertext, null);
 });
 
 test("rate limit sayaçları farklı uygulama süreçleri arasında atomik paylaşılır", async () => {

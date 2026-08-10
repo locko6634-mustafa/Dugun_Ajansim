@@ -630,7 +630,7 @@ router.post(
         updatedAt: true,
       },
     });
-    if (!user || user.status !== 'ACTIVE' || !isPrivilegedRole(user.role)) {
+    if (!user || user.status !== 'ACTIVE') {
       throw new AppError('Bu hesap iki adımlı doğrulama kurulumunu desteklemiyor.', 403);
     }
     if (user.mustChangePassword) {
@@ -729,7 +729,7 @@ router.post(
         updatedAt: true,
       },
     });
-    if (!user || user.status !== 'ACTIVE' || !isPrivilegedRole(user.role)) {
+    if (!user || user.status !== 'ACTIVE') {
       throw new AppError('Bu hesap iki adımlı doğrulama kurulumunu desteklemiyor.', 403);
     }
     if (user.mustChangePassword) {
@@ -850,6 +850,7 @@ router.post(
         passwordHash: true,
         role: true,
         status: true,
+        mustChangePassword: true,
         totpSecretCiphertext: true,
         totpSecretIv: true,
         totpSecretAuthTag: true,
@@ -862,7 +863,7 @@ router.post(
     if (
       !user ||
       user.status !== 'ACTIVE' ||
-      !isPrivilegedRole(user.role) ||
+      user.mustChangePassword ||
       user.totpEnabledAt === null ||
       user.totpLastUsedStep === null
     ) {

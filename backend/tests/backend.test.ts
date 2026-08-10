@@ -215,7 +215,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   assert.equal(parsed.ADMIN_SESSION_IDLE_MINUTES, 30);
   assert.equal(parsed.SALON_SESSION_IDLE_MINUTES, 60);
   assert.equal(parsed.CUSTOMER_SESSION_IDLE_HOURS, 12);
-  assert.equal(parsed.TEMPORARY_PASSWORD_TTL_HOURS, 72);
+  assert.equal(parsed.TEMPORARY_PASSWORD_TTL_HOURS, 24);
   assert.equal(parsed.PUBLIC_APPLICATION_RETENTION_DAYS, 90);
   assert.equal(parsed.ARCHIVED_APPLICATION_RETENTION_DAYS, 365);
   assert.equal(parsed.ARCHIVED_WEDDING_RETENTION_DAYS, 3650);

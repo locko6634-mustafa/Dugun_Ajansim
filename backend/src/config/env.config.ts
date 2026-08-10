@@ -259,7 +259,7 @@ const envSchema = z
       'TEMPORARY_PASSWORD_TTL_HOURS',
       1,
       168,
-    ).default('72'),
+    ).default('24'),
     PUBLIC_APPLICATION_RETENTION_DAYS: boundedIntegerSchema(
       'PUBLIC_APPLICATION_RETENTION_DAYS',
       30,

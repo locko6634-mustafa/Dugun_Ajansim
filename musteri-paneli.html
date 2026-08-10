@@ -85,6 +85,96 @@
         </div>
       </section>
 
+      <section class="security-section" hidden aria-labelledby="security-title">
+        <header class="security-heading">
+          <div>
+            <p class="eyebrow"><span>Hesap güvenliği</span></p>
+            <h2 id="security-title">İki adımlı doğrulama</h2>
+          </div>
+          <p>
+            Parolanıza ek olarak doğrulama uygulamanızdaki tek kullanımlık kodu kullanabilirsiniz.
+            Müşteri hesabında bu özellik isteğe bağlıdır.
+          </p>
+        </header>
+
+        <div class="security-card">
+          <div class="security-status">
+            <span>Güncel durum</span>
+            <strong class="js-mfa-status">Kontrol ediliyor…</strong>
+          </div>
+          <p class="security-message js-mfa-message" role="status" aria-live="polite"></p>
+
+          <form class="security-form js-mfa-enroll-form" autocomplete="off">
+            <label for="mfa-enroll-password">Mevcut parolanız</label>
+            <div class="security-form__row">
+              <input
+                id="mfa-enroll-password"
+                name="currentPassword"
+                type="password"
+                autocomplete="current-password"
+                minlength="8"
+                required
+              />
+              <button type="submit">Kurulumu başlat</button>
+            </div>
+          </form>
+
+          <div class="mfa-enrollment js-mfa-enrollment" hidden>
+            <p>
+              Aşağıdaki anahtarı doğrulama uygulamanıza ekleyin veya uygulama bağlantısını açın.
+              Anahtarı kimseyle paylaşmayın.
+            </p>
+            <code class="js-mfa-secret" aria-label="TOTP kurulum anahtarı"></code>
+            <a class="js-mfa-otpauth" href="#">Doğrulama uygulamasında aç</a>
+            <form class="security-form js-mfa-confirm-form" autocomplete="off">
+              <label for="mfa-confirm-code">6 haneli doğrulama kodu</label>
+              <div class="security-form__row">
+                <input
+                  id="mfa-confirm-code"
+                  name="totpCode"
+                  type="text"
+                  autocomplete="one-time-code"
+                  inputmode="numeric"
+                  pattern="[0-9]{6}"
+                  maxlength="6"
+                  required
+                />
+                <button type="submit">Etkinleştir</button>
+              </div>
+            </form>
+          </div>
+
+          <form class="security-form js-mfa-disable-form" autocomplete="off" hidden>
+            <div class="security-form__fields">
+              <label for="mfa-disable-password">Mevcut parolanız</label>
+              <input
+                id="mfa-disable-password"
+                name="currentPassword"
+                type="password"
+                autocomplete="current-password"
+                minlength="8"
+                required
+              />
+              <label for="mfa-disable-code">6 haneli doğrulama kodu</label>
+              <input
+                id="mfa-disable-code"
+                name="totpCode"
+                type="text"
+                autocomplete="one-time-code"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                required
+              />
+            </div>
+            <button class="security-danger-button" type="submit">
+              İki adımlı doğrulamayı kapat
+            </button>
+            <small>Bu işlem tüm açık oturumları kapatır ve yeniden giriş yapmanızı ister.</small>
+          </form>
+        </div>
+      </section>
+
       <section class="delivery-release" hidden>
         <div>
           <p class="eyebrow">Teslimatınız hazır</p>

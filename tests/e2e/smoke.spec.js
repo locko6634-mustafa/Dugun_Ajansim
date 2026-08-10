@@ -832,6 +832,98 @@ test("@frontend-smoke müşteri teslimat paneli linki teslim öncesinde gösterm
   await expect(page.getByText("Montaj Aşamasında").first()).toBeVisible();
 });
 
+test("@frontend-smoke müşteri MFA kurulumunu tamamlar ve kapatınca girişe döner", async ({
+  page
+}) => {
+  let enrollmentBody;
+  let confirmationBody;
+  let disableBody;
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          role: "MUSTERI",
+          mustChangePassword: false,
+          mfaEnabled: false,
+          username: "musteri"
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/customer/dashboard", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          couple: { bride: "Ayşe Yılmaz", groom: "Mehmet Demir" },
+          venue: "Cess Wedding",
+          startsAt: "2026-08-10T17:00:00.000Z",
+          delivery: {
+            status: "MONTAJ",
+            dueDate: "2026-08-31T00:00:00.000Z",
+            releasedAt: null,
+            history: []
+          }
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/auth/mfa/enroll", async (route) => {
+    enrollmentBody = route.request().postDataJSON();
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          secret: "ABCDEFGHIJKLMNOPQRSTUVWX234567AB",
+          otpauthUri:
+            "otpauth://totp/DugunAjansim%3Amusteri?secret=ABCDEFGHIJKLMNOPQRSTUVWX234567AB&issuer=DugunAjansim"
+        }
+      })
+    });
+  });
+  await page.route("**/api/v1/auth/mfa/confirm", async (route) => {
+    confirmationBody = route.request().postDataJSON();
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { mfaEnabled: true, mustEnrollMfa: false } })
+    });
+  });
+  await page.route("**/api/v1/auth/mfa/disable", async (route) => {
+    disableBody = route.request().postDataJSON();
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { mfaEnabled: false, mustEnrollMfa: false } })
+    });
+  });
+
+  await page.goto("/musteri-paneli.html");
+  await page.getByLabel("Mevcut parolanız").first().fill("Musteri-Mfa-Parola-2026");
+  await page.getByRole("button", { name: "Kurulumu başlat" }).click();
+  await expect(page.locator(".js-mfa-secret")).toHaveText("ABCDEFGHIJKLMNOPQRSTUVWX234567AB");
+  await expect(page.locator(".js-mfa-otpauth")).toHaveAttribute("href", /^otpauth:\/\/totp\//);
+  await page.getByLabel("6 haneli doğrulama kodu").first().fill("123456");
+  await page.getByRole("button", { name: "Etkinleştir" }).click();
+  await expect(page.locator(".js-mfa-status")).toHaveText("Etkin");
+  expect(enrollmentBody).toEqual({ currentPassword: "Musteri-Mfa-Parola-2026" });
+  expect(confirmationBody).toEqual({
+    currentPassword: "Musteri-Mfa-Parola-2026",
+    totpCode: "123456"
+  });
+
+  await page.getByLabel("Mevcut parolanız").last().fill("Musteri-Mfa-Parola-2026");
+  await page.getByLabel("6 haneli doğrulama kodu").last().fill("654321");
+  await page.getByRole("button", { name: "İki adımlı doğrulamayı kapat" }).click();
+  await page.waitForURL("**/login.html");
+  expect(disableBody).toEqual({
+    currentPassword: "Musteri-Mfa-Parola-2026",
+    totpCode: "654321"
+  });
+});
+
 test("@frontend-smoke müşteri teslimat penceresini geciken API yanıtından önce güvenli açar", async ({
   page
 }) => {

@@ -179,6 +179,7 @@ a:focus-visible {
 
 .customer-hero h1,
 .journey-section h2,
+.security-section h2,
 .delivery-release h2 {
   margin: 0;
   font-family: var(--serif);
@@ -369,6 +370,168 @@ a:focus-visible {
   color: var(--ink-soft);
   font-size: 12px;
   line-height: 1.75;
+}
+
+.security-section {
+  margin-top: clamp(70px, 9vw, 115px);
+}
+
+.security-heading {
+  display: grid;
+  align-items: end;
+  gap: 50px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(240px, 0.55fr);
+}
+
+.security-section h2 {
+  margin: 18px 0 0;
+  font-family: var(--serif);
+  font-size: clamp(36px, 4vw, 54px);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.security-heading > p {
+  margin: 0 0 5px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.security-card {
+  margin-top: 38px;
+  padding: clamp(28px, 4vw, 46px);
+  border: 1px solid var(--line);
+  background: var(--paper-raised);
+}
+
+.security-status {
+  display: flex;
+  align-items: center;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+  justify-content: space-between;
+}
+
+.security-status span,
+.security-form label {
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.security-status strong {
+  color: var(--gold);
+  font-size: 13px;
+}
+
+.security-message {
+  min-height: 20px;
+  margin: 20px 0 0;
+  color: hsl(137 36% 34%);
+  font-size: 12px;
+}
+
+.security-message.is-error {
+  color: hsl(3 57% 42%);
+}
+
+.security-form {
+  margin-top: 22px;
+}
+
+.security-form__row {
+  display: grid;
+  margin-top: 9px;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.security-form__fields {
+  display: grid;
+  gap: 9px 18px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.security-form input {
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--ink);
+  background: white;
+  font: inherit;
+}
+
+.security-form input:focus {
+  border-color: var(--gold);
+  outline: 1px solid var(--gold);
+}
+
+.security-form button,
+.mfa-enrollment > a {
+  display: inline-grid;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 1px solid var(--ink);
+  color: white;
+  background: var(--ink);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  place-items: center;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.security-form button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.mfa-enrollment {
+  margin-top: 24px;
+  padding: 24px;
+  border-left: 3px solid var(--gold);
+  background: var(--paper-deep);
+}
+
+.mfa-enrollment > p,
+.security-form > small {
+  display: block;
+  margin: 0 0 16px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.mfa-enrollment code {
+  display: block;
+  overflow-x: auto;
+  margin-bottom: 14px;
+  padding: 12px;
+  background: white;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+}
+
+.mfa-enrollment > a {
+  width: fit-content;
+}
+
+.security-danger-button {
+  margin-top: 18px;
+  border-color: hsl(3 57% 42%) !important;
+  background: hsl(3 57% 42%) !important;
+}
+
+.security-form > small {
+  margin: 10px 0 0;
 }
 
 .timeline-shell {
@@ -626,6 +789,16 @@ a:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .security-heading,
+  .security-form__fields {
+    gap: 22px;
+    grid-template-columns: 1fr;
+  }
+
+  .security-form__row {
+    grid-template-columns: 1fr;
+  }
+
   .timeline-shell {
     margin-top: 34px;
     padding: 28px 24px;
@@ -691,6 +864,7 @@ h2,
 h3,
 .customer-hero h1,
 .journey-section h2,
+.security-section h2,
 .delivery-release h2,
 .customer-brand strong {
   font-family:
