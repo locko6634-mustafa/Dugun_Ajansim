@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import nodeTest from 'node:test';
 import type { PrismaClient } from '@prisma/client';
 import express from 'express';
@@ -10,6 +13,7 @@ import request from 'supertest';
 import { z } from 'zod';
 import { createApp } from '../src/app.js';
 import { parseEnvironment } from '../src/config/env.config.js';
+import { loadFileBackedSecrets } from '../src/config/fileSecrets.js';
 import { isSuccessfulLoginAttempt } from '../src/routes/auth.routes.js';
 import {
   PAYMENT_FLOW_COOKIE_NAME,
@@ -168,6 +172,69 @@ test('runtime rolü audit kayıtlarını güncelleyemez veya silemez', async () 
     runtimeRoleSource,
     /GRANT DELETE ON TABLE %I\.%I TO %I[\s\S]*?'public', 'audit_logs'/,
   );
+});
+
+test('file-backed secret yükleyici allowlist ve fail-closed dosya kurallarını uygular', () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), 'dugun-file-secrets-'));
+  try {
+    const validPath = join(temporaryDirectory, 'database-url');
+    const emptyPath = join(temporaryDirectory, 'empty');
+    const oversizedPath = join(temporaryDirectory, 'oversized');
+    const nulPath = join(temporaryDirectory, 'nul');
+    writeFileSync(validPath, 'postgresql://runtime:secret@postgres:5432/app\n');
+    writeFileSync(emptyPath, '');
+    writeFileSync(oversizedPath, Buffer.alloc(64 * 1024 + 1, 0x61));
+    writeFileSync(nulPath, Buffer.from([0x61, 0x00, 0x62]));
+
+    const validEnvironment: NodeJS.ProcessEnv = {
+      USE_FILE_SECRETS: '1',
+      DATABASE_URL_FILE: validPath,
+    };
+    loadFileBackedSecrets(validEnvironment);
+    assert.equal(validEnvironment.DATABASE_URL, 'postgresql://runtime:secret@postgres:5432/app');
+
+    assert.throws(() =>
+      loadFileBackedSecrets({
+        USE_FILE_SECRETS: '1',
+        DATABASE_URL: 'postgresql://direct:secret@postgres:5432/app',
+        DATABASE_URL_FILE: validPath,
+      }),
+    );
+    assert.throws(() =>
+      loadFileBackedSecrets({ USE_FILE_SECRETS: '0', DATABASE_URL_FILE: validPath }),
+    );
+    assert.throws(() =>
+      loadFileBackedSecrets({ USE_FILE_SECRETS: '1', DATABASE_URL_FILE: emptyPath }),
+    );
+    assert.throws(() =>
+      loadFileBackedSecrets({ USE_FILE_SECRETS: '1', DATABASE_URL_FILE: oversizedPath }),
+    );
+    assert.throws(() =>
+      loadFileBackedSecrets({ USE_FILE_SECRETS: '1', DATABASE_URL_FILE: nulPath }),
+    );
+    assert.throws(() =>
+      loadFileBackedSecrets({ USE_FILE_SECRETS: '1', DATABASE_URL_FILE: temporaryDirectory }),
+    );
+    assert.throws(() =>
+      loadFileBackedSecrets(
+        { USE_FILE_SECRETS: '1', DATABASE_URL_FILE: validPath },
+        {
+          lstatSync: () =>
+            ({ isSymbolicLink: () => true, isFile: () => false, size: 10 }) as never,
+          readFileSync: () => Buffer.from('not-read'),
+        },
+      ),
+    );
+
+    const unallowlistedEnvironment = {
+      USE_FILE_SECRETS: '1',
+      UNSAFE_SECRET_FILE: validPath,
+    };
+    loadFileBackedSecrets(unallowlistedEnvironment);
+    assert.equal('UNSAFE_SECRET' in unallowlistedEnvironment, false);
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 });
 
 const createMockResponse = () => {

@@ -6,6 +6,14 @@ fail() {
   exit 1
 }
 
+file_secret_helper="${FILE_SECRET_HELPER_PATH:-/usr/local/bin/file-secrets.sh}"
+if [ -f "$file_secret_helper" ]; then
+  . "$file_secret_helper"
+  load_file_secret PGPASSWORD
+elif [ -n "${PGPASSWORD_FILE:-}" ]; then
+  fail "File-backed secret yardımcısı bulunamadı."
+fi
+
 validate_integer() {
   setting_name="$1"
   setting_value="$2"

@@ -205,7 +205,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(exampleEnv).toContain("ADMIN_SESSION_TTL_HOURS=8");
   expect(exampleEnv).toContain("SALON_SESSION_IDLE_MINUTES=60");
   expect(exampleEnv).toContain("CUSTOMER_SESSION_IDLE_HOURS=12");
-  expect(exampleEnv).toContain("TEMPORARY_PASSWORD_TTL_HOURS=72");
+  expect(exampleEnv).toContain("TEMPORARY_PASSWORD_TTL_HOURS=24");
 
   expect(deployReadme).toContain("install -m 600");
   expect(deployReadme).toContain("config -q");

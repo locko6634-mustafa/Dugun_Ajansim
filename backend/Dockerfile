@@ -22,7 +22,7 @@ FROM build AS migrate
 
 ENV NODE_ENV=production
 USER node
-CMD ["npx", "prisma", "migrate", "deploy"]
+CMD ["node", "dist/scripts/runPrismaMigrate.js"]
 
 FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS backup-crypto
 
@@ -30,6 +30,7 @@ ENV NODE_ENV=production
 WORKDIR /tool
 
 COPY deploy/backup-crypto.mjs ./backup-crypto.mjs
+COPY deploy/file-secrets.mjs ./file-secrets.mjs
 
 USER node
 ENTRYPOINT ["node", "/tool/backup-crypto.mjs"]

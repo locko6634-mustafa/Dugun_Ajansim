@@ -6,6 +6,16 @@ fail() {
   exit 1
 }
 
+file_secret_helper="${FILE_SECRET_HELPER_PATH:-/usr/local/bin/file-secrets.sh}"
+if [ -f "$file_secret_helper" ]; then
+  . "$file_secret_helper"
+  load_file_secret POSTGRES_PASSWORD
+  load_file_secret POSTGRES_RUNTIME_PASSWORD
+  load_file_secret PGPASSWORD
+elif [ -n "${POSTGRES_PASSWORD_FILE:-}${POSTGRES_RUNTIME_PASSWORD_FILE:-}${PGPASSWORD_FILE:-}" ]; then
+  fail "File-backed secret yardımcısı bulunamadı."
+fi
+
 runtime_user="${POSTGRES_RUNTIME_USER:-}"
 runtime_password="${POSTGRES_RUNTIME_PASSWORD:-}"
 

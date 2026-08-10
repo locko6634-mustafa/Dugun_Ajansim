@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -41,6 +44,33 @@ test("AES-256-GCM yedek akışı veriyi kayıpsız geri açar", () => {
   const decrypted = runTool("decrypt", encrypted.stdout);
   assert.equal(decrypted.status, 0, decrypted.stderr.toString());
   assert.deepEqual(decrypted.stdout, plaintext);
+});
+
+test("yedek anahtarı opt-in secret dosyalarından okunur", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "dugun-backup-secrets-"));
+  try {
+    const keyPath = join(temporaryDirectory, "backup-key");
+    const fingerprintsPath = join(temporaryDirectory, "application-fingerprints");
+    writeFileSync(keyPath, `${primaryKey}\n`);
+    writeFileSync(
+      fingerprintsPath,
+      `${applicationDataKeyFingerprint},${secondaryApplicationKeyFingerprint}\n`
+    );
+    const environment = { ...process.env };
+    delete environment.BACKUP_ENCRYPTION_KEY;
+    delete environment.APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS;
+    const result = spawnSync(process.execPath, [toolPath, "validate"], {
+      env: {
+        ...environment,
+        USE_FILE_SECRETS: "1",
+        BACKUP_ENCRYPTION_KEY_FILE: keyPath,
+        APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS_FILE: fingerprintsPath
+      }
+    });
+    assert.equal(result.status, 0, result.stderr.toString());
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 });
 
 test("ilk parçadaki değişiklik doğrulanmamış hiçbir veriyi stdout'a çıkarmaz", () => {

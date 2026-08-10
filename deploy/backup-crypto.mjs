@@ -1,5 +1,11 @@
 import { once } from "node:events";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { loadAllowedFileSecrets } from "./file-secrets.mjs";
+
+loadAllowedFileSecrets(process.env, {
+  BACKUP_ENCRYPTION_KEY_FILE: "BACKUP_ENCRYPTION_KEY",
+  APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS_FILE: "APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS"
+});
 
 const ALGORITHM = "aes-256-gcm";
 const MAGIC = Buffer.from("DAJSBKP", "ascii");

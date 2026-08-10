@@ -157,3 +157,17 @@ curl -fsS "https://dugun.n8n-mustafa.me/api/v1/health"
 teslimat bağlantıları, `BACKUP_ENCRYPTION_KEY` değişirse eski yedekler çözülemez; iki anahtarı ayrı
 ve güvenli bir parola kasasında sürümlü olarak yedekleyin.
 Dosyanın izinlerini `stat -c '%a %n' .env.production` ile kontrol edin; beklenen izin `600`'dür.
+
+## Sunucu taşıması sonrası file-backed secret geçişi
+
+`compose.production.secrets.yaml`, mevcut production Compose'u değiştirmeyen isteğe bağlı bir
+overlay'dir. `USE_FILE_SECRETS=0` varsayılanında doğrudan environment değerleri kullanılmaya devam
+eder. Taşıma sonrasında secret dosyaları normal dosya olarak, yalnız dağıtım kullanıcısının
+okuyabileceği izinlerle hazırlanıp `.env.production` içindeki `*_SECRET_FILE` yolları tanımlandıktan
+sonra `USE_FILE_SECRETS=1` yapılabilir. Dağıtım ve otomatik rollback aynı overlay'i kullanır.
+
+Uygulama ve yardımcı betikler yalnız allowlist'teki `*_FILE` değişkenlerini kabul eder. Doğrudan
+değer ile karşılık gelen `_FILE` aynı anda verilirse; dosya boşsa, aşırı büyükse, NUL içeriyorsa,
+symlink ise veya normal dosya değilse işlem fail-closed durur. Overlay etkinleştirilmeden önce yeni
+secret seti ve şifreli yedek restore testi doğrulanmalıdır. Canlı aktivasyon, anahtar rotasyonu ve
+eski `.env` secret değerlerinin temizlenmesi sunucu taşıması sonrası ayrı operasyon adımıdır.

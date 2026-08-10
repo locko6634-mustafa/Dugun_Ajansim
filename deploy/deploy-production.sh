@@ -12,6 +12,7 @@ readonly pii_maintenance_batch_size="${PII_MAINTENANCE_BATCH_SIZE:-100}"
 readonly pii_maintenance_max_batches="${PII_MAINTENANCE_MAX_BATCHES:-1000}"
 readonly allow_deploy_without_rollback="${ALLOW_DEPLOY_WITHOUT_ROLLBACK:-0}"
 readonly legacy_plaintext_backup_cleanup="${LEGACY_PLAINTEXT_BACKUP_CLEANUP:-0}"
+readonly use_file_secrets="${USE_FILE_SECRETS:-0}"
 readonly backend_replicas="${BACKEND_REPLICAS:-2}"
 readonly operation="${1:-deploy}"
 
@@ -76,13 +77,32 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "$1 komutu sunucuda bulunamadı."
 }
 
+postgres_owner_exec() {
+  local -a compose_exec_options=()
+  while [[ "$#" -gt 0 && "$1" != "--" ]]; do
+    compose_exec_options+=("$1")
+    shift
+  done
+  [[ "${1:-}" == "--" ]] || fail "PostgreSQL komut ayırıcısı eksik."
+  shift
+  [[ "$#" -gt 0 ]] || fail "PostgreSQL komutu eksik."
+
+  if [[ "$use_file_secrets" == "1" ]]; then
+    "${compose[@]}" exec -T "${compose_exec_options[@]}" postgres \
+      sh /usr/local/bin/with-owner-password.sh "$@"
+  else
+    "${compose[@]}" exec -T "${compose_exec_options[@]}" postgres sh -eu -c \
+      'PGPASSWORD="$POSTGRES_PASSWORD"; export PGPASSWORD; exec "$@"' sh "$@"
+  fi
+}
+
 drop_restore_database() {
   if [[ -z "$restore_database" || "$restore_database_created" -ne 1 ]]; then
     return
   fi
 
-  if ! "${compose[@]}" exec -T -e RESTORE_DATABASE="$restore_database" postgres sh -eu -c \
-    'PGPASSWORD="$POSTGRES_PASSWORD" dropdb --if-exists --force --username="$POSTGRES_USER" "$RESTORE_DATABASE"' \
+  if ! postgres_owner_exec -e RESTORE_DATABASE="$restore_database" -- sh -eu -c \
+    'exec dropdb --if-exists --force --username="$POSTGRES_USER" "$RESTORE_DATABASE"' \
     >/dev/null 2>&1; then
     return 1
   fi
@@ -113,8 +133,8 @@ capture_migration_state_hash() {
   local migration_rows
 
   migration_rows="$(
-    "${compose[@]}" exec -T -e MIGRATION_DATABASE="$database_name" postgres sh -eu -c \
-      'database_name="${MIGRATION_DATABASE:-$POSTGRES_DB}"; PGPASSWORD="$POSTGRES_PASSWORD" psql -X --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$database_name" --command="SELECT concat(migration_name, chr(58), checksum) FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name"'
+    postgres_owner_exec -e MIGRATION_DATABASE="$database_name" -- sh -eu -c \
+      'database_name="${MIGRATION_DATABASE:-$POSTGRES_DB}"; exec psql -X --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$database_name" --command="SELECT concat(migration_name, chr(58), checksum) FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name"'
   )" || return 1
 
   printf '%s' "$migration_rows" | sha256sum | awk '{print $1}'
@@ -154,6 +174,9 @@ rollback_deployment() {
         rollback_failed=1
 
       local rollback_compose=(docker compose --env-file "$environment_file" -f "$compose_file")
+      if [[ "$use_file_secrets" == "1" ]]; then
+        rollback_compose+=(-f compose.production.secrets.yaml)
+      fi
       "${rollback_compose[@]}" config -q || rollback_failed=1
       "${rollback_compose[@]}" up -d --no-build --force-recreate --no-deps --wait postgres ||
         rollback_failed=1
@@ -401,6 +424,8 @@ require_integer_range "BACKEND_REPLICAS" "$backend_replicas" 2 8
   fail "ALLOW_DEPLOY_WITHOUT_ROLLBACK yalnızca 0 veya 1 olabilir."
 [[ "$legacy_plaintext_backup_cleanup" == "0" || "$legacy_plaintext_backup_cleanup" == "1" ]] ||
   fail "LEGACY_PLAINTEXT_BACKUP_CLEANUP yalnızca 0 veya 1 olabilir."
+[[ "$use_file_secrets" == "0" || "$use_file_secrets" == "1" ]] ||
+  fail "USE_FILE_SECRETS yalnızca 0 veya 1 olabilir."
 
 repository_root="$(git rev-parse --show-toplevel)"
 [[ "$(pwd -P)" == "$(cd "$repository_root" && pwd -P)" ]] ||
@@ -426,6 +451,11 @@ current_user_id="$(id -u)"
   fail "$environment_file dağıtım kullanıcısına ait olmalıdır."
 
 compose=(docker compose --env-file "$environment_file" -f "$compose_file")
+if [[ "$use_file_secrets" == "1" ]]; then
+  [[ -f "compose.production.secrets.yaml" && ! -L "compose.production.secrets.yaml" ]] ||
+    fail "File-backed secret overlay normal bir dosya olmalıdır."
+  compose+=(-f compose.production.secrets.yaml)
+fi
 "${compose[@]}" config -q
 
 backup_directory="$repository_root/backups"
@@ -467,15 +497,15 @@ fi
 "${compose[@]}" --profile operations run --rm --no-deps -T backup-crypto validate
 
 database_bytes="$(
-  "${compose[@]}" exec -T postgres sh -eu -c \
-    'PGPASSWORD="$POSTGRES_PASSWORD" psql -X --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --command="SELECT pg_database_size(current_database())"'
+  postgres_owner_exec -- sh -eu -c \
+    'exec psql -X --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --command="SELECT pg_database_size(current_database())"'
 )"
 database_bytes="$(printf '%s' "$database_bytes" | tr -d '[:space:]')"
 is_unsigned_integer "$database_bytes" || fail "Veritabanı boyutu ölçülemedi."
 
 source_table_count="$(
-  "${compose[@]}" exec -T postgres sh -eu -c \
-    'PGPASSWORD="$POSTGRES_PASSWORD" psql -X --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --command="SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname = chr(112) || chr(117) || chr(98) || chr(108) || chr(105) || chr(99)"'
+  postgres_owner_exec -- sh -eu -c \
+    'exec psql -X --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --command="SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname = chr(112) || chr(117) || chr(98) || chr(108) || chr(105) || chr(99)"'
 )"
 source_table_count="$(printf '%s' "$source_table_count" | tr -d '[:space:]')"
 is_unsigned_integer "$source_table_count" || fail "Kaynak tablo sayısı doğrulanamadı."
@@ -511,8 +541,8 @@ restore_log_path="$backup_directory/restore-${DEPLOY_SHA}-${backup_timestamp}.lo
   fail "Aynı dağıtım zaman damgasıyla yedek zaten mevcut."
 [[ ! -e "$restore_log_path" ]] || fail "Aynı dağıtım için restore hata günlüğü zaten mevcut."
 
-if ! "${compose[@]}" exec -T postgres sh -eu -c \
-  'PGPASSWORD="$POSTGRES_PASSWORD" exec pg_dump --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --format=custom --compress=6 --no-owner --no-acl' |
+if ! postgres_owner_exec -- sh -eu -c \
+  'exec pg_dump --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --format=custom --compress=6 --no-owner --no-acl' |
   "${compose[@]}" --profile operations run --rm --no-deps -T backup-crypto encrypt >"$temporary_backup_path"; then
   fail "Veritabanı yedeği alınamadı veya şifrelenemedi."
 fi
@@ -521,20 +551,20 @@ mv -- "$temporary_backup_path" "$backup_path"
 temporary_backup_path=""
 
 restore_database="restore_check_${DEPLOY_SHA:0:12}_${RANDOM}"
-"${compose[@]}" exec -T -e RESTORE_DATABASE="$restore_database" postgres sh -eu -c \
-  'PGPASSWORD="$POSTGRES_PASSWORD" createdb --username="$POSTGRES_USER" "$RESTORE_DATABASE"'
+postgres_owner_exec -e RESTORE_DATABASE="$restore_database" -- sh -eu -c \
+  'exec createdb --username="$POSTGRES_USER" "$RESTORE_DATABASE"'
 restore_database_created=1
 
 if ! "${compose[@]}" --profile operations run --rm --no-deps -T backup-crypto decrypt <"$backup_path" |
-  "${compose[@]}" exec -T -e RESTORE_DATABASE="$restore_database" postgres sh -eu -c \
-    'PGPASSWORD="$POSTGRES_PASSWORD" exec pg_restore --exit-on-error --no-owner --no-acl --username="$POSTGRES_USER" --dbname="$RESTORE_DATABASE"' \
+  postgres_owner_exec -e RESTORE_DATABASE="$restore_database" -- sh -eu -c \
+    'exec pg_restore --exit-on-error --no-owner --no-acl --username="$POSTGRES_USER" --dbname="$RESTORE_DATABASE"' \
     2>"$restore_log_path"; then
   fail "Şifreli yedek geçici veritabanına geri yüklenemedi; ayrıntı yalnız yerel $restore_log_path dosyasındadır."
 fi
 
 restored_table_count="$(
-  "${compose[@]}" exec -T -e RESTORE_DATABASE="$restore_database" postgres sh -eu -c \
-    'PGPASSWORD="$POSTGRES_PASSWORD" psql -X --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$RESTORE_DATABASE" --command="SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname = '\''public'\''"'
+  postgres_owner_exec -e RESTORE_DATABASE="$restore_database" -- sh -eu -c \
+    'exec psql -X --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$RESTORE_DATABASE" --command="SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname = '\''public'\''"'
 )"
 restored_table_count="$(printf '%s' "$restored_table_count" | tr -d '[:space:]')"
 is_unsigned_integer "$restored_table_count" || fail "Restore edilen tablo sayısı doğrulanamadı."

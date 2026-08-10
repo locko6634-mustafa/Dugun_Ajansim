@@ -90,3 +90,21 @@ test("PII bakım döngüsü global operasyon seçeneğini gölgelemez", () => {
   assert.doesNotMatch(deployScript, /local operation=/);
   assert.match(deployScript, /node dist\/scripts\/maintainPiiEncryption\.js "\$pii_operation"/);
 });
+
+test("file-backed secret modu opt-in kalır ve rollback aynı overlay'i kullanır", () => {
+  const deployScript = readProjectFile("deploy/deploy-production.sh");
+  const deployWorkflow = readProjectFile(".github/workflows/deploy.yml");
+  const backupWorkflow = readProjectFile(".github/workflows/production-backup.yml");
+  const exampleEnvironment = readProjectFile(".env.production.example");
+  const overlay = readProjectFile("compose.production.secrets.yaml");
+
+  assert.match(exampleEnvironment, /^USE_FILE_SECRETS=0$/m);
+  assert.match(deployWorkflow, /USE_FILE_SECRETS:.*\|\| '0'/);
+  assert.match(backupWorkflow, /USE_FILE_SECRETS:.*\|\| '0'/);
+  assert.match(deployScript, /compose\+=\(-f compose\.production\.secrets\.yaml\)/);
+  assert.match(deployScript, /rollback_compose\+=\(-f compose\.production\.secrets\.yaml\)/);
+  assert.match(overlay, /DATABASE_URL: !reset null/);
+  assert.match(overlay, /DATA_ENCRYPTION_KEY: !reset null/);
+  assert.match(overlay, /BACKUP_ENCRYPTION_KEY: !reset null/);
+  assert.match(overlay, /DATABASE_URL_FILE: \/run\/secrets\/database_url_runtime/);
+});

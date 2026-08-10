@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 // Tip doğrulama ve şema oluşturma için Zod kütüphanesini içe aktar
 import { z } from 'zod';
+import { loadFileBackedSecrets } from './fileSecrets.js';
 
 // Bulunduğumuz dosyanın tam yolunu ESM ile elde et
 const __filename = fileURLToPath(import.meta.url);
@@ -15,6 +16,7 @@ const __dirname = path.dirname(__filename);
 
 // Proje kökündeki .env dosyasını oku ve process.env içerisine yükle
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+loadFileBackedSecrets();
 
 // PORT değişkeni için Zod şeması (Metin -> Sayı dönüşümü ve 1-65535 aralığı kontrolü)
 const portSchema = z
