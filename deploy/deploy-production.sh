@@ -525,13 +525,13 @@ deploy_started=1
 "${compose[@]}" up -d --build --wait --scale backend="$backend_replicas"
 
 run_pii_batches() {
-  local operation="$1"
+  local pii_operation="$1"
   local output
   local attempt
   for ((attempt = 1; attempt <= pii_maintenance_max_batches; attempt += 1)); do
     output="$(
       "${compose[@]}" --profile operations run --rm --no-deps -T pii-maintenance \
-        node dist/scripts/maintainPiiEncryption.js "$operation" \
+        node dist/scripts/maintainPiiEncryption.js "$pii_operation" \
         "--batch-size=$pii_maintenance_batch_size"
     )"
     log "$output"
@@ -539,7 +539,7 @@ run_pii_batches() {
       return
     fi
   done
-  fail "PII bakım işlemi güvenli parti sınırı içinde tamamlanamadı: $operation"
+  fail "PII bakım işlemi güvenli parti sınırı içinde tamamlanamadı: $pii_operation"
 }
 
 verify_backend_replicas

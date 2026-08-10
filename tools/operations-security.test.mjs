@@ -71,3 +71,11 @@ test("üretim bakım servisleri kesin proxy IP allowlist'ini devralır", () => {
     );
   }
 });
+
+test("PII bakım döngüsü global operasyon seçeneğini gölgelemez", () => {
+  const deployScript = readProjectFile("deploy/deploy-production.sh");
+
+  assert.match(deployScript, /run_pii_batches\(\) \{\s+local pii_operation="\$1"/);
+  assert.doesNotMatch(deployScript, /local operation=/);
+  assert.match(deployScript, /node dist\/scripts\/maintainPiiEncryption\.js "\$pii_operation"/);
+});
