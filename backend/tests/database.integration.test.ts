@@ -198,6 +198,84 @@ test("migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalış�
   });
 });
 
+test("çekirdek PII zarf constraintleri doğrulanır ve eksik zarfı reddeder", async (context) => {
+  const marker = `pii-constraint-${randomUUID()}`;
+  const venue = await prisma.venue.create({
+    data: { slug: marker, name: `PII Constraint ${marker}` }
+  });
+  const packageRecord = await prisma.package.create({
+    data: { code: marker, name: `PII Constraint ${marker}`, priceCents: 100_000 }
+  });
+  let applicationId: string | undefined;
+  context.after(async () => {
+    if (applicationId) {
+      await prisma.bookingApplication.deleteMany({ where: { id: applicationId } });
+    }
+    await prisma.package.deleteMany({ where: { id: packageRecord.id } });
+    await prisma.venue.deleteMany({ where: { id: venue.id } });
+  });
+  const application = await createBookingApplication(
+    {
+      brideFirstName: "Ayşe",
+      brideLastName: "Yılmaz",
+      bridePhone: "05551234567",
+      groomFirstName: "Mehmet",
+      groomLastName: "Demir",
+      groomPhone: "05559876543",
+      primaryContact: "GELIN",
+      primaryEmail: `${marker}@example.com`,
+      weddingDate: addCalendarDays(getIstanbulDate(new Date()), 60),
+      startTime: "19:00",
+      endTime: "23:00",
+      endsNextDay: false,
+      venueId: venue.id,
+      packageCode: packageRecord.code,
+      serviceCodes: [],
+      paymentMethod: "DEPOSIT",
+      privacyConsent: true,
+      marketingConsent: false
+    },
+    {
+      source: "PUBLIC_FORM",
+      idempotencyKey: randomUUID(),
+      paymentFlowKey: `${marker}-payment-flow-key`,
+      correlationId: marker
+    }
+  );
+  applicationId = application.id;
+
+  const constraints = await prisma.$queryRaw<
+    Array<{ constraintName: string; validated: boolean }>
+  >`
+    SELECT conname AS "constraintName", convalidated AS "validated"
+    FROM pg_catalog.pg_constraint
+    WHERE conname IN (
+      'booking_applications_pii_envelope_check',
+      'weddings_pii_envelope_check',
+      'message_tasks_pii_envelope_check'
+    )
+    ORDER BY conname
+  `;
+  assert.deepEqual(constraints, [
+    { constraintName: "booking_applications_pii_envelope_check", validated: true },
+    { constraintName: "message_tasks_pii_envelope_check", validated: true },
+    { constraintName: "weddings_pii_envelope_check", validated: true }
+  ]);
+
+  await assert.rejects(
+    prisma.$executeRaw`
+      UPDATE "booking_applications"
+      SET "piiIv" = NULL
+      WHERE "id" = ${application.id}
+    `
+  );
+  const unchanged = await prisma.bookingApplication.findUniqueOrThrow({
+    where: { id: application.id },
+    select: { piiCiphertext: true, piiIv: true, piiAuthTag: true }
+  });
+  assert.ok(unchanged.piiCiphertext && unchanged.piiIv && unchanged.piiAuthTag);
+});
+
 test("expired, revoked, idle, disabled ve süresi dolmuş geçici kimlikler reddedilir", async (context) => {
   const marker = `guard-${Date.now()}-${Math.floor(Math.random() * 10_000)}`;
   const password = "yalnizca-guard-entegrasyon-parolasi";
