@@ -44,6 +44,11 @@ test("kalite workflow'u en az yetki, audit ve immutable action SHA'ları kullan�
   assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   assert.match(workflow, /- run: npm run audit:dependencies/);
   assert.equal(workflow.match(/- run: npm run audit:dependencies/g)?.length, 2);
+  assert.equal(workflow.match(/node-version: 22\.23\.2/g)?.length, 2);
+  assert.match(
+    workflow,
+    /image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193/
+  );
   assert.equal(actionReferences.length, 5);
 
   for (const [, actionName, sha] of actionReferences) {
@@ -61,7 +66,14 @@ test("ortam varyantları ignore edilirken sentetik fixture ve örnekler izlenebi
     ["backend/.env.test.local", true],
     [".env.production.example", false],
     ["backend/.env.example", false],
-    ["backend/tests/test.env", false]
+    ["backend/tests/test.env", false],
+    [".npmrc", true],
+    ["certificate.p12", true],
+    ["certificate.pfx", true],
+    ["keystore.jks", true],
+    ["id_rsa", true],
+    ["id_ed25519", true],
+    ["putty.ppk", true]
   ]);
 
   for (const [relativePath, shouldBeIgnored] of expectedIgnoreState) {
@@ -71,5 +83,11 @@ test("ortam varyantları ignore edilirken sentetik fixture ve örnekler izlenebi
     });
     const expectedStatus = shouldBeIgnored ? 0 : 1;
     assert.equal(result.status, expectedStatus, result.stderr);
+  }
+
+  const dockerIgnore = readProjectFile(".dockerignore");
+  for (const pattern of [".npmrc", "*.p12", "*.pfx", "*.jks", "id_rsa", "id_ed25519", "*.ppk"]) {
+    const escapedPattern = pattern.replaceAll(".", "\\.").replaceAll("*", ".*");
+    assert.match(dockerIgnore, new RegExp(`^${escapedPattern}$`, "m"));
   }
 });

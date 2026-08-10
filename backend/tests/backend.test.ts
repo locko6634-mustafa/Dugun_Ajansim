@@ -16,6 +16,7 @@ import { parseEnvironment } from '../src/config/env.config.js';
 import { loadFileBackedSecrets } from '../src/config/fileSecrets.js';
 import { isSuccessfulLoginAttempt } from '../src/routes/auth.routes.js';
 import {
+  availabilityRequestSchema,
   PAYMENT_FLOW_COOKIE_NAME,
   paymentFlowCookieOptions,
 } from '../src/routes/public.routes.js';
@@ -1186,6 +1187,26 @@ test('request validator normalize edilmiş veriyi request üzerine yazar', async
   assert.deepEqual(request.body, { name: 'Mustafa' });
   assert.deepEqual(request.query, { page: 2 });
   assert.deepEqual(request.params, { id: 'abc' });
+});
+
+test('public uygunluk isteği bilinmeyen query alanlarını reddeder', async () => {
+  const middleware = validateRequest(availabilityRequestSchema);
+  let forwardedError: unknown;
+
+  await middleware(
+    {
+      body: {},
+      query: { date: '2026-08-10', unexpected: '1' },
+      params: { venueId: 'de305d54-75b4-431b-adb2-eb6b9e546014' },
+    } as unknown as Request,
+    {} as Response,
+    ((error?: unknown) => {
+      forwardedError = error;
+    }) as NextFunction,
+  );
+
+  assert.ok(forwardedError instanceof AppError);
+  assert.equal(forwardedError.statusCode, 400);
 });
 
 test('başlangıç yapılandırma hatası port açılmadan kontrollü biçimde sonlanır', () => {

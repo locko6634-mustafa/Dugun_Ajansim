@@ -18,7 +18,8 @@ install -m 600 .env.production.example .env.production
 # TRUST_PROXY değerini edge_proxy ağındaki sabit Traefik container IP'si olarak ayarlayın.
 # PAYMENT_MODE=live kullanın; banka, hesap sahibi, IBAN ve WhatsApp alanlarının beşi de zorunludur.
 docker compose --env-file .env.production -f compose.production.yaml config -q
-docker compose --env-file .env.production -f compose.production.yaml up -d --build
+docker compose --env-file .env.production -f compose.production.yaml \
+  up -d --build --wait --scale backend=2
 docker compose --env-file .env.production -f compose.production.yaml --profile bootstrap run --rm seed
 ```
 
@@ -77,13 +78,12 @@ ister; girilen parola Compose dosyasına, image'a veya `.env.production` dosyas�
 
 ## Güncelleme
 
-Önce aşağıdaki yöntemle doğrulanmış bir yedek alın. Ardından:
-
-```bash
-git pull --ff-only
-docker compose --env-file .env.production -f compose.production.yaml config -q
-docker compose --env-file .env.production -f compose.production.yaml up -d --build
-```
+Normal üretim güncellemesi yalnız `.github/workflows/deploy.yml` üzerinden yapılır. Workflow,
+kalite kapısından geçen güncel `main` revisionını exact SHA ile doğrular ve sunucuda
+`deploy/deploy-production.sh` betiğini çalıştırır. Betik; şifreli yedek/restore provası, migration,
+runtime rolü, iki backend replikası, sağlık kontrolü, RLS enforcement, retention ve otomatik
+uygulama rollback kapılarını birlikte uygular. Sunucuda elle `git pull` veya doğrudan
+`docker compose up` ile bu kapıları atlamayın.
 
 ### Mevcut volume'u DDL yetkisiz runtime rolüne yükseltme
 
@@ -116,7 +116,8 @@ docker compose --env-file .env.production -f compose.production.yaml run --rm --
   'if PGPASSWORD="$POSTGRES_RUNTIME_PASSWORD" psql -v ON_ERROR_STOP=1 -h postgres -U "$POSTGRES_RUNTIME_USER" -d "$POSTGRES_DB" -c "BEGIN; CREATE TABLE public.__runtime_ddl_probe(id integer); ROLLBACK;"; then echo "HATA: runtime DDL uygulayabildi" >&2; exit 1; else echo "Beklenen: runtime DDL reddedildi"; fi'
 ```
 
-Kontroller başarılıysa normal `up -d --build` komutuyla backend ve frontend'i güncelleyin.
+Kontroller başarılıysa backend ve frontend'i normal exact-SHA workflow'u üzerinden güncelleyin;
+doğrudan `docker compose up` kullanmayın.
 
 ## Yedekleme ve geri yükleme tatbikatı
 

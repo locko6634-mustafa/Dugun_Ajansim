@@ -13,6 +13,16 @@ out/
 !backend/tests/test.env
 *.pem
 *.key
+*.p12
+*.pfx
+*.jks
+*.ppk
+.npmrc
+.ssh/
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
 
 # Test & Rapor Çıktıları (Playwright, Coverage, Lighthouse vb.)
 playwright-report/

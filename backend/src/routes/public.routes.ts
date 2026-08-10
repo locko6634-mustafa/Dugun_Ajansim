@@ -94,14 +94,14 @@ const emptyRequestSchema = z.object({
   params: z.object({}).strict()
 });
 
-const availabilitySchema = z.object({
+export const availabilityRequestSchema = z.object({
   body: z.object({}).strict().optional().default({}),
   query: z.object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD formatında olmalıdır.")
-  }),
+  }).strict(),
   params: z.object({
     venueId: z.string().uuid("Geçerli bir salon IDsi girilmelidir.")
-  })
+  }).strict()
 });
 
 const paymentFlowParamsSchema = z.object({
@@ -207,7 +207,7 @@ router.get(
 router.get(
   "/venues/:venueId/availability",
   publicAvailabilityLimiter,
-  validateRequest(availabilitySchema),
+  validateRequest(availabilityRequestSchema),
   asyncHandler(async (req, res) => {
     const { venueId } = req.params;
     const { date } = req.query as { date: string };

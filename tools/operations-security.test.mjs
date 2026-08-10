@@ -53,12 +53,20 @@ test("watchdog yalnız uygulama katmanını onarır ve PostgreSQL arızasını o
 
 test("dağıtım ve geri alma en az iki backend replikasını korur", () => {
   const deployScript = readProjectFile("deploy/deploy-production.sh");
+  const deployReadme = readProjectFile("deploy/README.md");
   const exampleEnvironment = readProjectFile(".env.production.example");
 
   assert.match(exampleEnvironment, /^BACKEND_REPLICAS=2$/m);
   assert.match(deployScript, /require_integer_range "BACKEND_REPLICAS" "\$backend_replicas" 2 8/);
   assert.equal(deployScript.match(/--scale backend="\$backend_replicas"/g)?.length, 2);
   assert.match(deployScript, /verify_backend_replicas/);
+  assert.match(deployReadme, /--scale backend=2/);
+  assert.match(deployReadme, /deploy-production\.sh/);
+  assert.doesNotMatch(deployReadme, /git pull --ff-only/);
+  assert.doesNotMatch(
+    deployReadme,
+    /docker compose --env-file \.env\.production -f compose\.production\.yaml up -d --build\s*$/m
+  );
 });
 
 test("üretim bakım servisleri kesin proxy IP allowlist'ini devralır", () => {
