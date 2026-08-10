@@ -22,6 +22,7 @@ jobs:
       BACKUP_MIN_FREE_MIB: "1024"
       BACKUP_RETENTION_DAYS: "30"
       BACKUP_MAX_FILES: "30"
+      LEGACY_PLAINTEXT_BACKUP_CLEANUP: ${{ vars.LEGACY_PLAINTEXT_BACKUP_CLEANUP || '0' }}
       BACKEND_REPLICAS: "2"
       SERVER_HOST_FINGERPRINT: ${{ secrets.SERVER_HOST_FINGERPRINT }}
     steps:
@@ -43,7 +44,7 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           timeout: 60s
           command_timeout: 35m
-          envs: BACKUP_MIN_FREE_MIB,BACKUP_RETENTION_DAYS,BACKUP_MAX_FILES,BACKEND_REPLICAS
+          envs: BACKUP_MIN_FREE_MIB,BACKUP_RETENTION_DAYS,BACKUP_MAX_FILES,LEGACY_PLAINTEXT_BACKUP_CLEANUP,BACKEND_REPLICAS
           script_stop: true
           script: |
             set -eu

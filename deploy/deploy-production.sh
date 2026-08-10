@@ -11,6 +11,7 @@ readonly backup_max_files="${BACKUP_MAX_FILES:-30}"
 readonly pii_maintenance_batch_size="${PII_MAINTENANCE_BATCH_SIZE:-100}"
 readonly pii_maintenance_max_batches="${PII_MAINTENANCE_MAX_BATCHES:-1000}"
 readonly allow_deploy_without_rollback="${ALLOW_DEPLOY_WITHOUT_ROLLBACK:-0}"
+readonly legacy_plaintext_backup_cleanup="${LEGACY_PLAINTEXT_BACKUP_CLEANUP:-0}"
 readonly backend_replicas="${BACKEND_REPLICAS:-2}"
 readonly operation="${1:-deploy}"
 
@@ -212,11 +213,19 @@ safe_remove_backup() {
   local candidate="$1"
   local filename="${candidate##*/}"
 
-  [[ "${candidate%/*}" == "$backup_directory" &&
-    "$filename" =~ ^(pre-deploy-[0-9a-f]{40}|scheduled)-[0-9]{8}T[0-9]{6}Z\.dump\.gcm$ ]] ||
+  if [[ "${candidate%/*}" != "$backup_directory" ||
+    ! "$filename" =~ ^(pre-deploy-[0-9a-f]{40}|scheduled)-[0-9]{8}T[0-9]{6}Z\.dump\.gcm$ ]]; then
     fail "Beklenmeyen yedek yolu silme kapsamına girdi: $candidate"
-  [[ "$candidate" != "$backup_path" ]] || fail "Yeni doğrulanmış yedek budanamaz."
-  [[ ! -L "$candidate" ]] || fail "Yedek sembolik bağlantı olarak budanamaz."
+    return 1
+  fi
+  if [[ "$candidate" == "$backup_path" ]]; then
+    fail "Yeni doğrulanmış yedek budanamaz."
+    return 1
+  fi
+  if [[ -L "$candidate" ]]; then
+    fail "Yedek sembolik bağlantı olarak budanamaz."
+    return 1
+  fi
   if [[ -f "$candidate" ]]; then
     rm -f -- "$candidate"
     printf 'PRUNED_BACKUP=%s\n' "$candidate"
@@ -227,14 +236,40 @@ safe_remove_legacy_backup() {
   local candidate="$1"
   local filename="${candidate##*/}"
 
-  [[ "${candidate%/*}" == "$backup_directory" &&
-    "$filename" =~ ^pre-deploy-[0-9a-f]{40}-[0-9]{8}T[0-9]{6}Z\.dump$ ]] ||
+  if [[ "${candidate%/*}" != "$backup_directory" ||
+    ! "$filename" =~ ^(pre-deploy-[0-9a-f]{7,40}-[0-9]{8}T[0-9]{6}Z|dugun-ajansim-[0-9]{8}-[0-9]{6})\.dump$ ]]; then
     fail "Beklenmeyen eski yedek yolu silme kapsamına girdi: $candidate"
-  [[ ! -L "$candidate" ]] || fail "Eski yedek sembolik bağlantı olarak budanamaz."
-  if [[ -f "$candidate" ]]; then
-    rm -f -- "$candidate"
-    printf 'PRUNED_LEGACY_PLAINTEXT_BACKUP=%s\n' "$candidate"
+    return 1
   fi
+  if [[ -L "$candidate" ]]; then
+    fail "Eski yedek sembolik bağlantı olarak budanamaz."
+    return 1
+  fi
+  if [[ ! -f "$candidate" ]]; then
+    fail "Eski yedek normal bir dosya olmalıdır: $candidate"
+    return 1
+  fi
+  rm -f -- "$candidate"
+  printf 'PRUNED_LEGACY_PLAINTEXT_BACKUP=%s\n' "$candidate"
+}
+
+prune_legacy_plaintext_backups() {
+  local backup_listing
+  local candidate
+  local legacy_filename_pattern='.*/(pre-deploy-[0-9a-f]{7,40}-[0-9]{8}T[0-9]{6}Z|dugun-ajansim-[0-9]{8}-[0-9]{6})\.dump'
+
+  if [[ "$legacy_plaintext_backup_cleanup" != "1" ]]; then
+    log "LEGACY_PLAINTEXT_BACKUP_CLEANUP_DISABLED=1"
+    return
+  fi
+
+  backup_listing="$(
+    find "$backup_directory" -mindepth 1 -maxdepth 1 -regextype posix-extended -type f \
+      -regex "$legacy_filename_pattern" -print
+  )" || fail "Eski düz metin yedekleri listelenemedi."
+  while IFS= read -r candidate; do
+    [[ -n "$candidate" ]] && safe_remove_legacy_backup "$candidate"
+  done <<<"$backup_listing"
 }
 
 prune_backups() {
@@ -242,13 +277,7 @@ prune_backups() {
   local candidate
   local filename_pattern='.*/(pre-deploy-[0-9a-f]{40}|scheduled)-[0-9]{8}T[0-9]{6}Z\.dump'
 
-  backup_listing="$(
-    find "$backup_directory" -mindepth 1 -maxdepth 1 -regextype posix-extended -type f \
-      -regex "$filename_pattern" -print
-  )" || fail "Eski düz metin yedekleri listelenemedi."
-  while IFS= read -r candidate; do
-    [[ -n "$candidate" ]] && safe_remove_legacy_backup "$candidate"
-  done <<<"$backup_listing"
+  prune_legacy_plaintext_backups
 
   backup_listing="$(
     find "$backup_directory" -mindepth 1 -maxdepth 1 -regextype posix-extended -type f \
@@ -342,6 +371,10 @@ verify_backend_replicas() {
   done
 }
 
+if [[ "${DEPLOY_PRODUCTION_LIBRARY_ONLY:-0}" == "1" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
+
 trap 'handle_error "$?"' ERR
 trap 'drop_restore_database || true; cleanup_temporary_files' EXIT
 trap 'handle_signal 129' HUP
@@ -366,6 +399,8 @@ require_integer_range "PII_MAINTENANCE_MAX_BATCHES" "$pii_maintenance_max_batche
 require_integer_range "BACKEND_REPLICAS" "$backend_replicas" 2 8
 [[ "$allow_deploy_without_rollback" == "0" || "$allow_deploy_without_rollback" == "1" ]] ||
   fail "ALLOW_DEPLOY_WITHOUT_ROLLBACK yalnızca 0 veya 1 olabilir."
+[[ "$legacy_plaintext_backup_cleanup" == "0" || "$legacy_plaintext_backup_cleanup" == "1" ]] ||
+  fail "LEGACY_PLAINTEXT_BACKUP_CLEANUP yalnızca 0 veya 1 olabilir."
 
 repository_root="$(git rev-parse --show-toplevel)"
 [[ "$(pwd -P)" == "$(cd "$repository_root" && pwd -P)" ]] ||

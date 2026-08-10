@@ -13,6 +13,8 @@ test("zamanlanmış yedek aynı şifreli geri-yükleme provasını ve operasyon 
   assert.match(workflow, /uses: appleboy\/ssh-action@[0-9a-f]{40}/);
   assert.match(workflow, /fingerprint: \$\{\{ env\.SERVER_HOST_FINGERPRINT \}\}/);
   assert.match(workflow, /bash deploy\/deploy-production\.sh --backup-only/);
+  assert.match(workflow, /LEGACY_PLAINTEXT_BACKUP_CLEANUP:.*\|\| '0'/);
+  assert.match(workflow, /envs:.*LEGACY_PLAINTEXT_BACKUP_CLEANUP/);
   assert.match(deployScript, /--backup-only\) backup_only=1/);
   assert.match(deployScript, /flock -n 9/);
   assert.match(deployScript, /pg_restore --exit-on-error/);

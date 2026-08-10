@@ -129,9 +129,12 @@ Her şifreli yedek production verisine dokunmayan rastgele adlı geçici bir ver
 `pg_restore --exit-on-error --no-owner --no-acl` ile gerçekten geri yüklenir ve public tablolar
 doğrulanır. Tatbikat tamamlanınca geçici veritabanı silinir. Başarılı dağıtımdan sonra 30 günden eski
 veya en yeni 30 dosyanın dışındaki `pre-deploy-*.dump.gcm` yedekler güvenli kapsam kontrolüyle
-temizlenir. İlk başarılı şifreli yedekten sonra önceki otomasyonun ürettiği
-`pre-deploy-*.dump` düz metin yedekleri de aynı dar yol kontrolüyle kaldırılır. Bu değerler
-workflow environment değişkenleriyle daraltılabilir.
+temizlenir. Legacy düz metin yedek temizliği varsayılan olarak kapalıdır. Sunucu taşıması sonrası,
+yeni şifreli yedeğin bağımsız restore testi ve operatör onayı tamamlandıktan sonra GitHub production
+environment içinde `LEGACY_PLAINTEXT_BACKUP_CLEANUP=1` tanımlanabilir. Bu kapı yalnız 7-40
+karakterlik SHA kullanan `pre-deploy-*.dump` ve eski `dugun-ajansim-YYYYMMDD-HHMMSS.dump`
+adlarını; normal dosya, dizin sınırı ve symlink kontrollerinden sonra kaldırır. Diğer retention
+değerleri workflow environment değişkenleriyle daraltılabilir.
 
 Yeni sürüm sağlık kontrollerini geçemezse Git SHA ile backend/frontend image referansları önceki
 doğrulanmış sete otomatik döndürülür. Veritabanı migration'ı veya production verisi otomatik geri
