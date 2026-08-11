@@ -1266,20 +1266,30 @@ button:disabled {
   color: var(--ink-soft);
   line-height: 1.6;
 }
-.js-danger-confirm-wrap {
+.js-danger-confirm-wrap,
+.js-danger-reason-wrap {
   display: grid;
   gap: 8px;
   margin-top: 18px;
   color: var(--ink);
   font-size: 12px;
 }
-.js-danger-confirm {
+.js-danger-confirm,
+.js-danger-reason {
   min-height: 42px;
   padding: 9px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink);
+}
+.js-danger-reason {
+  min-height: 92px;
+  resize: vertical;
+}
+.js-danger-reason-wrap small {
+  color: var(--ink-soft);
+  line-height: 1.5;
 }
 
 dialog {
@@ -2150,6 +2160,20 @@ h6,
 .custom-dialog-input:focus {
   border-color: var(--clay, #c9935a);
   box-shadow: 0 0 0 3px rgb(201 147 90 / 20%);
+}
+.admin-step-up-fields {
+  display: grid;
+  gap: 2px;
+}
+.admin-step-up-code {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.22em;
+}
+.custom-dialog-security-note {
+  margin: 14px 0 0;
+  color: var(--ink-soft, #a1a1aa);
+  font-size: 11px;
+  line-height: 1.5;
 }
 .custom-catalog-grid {
   display: grid;

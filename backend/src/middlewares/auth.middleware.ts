@@ -7,6 +7,7 @@ import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const CSRF_COOKIE_NAME = "dugunajansim_csrf";
+export const ADMIN_STEP_UP_TTL_MS = 5 * 60 * 1000;
 
 const parseCookies = (header: string | undefined): Map<string, string | undefined> => {
   const cookies = new Map<string, string | undefined>();
@@ -56,6 +57,28 @@ export const getSessionAbsoluteTtlMs = (role: UserRole, remember: boolean): numb
 
 export const isPrivilegedRole = (role: UserRole): boolean => role !== "MUSTERI";
 
+export const isAdminStepUpFresh = (
+  verifiedAt: Date | null | undefined,
+  now = new Date(),
+  ttlMs = ADMIN_STEP_UP_TTL_MS
+): boolean => {
+  if (!verifiedAt || ttlMs <= 0) return false;
+  const ageMs = now.valueOf() - verifiedAt.valueOf();
+  return ageMs >= 0 && ageMs < ttlMs;
+};
+
+const adminStepUpRequiredError = (): AppError =>
+  new AppError("Bu işlem için güncel yönetici doğrulaması gerekli.", 428, true, undefined, {
+    code: "ADMIN_STEP_UP_REQUIRED"
+  });
+
+export const assertRecentAdminStepUp = (
+  verifiedAt: Date | null | undefined,
+  now = new Date()
+): void => {
+  if (!isAdminStepUpFresh(verifiedAt, now)) throw adminStepUpRequiredError();
+};
+
 export const isMfaEnrollmentRequired = (
   role: UserRole,
   mfaEnabled: boolean,
@@ -72,91 +95,99 @@ export const isTemporaryPasswordExpired = (
   user.mustChangePassword &&
   (user.temporaryPasswordExpiresAt === null || user.temporaryPasswordExpiresAt <= now);
 
-export const authenticate = asyncHandler(async (req, res, next) => {
-  res.set("Cache-Control", "no-store");
-  const token = getCookie(req, env.SESSION_COOKIE_NAME);
-  if (!token) {
-    if (req.headers.cookie) clearAuthCookies(res);
-    throw new AppError("Oturum açmanız gerekiyor.", 401);
-  }
+export const authenticate = asyncHandler(
+  async (req, res, next) => {
+    res.set("Cache-Control", "no-store");
+    const token = getCookie(req, env.SESSION_COOKIE_NAME);
+    if (!token) {
+      if (req.headers.cookie) clearAuthCookies(res);
+      throw new AppError("Oturum açmanız gerekiyor.", 401);
+    }
 
-  const session = await prisma.authSession.findUnique({
-    where: { tokenHash: hashToken(token) },
-    select: {
-      id: true,
-      expiresAt: true,
-      lastUsedAt: true,
-      mfaVerifiedAt: true,
-      revokedAt: true,
-      user: {
-        select: {
-          id: true,
-          username: true,
-          role: true,
-          status: true,
-          activeAt: true,
-          mustChangePassword: true,
-          temporaryPasswordExpiresAt: true,
-          totpEnabledAt: true,
-          venueId: true
+    const session = await prisma.authSession.findUnique({
+      where: { tokenHash: hashToken(token) },
+      select: {
+        id: true,
+        expiresAt: true,
+        lastUsedAt: true,
+        mfaVerifiedAt: true,
+        adminStepUpVerifiedAt: true,
+        revokedAt: true,
+        user: {
+          select: {
+            id: true,
+            username: true,
+            role: true,
+            status: true,
+            activeAt: true,
+            mustChangePassword: true,
+            temporaryPasswordExpiresAt: true,
+            totpEnabledAt: true,
+            venueId: true
+          }
         }
       }
-    }
-  });
-
-  const now = new Date();
-  const idleTimeoutMs = session === null ? 0 : getSessionIdleTimeoutMs(session.user.role);
-  const idleExpired =
-    session !== null && now.valueOf() - session.lastUsedAt.valueOf() >= idleTimeoutMs;
-  const temporaryPasswordExpired =
-    session !== null && isTemporaryPasswordExpired(session.user, now);
-  if (
-    !session ||
-    session.revokedAt ||
-    session.expiresAt <= now ||
-    idleExpired ||
-    session.user.status !== "ACTIVE" ||
-    (session.user.activeAt && session.user.activeAt > now) ||
-    temporaryPasswordExpired
-  ) {
-    clearAuthCookies(res);
-    if (session && !session.revokedAt) {
-      await prisma.authSession.updateMany({
-        where: { id: session.id, revokedAt: null },
-        data: { revokedAt: now }
-      });
-    }
-    throw new AppError("Oturum geçersiz veya süresi dolmuş.", 401);
-  }
-
-  req.auth = {
-    userId: session.user.id,
-    username: session.user.username,
-    role: session.user.role,
-    sessionId: session.id,
-    mustChangePassword: session.user.mustChangePassword,
-    mfaEnabled: session.user.totpEnabledAt !== null,
-    mfaVerified: session.mfaVerifiedAt !== null,
-    mustEnrollMfa: isMfaEnrollmentRequired(session.user.role, session.user.totpEnabledAt !== null),
-    venueId: session.user.venueId
-  };
-
-  if (
-    now.valueOf() - session.lastUsedAt.valueOf() >=
-    getSessionTouchIntervalMs(session.user.role)
-  ) {
-    const touched = await prisma.authSession.updateMany({
-      where: { id: session.id, revokedAt: null, expiresAt: { gt: now } },
-      data: { lastUsedAt: now }
     });
-    if (touched.count !== 1) {
+
+    const now = new Date();
+    const idleTimeoutMs = session === null ? 0 : getSessionIdleTimeoutMs(session.user.role);
+    const idleExpired =
+      session !== null && now.valueOf() - session.lastUsedAt.valueOf() >= idleTimeoutMs;
+    const temporaryPasswordExpired =
+      session !== null && isTemporaryPasswordExpired(session.user, now);
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt <= now ||
+      idleExpired ||
+      session.user.status !== "ACTIVE" ||
+      (session.user.activeAt && session.user.activeAt > now) ||
+      temporaryPasswordExpired
+    ) {
       clearAuthCookies(res);
+      if (session && !session.revokedAt) {
+        await prisma.authSession.updateMany({
+          where: { id: session.id, revokedAt: null },
+          data: { revokedAt: now }
+        });
+      }
       throw new AppError("Oturum geçersiz veya süresi dolmuş.", 401);
     }
-  }
 
-  next();
-});
+    req.auth = {
+      userId: session.user.id,
+      username: session.user.username,
+      role: session.user.role,
+      sessionId: session.id,
+      mustChangePassword: session.user.mustChangePassword,
+      mfaEnabled: session.user.totpEnabledAt !== null,
+      mfaVerified: session.mfaVerifiedAt !== null,
+      adminStepUpVerifiedAt: session.adminStepUpVerifiedAt,
+      mustEnrollMfa: isMfaEnrollmentRequired(
+        session.user.role,
+        session.user.totpEnabledAt !== null
+      ),
+      venueId: session.user.venueId
+    };
+
+    if (
+      now.valueOf() - session.lastUsedAt.valueOf() >=
+      getSessionTouchIntervalMs(session.user.role)
+    ) {
+      const touched = await prisma.authSession.updateMany({
+        where: { id: session.id, revokedAt: null, expiresAt: { gt: now } },
+        data: { lastUsedAt: now }
+      });
+      if (touched.count !== 1) {
+        clearAuthCookies(res);
+        throw new AppError("Oturum geçersiz veya süresi dolmuş.", 401);
+      }
+    }
+
+    next();
+  },
+  { unauthenticatedActorRole: "auth" }
+);
 
 export const requireChangedPassword = (req: Request, _res: Response, next: NextFunction): void => {
   if (req.auth?.mustChangePassword) {
@@ -195,6 +226,19 @@ export const requireRole =
     }
     next();
   };
+
+export const requireRecentAdminStepUp = (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void => {
+  try {
+    assertRecentAdminStepUp(req.auth?.adminStepUpVerifiedAt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const verifyCsrf = asyncHandler(async (req, _res, next) => {
   const headerToken = req.get("X-CSRF-Token");

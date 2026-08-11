@@ -84,6 +84,7 @@ export const createGlobalErrorHandler =
     const message = err.message || 'Sunucu içi bir hata oluştu.';
     // Varsa ek doğrulama detaylarını al
     const errors = err instanceof AppError ? err.errors : undefined;
+    const details = err instanceof AppError ? err.details : undefined;
     // Hatanın güvenle kullanıcıya yansıtılabilecek operasyonel bir hata olup olmadığını hesapla
     const isOperational =
       (err instanceof AppError && err.isOperational) ||
@@ -106,9 +107,7 @@ export const createGlobalErrorHandler =
     // Eğer hata operasyonel değilse (yazılım çökmesi) veya 500+ sunucu hatasıysa sistem günlüğüne detaylıca kaydet
     if (!isOperational || statusCode >= 500) {
       const routePath =
-        typeof req.route?.path === 'string'
-          ? `${req.baseUrl ?? ''}${req.route.path}`
-          : 'UNMATCHED';
+        typeof req.route?.path === 'string' ? `${req.baseUrl ?? ''}${req.route.path}` : 'UNMATCHED';
       const logEntry: ErrorLogEntry = {
         level: 'error',
         event: 'request_error',
@@ -151,6 +150,7 @@ export const createGlobalErrorHandler =
         statusCode,
         message,
         ...(errors ? { errors } : {}),
+        ...(details ? { details } : {}),
         errorId,
         correlationId,
         stack: err.stack,
@@ -163,6 +163,7 @@ export const createGlobalErrorHandler =
         statusCode,
         message: canExposeDetails ? safeOperationalMessage : 'Bir hata oluştu.',
         ...(canExposeDetails && errors ? { errors } : {}),
+        ...(canExposeDetails && details ? { details } : {}),
         ...(!isOperational || statusCode >= 500 ? { errorId } : {}),
         correlationId,
       });

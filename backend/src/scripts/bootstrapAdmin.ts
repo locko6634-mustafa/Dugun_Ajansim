@@ -4,6 +4,7 @@ import { prisma, runWithRlsContext } from "../config/prisma.js";
 import { isPasswordSimilarToUsername, strongPasswordSchema } from "../schemas/api.schemas.js";
 import { hashPassword } from "../utils/crypto.js";
 import { createTemporaryPasswordExpiry, normalizeUsername } from "../utils/domain.js";
+import { writeAuditLog } from "../utils/audit.js";
 
 const username = normalizeUsername(process.env.ADMIN_BOOTSTRAP_USERNAME ?? "");
 const password = process.env.ADMIN_BOOTSTRAP_PASSWORD ?? "";
@@ -47,7 +48,7 @@ try {
             )
           }
         });
-        await transaction.auditLog.create({
+        await writeAuditLog(transaction, {
           data: {
             actorUserId: created.id,
             action: "admin.bootstrapped",

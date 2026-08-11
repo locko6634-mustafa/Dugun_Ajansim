@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -26,15 +27,18 @@ import {
 } from '../src/config/prisma.js';
 import { createSystemHealthHandler } from '../src/controllers/health.controller.js';
 import {
+  ADMIN_STEP_UP_TTL_MS,
   calculateSessionTouchIntervalMs,
   csrfCookieOptions,
   getSessionAbsoluteTtlMs,
   getSessionIdleTimeoutMs,
   getSessionTouchIntervalMs,
   isMfaEnrollmentRequired,
+  isAdminStepUpFresh,
   isTemporaryPasswordExpired,
   sessionCookieOptions,
 } from '../src/middlewares/auth.middleware.js';
+import { adminStepUpBodySchema, permanentDeleteBodySchema } from '../src/schemas/api.schemas.js';
 import { createGlobalErrorHandler } from '../src/middlewares/error.middleware.js';
 import { hashRateLimitKey } from '../src/middlewares/databaseRateLimitStore.js';
 import {
@@ -47,7 +51,14 @@ import { attachRequestContext } from '../src/middlewares/requestContext.middlewa
 import { validateCorsOrigin } from '../src/middlewares/security.middleware.js';
 import { validateRequest } from '../src/middlewares/validate.middleware.js';
 import { AppError } from '../src/utils/appError.js';
-import { decryptValue, encryptValue } from '../src/utils/crypto.js';
+import { deriveRlsContext } from '../src/utils/asyncHandler.js';
+import { writeAuditLog } from '../src/utils/audit.js';
+import {
+  createBookingFingerprintCryptography,
+  serializeBookingFingerprintPayload,
+} from '../src/utils/booking-fingerprint.js';
+import { decryptValue, encryptValue, encryptValueWithKey } from '../src/utils/crypto.js';
+import { createDeliveryCryptography } from '../src/utils/delivery-crypto.js';
 import {
   buildRetentionCutoffs,
   countRetentionDeletes,
@@ -56,9 +67,18 @@ import {
 import { findBoundedIntervalConflicts } from '../src/utils/intervalConflicts.js';
 import {
   BOOKING_APPLICATION_PII_SCHEMA_VERSION,
+  assertPiiWriteAllowed,
+  bookingApplicationLegacyPiiMatches,
+  bookingApplicationWithDecryptedPii,
+  buildStaffPiiData,
   createPiiCryptography,
   decryptBookingApplicationPii,
+  decryptStaffPii,
   encryptBookingApplicationPii,
+  messageTaskLegacyPiiMatches,
+  staffLegacyPiiMatches,
+  staffWithDecryptedPii,
+  weddingLegacyPiiMatches,
 } from '../src/utils/pii-crypto.js';
 import { createFailedLoginSecurityEvent } from '../src/utils/securityLogger.js';
 import { cleanupStaleSessions } from '../src/utils/sessionMaintenance.js';
@@ -104,6 +124,9 @@ const validEnvironment: NodeJS.ProcessEnv = {
   DATA_ENCRYPTION_KEYRING_JSON:
     '{"active-2026":"7d9f3c1a5e8b2d4f6a0c9e7b3d1f5a8c2e4b6d0f9a7c3e1b5d8f2a4c6e0b9d7f"}',
   PII_BLIND_INDEX_KEY: 'b6d18a03f74ce9521a6b8d309f5e7c124a8d60f3b91e5c72d4a09b6e38f157c2',
+  PII_BLIND_INDEX_ACTIVE_KEY_ID: 'blind-active-2026',
+  PII_BLIND_INDEX_KEYRING_JSON:
+    '{"blind-active-2026":"b6d18a03f74ce9521a6b8d309f5e7c124a8d60f3b91e5c72d4a09b6e38f157c2"}',
   RATE_LIMIT_HMAC_KEY: 'c7e29b14a85df0632b7c9e401a6f8d235b9e71c4a02d6f83e5b1a9c60d347f28',
   PII_ENCRYPTION_MODE: 'strict',
 };
@@ -141,6 +164,105 @@ authTest('production oturum ve CSRF cookie bayrakları güvenli kalır', () => {
     path: '/api/v1/booking-applications',
     maxAge: 60_000,
   });
+});
+
+authTest('yönetici adım-yükseltme süresi yalnız son beş dakikayı kabul eder', () => {
+  const now = new Date('2026-08-11T12:00:00.000Z');
+
+  assert.equal(isAdminStepUpFresh(null, now), false);
+  assert.equal(isAdminStepUpFresh(new Date(now.valueOf() + 1), now), false);
+  assert.equal(isAdminStepUpFresh(now, now), true);
+  assert.equal(isAdminStepUpFresh(new Date(now.valueOf() - ADMIN_STEP_UP_TTL_MS + 1), now), true);
+  assert.equal(isAdminStepUpFresh(new Date(now.valueOf() - ADMIN_STEP_UP_TTL_MS), now), false);
+});
+
+authTest('adım-yükseltme ve kritik işlem gövdeleri katı doğrulanır', () => {
+  assert.deepEqual(
+    adminStepUpBodySchema.parse({ currentPassword: 'guvenli-parola', totpCode: '123456' }),
+    { currentPassword: 'guvenli-parola', totpCode: '123456' },
+  );
+  assert.equal(
+    adminStepUpBodySchema.safeParse({
+      currentPassword: 'guvenli-parola',
+      totpCode: '123456',
+      unexpected: true,
+    }).success,
+    false,
+  );
+  assert.equal(
+    permanentDeleteBodySchema.safeParse({ confirmText: 'Mini Paket', reason: 'çok kısa' }).success,
+    false,
+  );
+  assert.deepEqual(
+    permanentDeleteBodySchema.parse({
+      confirmText: 'Mini Paket',
+      reason: 'Katalog artık kullanılmıyor.',
+    }),
+    { confirmText: 'Mini Paket', reason: 'Katalog artık kullanılmıyor.' },
+  );
+});
+
+authTest('oturum bootstrap RLS bağlamı yalnız açık authenticate seçeneğiyle etkinleşir', () => {
+  const protectedRequest = {
+    baseUrl: '/api/v1/admin',
+    originalUrl: '/api/v1/admin/venue-managers',
+    get: () => undefined,
+  } as unknown as Request;
+
+  assert.equal(deriveRlsContext(protectedRequest).actorRole, 'public');
+  assert.equal(
+    deriveRlsContext(protectedRequest, { unauthenticatedActorRole: 'auth' }).actorRole,
+    'auth',
+  );
+
+  protectedRequest.auth = {
+    userId: '00000000-0000-4000-8000-000000000001',
+    username: 'runtime-admin',
+    role: 'ADMIN',
+    sessionId: '00000000-0000-4000-8000-000000000002',
+    mustChangePassword: false,
+    mfaEnabled: true,
+    mfaVerified: true,
+    adminStepUpVerifiedAt: null,
+    mustEnrollMfa: false,
+    venueId: null,
+  };
+
+  const authenticatedContext = deriveRlsContext(protectedRequest, {
+    unauthenticatedActorRole: 'auth',
+  });
+  assert.equal(authenticatedContext.actorRole, 'admin');
+  assert.equal(authenticatedContext.actorUserId, protectedRequest.auth.userId);
+});
+
+test('audit yazıcısı tek satır insert sonucunu zorunlu tutar ve skipDuplicates kullanmaz', async () => {
+  const calls: unknown[] = [];
+  const auditData = {
+    action: 'test.audit',
+    targetType: 'AuditWriterTest',
+    correlationId: '00000000-0000-4000-8000-000000000003',
+  };
+
+  await writeAuditLog(
+    {
+      auditLog: {
+        createMany: async (args: unknown) => {
+          calls.push(args);
+          return { count: 1 };
+        },
+      },
+    } as never,
+    { data: auditData },
+  );
+  assert.deepEqual(calls, [{ data: auditData }]);
+
+  await assert.rejects(
+    () =>
+      writeAuditLog({ auditLog: { createMany: async () => ({ count: 0 }) } } as never, {
+        data: auditData,
+      }),
+    /Denetim kaydı oluşturulamadı/,
+  );
 });
 
 test('production seed kullanıcı, parola veya operasyon personeli oluşturmaz', async () => {
@@ -220,8 +342,7 @@ test('file-backed secret yükleyici allowlist ve fail-closed dosya kurallarını
       loadFileBackedSecrets(
         { USE_FILE_SECRETS: '1', DATABASE_URL_FILE: validPath },
         {
-          lstatSync: () =>
-            ({ isSymbolicLink: () => true, isFile: () => false, size: 10 }) as never,
+          lstatSync: () => ({ isSymbolicLink: () => true, isFile: () => false, size: 10 }) as never,
           readFileSync: () => Buffer.from('not-read'),
         },
       ),
@@ -378,6 +499,20 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   const productionEnvironment = parseEnvironment(productionEnvironmentInput);
   assert.equal(productionEnvironment.NODE_ENV, 'production');
   assert.equal(productionEnvironment.PII_ENCRYPTION_MODE, 'strict');
+  assert.throws(
+    () =>
+      parseEnvironment({
+        ...productionEnvironmentInput,
+        PII_BLIND_INDEX_ACTIVE_KEY_ID: 'blind-active-2026',
+        PII_BLIND_INDEX_KEYRING_JSON: JSON.stringify({
+          'blind-active-2026': validEnvironment.PII_BLIND_INDEX_KEY,
+          'blind-rotating-2026': validEnvironment.RATE_LIMIT_HMAC_KEY,
+        }),
+      }),
+    (error: unknown) =>
+      error instanceof z.ZodError &&
+      error.issues.some((issue) => issue.path[0] === 'RATE_LIMIT_HMAC_KEY'),
+  );
   assert.throws(() =>
     parseEnvironment({
       ...productionEnvironmentInput,
@@ -655,9 +790,10 @@ test('veri saklama politikası yalnız süresi dolan ve ilişkisiz kayıtları s
       deleteMany: async () => ({ count: 1 }),
     },
     auditLog: {
-      create: async (args: { data: unknown }) => {
-        auditEntries.push(args.data);
-        return args.data;
+      createMany: async (args: { data: unknown | unknown[] }) => {
+        const entries = Array.isArray(args.data) ? args.data : [args.data];
+        auditEntries.push(...entries);
+        return { count: entries.length };
       },
     },
   };
@@ -757,16 +893,22 @@ test('AES-256-GCM yalnız 12 bayt IV, 16 bayt tag ve doğru AAD bağlamını kab
 test('PII zarfı keyring rotasyonu, kayıt/model AAD bağlamı ve alan ayrımlı blind index uygular', () => {
   const oldKey = '12'.repeat(32);
   const activeKey = '34'.repeat(32);
-  const blindIndexKey = '56'.repeat(32);
+  const oldBlindIndexKey = '56'.repeat(32);
+  const activeBlindIndexKey = '67'.repeat(32);
   const legacyCrypto = createPiiCryptography({
     activeKeyId: 'old-2026',
     keyring: { 'old-2026': oldKey },
-    blindIndexKey,
+    blindIndexActiveKeyId: 'blind-old-2026',
+    blindIndexKeyring: { 'blind-old-2026': oldBlindIndexKey },
   });
   const rotatedCrypto = createPiiCryptography({
     activeKeyId: 'active-2026',
     keyring: { 'old-2026': oldKey, 'active-2026': activeKey },
-    blindIndexKey,
+    blindIndexActiveKeyId: 'blind-active-2026',
+    blindIndexKeyring: {
+      'blind-old-2026': oldBlindIndexKey,
+      'blind-active-2026': activeBlindIndexKey,
+    },
   });
   const payload = {
     brideFirstName: 'Ada',
@@ -778,6 +920,7 @@ test('PII zarfı keyring rotasyonu, kayıt/model AAD bağlamı ve alan ayrımlı
     primaryEmail: 'ada@example.com',
     note: 'Sessiz salon',
     rejectionReason: null,
+    customVenueName: null,
   };
 
   const encrypted = encryptBookingApplicationPii(
@@ -789,6 +932,7 @@ test('PII zarfı keyring rotasyonu, kayıt/model AAD bağlamı ve alan ayrımlı
   assert.equal(encrypted.piiKeyId, 'old-2026');
   assert.equal(encrypted.piiEncryptionVersion, 3);
   assert.equal(encrypted.piiSchemaVersion, BOOKING_APPLICATION_PII_SCHEMA_VERSION);
+  assert.equal(encrypted.piiBlindIndexKeyId, 'blind-old-2026');
   assert.deepEqual(
     decryptBookingApplicationPii('11111111-1111-4111-8111-111111111111', encrypted, rotatedCrypto),
     payload,
@@ -814,6 +958,16 @@ test('PII zarfı keyring rotasyonu, kayıt/model AAD bağlamı ve alan ayrımlı
     rotatedCrypto.blindIndex('BookingApplication.bridePhone', '+90 (555) 111 22 33', 'phone'),
     rotatedCrypto.blindIndex('BookingApplication.groomPhone', '+90 (555) 111 22 33', 'phone'),
   );
+  const rotationCandidates = rotatedCrypto.blindIndexCandidates(
+    'BookingApplication.primaryEmail',
+    'ada@example.com',
+    'email',
+  );
+  assert.deepEqual(
+    rotationCandidates.map((candidate) => candidate.keyId),
+    ['blind-old-2026', 'blind-active-2026'],
+  );
+  assert.notEqual(rotationCandidates[0]?.value, rotationCandidates[1]?.value);
 });
 
 test('PII payload doğrulaması bilinmeyen alanı reddeder; encrypted fallback ve strict kesimi uygular', () => {
@@ -861,6 +1015,250 @@ test('PII payload doğrulaması bilinmeyen alanı reddeder; encrypted fallback v
     'ada@example.com',
   );
   assert.throws(() => decryptBookingApplicationPii(recordId, legacySource, cryptography, 'strict'));
+});
+
+test('Staff PII zarfı plaintext ve persistence metadata alanlarını DTO dışına çıkarır', () => {
+  const cryptography = createPiiCryptography({
+    activeKeyId: 'staff-active',
+    keyring: { 'staff-active': '81'.repeat(32) },
+    blindIndexActiveKeyId: 'staff-blind-active',
+    blindIndexKeyring: { 'staff-blind-active': '92'.repeat(32) },
+  });
+  const id = '44444444-4444-4444-8444-444444444444';
+  const encrypted = buildStaffPiiData(
+    id,
+    { firstName: 'Ayşe', lastName: 'Yılmaz', phone: '+905551112233' },
+    1,
+    'encrypted',
+    cryptography,
+  );
+
+  assert.equal(encrypted.firstName, null);
+  assert.equal(decryptStaffPii(id, encrypted, cryptography, 'strict').phone, '+905551112233');
+  const dto = staffWithDecryptedPii({ id, ...encrypted, isActive: true }, cryptography, 'strict');
+  assert.equal(dto.firstName, 'Ayşe');
+  assert.equal(dto.lastName, 'Yılmaz');
+  assert.equal(dto.phone, '+905551112233');
+  for (const secret of [
+    'piiCiphertext',
+    'piiIv',
+    'piiAuthTag',
+    'piiKeyId',
+    'phoneBlindIndex',
+    'piiBlindIndexKeyId',
+  ]) {
+    assert.equal(secret in dto, false);
+  }
+});
+
+test('Legacy PII redaction tutarlılık denetimi normalize eşleşmeyi kabul edip sapmayı reddeder', () => {
+  const bookingPayload = {
+    brideFirstName: 'Ayşe',
+    brideLastName: 'Yılmaz',
+    bridePhone: '+905551234567',
+    groomFirstName: 'Mehmet',
+    groomLastName: 'Demir',
+    groomPhone: '+905559876543',
+    primaryEmail: 'cift@example.com',
+    note: 'Not',
+    rejectionReason: null,
+    customVenueName: null,
+  };
+  assert.equal(
+    bookingApplicationLegacyPiiMatches(
+      { ...bookingPayload, primaryEmail: ' CIFT@EXAMPLE.COM ', bridePhone: '0555 123 45 67' },
+      bookingPayload,
+    ),
+    true,
+  );
+  assert.equal(
+    bookingApplicationLegacyPiiMatches(
+      { ...bookingPayload, brideFirstName: 'Başka kişi' },
+      bookingPayload,
+    ),
+    false,
+  );
+  assert.equal(
+    weddingLegacyPiiMatches(bookingPayload, bookingPayload),
+    true,
+  );
+  assert.equal(
+    messageTaskLegacyPiiMatches(
+      { recipientPhone: '0555 123 45 67' },
+      { recipientPhone: '+905551234567' },
+    ),
+    true,
+  );
+  assert.equal(
+    staffLegacyPiiMatches(
+      { firstName: 'Ada', lastName: 'Lovelace', phone: '+905551234567' },
+      { firstName: 'Ada', lastName: 'Byron', phone: '+905551234567' },
+    ),
+    false,
+  );
+});
+
+test('Booking DTO merkezi sanitizer ile idempotency ve ödeme akışı sırlarını kaldırır', () => {
+  const cryptography = createPiiCryptography({
+    activeKeyId: 'booking-active',
+    keyring: { 'booking-active': '83'.repeat(32) },
+    blindIndexActiveKeyId: 'booking-blind-active',
+    blindIndexKeyring: { 'booking-blind-active': '94'.repeat(32) },
+  });
+  const id = '55555555-5555-4555-8555-555555555555';
+  const encrypted = encryptBookingApplicationPii(
+    id,
+    {
+      brideFirstName: 'Ada',
+      brideLastName: 'Yılmaz',
+      bridePhone: '+905551112233',
+      groomFirstName: 'Can',
+      groomLastName: 'Kaya',
+      groomPhone: '+905554445566',
+      primaryEmail: 'ada@example.com',
+      note: null,
+      rejectionReason: null,
+      customVenueName: 'Özel Bahçe',
+    },
+    cryptography,
+  );
+  const dto = bookingApplicationWithDecryptedPii(
+    {
+      id,
+      ...encrypted,
+      brideFirstName: null,
+      brideLastName: null,
+      bridePhone: null,
+      groomFirstName: null,
+      groomLastName: null,
+      groomPhone: null,
+      primaryEmail: null,
+      note: null,
+      rejectionReason: null,
+      piiRevision: 1,
+      idempotencyKey: 'secret-key',
+      idempotencyFingerprint: null,
+      idempotencyFingerprintHmac: 'ab'.repeat(32),
+      idempotencyFingerprintKeyId: 'booking-active',
+      idempotencyFingerprintVersion: 2,
+      paymentFlowTokenHash: 'cd'.repeat(32),
+    },
+    cryptography,
+    'strict',
+  );
+
+  assert.equal(dto.customVenueName, 'Özel Bahçe');
+  for (const secret of [
+    'idempotencyKey',
+    'idempotencyFingerprint',
+    'idempotencyFingerprintHmac',
+    'idempotencyFingerprintKeyId',
+    'idempotencyFingerprintVersion',
+    'paymentFlowTokenHash',
+  ]) {
+    assert.equal(secret in dto, false);
+  }
+});
+
+test('Idempotency HMAC alan ayrımlı keyring rotasyonu ve exact-key doğrulaması uygular', () => {
+  const oldCryptography = createBookingFingerprintCryptography({
+    activeKeyId: 'old-key',
+    keyring: { 'old-key': 'a1'.repeat(32) },
+  });
+  const rotatedCryptography = createBookingFingerprintCryptography({
+    activeKeyId: 'new-key',
+    keyring: { 'old-key': 'a1'.repeat(32), 'new-key': 'b2'.repeat(32) },
+  });
+  const canonicalPayload = serializeBookingFingerprintPayload({
+    source: 'PUBLIC_FORM',
+    brideFirstName: 'Ada',
+    brideLastName: 'Yılmaz',
+    bridePhone: '+905551112233',
+    groomFirstName: 'Can',
+    groomLastName: 'Kaya',
+    groomPhone: '+905554445566',
+    primaryContact: 'GELIN',
+    primaryEmail: 'ada@example.com',
+    startsAt: new Date('2026-09-01T15:00:00.000Z'),
+    endsAt: new Date('2026-09-01T20:00:00.000Z'),
+    venueId: null,
+    customVenueName: 'Özel Bahçe',
+    packageCode: 'premium',
+    serviceCodes: ['video', 'album'],
+    paymentMethod: 'DEPOSIT',
+    note: null,
+    privacyConsent: true,
+    marketingConsent: false,
+  });
+  const legacyEnvelope = oldCryptography.create(canonicalPayload);
+
+  assert.equal(rotatedCryptography.verify(canonicalPayload, legacyEnvelope), true);
+  assert.equal(rotatedCryptography.verify(`${canonicalPayload}tamper`, legacyEnvelope), false);
+  assert.equal(
+    rotatedCryptography.verify(canonicalPayload, {
+      ...legacyEnvelope,
+      idempotencyFingerprintKeyId: 'unknown-key',
+    }),
+    false,
+  );
+  assert.equal(rotatedCryptography.create(canonicalPayload).idempotencyFingerprintKeyId, 'new-key');
+});
+
+test('Delivery URL rotasyonu legacy fallback ile exact keyId davranışını ayırır', () => {
+  const legacyKey = 'c3'.repeat(32);
+  const cryptography = createDeliveryCryptography({
+    activeKeyId: 'delivery-new',
+    keyring: { 'delivery-new': 'd4'.repeat(32) },
+    legacyKey,
+  });
+  const id = '66666666-6666-4666-8666-666666666666';
+  const encrypted = cryptography.buildDriveUrlData(id, 'https://drive.google.com/file/d/test');
+
+  assert.equal(encrypted.driveUrlKeyId, 'delivery-new');
+  assert.equal(
+    cryptography.decryptDriveUrl({ id, ...encrypted }),
+    'https://drive.google.com/file/d/test',
+  );
+  const legacyEncrypted = encryptValueWithKey(
+    'https://drive.google.com/file/d/legacy',
+    legacyKey,
+    `delivery-url:${id}`,
+  );
+  assert.equal(
+    cryptography.decryptDriveUrl({
+      id,
+      driveUrlCiphertext: legacyEncrypted.ciphertext,
+      driveUrlIv: legacyEncrypted.iv,
+      driveUrlAuthTag: legacyEncrypted.authTag,
+      driveUrlKeyId: null,
+      encryptionVersion: 2,
+    }),
+    'https://drive.google.com/file/d/legacy',
+  );
+  assert.throws(() =>
+    cryptography.decryptDriveUrl({ id, ...encrypted, driveUrlKeyId: 'unknown-key' }),
+  );
+});
+
+test('Production dışı PII yazımı açık sentetik veri opt-in olmadan fail-closed kalır', () => {
+  assert.throws(() =>
+    assertPiiWriteAllowed({
+      NODE_ENV: 'development',
+      ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES: false,
+    }),
+  );
+  assert.doesNotThrow(() =>
+    assertPiiWriteAllowed({
+      NODE_ENV: 'test',
+      ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES: true,
+    }),
+  );
+  assert.doesNotThrow(() =>
+    assertPiiWriteAllowed({
+      NODE_ENV: 'production',
+      ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES: false,
+    }),
+  );
 });
 
 test('veritabanı healthcheck Prisma timeout kullanır ve eşzamanlı sorguları tekilleştirir', async () => {
@@ -1036,6 +1434,27 @@ test('operasyonel AppError durum kodunu ve güvenli ayrıntıları korur', () =>
   assert.equal(mock.getBody().message, 'Girdi doğrulama hatası');
   assert.deepEqual(mock.getBody().errors, details);
 });
+
+authTest(
+  'adım-yükseltme machine-code ayrıntısı production yanıtında details altında korunur',
+  () => {
+    const mock = createMockResponse();
+    const handler = createGlobalErrorHandler('production');
+
+    handler(
+      new AppError('Güncel doğrulama gerekli.', 428, true, undefined, {
+        code: 'ADMIN_STEP_UP_REQUIRED',
+      }),
+      {} as Request,
+      mock.response,
+      (() => undefined) as NextFunction,
+    );
+
+    assert.equal(mock.getStatusCode(), 428);
+    assert.deepEqual(mock.getBody().details, { code: 'ADMIN_STEP_UP_REQUIRED' });
+    assert.equal('errors' in mock.getBody(), false);
+  },
+);
 
 test('production ortamında operasyonel 500 hata ayrıntılarını da gizler', () => {
   const mock = createMockResponse();
@@ -1413,18 +1832,19 @@ test('gerçek rate limiter aynı IPv6 /56 ağındaki adreslerle limit aşımın�
 test('public başvuru limiter IPv6 /56 ağını tek istemci sayar ve ortak 429 sözleşmesini döndürür', async () => {
   const app = createApp();
   app.set('trust proxy', 1);
+  const uniqueNetwork = randomUUID().slice(0, 4);
 
   for (let index = 0; index < 10; index += 1) {
     const response = await request(app)
       .post('/api/v1/booking-applications')
-      .set('X-Forwarded-For', `2001:db8:abcd:${(0x1200 + index).toString(16)}::1`)
+      .set('X-Forwarded-For', `2001:db8:${uniqueNetwork}:${(0x1200 + index).toString(16)}::1`)
       .send({});
     assert.equal(response.status, 400);
   }
 
   const limited = await request(app)
     .post('/api/v1/booking-applications')
-    .set('X-Forwarded-For', '2001:db8:abcd:120a::1')
+    .set('X-Forwarded-For', `2001:db8:${uniqueNetwork}:120a::1`)
     .send({});
   assert.equal(limited.status, 429);
   assert.equal(limited.body.success, false);

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma, runWithRlsContext } from "../config/prisma.js";
 import { normalizeUsername } from "../utils/domain.js";
+import { writeAuditLog } from "../utils/audit.js";
 
 const main = async (): Promise<void> => {
   const rawUsername = process.env.MFA_RECOVERY_USERNAME ?? "";
@@ -48,7 +49,7 @@ const main = async (): Promise<void> => {
       where: { userId: user.id, revokedAt: null },
       data: { revokedAt: now }
     });
-    await transaction.auditLog.create({
+    await writeAuditLog(transaction, {
       data: {
         action: "auth.mfa_recovery_reset",
         targetType: "User",

@@ -3,13 +3,14 @@ import helmet from 'helmet';
 // Siteler arası kaynak paylaşımını (CORS) yönetmek için CORS kütüphanesini içe aktar
 import cors from 'cors';
 // IP başına yapılan istek sayısını sınırlamak (Rate Limiting) için kütüphaneyi içe aktar
-import rateLimit from 'express-rate-limit';
+import rateLimit, { type Store } from 'express-rate-limit';
 // Express uygulama türünü içe aktar
 import type { Express } from 'express';
 // Ortam değişkenlerimizi içe aktar
 import { env } from '../config/env.config.js';
 // Özel uygulama hatası sınıfımızı içe aktar
 import { AppError } from '../utils/appError.js';
+import { DatabaseRateLimitStore } from './databaseRateLimitStore.js';
 import { createRateLimitHandler, rateLimitKeyGenerator } from './rateLimit.middleware.js';
 
 // İsteğin geldiği Origin adresinin izin verilen liste (whitelist) içerisinde olup olmadığını denetleyen fonksiyon
@@ -27,6 +28,11 @@ export const validateCorsOrigin = (
   // İzin verilmeyen Origin durumunda operasyonel 403 Forbidden hatası fırlat
   callback(new AppError('CORS politikası bu origin için erişime izin vermiyor.', 403));
 };
+
+export const createGlobalRateLimitStore = (
+  environment: 'development' | 'production' | 'test' = env.NODE_ENV,
+): Store | undefined =>
+  environment === 'production' ? new DatabaseRateLimitStore('global-api-ip') : undefined;
 
 // Express uygulamasına güvenlik middleware'lerini (Helmet, Rate Limiter, CORS) sırasıyla bağlayan fonksiyon
 export const configureSecurityMiddleware = (app: Express): void => {
@@ -59,6 +65,8 @@ export const configureSecurityMiddleware = (app: Express): void => {
         'Idempotency-Key',
         'Payment-Flow-Key',
         'Turnstile-Token',
+        'X-Booking-Elapsed-Ms',
+        'X-Booking-Website',
         'X-Correlation-ID',
       ],
       exposedHeaders: ['X-Correlation-ID', 'RateLimit', 'RateLimit-Policy', 'Retry-After'],
@@ -81,12 +89,15 @@ export const configureSecurityMiddleware = (app: Express): void => {
   });
 
   // 3. Rate Limiting (Aşırı İstek Sınırlama)
+  const globalRateLimitStore = createGlobalRateLimitStore();
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // İstek penceresi: 15 Dakika (milisaniye cinsinden)
     max: 100, // Belirtilen sürede tek bir IP adresinden yapılabilecek maksimum istek sayısı (100)
     standardHeaders: true, // `RateLimit-*` standart HTTP başlıklarını yanıta ekle
     legacyHeaders: false, // Eskimiş `X-RateLimit-*` başlıklarını devre dışı bırak
     keyGenerator: rateLimitKeyGenerator,
+    ...(globalRateLimitStore ? { store: globalRateLimitStore } : {}),
+    passOnStoreError: false,
     handler: createRateLimitHandler(
       'Çok fazla istek gönderdiniz. Lütfen 15 dakika sonra tekrar deneyin.',
     ),

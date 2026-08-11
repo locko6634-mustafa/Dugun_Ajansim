@@ -4,45 +4,34 @@ import { loadAllowedFileSecrets } from "./file-secrets.mjs";
 
 loadAllowedFileSecrets(process.env, {
   BACKUP_ENCRYPTION_KEY_FILE: "BACKUP_ENCRYPTION_KEY",
+  BACKUP_ENCRYPTION_KEYRING_JSON_FILE: "BACKUP_ENCRYPTION_KEYRING_JSON",
   APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS_FILE: "APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS"
 });
 
 const ALGORITHM = "aes-256-gcm";
 const MAGIC = Buffer.from("DAJSBKP", "ascii");
-const VERSION = 2;
+const LEGACY_VERSION = 2;
+const VERSION = 3;
 const NONCE_PREFIX_LENGTH = 12;
 const NONCE_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 const FRAME_LENGTH_BYTES = 4;
+const KEY_ID_LENGTH_BYTES = 1;
+const MAX_KEY_ID_BYTES = 64;
 const MAX_FRAME_PLAINTEXT_BYTES = 1024 * 1024;
 const MAX_FRAME_COUNTER = 0xffffffff;
-const HEADER_LENGTH = MAGIC.length + 1 + NONCE_PREFIX_LENGTH;
+const LEGACY_HEADER_LENGTH = MAGIC.length + 1 + NONCE_PREFIX_LENGTH;
+const HEADER_PREFIX_LENGTH = MAGIC.length + 1;
+const KEY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const KNOWN_EXAMPLE_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 const fail = (message) => {
   throw new Error(message);
 };
 
-const readKey = () => {
-  const encodedKey = process.env.BACKUP_ENCRYPTION_KEY ?? "";
-  const applicationDataKeyFingerprints = (
-    process.env.APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS ?? ""
-  )
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-  delete process.env.BACKUP_ENCRYPTION_KEY;
-  delete process.env.APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS;
-
+const validateEncodedKey = (encodedKey, applicationDataKeyFingerprints) => {
   if (!/^[a-fA-F0-9]{64}$/.test(encodedKey)) {
-    fail("BACKUP_ENCRYPTION_KEY 32 baytlık hex değer olmalıdır.");
-  }
-  if (
-    applicationDataKeyFingerprints.length < 1 ||
-    applicationDataKeyFingerprints.length > 32 ||
-    applicationDataKeyFingerprints.some((value) => !/^[a-f0-9]{64}$/.test(value))
-  ) {
-    fail("APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS geçerli SHA-256 hex listesi olmalıdır.");
+    fail("Yedek anahtarları 32 baytlık hex değer olmalıdır.");
   }
 
   const normalizedKey = encodedKey.toLowerCase();
@@ -51,14 +40,91 @@ const readKey = () => {
     /^([a-f0-9])\1{63}$/.test(normalizedKey) ||
     normalizedKey.slice(0, 32) === normalizedKey.slice(32);
   if (isWeakKey) {
-    fail("BACKUP_ENCRYPTION_KEY örneklerden farklı, rastgele bir anahtar olmalıdır.");
-  }
-  const backupKeyFingerprint = createHash("sha256").update(encodedKey, "hex").digest("hex");
-  if (applicationDataKeyFingerprints.includes(backupKeyFingerprint)) {
-    fail("BACKUP_ENCRYPTION_KEY tüm uygulama güvenlik anahtarlarından farklı olmalıdır.");
+    fail("Her yedek anahtarı örneklerden farklı, rastgele bir anahtar olmalıdır.");
   }
 
-  return Buffer.from(encodedKey, "hex");
+  const backupKeyFingerprint = createHash("sha256").update(encodedKey, "hex").digest("hex");
+  if (applicationDataKeyFingerprints.includes(backupKeyFingerprint)) {
+    fail("Yedek anahtarları tüm uygulama güvenlik anahtarlarından farklı olmalıdır.");
+  }
+
+  return normalizedKey;
+};
+
+const readKeyConfiguration = () => {
+  const legacyEncodedKey = (process.env.BACKUP_ENCRYPTION_KEY ?? "").trim();
+  const activeKeyId = (process.env.BACKUP_ENCRYPTION_ACTIVE_KEY_ID ?? "").trim();
+  const encodedKeyring = (process.env.BACKUP_ENCRYPTION_KEYRING_JSON ?? "").trim();
+  const applicationDataKeyFingerprints = (
+    process.env.APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS ?? ""
+  )
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  delete process.env.BACKUP_ENCRYPTION_KEY;
+  delete process.env.BACKUP_ENCRYPTION_ACTIVE_KEY_ID;
+  delete process.env.BACKUP_ENCRYPTION_KEYRING_JSON;
+  delete process.env.APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS;
+
+  if (
+    applicationDataKeyFingerprints.length < 1 ||
+    applicationDataKeyFingerprints.length > 32 ||
+    applicationDataKeyFingerprints.some((value) => !/^[a-f0-9]{64}$/.test(value))
+  ) {
+    fail("APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS geçerli SHA-256 hex listesi olmalıdır.");
+  }
+
+  if (!activeKeyId && !encodedKeyring) {
+    const normalizedLegacyKey = validateEncodedKey(
+      legacyEncodedKey,
+      applicationDataKeyFingerprints
+    );
+    return {
+      activeKeyId: "legacy",
+      keys: new Map([["legacy", Buffer.from(normalizedLegacyKey, "hex")]])
+    };
+  }
+
+  if (legacyEncodedKey || !activeKeyId || !encodedKeyring || !KEY_ID_PATTERN.test(activeKeyId)) {
+    fail(
+      "BACKUP_ENCRYPTION_ACTIVE_KEY_ID ve BACKUP_ENCRYPTION_KEYRING_JSON birlikte, legacy anahtarsız kullanılmalıdır."
+    );
+  }
+
+  let parsedKeyring;
+  try {
+    parsedKeyring = JSON.parse(encodedKeyring);
+  } catch {
+    fail("BACKUP_ENCRYPTION_KEYRING_JSON geçerli JSON olmalıdır.");
+  }
+  if (!parsedKeyring || typeof parsedKeyring !== "object" || Array.isArray(parsedKeyring)) {
+    fail("BACKUP_ENCRYPTION_KEYRING_JSON bir JSON nesnesi olmalıdır.");
+  }
+
+  const entries = Object.entries(parsedKeyring);
+  if (entries.length < 1 || entries.length > 32) {
+    fail("BACKUP_ENCRYPTION_KEYRING_JSON 1-32 anahtar içermelidir.");
+  }
+
+  const normalizedEntries = entries.map(([keyId, encodedKey]) => {
+    if (!KEY_ID_PATTERN.test(keyId) || typeof encodedKey !== "string") {
+      fail("BACKUP_ENCRYPTION_KEYRING_JSON key ID veya anahtar biçimi geçersiz.");
+    }
+    return [keyId, validateEncodedKey(encodedKey, applicationDataKeyFingerprints)];
+  });
+  if (new Set(normalizedEntries.map(([, encodedKey]) => encodedKey)).size !== entries.length) {
+    fail("BACKUP_ENCRYPTION_KEYRING_JSON anahtarları benzersiz olmalıdır.");
+  }
+  if (!normalizedEntries.some(([keyId]) => keyId === activeKeyId)) {
+    fail("BACKUP_ENCRYPTION_ACTIVE_KEY_ID keyring içinde bulunmalıdır.");
+  }
+
+  return {
+    activeKeyId,
+    keys: new Map(
+      normalizedEntries.map(([keyId, encodedKey]) => [keyId, Buffer.from(encodedKey, "hex")])
+    )
+  };
 };
 
 const writeOutput = async (chunk) => {
@@ -104,9 +170,14 @@ const encryptFrame = (key, header, noncePrefix, frameCounter, plaintext) => {
   return Buffer.concat([length, ciphertext, cipher.getAuthTag()]);
 };
 
-const encrypt = async (key) => {
+const encrypt = async ({ activeKeyId, keys }) => {
+  const key = keys.get(activeKeyId);
+  const keyId = Buffer.from(activeKeyId, "ascii");
+  if (!key || keyId.length < 1 || keyId.length > MAX_KEY_ID_BYTES) {
+    fail("Aktif yedek anahtarı yapılandırması geçersiz.");
+  }
   const noncePrefix = randomBytes(NONCE_PREFIX_LENGTH);
-  const header = Buffer.concat([MAGIC, Buffer.from([VERSION]), noncePrefix]);
+  const header = Buffer.concat([MAGIC, Buffer.from([VERSION, keyId.length]), keyId, noncePrefix]);
   let pending = Buffer.alloc(0);
   let plaintextBytes = 0;
   let frameCounter = 0;
@@ -149,10 +220,12 @@ const decryptFrame = (key, header, noncePrefix, frameCounter, length, ciphertext
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 };
 
-const decrypt = async (key) => {
+const decrypt = async ({ keys }) => {
   let pending = Buffer.alloc(0);
   let header;
   let noncePrefix;
+  let key;
+  let legacyKeyCandidates;
   let frameCounter = 0;
   let plaintextBytes = 0;
   let terminalFrameSeen = false;
@@ -160,17 +233,42 @@ const decrypt = async (key) => {
   for await (const chunk of process.stdin) {
     pending = Buffer.concat([pending, chunk]);
 
-    if (!header && pending.length >= HEADER_LENGTH) {
-      header = pending.subarray(0, HEADER_LENGTH);
-      const magic = header.subarray(0, MAGIC.length);
-      const version = header[MAGIC.length];
-
-      if (!magic.equals(MAGIC) || version !== VERSION) {
+    if (!header && pending.length >= HEADER_PREFIX_LENGTH) {
+      const magic = pending.subarray(0, MAGIC.length);
+      const version = pending[MAGIC.length];
+      if (!magic.equals(MAGIC) || ![LEGACY_VERSION, VERSION].includes(version)) {
         fail("Şifreli yedek başlığı veya sürümü geçersiz.");
       }
 
-      noncePrefix = header.subarray(MAGIC.length + 1);
-      pending = pending.subarray(HEADER_LENGTH);
+      let headerLength;
+      if (version === LEGACY_VERSION) {
+        headerLength = LEGACY_HEADER_LENGTH;
+      } else {
+        if (pending.length < HEADER_PREFIX_LENGTH + KEY_ID_LENGTH_BYTES) continue;
+        const keyIdLength = pending[HEADER_PREFIX_LENGTH];
+        if (keyIdLength < 1 || keyIdLength > MAX_KEY_ID_BYTES) {
+          fail("Şifreli yedek anahtar kimliği geçersiz.");
+        }
+        headerLength =
+          HEADER_PREFIX_LENGTH + KEY_ID_LENGTH_BYTES + keyIdLength + NONCE_PREFIX_LENGTH;
+      }
+      if (pending.length < headerLength) continue;
+
+      header = pending.subarray(0, headerLength);
+      if (version === LEGACY_VERSION) {
+        noncePrefix = header.subarray(HEADER_PREFIX_LENGTH);
+        legacyKeyCandidates = [...keys.values()];
+      } else {
+        const keyIdLength = header[HEADER_PREFIX_LENGTH];
+        const keyIdStart = HEADER_PREFIX_LENGTH + KEY_ID_LENGTH_BYTES;
+        const keyId = header.subarray(keyIdStart, keyIdStart + keyIdLength).toString("ascii");
+        if (!KEY_ID_PATTERN.test(keyId) || !keys.has(keyId)) {
+          fail("Şifreli yedek anahtar kimliği keyring içinde bulunamadı.");
+        }
+        key = keys.get(keyId);
+        noncePrefix = header.subarray(keyIdStart + keyIdLength);
+      }
+      pending = pending.subarray(headerLength);
     }
 
     while (header && pending.length >= FRAME_LENGTH_BYTES) {
@@ -192,18 +290,45 @@ const decrypt = async (key) => {
       pending = pending.subarray(frameLength);
 
       let plaintext;
-      try {
-        plaintext = decryptFrame(
-          key,
-          header,
-          noncePrefix,
-          frameCounter,
-          plaintextLength,
-          ciphertext,
-          authTag
-        );
-      } catch {
-        fail("Şifreli yedek kimlik doğrulamasından geçemedi.");
+      if (!key && legacyKeyCandidates) {
+        const matches = [];
+        for (const candidate of legacyKeyCandidates) {
+          try {
+            matches.push({
+              key: candidate,
+              plaintext: decryptFrame(
+                candidate,
+                header,
+                noncePrefix,
+                frameCounter,
+                plaintextLength,
+                ciphertext,
+                authTag
+              )
+            });
+          } catch {
+            // Legacy v2 başlığında keyId yoktur; ilk doğrulanan parça doğru anahtarı seçer.
+          }
+        }
+        if (matches.length !== 1) {
+          fail("Şifreli yedek kimlik doğrulamasından geçemedi.");
+        }
+        [{ key, plaintext }] = matches;
+        legacyKeyCandidates = undefined;
+      } else {
+        try {
+          plaintext = decryptFrame(
+            key,
+            header,
+            noncePrefix,
+            frameCounter,
+            plaintextLength,
+            ciphertext,
+            authTag
+          );
+        } catch {
+          fail("Şifreli yedek kimlik doğrulamasından geçemedi.");
+        }
       }
       frameCounter += 1;
 
@@ -233,16 +358,16 @@ const main = async () => {
     fail("Kullanım: backup-crypto.mjs <validate|encrypt|decrypt>");
   }
 
-  const key = readKey();
+  const keyConfiguration = readKeyConfiguration();
   try {
     if (mode === "validate") return;
     if (mode === "encrypt") {
-      await encrypt(key);
+      await encrypt(keyConfiguration);
       return;
     }
-    await decrypt(key);
+    await decrypt(keyConfiguration);
   } finally {
-    key.fill(0);
+    for (const key of keyConfiguration.keys.values()) key.fill(0);
   }
 };
 

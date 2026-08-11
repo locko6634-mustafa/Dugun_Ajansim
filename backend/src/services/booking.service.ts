@@ -5,6 +5,12 @@ import { env } from "../config/env.config.js";
 import type { z } from "zod";
 import type { bookingBodySchema } from "../schemas/api.schemas.js";
 import { AppError } from "../utils/appError.js";
+import {
+  bookingFingerprintCryptography,
+  legacyFingerprintMatches,
+  serializeBookingFingerprintPayload
+} from "../utils/booking-fingerprint.js";
+import { writeAuditLog } from "../utils/audit.js";
 import { createOpaqueToken, hashPassword, hashToken, tokenHashesMatch } from "../utils/crypto.js";
 import {
   addCalendarDays,
@@ -68,7 +74,7 @@ const createAudit = (
     metadata?: Prisma.InputJsonValue;
   }
 ) =>
-  transaction.auditLog.create({
+  writeAuditLog(transaction, {
     data: {
       actorUserId: input.actorUserId,
       action: input.action,
@@ -102,17 +108,61 @@ const idempotencySelect = {
   whatsappHandoffAt: true,
   paymentFlowExpiredAt: true,
   paymentFlowTokenHash: true,
-  idempotencyFingerprint: true
+  idempotencyFingerprint: true,
+  idempotencyFingerprintHmac: true,
+  idempotencyFingerprintKeyId: true,
+  idempotencyFingerprintVersion: true
 } satisfies Prisma.BookingApplicationSelect;
 
 const assertIdempotencyFingerprint = (
   existing: {
     idempotencyFingerprint: string | null;
+    idempotencyFingerprintHmac: string | null;
+    idempotencyFingerprintKeyId: string | null;
+    idempotencyFingerprintVersion: number | null;
   },
-  fingerprint: string
-): void => {
-  if (existing.idempotencyFingerprint !== fingerprint) {
+  canonicalPayload: string,
+  legacyFingerprint: string
+): "hmac" | "legacy" => {
+  const hasHmacMetadata =
+    existing.idempotencyFingerprintHmac !== null ||
+    existing.idempotencyFingerprintKeyId !== null ||
+    existing.idempotencyFingerprintVersion !== null;
+  const matches = hasHmacMetadata
+    ? bookingFingerprintCryptography.verify(canonicalPayload, existing)
+    : legacyFingerprintMatches(existing.idempotencyFingerprint, legacyFingerprint);
+  if (!matches) {
     throw new AppError("Idempotency anahtarı farklı bir başvuru için kullanılmış.", 409);
+  }
+  return hasHmacMetadata ? "hmac" : "legacy";
+};
+
+const upgradeLegacyIdempotencyFingerprint = async (
+  transaction: Prisma.TransactionClient,
+  existing: {
+    id: string;
+    idempotencyFingerprint: string | null;
+    idempotencyFingerprintHmac: string | null;
+    idempotencyFingerprintKeyId: string | null;
+    idempotencyFingerprintVersion: number | null;
+  },
+  fingerprintEnvelope: ReturnType<typeof bookingFingerprintCryptography.create>
+): Promise<void> => {
+  const upgraded = await transaction.bookingApplication.updateMany({
+    where: {
+      id: existing.id,
+      idempotencyFingerprint: existing.idempotencyFingerprint,
+      idempotencyFingerprintHmac: null,
+      idempotencyFingerprintKeyId: null,
+      idempotencyFingerprintVersion: null
+    },
+    data: {
+      idempotencyFingerprint: null,
+      ...fingerprintEnvelope
+    }
+  });
+  if (upgraded.count !== 1) {
+    throw new AppError("Idempotency kaydı başka bir işlemde güncellendi.", 409);
   }
 };
 
@@ -224,6 +274,37 @@ export const createBookingFingerprint = (
     })
   );
 
+export const createBookingFingerprintPayload = (
+  input: BookingInput,
+  source: BookingSource,
+  startsAt: Date,
+  endsAt: Date,
+  bridePhone: string,
+  groomPhone: string,
+  serviceCodes: string[]
+): string =>
+  serializeBookingFingerprintPayload({
+    source,
+    brideFirstName: input.brideFirstName,
+    brideLastName: input.brideLastName,
+    bridePhone,
+    groomFirstName: input.groomFirstName,
+    groomLastName: input.groomLastName,
+    groomPhone,
+    primaryContact: input.primaryContact,
+    primaryEmail: input.primaryEmail,
+    startsAt,
+    endsAt,
+    venueId: input.venueId ?? null,
+    customVenueName: input.customVenueName?.trim() || null,
+    packageCode: input.packageCode,
+    serviceCodes,
+    paymentMethod: input.paymentMethod,
+    note: input.note || null,
+    privacyConsent: input.privacyConsent,
+    marketingConsent: input.marketingConsent
+  });
+
 export const createBookingApplication = async (
   input: BookingInput,
   options: CreateBookingOptions
@@ -256,6 +337,18 @@ export const createBookingApplication = async (
     groomPhone,
     serviceCodes
   );
+  const idempotencyFingerprintPayload = createBookingFingerprintPayload(
+    input,
+    options.source,
+    startsAt,
+    endsAt,
+    bridePhone,
+    groomPhone,
+    serviceCodes
+  );
+  const idempotencyFingerprintEnvelope = bookingFingerprintCryptography.create(
+    idempotencyFingerprintPayload
+  );
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
@@ -272,7 +365,8 @@ export const createBookingApplication = async (
           groomPhone,
           primaryEmail: input.primaryEmail,
           note: input.note || null,
-          rejectionReason: null
+          rejectionReason: null,
+          customVenueName: input.customVenueName?.trim() || null
         },
         1
       );
@@ -284,7 +378,18 @@ export const createBookingApplication = async (
               select: idempotencySelect
             });
             if (existing) {
-              assertIdempotencyFingerprint(existing, idempotencyFingerprint);
+              const fingerprintMode = assertIdempotencyFingerprint(
+                existing,
+                idempotencyFingerprintPayload,
+                idempotencyFingerprint
+              );
+              if (fingerprintMode === "legacy") {
+                await upgradeLegacyIdempotencyFingerprint(
+                  transaction,
+                  existing,
+                  idempotencyFingerprintEnvelope
+                );
+              }
               if (
                 options.source === "PUBLIC_FORM" &&
                 (!existing.paymentFlowTokenHash ||
@@ -294,6 +399,9 @@ export const createBookingApplication = async (
               }
               const {
                 idempotencyFingerprint: _fingerprint,
+                idempotencyFingerprintHmac: _fingerprintHmac,
+                idempotencyFingerprintKeyId: _fingerprintKeyId,
+                idempotencyFingerprintVersion: _fingerprintVersion,
                 paymentFlowTokenHash: _flowTokenHash,
                 ...response
               } = existing;
@@ -301,27 +409,9 @@ export const createBookingApplication = async (
             }
           }
 
-          const customVenueName = input.customVenueName?.trim();
           const venuePromise = input.venueId
             ? transaction.venue.findFirst({ where: { id: input.venueId, isActive: true } })
-            : transaction.venue
-                .findFirst({
-                  where: {
-                    name: { equals: customVenueName, mode: "insensitive" },
-                    isActive: true
-                  }
-                })
-                .then(
-                  (existing) =>
-                    existing ||
-                    transaction.venue.create({
-                      data: {
-                        name: customVenueName!,
-                        slug: `musteri-salonu-${randomReferenceCode().toLowerCase()}`,
-                        isPartner: false
-                      }
-                    })
-                );
+            : Promise.resolve(null);
           const [venue, selectedPackage, selectedServices] = await Promise.all([
             venuePromise,
             transaction.package.findFirst({
@@ -333,14 +423,16 @@ export const createBookingApplication = async (
             })
           ]);
 
-          if (!venue) throw new AppError("Seçilen salon artık aktif değil.", 400);
+          if (input.venueId && !venue) {
+            throw new AppError("Seçilen salon artık aktif değil.", 400);
+          }
           if (!selectedPackage) throw new AppError("Seçilen paket artık aktif değil.", 400);
           if (selectedServices.length !== serviceCodes.length) {
             throw new AppError("Seçilen hizmetlerden biri artık aktif değil.", 400);
           }
 
           const publicConflict =
-            options.source === "PUBLIC_FORM"
+            options.source === "PUBLIC_FORM" && venue
               ? await hasPublicVenueConflict(transaction, {
                   venueId: venue.id,
                   startsAt,
@@ -348,7 +440,7 @@ export const createBookingApplication = async (
                 })
               : false;
           const conflictingWedding =
-            options.source === "PUBLIC_FORM"
+            options.source === "PUBLIC_FORM" || !venue
               ? null
               : await transaction.wedding.findFirst({
                   where: {
@@ -362,7 +454,7 @@ export const createBookingApplication = async (
                 });
 
           const conflictingApp =
-            options.source !== "PUBLIC_FORM" && !conflictingWedding
+            options.source !== "PUBLIC_FORM" && venue && !conflictingWedding
               ? await transaction.bookingApplication.findFirst({
                   where: {
                     venueId: venue.id,
@@ -411,13 +503,14 @@ export const createBookingApplication = async (
               id: applicationId,
               referenceCode,
               idempotencyKey: options.idempotencyKey,
-              idempotencyFingerprint: options.idempotencyKey ? idempotencyFingerprint : undefined,
+              idempotencyFingerprint: null,
+              ...(options.idempotencyKey ? idempotencyFingerprintEnvelope : {}),
               source: options.source,
               ...applicationPii,
               primaryContact: input.primaryContact,
               weddingStartsAt: startsAt,
               weddingEndsAt: endsAt,
-              venueId: venue.id,
+              venueId: venue?.id ?? null,
               packageId: selectedPackage.id,
               packageCodeSnapshot: selectedPackage.code,
               packageNameSnapshot: selectedPackage.name,
@@ -485,12 +578,17 @@ export const createBookingApplication = async (
   }
 
   if (options.idempotencyKey) {
-    const existing = await prisma.bookingApplication.findUnique({
-      where: { idempotencyKey: options.idempotencyKey },
-      select: idempotencySelect
-    });
-    if (existing) {
-      assertIdempotencyFingerprint(existing, idempotencyFingerprint);
+    const response = await prisma.$transaction(async (transaction) => {
+      const existing = await transaction.bookingApplication.findUnique({
+        where: { idempotencyKey: options.idempotencyKey },
+        select: idempotencySelect
+      });
+      if (!existing) return null;
+      const fingerprintMode = assertIdempotencyFingerprint(
+        existing,
+        idempotencyFingerprintPayload,
+        idempotencyFingerprint
+      );
       if (
         options.source === "PUBLIC_FORM" &&
         (!existing.paymentFlowTokenHash ||
@@ -498,13 +596,24 @@ export const createBookingApplication = async (
       ) {
         throw new AppError("Idempotency anahtarı farklı bir ödeme akışına ait.", 409);
       }
+      if (fingerprintMode === "legacy") {
+        await upgradeLegacyIdempotencyFingerprint(
+          transaction,
+          existing,
+          idempotencyFingerprintEnvelope
+        );
+      }
       const {
         idempotencyFingerprint: _fingerprint,
+        idempotencyFingerprintHmac: _fingerprintHmac,
+        idempotencyFingerprintKeyId: _fingerprintKeyId,
+        idempotencyFingerprintVersion: _fingerprintVersion,
         paymentFlowTokenHash: _flowTokenHash,
-        ...response
+        ...safeResponse
       } = existing;
-      return response;
-    }
+      return safeResponse;
+    });
+    if (response) return response;
   }
 
   throw new AppError("Başvuru referansı üretilemedi. Lütfen tekrar deneyin.", 503);
@@ -575,9 +684,11 @@ const toPaymentFlowResponse = (application: PaymentFlowApplication) => {
     startTime: formatIstanbulTime(application.weddingStartsAt),
     endTime: formatIstanbulTime(application.weddingEndsAt),
     endsNextDay: getIstanbulDate(application.weddingEndsAt) !== weddingDate,
-    venueId: application.venue.isPartner ? application.venue.id : undefined,
-    customVenueName: application.venue.isPartner ? undefined : application.venue.name,
-    venueName: application.venue.name,
+    venueId: application.venue?.isPartner ? application.venue.id : undefined,
+    customVenueName: application.venue?.isPartner
+      ? undefined
+      : (pii.customVenueName ?? application.venue?.name),
+    venueName: application.venue?.name ?? pii.customVenueName,
     packageCode: application.packageCodeSnapshot,
     packageName: application.packageNameSnapshot,
     packagePriceCents: application.packagePriceCents,
@@ -600,7 +711,7 @@ export const PAYMENT_FLOW_SWEEP_ADVISORY_LOCK_KEY = 1_940_667_981;
 
 type ExpiredPaymentFlowCandidate = {
   id: string;
-  venueId: string;
+  venueId: string | null;
 };
 
 const purgeExpiredPaymentFlowCandidates = async (
@@ -630,7 +741,9 @@ const purgeExpiredPaymentFlowCandidates = async (
       correlationId,
       metadata: { expiredAt: now.toISOString(), lifecycle: "stale_pii_purged" }
     });
-    await deleteOrphanedCustomerVenue(transaction, candidate.venueId);
+    if (candidate.venueId) {
+      await deleteOrphanedCustomerVenue(transaction, candidate.venueId);
+    }
     expiredCount += 1;
   }
   return expiredCount;
@@ -772,20 +885,12 @@ export const updatePaymentFlowApplication = async (
       }
       const currentPii = decryptBookingApplicationPii(current.id, current);
 
-      const customVenueName = input.customVenueName?.trim();
       const venue = input.venueId
         ? await transaction.venue.findFirst({ where: { id: input.venueId, isActive: true } })
-        : (await transaction.venue.findFirst({
-            where: { name: { equals: customVenueName, mode: "insensitive" }, isActive: true }
-          })) ||
-          (await transaction.venue.create({
-            data: {
-              name: customVenueName!,
-              slug: `musteri-salonu-${randomReferenceCode().toLowerCase()}`,
-              isPartner: false
-            }
-          }));
-      if (!venue) throw new AppError("Seçilen salon artık aktif değil.", 400);
+        : null;
+      if (input.venueId && !venue) {
+        throw new AppError("Seçilen salon artık aktif değil.", 400);
+      }
       const [selectedPackage, selectedServices] = await Promise.all([
         transaction.package.findFirst({ where: { code: input.packageCode, isActive: true } }),
         transaction.service.findMany({
@@ -797,12 +902,14 @@ export const updatePaymentFlowApplication = async (
       if (selectedServices.length !== serviceCodes.length) {
         throw new AppError("Seçilen hizmetlerden biri artık aktif değil.", 400);
       }
-      await assertVenueScheduleAvailable(transaction, {
-        venueId: venue.id,
-        startsAt,
-        endsAt,
-        excludeApplicationId: current.id
-      });
+      if (venue) {
+        await assertVenueScheduleAvailable(transaction, {
+          venueId: venue.id,
+          startsAt,
+          endsAt,
+          excludeApplicationId: current.id
+        });
+      }
 
       const subtotalCents =
         selectedPackage.priceCents +
@@ -811,7 +918,7 @@ export const updatePaymentFlowApplication = async (
         subtotalCents,
         input.paymentMethod
       );
-      const fingerprint = createBookingFingerprint(
+      const fingerprintPayload = createBookingFingerprintPayload(
         input,
         "PUBLIC_FORM",
         startsAt,
@@ -831,19 +938,21 @@ export const updatePaymentFlowApplication = async (
           groomPhone,
           primaryEmail: input.primaryEmail,
           note: input.note || null,
-          rejectionReason: currentPii.rejectionReason
+          rejectionReason: currentPii.rejectionReason,
+          customVenueName: input.customVenueName?.trim() || null
         },
         current.piiRevision + 1
       );
       const updated = await transaction.bookingApplication.update({
         where: { id: current.id, piiRevision: current.piiRevision },
         data: {
-          idempotencyFingerprint: fingerprint,
+          idempotencyFingerprint: null,
+          ...bookingFingerprintCryptography.create(fingerprintPayload),
           ...nextPii,
           primaryContact: input.primaryContact,
           weddingStartsAt: startsAt,
           weddingEndsAt: endsAt,
-          venueId: venue.id,
+          venueId: venue?.id ?? null,
           packageId: selectedPackage.id,
           packageCodeSnapshot: selectedPackage.code,
           packageNameSnapshot: selectedPackage.name,
@@ -872,7 +981,7 @@ export const updatePaymentFlowApplication = async (
         correlationId,
         metadata: { referenceCode: current.referenceCode }
       });
-      if (current.venueId !== venue.id) {
+      if (current.venueId && current.venueId !== venue?.id) {
         await deleteOrphanedCustomerVenue(transaction, current.venueId);
       }
       return toPaymentFlowResponse(updated);
@@ -1037,8 +1146,29 @@ export const approveBookingApplication = async (
             throw new AppError("WhatsApp dekont bildirimi başlatılmamış başvuru onaylanamaz.", 409);
           }
 
+          const approvedVenue = application.venueId
+            ? await transaction.venue.findUnique({ where: { id: application.venueId } })
+            : applicationPii.customVenueName
+              ? ((await transaction.venue.findFirst({
+                  where: {
+                    name: { equals: applicationPii.customVenueName, mode: "insensitive" },
+                    isActive: true
+                  }
+                })) ??
+                (await transaction.venue.create({
+                  data: {
+                    name: applicationPii.customVenueName,
+                    slug: `musteri-salonu-${randomUUID()}`,
+                    isPartner: false
+                  }
+                })))
+              : null;
+          if (!approvedVenue) {
+            throw new AppError("Başvurunun salon bilgisi bulunamadı.", 409);
+          }
+
           await assertVenueScheduleAvailable(transaction, {
-            venueId: application.venueId,
+            venueId: approvedVenue.id,
             startsAt: application.weddingStartsAt,
             endsAt: application.weddingEndsAt,
             excludeApplicationId: application.id
@@ -1059,6 +1189,7 @@ export const approveBookingApplication = async (
             },
             data: {
               status: "ONAYLANDI",
+              venueId: approvedVenue.id,
               paymentFlowTokenHash: null,
               reviewedAt: new Date(),
               reviewedById: actorUserId
@@ -1110,7 +1241,7 @@ export const approveBookingApplication = async (
               primaryContact: application.primaryContact,
               startsAt: application.weddingStartsAt,
               endsAt: application.weddingEndsAt,
-              venueId: application.venueId,
+              venueId: approvedVenue.id,
               packageSummary: {
                 code: application.packageCodeSnapshot,
                 name: application.packageNameSnapshot,

@@ -5,8 +5,12 @@ umask 077
 
 readonly environment_file=".env.production"
 readonly compose_file="compose.production.yaml"
+readonly watchdog_script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly use_file_secrets="${USE_FILE_SECRETS:-1}"
 readonly backend_replicas="${BACKEND_REPLICAS:-2}"
 readonly recovery_timeout_seconds="${WATCHDOG_RECOVERY_TIMEOUT_SECONDS:-90}"
+
+source "$watchdog_script_directory/validate-production-secrets.sh"
 
 fail() {
   printf '%s\n' "Watchdog güvenlik kontrolü başarısız: $1" >&2
@@ -28,12 +32,13 @@ require_integer_range() {
     fail "$name $minimum-$maximum aralığında olmalıdır."
 }
 
-for required_command in chmod curl docker flock git grep id mkdir stat; do
+for required_command in awk chmod curl dirname docker flock git grep id mkdir od stat; do
   command -v "$required_command" >/dev/null 2>&1 || fail "$required_command komutu bulunamadı."
 done
 
 require_integer_range "BACKEND_REPLICAS" "$backend_replicas" 2 8
 require_integer_range "WATCHDOG_RECOVERY_TIMEOUT_SECONDS" "$recovery_timeout_seconds" 30 300
+[[ "$use_file_secrets" == "1" ]] || fail "Watchdog USE_FILE_SECRETS=1 olmadan çalıştırılamaz."
 [[ "${PUBLIC_ORIGIN:-}" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] ||
   fail "PUBLIC_ORIGIN yalnızca güvenli HTTPS origin olmalıdır."
 
@@ -52,6 +57,8 @@ current_user_id="$(id -u)"
   fail "$environment_file izinleri yalnız 600 veya 400 olabilir."
 [[ "$environment_owner" == "$current_user_id" ]] ||
   fail "$environment_file watchdog kullanıcısına ait olmalıdır."
+validate_production_secret_sources "$environment_file" "$current_user_id" ||
+  fail "File-backed production secret kaynakları doğrulanamadı."
 
 backup_directory="$repository_root/backups"
 [[ ! -L "$backup_directory" ]] || fail "Yedek dizini sembolik bağlantı olamaz."
@@ -67,7 +74,11 @@ exec 9>"$operations_lock_path"
 chmod 600 "$operations_lock_path"
 flock -n 9 || fail "Başka bir dağıtım, yedekleme veya watchdog işlemi devam ediyor."
 
-compose=(docker compose --env-file "$environment_file" -f "$compose_file")
+[[ -f "compose.production.secrets.yaml" && ! -L "compose.production.secrets.yaml" ]] ||
+  fail "File-backed secret overlay normal bir dosya olmalıdır."
+compose=(
+  docker compose --env-file "$environment_file" -f "$compose_file" -f compose.production.secrets.yaml
+)
 "${compose[@]}" config -q
 
 container_health() {

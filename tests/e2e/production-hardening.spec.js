@@ -70,11 +70,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(compose).toContain("loadbalancer.server.port=8080");
   expect(compose).toContain("pids_limit:");
   expect(compose).toContain("stop_grace_period:");
-  expect(compose.match(/^\s+image: postgres:[^\s]+/gm)).toEqual([
-    expect.stringMatching(/@sha256:[0-9a-f]{64}$/),
-    expect.stringMatching(/@sha256:[0-9a-f]{64}$/),
-    expect.stringMatching(/@sha256:[0-9a-f]{64}$/)
-  ]);
+  expect(compose.match(/^\s+image: dugun-ajansim-postgres$/gm)).toHaveLength(3);
+  expect(compose).toContain("dockerfile: deploy/postgres/Dockerfile");
   expect(compose.match(/^\s+read_only: true$/gm)?.length).toBeGreaterThanOrEqual(8);
   expect(compose.match(/^\s+init: true$/gm)?.length).toBeGreaterThanOrEqual(7);
   expect(compose).toContain("mem_limit:");
@@ -86,7 +83,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(compose).toContain("POSTGRES_RUNTIME_LOCK_TIMEOUT_MS:");
   expect(compose).toContain("POSTGRES_RUNTIME_IDLE_TRANSACTION_TIMEOUT_MS:");
   expect(compose).toContain("backup-crypto:");
-  expect(compose).toContain("BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?");
+  expect(compose).toContain("BACKUP_ENCRYPTION_ACTIVE_KEY_ID:");
+  expect(compose).toContain("BACKUP_ENCRYPTION_KEYRING_JSON:");
   expect(compose).toContain("APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS:");
   expect(compose).toContain("network_mode: none");
   expect(compose).toContain('max-size: "10m"');
@@ -142,10 +140,10 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     "./deploy/postgres/init-runtime-role.sh:/docker-entrypoint-initdb.d/20-runtime-role.sh:ro"
   );
   expect(compose).toMatch(
-    /migrate:[\s\S]*?DATABASE_URL: postgresql:\/\/\$\{POSTGRES_USER:-dugun_app\}:\$\{POSTGRES_PASSWORD\}@postgres/
+    /migrate:[\s\S]*?DATABASE_URL: postgresql:\/\/\$\{POSTGRES_USER:-dugun_app\}:\$\{POSTGRES_PASSWORD:-file-secret-required\}@postgres/
   );
   expect(compose).toMatch(
-    /backend:[\s\S]*?DATABASE_URL: postgresql:\/\/\$\{POSTGRES_RUNTIME_USER:-dugun_runtime\}:\$\{POSTGRES_RUNTIME_PASSWORD:\?POSTGRES_RUNTIME_PASSWORD zorunludur\}@postgres/
+    /backend:[\s\S]*?DATABASE_URL: postgresql:\/\/\$\{POSTGRES_RUNTIME_USER:-dugun_runtime\}:\$\{POSTGRES_RUNTIME_PASSWORD:-file-secret-required\}@postgres/
   );
   expect(compose).toMatch(
     /seed:[\s\S]*?depends_on:\s*\n\s*db-runtime-hardening:\s*\n\s*condition: service_completed_successfully/
@@ -173,8 +171,11 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(homePage).not.toContain('document.documentElement.classList.add("js")');
   expect(homeBootstrap).toContain('document.documentElement.classList.add("js")');
   expect(packageBuilderApplication).toContain('"Turnstile-Token": state.botChallengeToken');
+  expect(packageBuilderApplication).toContain('"X-Booking-Elapsed-Ms"');
+  expect(packageBuilderApplication).toContain('"X-Booking-Website"');
   expect(packageBuilderApplication).toContain("turnstile.render(container");
   expect(packageBuilderPage).toContain("js-turnstile");
+  expect(packageBuilderPage).toContain('name="companyWebsite"');
   expect(packageBuilderApplication).not.toContain("paymentFlowKey:");
   expect(packageBuilderApplication).not.toContain('"Payment-Flow-Key"');
   expect(customerPanelApplication).toContain('["drive.google.com", "docs.google.com"]');
@@ -184,7 +185,11 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(exampleEnv).toMatch(/^POSTGRES_RUNTIME_PASSWORD=$/m);
   expect(exampleEnv).toMatch(/^DATA_ENCRYPTION_KEY=$/m);
   expect(exampleEnv).toMatch(/^APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS=$/m);
-  expect(exampleEnv).toMatch(/^BACKUP_ENCRYPTION_KEY=$/m);
+  expect(exampleEnv).toMatch(/^USE_FILE_SECRETS=1$/m);
+  expect(exampleEnv).toMatch(/^BACKUP_ENCRYPTION_ACTIVE_KEY_ID=backup-[A-Za-z0-9._-]+$/m);
+  expect(exampleEnv).toMatch(/^BACKUP_ENCRYPTION_KEYRING_JSON=$/m);
+  expect(exampleEnv).toMatch(/^PII_BLIND_INDEX_ACTIVE_KEY_ID=blind-[A-Za-z0-9._-]+$/m);
+  expect(exampleEnv).toMatch(/^PII_BLIND_INDEX_KEYRING_JSON=$/m);
   expect(exampleEnv).toContain("POSTGRES_RUNTIME_STATEMENT_TIMEOUT_MS=30000");
   expect(exampleEnv).toContain("POSTGRES_MEMORY_LIMIT=2g");
   expect(exampleEnv).toContain("BACKEND_MEMORY_LIMIT=768m");
@@ -250,7 +255,13 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(deployScript).toContain("pg_dump");
   expect(deployScript).toContain("pg_restore --exit-on-error");
   expect(deployScript.indexOf("pg_restore --exit-on-error")).toBeLessThan(
-    deployScript.indexOf("up -d --build --wait")
+    deployScript.indexOf("MAINTENANCE_TRAFFIC_STOPPING=1")
+  );
+  expect(deployScript).toContain("--label traefik.enable=false backend");
+  expect(deployScript).toContain("--verify-backfill");
+  expect(deployScript).toContain("SELECT public.enable_data_encryption_enforcement()");
+  expect(deployScript.indexOf("DATA_ENCRYPTION_ENFORCEMENT_ENABLED=1")).toBeLessThan(
+    deployScript.indexOf("up -d --no-build --no-deps --wait frontend")
   );
   expect(deployScript).toContain("VALIDATED_ENCRYPTED_BACKUP=%s");
   expect(deployScript).toContain("BACKUP_MIN_FREE_MIB");

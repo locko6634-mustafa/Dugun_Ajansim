@@ -9,8 +9,7 @@ import {
 import { validateRequest } from '../middlewares/validate.middleware.js';
 import { AppError } from '../utils/appError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { decryptValue } from '../utils/crypto.js';
-import { deliveryEncryptionAad } from '../utils/domain.js';
+import { decryptDeliveryDriveUrl } from '../utils/delivery-crypto.js';
 import { decryptWeddingPii } from '../utils/pii-crypto.js';
 
 const router = Router();
@@ -118,22 +117,15 @@ router.get(
     if (
       !delivery ||
       delivery.status !== 'TESLIM_EDILDI' ||
-      !delivery.releasedAt ||
-      !delivery.driveUrlCiphertext ||
-      !delivery.driveUrlIv ||
-      !delivery.driveUrlAuthTag
+      !delivery.releasedAt
     ) {
       throw new AppError('Teslimat bağlantınız henüz yayınlanmadı.', 404);
     }
 
-    const driveUrl = decryptValue(
-      {
-        ciphertext: delivery.driveUrlCiphertext,
-        iv: delivery.driveUrlIv,
-        authTag: delivery.driveUrlAuthTag,
-      },
-      delivery.encryptionVersion >= 2 ? deliveryEncryptionAad(delivery.id) : undefined,
-    );
+    const driveUrl = decryptDeliveryDriveUrl(delivery);
+    if (driveUrl === null) {
+      throw new AppError('Teslimat bağlantınız henüz yayınlanmadı.', 404);
+    }
     res.set('Cache-Control', 'no-store');
     res.json({
       success: true,

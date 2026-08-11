@@ -5,6 +5,7 @@ umask 077
 
 readonly environment_file=".env.production"
 readonly compose_file="compose.production.yaml"
+readonly deployment_script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly minimum_backup_reserve_mib="${BACKUP_MIN_FREE_MIB:-1024}"
 readonly backup_retention_days="${BACKUP_RETENTION_DAYS:-30}"
 readonly backup_max_files="${BACKUP_MAX_FILES:-30}"
@@ -12,9 +13,11 @@ readonly pii_maintenance_batch_size="${PII_MAINTENANCE_BATCH_SIZE:-100}"
 readonly pii_maintenance_max_batches="${PII_MAINTENANCE_MAX_BATCHES:-1000}"
 readonly allow_deploy_without_rollback="${ALLOW_DEPLOY_WITHOUT_ROLLBACK:-0}"
 readonly legacy_plaintext_backup_cleanup="${LEGACY_PLAINTEXT_BACKUP_CLEANUP:-0}"
-readonly use_file_secrets="${USE_FILE_SECRETS:-0}"
+readonly use_file_secrets="${USE_FILE_SECRETS:-1}"
 readonly backend_replicas="${BACKEND_REPLICAS:-2}"
 readonly operation="${1:-deploy}"
+
+source "$deployment_script_directory/validate-production-secrets.sh"
 
 backup_only=0
 case "$operation" in
@@ -28,6 +31,7 @@ esac
 
 deploy_started=0
 deployment_verified=0
+rollback_window_closed=0
 rollback_in_progress=0
 rollback_available=1
 restore_database=""
@@ -40,6 +44,7 @@ migration_state_before=""
 source_migration_state=""
 source_table_count=""
 restore_log_path=""
+maintenance_backend_container=""
 
 log() {
   printf '%s\n' "$1"
@@ -109,6 +114,32 @@ set_rls_enforcement() {
   fi
 }
 
+enable_data_encryption_enforcement() {
+  postgres_owner_exec -- sh -eu -c \
+    'result="$(psql -X --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --set=ON_ERROR_STOP=1 --command="SELECT public.enable_data_encryption_enforcement()")"; [ "$result" = "t" ]'
+}
+
+cleanup_maintenance_backend() {
+  if [[ -n "$maintenance_backend_container" ]]; then
+    docker rm -f "$maintenance_backend_container" >/dev/null 2>&1 || true
+    maintenance_backend_container=""
+  fi
+}
+
+verify_maintenance_backend() {
+  local attempt
+  [[ -n "$maintenance_backend_container" ]] || fail "Bakım backend konteyneri eksik."
+  for ((attempt = 1; attempt <= 60; attempt += 1)); do
+    if docker exec "$maintenance_backend_container" node -e \
+      "fetch('http://127.0.0.1:5000/api/v1/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));" \
+      >/dev/null 2>&1; then
+      return
+    fi
+    sleep 2
+  done
+  fail "Dış trafiğe kapalı bakım backend'i sağlık kontrolünü geçemedi."
+}
+
 drop_restore_database() {
   if [[ -z "$restore_database" || "$restore_database_created" -ne 1 ]]; then
     return
@@ -128,6 +159,7 @@ cleanup_temporary_files() {
     rm -f -- "$temporary_backup_path"
   fi
   temporary_backup_path=""
+  cleanup_maintenance_backend
 }
 
 restore_image_reference() {
@@ -168,6 +200,16 @@ rollback_deployment() {
     return
   fi
 
+  if (( rollback_window_closed == 1 )); then
+    printf '%s\n' "ROLLBACK_BLOCKED_FORWARD_ONLY=1" >&2
+    printf '%s\n' "MAINTENANCE_OUTAGE=1" >&2
+    printf '%s\n' "Veri dönüşümü başladı; eski image veri sözleşmesiyle uyumsuz olduğu için otomatik rollback engellendi. Dış trafik kapalı tutuluyor ve operatör müdahalesi gerekiyor." >&2
+    if [[ -n "$backup_path" ]]; then
+      printf 'ROLLBACK_BACKUP=%s\n' "$backup_path" >&2
+    fi
+    return
+  fi
+
   if ! is_sha "$rollback_sha" || ! command -v git >/dev/null 2>&1; then
     printf '%s\n' "Geçerli PREVIOUS_SHA bulunmadığı için otomatik rollback başlatılamadı." >&2
     return
@@ -190,10 +232,9 @@ rollback_deployment() {
       restore_image_reference "dugun-ajansim-rollback-frontend:previous" "$frontend_original_image" ||
         rollback_failed=1
 
-      local rollback_compose=(docker compose --env-file "$environment_file" -f "$compose_file")
-      if [[ "$use_file_secrets" == "1" ]]; then
-        rollback_compose+=(-f compose.production.secrets.yaml)
-      fi
+      local rollback_compose=(
+        docker compose --env-file "$environment_file" -f "$compose_file" -f compose.production.secrets.yaml
+      )
       "${rollback_compose[@]}" config -q || rollback_failed=1
       "${rollback_compose[@]}" up -d --no-build --force-recreate --no-deps --wait postgres ||
         rollback_failed=1
@@ -421,7 +462,7 @@ trap 'handle_signal 129' HUP
 trap 'handle_signal 130' INT
 trap 'handle_signal 143' TERM
 
-for required_command in awk chmod curl date df docker find flock git grep id mkdir mv rm sha256sum sort stat tr; do
+for required_command in awk chmod curl date df dirname docker find flock git grep id mkdir mv od rm sha256sum sleep sort stat tr; do
   require_command "$required_command"
 done
 
@@ -441,8 +482,8 @@ require_integer_range "BACKEND_REPLICAS" "$backend_replicas" 2 8
   fail "ALLOW_DEPLOY_WITHOUT_ROLLBACK yalnızca 0 veya 1 olabilir."
 [[ "$legacy_plaintext_backup_cleanup" == "0" || "$legacy_plaintext_backup_cleanup" == "1" ]] ||
   fail "LEGACY_PLAINTEXT_BACKUP_CLEANUP yalnızca 0 veya 1 olabilir."
-[[ "$use_file_secrets" == "0" || "$use_file_secrets" == "1" ]] ||
-  fail "USE_FILE_SECRETS yalnızca 0 veya 1 olabilir."
+[[ "$use_file_secrets" == "1" ]] ||
+  fail "Production dağıtımı USE_FILE_SECRETS=1 olmadan çalıştırılamaz."
 
 repository_root="$(git rev-parse --show-toplevel)"
 [[ "$(pwd -P)" == "$(cd "$repository_root" && pwd -P)" ]] ||
@@ -466,13 +507,14 @@ current_user_id="$(id -u)"
   fail "$environment_file izinleri yalnız 600 veya 400 olabilir; mevcut: $environment_mode"
 [[ "$environment_owner" == "$current_user_id" ]] ||
   fail "$environment_file dağıtım kullanıcısına ait olmalıdır."
+validate_production_secret_sources "$environment_file" "$current_user_id" ||
+  fail "File-backed production secret kaynakları doğrulanamadı."
 
-compose=(docker compose --env-file "$environment_file" -f "$compose_file")
-if [[ "$use_file_secrets" == "1" ]]; then
-  [[ -f "compose.production.secrets.yaml" && ! -L "compose.production.secrets.yaml" ]] ||
-    fail "File-backed secret overlay normal bir dosya olmalıdır."
-  compose+=(-f compose.production.secrets.yaml)
-fi
+[[ -f "compose.production.secrets.yaml" && ! -L "compose.production.secrets.yaml" ]] ||
+  fail "File-backed secret overlay normal bir dosya olmalıdır."
+compose=(
+  docker compose --env-file "$environment_file" -f "$compose_file" -f compose.production.secrets.yaml
+)
 "${compose[@]}" config -q
 
 backup_directory="$repository_root/backups"
@@ -605,52 +647,107 @@ if (( backup_only == 1 )); then
   exit 0
 fi
 
-deploy_started=1
-"${compose[@]}" up -d --build --wait --scale backend="$backend_replicas"
-
 run_pii_batches() {
   local pii_operation="$1"
   local output
   local attempt
+  local result_status
+  local parser_operation="${pii_operation#--}"
   for ((attempt = 1; attempt <= pii_maintenance_max_batches; attempt += 1)); do
-    output="$(
+    if output="$(
       "${compose[@]}" --profile operations run --rm --no-deps -T pii-maintenance \
-        node dist/scripts/maintainPiiEncryption.js "$pii_operation" \
-        "--batch-size=$pii_maintenance_batch_size"
-    )"
-    log "$output"
-    if [[ "$output" == *'"bookingApplications":0,"weddings":0,"messageTasks":0'* ]]; then
+        sh -eu -c \
+        'output="$(node dist/scripts/maintainPiiEncryption.js "$1" "--batch-size=$2")"; printf "%s\n" "$output"; printf "%s\n" "$output" | node /usr/local/lib/dugun-ajansim/parse-pii-maintenance-result.mjs "$3"' \
+        sh "$pii_operation" "$pii_maintenance_batch_size" "$parser_operation"
+    )"; then
+      log "$output"
       return
+    else
+      result_status="$?"
+      log "$output"
+      if [[ "$result_status" == "10" ]]; then
+        continue
+      fi
+      fail "PII bakım çıktısı doğrulanamadı veya işlem başarısız oldu: $pii_operation"
+      return 1
     fi
   done
   fail "PII bakım işlemi güvenli parti sınırı içinde tamamlanamadı: $pii_operation"
 }
 
+"${compose[@]}" build postgres migrate backend frontend
+
+# Eski sürümün yeni plaintext satırlar yazabileceği pencereyi kapat. Bu noktadan yeni
+# backend doğrulanana kadar dış trafik fail-closed kalır; legacy alanlar rollback için korunur.
+deploy_started=1
+log "MAINTENANCE_TRAFFIC_STOPPING=1"
+"${compose[@]}" stop --timeout 30 frontend backend
+"${compose[@]}" up -d --no-build --no-deps --wait postgres
+"${compose[@]}" run --rm --no-deps -T migrate
+"${compose[@]}" run --rm --no-deps -T db-role-bootstrap
+"${compose[@]}" run --rm --no-deps -T db-runtime-hardening
+log "EXPAND_MIGRATION_COMPLETED=1"
+
+# Veri sözleşmesi değişmeden önce yeni imajın en azından ayağa kalktığını yalnız iç ağda doğrula.
+# Normal backend/frontend servisleri durur ve Traefik etiketi kesin olarak kapatılır.
+maintenance_backend_name="dugun-ajansim-maintenance-backend-${DEPLOY_SHA:0:12}"
+maintenance_backend_container="$(
+  "${compose[@]}" run -d --no-deps --use-aliases \
+    --name "$maintenance_backend_name" --label traefik.enable=false backend
+)"
+maintenance_backend_container="$(printf '%s' "$maintenance_backend_container" | tr -d '[:space:]')"
+[[ "$maintenance_backend_container" =~ ^[0-9a-f]{64}$ ]] ||
+  fail "Bakım backend konteyner kimliği doğrulanamadı."
+[[ "$(docker inspect --format '{{ index .Config.Labels "traefik.enable" }}' "$maintenance_backend_container")" == "false" ]] ||
+  fail "Bakım backend'i Traefik erişimine kapatılamadı."
+verify_maintenance_backend
+log "STRICT_BACKEND_INTERNAL_HEALTHY=1"
+
+deployed_sha="$(git rev-parse HEAD)"
+[[ "$deployed_sha" == "$DEPLOY_SHA" ]] || fail "Dağıtım sonrasında Git SHA değişti."
+rollback_window_closed=1
+log "ROLLBACK_WINDOW_CLOSED=1"
+
+# İlk veri dönüşümüyle eski image uyumsuz hale gelir; bu yüzden rollback penceresi yukarıda
+# kapatılmıştır. Dış trafik bütün dönüşüm ve enforcement kapıları boyunca kapalı kalır.
+run_pii_batches --backfill
+"${compose[@]}" --profile operations run --rm --no-deps -T pii-maintenance \
+  node dist/scripts/maintainPiiEncryption.js --verify-backfill
+verify_maintenance_backend
+log "PII_BACKFILL_VERIFIED=1"
+
+# Drain sonrasında oluşabilecek son farkı da dış trafik hâlâ kapalıyken tüket.
+run_pii_batches --backfill
+"${compose[@]}" --profile operations run --rm --no-deps -T pii-maintenance \
+  node dist/scripts/maintainPiiEncryption.js --verify-backfill
+log "PII_DELTA_BACKFILL_VERIFIED=1"
+
+# Bu noktadan sonra eski imaja dönüş güvenli değildir; trafik enforcement tamamlanana dek kapalıdır.
+run_pii_batches --redact-legacy
+"${compose[@]}" --profile operations run --rm --no-deps -T pii-maintenance \
+  node dist/scripts/maintainPiiEncryption.js --verify
+enable_data_encryption_enforcement
+log "DATA_ENCRYPTION_ENFORCEMENT_ENABLED=1"
+
+# Önceki başarısız rollback RLS enforcement'ını kapatmış olabilir; owner bağlamında yeniden aç.
+set_rls_enforcement true
+verify_maintenance_backend
+log "STRICT_BACKEND_ENFORCED_HEALTHY=1"
+
+# Yalnız bütün veri ve RLS enforcement kapıları geçince gerçek edge servislerini aç.
+cleanup_maintenance_backend
+"${compose[@]}" up -d --no-build --no-deps --wait --scale backend="$backend_replicas" backend
 verify_backend_replicas
+"${compose[@]}" up -d --no-build --no-deps --wait frontend
 "${compose[@]}" exec -T frontend sh -c \
   "wget -qO- http://127.0.0.1:8080/healthz | grep -qx ok"
 curl -fsS --max-time 10 --retry 5 --retry-delay 3 --retry-all-errors \
   "$PUBLIC_ORIGIN/healthz" | grep -qx ok
 curl -fsS --max-time 10 --retry 5 --retry-delay 3 --retry-all-errors \
   "$PUBLIC_ORIGIN/api/v1/health" >/dev/null
-
-# Önceki başarısız rollback enforcement'ı kapatmış olabilir; yalnız yeni backend sağlıklıyken aç.
-set_rls_enforcement true
-verify_backend_replicas
-curl -fsS --max-time 10 --retry 5 --retry-delay 3 --retry-all-errors \
-  "$PUBLIC_ORIGIN/api/v1/health" >/dev/null
-
-# Expand/backfill eski sürümün okuyabildiği plaintext alanları bu aşamada korur.
-run_pii_batches --backfill
-
-deployed_sha="$(git rev-parse HEAD)"
-[[ "$deployed_sha" == "$DEPLOY_SHA" ]] || fail "Dağıtım sonrasında Git SHA değişti."
+log "PUBLIC_TRAFFIC_HEALTHY=1"
 deployment_verified=1
 
-# Sağlıklı yeni sürüm doğrulandıktan sonra geri çözülebilir legacy PII kaldırılır.
-run_pii_batches --redact-legacy
-"${compose[@]}" --profile operations run --rm --no-deps -T pii-maintenance \
-  node dist/scripts/maintainPiiEncryption.js --verify
 "${compose[@]}" --profile operations run --rm --no-deps -T data-retention
 
 trap - ERR

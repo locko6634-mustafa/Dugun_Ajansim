@@ -1,4 +1,4 @@
-import type { UserRole } from '@prisma/client';
+import type { UserRole } from "@prisma/client";
 
 declare global {
   namespace Express {
@@ -12,6 +12,7 @@ declare global {
         mustChangePassword: boolean;
         mfaEnabled: boolean;
         mfaVerified: boolean;
+        adminStepUpVerifiedAt: Date | null;
         mustEnrollMfa: boolean;
         venueId: string | null;
       };

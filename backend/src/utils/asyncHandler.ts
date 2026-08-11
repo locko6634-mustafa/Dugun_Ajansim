@@ -3,18 +3,23 @@ import { runWithRlsContext, type RlsSecurityContext } from "../config/prisma.js"
 
 type AsyncRequestHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
 
+type AsyncHandlerOptions = {
+  unauthenticatedActorRole?: Extract<RlsSecurityContext["actorRole"], "auth" | "public">;
+};
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export const deriveRlsContext = (req: Request): RlsSecurityContext => {
+export const deriveRlsContext = (
+  req: Request,
+  options: AsyncHandlerOptions = {}
+): RlsSecurityContext => {
   const actorRole = req.auth
     ? req.auth.role === "ADMIN"
       ? "admin"
       : req.auth.role === "SALON_YETKILISI"
         ? "operations"
         : "customer"
-    : req.baseUrl.includes("/auth")
-      ? "auth"
-      : "public";
+    : (options.unauthenticatedActorRole ?? (req.baseUrl.includes("/auth") ? "auth" : "public"));
   const routeApplicationId = /\/booking-applications\/([0-9a-f-]{36})(?:\/|\?|$)/i.exec(
     req.originalUrl
   )?.[1];
@@ -31,7 +36,7 @@ export const deriveRlsContext = (req: Request): RlsSecurityContext => {
 };
 
 export const asyncHandler =
-  (handler: AsyncRequestHandler): RequestHandler =>
+  (handler: AsyncRequestHandler, options: AsyncHandlerOptions = {}): RequestHandler =>
   (req, res, next) => {
     let deferredNextCalled = false;
     let deferredError: unknown;
@@ -40,7 +45,7 @@ export const asyncHandler =
       deferredError = error;
     };
 
-    void runWithRlsContext(deriveRlsContext(req), () => handler(req, res, deferredNext))
+    void runWithRlsContext(deriveRlsContext(req, options), () => handler(req, res, deferredNext))
       .then(() => {
         if (deferredNextCalled) next(deferredError);
       })

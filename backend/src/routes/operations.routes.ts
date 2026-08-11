@@ -1,4 +1,5 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type StaffSpecialty } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
@@ -34,9 +35,11 @@ import {
 } from "../utils/domain.js";
 import {
   buildBookingApplicationPiiData,
+  buildStaffPiiData,
   buildWeddingPiiData,
   decryptBookingApplicationPii,
-  decryptWeddingPii
+  decryptWeddingPii,
+  staffWithDecryptedPii
 } from "../utils/pii-crypto.js";
 
 const router = Router();
@@ -57,6 +60,26 @@ const venueIdOf = (venueId: string | null | undefined): string => {
   if (!venueId) throw new AppError("Salon sorumlusu hesabına salon atanmamış.", 403);
   return venueId;
 };
+
+const staffNameCollator = new Intl.Collator("tr-TR", { sensitivity: "base" });
+const sortStaffByName = <StaffMember extends { firstName: string; lastName: string }>(
+  staff: StaffMember[]
+): StaffMember[] =>
+  [...staff].sort(
+    (left, right) =>
+      staffNameCollator.compare(left.lastName, right.lastName) ||
+      staffNameCollator.compare(left.firstName, right.firstName)
+  );
+
+const sortStaffByStatusAndName = <
+  StaffMember extends { firstName: string; lastName: string; isActive: boolean }
+>(staff: StaffMember[]): StaffMember[] =>
+  [...staff].sort(
+    (left, right) =>
+      Number(right.isActive) - Number(left.isActive) ||
+      staffNameCollator.compare(left.lastName, right.lastName) ||
+      staffNameCollator.compare(left.firstName, right.firstName)
+  );
 
 const mondayOf = (date: string): string => {
   const probe = new Date(`${date}T12:00:00.000Z`);
@@ -165,7 +188,10 @@ const venueOperationsWeddingDto = (wedding: VenueOperationsWedding) => {
           : null
     },
     note: pii.note,
-    assignments: wedding.assignments
+    assignments: wedding.assignments.map((assignment) => ({
+      ...assignment,
+      staff: staffWithDecryptedPii(assignment.staff)
+    }))
   };
 };
 
@@ -222,14 +248,19 @@ router.get(
             },
             select: { id: true }
           }
-        },
-        orderBy: [{ lastName: "asc" }, { firstName: "asc" }]
+        }
       })
     ]);
     if (!venue) throw new AppError("Salon bulunamadı.", 404);
 
     const todayWeddingDtos = todayWeddings.map(venueOperationsWeddingDto);
     const weekWeddingDtos = weekWeddings.map(venueOperationsWeddingDto);
+    const safeActiveStaff = sortStaffByName(
+      activeStaff.map(({ assignments: staffAssignments, ...staff }) => ({
+        ...staffWithDecryptedPii(staff),
+        assignments: staffAssignments
+      }))
+    );
     const assignments = weekWeddingDtos.flatMap((wedding) =>
       wedding.assignments.map((assignment) => ({ assignment, wedding }))
     );
@@ -260,7 +291,7 @@ router.get(
         },
         todayWeddings: todayWeddingDtos,
         weekWeddings: weekWeddingDtos,
-        idleStaff: activeStaff
+        idleStaff: safeActiveStaff
           .filter((staff) => staff.assignments.length === 0)
           .map(({ assignments: _assignments, ...staff }) => staff),
         conflicts,
@@ -340,26 +371,27 @@ router.get(
           orderBy: { wedding: { startsAt: "asc" } },
           take: 5
         }
-      },
-      orderBy: [{ isActive: "desc" }, { lastName: "asc" }, { firstName: "asc" }]
+      }
     });
-    const staffDtos = staff.map(({ assignments, ...staffMember }) => ({
-      ...staffMember,
-      assignments: assignments.map((assignment) => {
-        const weddingPii = decryptSelectedWeddingPii(assignment.wedding);
-        return {
-          id: assignment.id,
-          specialty: assignment.specialty,
-          wedding: {
-            id: assignment.wedding.id,
-            brideFirstName: weddingPii.brideFirstName,
-            groomFirstName: weddingPii.groomFirstName,
-            startsAt: assignment.wedding.startsAt,
-            endsAt: assignment.wedding.endsAt
-          }
-        };
-      })
-    }));
+    const staffDtos = sortStaffByStatusAndName(
+      staff.map(({ assignments, ...staffMember }) => ({
+        ...staffWithDecryptedPii(staffMember),
+        assignments: assignments.map((assignment) => {
+          const weddingPii = decryptSelectedWeddingPii(assignment.wedding);
+          return {
+            id: assignment.id,
+            specialty: assignment.specialty,
+            wedding: {
+              id: assignment.wedding.id,
+              brideFirstName: weddingPii.brideFirstName,
+              groomFirstName: weddingPii.groomFirstName,
+              startsAt: assignment.wedding.startsAt,
+              endsAt: assignment.wedding.endsAt
+            }
+          };
+        })
+      }))
+    );
     res.json({ success: true, data: staffDtos, correlationId: req.correlationId });
   })
 );
@@ -373,8 +405,23 @@ router.post(
   asyncHandler(async (req, res) => {
     const venueId = venueIdOf(req.auth!.venueId);
     const staff = await prisma.$transaction(async (transaction) => {
+      const staffId = randomUUID();
       const created = await transaction.staff.create({
-        data: { ...req.body, phone: normalizePhone(req.body.phone), venueId }
+        data: {
+          id: staffId,
+          ...buildStaffPiiData(
+            staffId,
+            {
+              firstName: req.body.firstName,
+              lastName: req.body.lastName,
+              phone: normalizePhone(req.body.phone)
+            },
+            1
+          ),
+          specialties: [...new Set(req.body.specialties)] as StaffSpecialty[],
+          isActive: req.body.isActive,
+          venueId
+        }
       });
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
@@ -384,7 +431,7 @@ router.post(
         correlationId: req.correlationId,
         metadata: { venueId }
       });
-      return created;
+      return staffWithDecryptedPii(created);
     });
     res.status(201).json({ success: true, data: staff, correlationId: req.correlationId });
   })
@@ -401,9 +448,24 @@ router.patch(
     const staff = await prisma.$transaction(async (transaction) => {
       const current = await transaction.staff.findFirst({ where: { id: req.params.id, venueId } });
       if (!current) throw new AppError("Personel bulunamadı.", 404);
+      const currentPii = staffWithDecryptedPii(current);
       const updated = await transaction.staff.update({
-        where: { id: current.id },
-        data: { ...req.body, ...(req.body.phone ? { phone: normalizePhone(req.body.phone) } : {}) }
+        where: { id: current.id, piiRevision: current.piiRevision },
+        data: {
+          ...buildStaffPiiData(
+            current.id,
+            {
+              firstName: req.body.firstName ?? currentPii.firstName,
+              lastName: req.body.lastName ?? currentPii.lastName,
+              phone: req.body.phone ? normalizePhone(req.body.phone) : currentPii.phone
+            },
+            current.piiRevision + 1
+          ),
+          ...(req.body.specialties
+            ? { specialties: [...new Set(req.body.specialties)] as StaffSpecialty[] }
+            : {}),
+          ...(req.body.isActive === undefined ? {} : { isActive: req.body.isActive })
+        }
       });
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
@@ -413,7 +475,7 @@ router.patch(
         correlationId: req.correlationId,
         metadata: { venueId }
       });
-      return updated;
+      return staffWithDecryptedPii(updated);
     });
     res.json({ success: true, data: staff, correlationId: req.correlationId });
   })
@@ -463,12 +525,16 @@ router.get(
             }
           }
         }
-      },
-      orderBy: [{ lastName: "asc" }, { firstName: "asc" }]
+      }
     });
     res.json({
       success: true,
-      data: { ...venueOperationsWeddingDto(wedding), availableStaff },
+      data: {
+        ...venueOperationsWeddingDto(wedding),
+        availableStaff: sortStaffByName(
+          availableStaff.map((member) => staffWithDecryptedPii(member))
+        )
+      },
       correlationId: req.correlationId
     });
   })
@@ -688,7 +754,7 @@ router.post(
             correlationId: req.correlationId,
             metadata: { venueId, weddingId: wedding.id, staffId: staff.id }
           });
-          return created;
+          return { ...created, staff: staffWithDecryptedPii(created.staff) };
         } catch (error) {
           if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
             throw new AppError("Bu personel düğüne zaten atanmış.", 409);

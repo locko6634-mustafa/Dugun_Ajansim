@@ -31,6 +31,39 @@ import { BOOKING_TURNSTILE_ACTION, verifyBookingBotChallenge } from "../utils/tu
 
 const router = Router();
 export const PAYMENT_FLOW_COOKIE_NAME = "dugunajansim_payment_flow";
+const MINIMUM_BOOKING_FORM_ELAPSED_MS = 1_500;
+const BOOKING_ABUSE_REJECTION_MESSAGE = "Başvuru doğrulanamadı. Lütfen formu yeniden deneyin.";
+
+export const assertPublicPiiWritesAllowed = (
+  environment: "development" | "production" | "test" = env.NODE_ENV,
+  allowSyntheticWrites = env.ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES
+): void => {
+  if (environment !== "production" && !allowSyntheticWrites) {
+    throw new AppError(
+      "Bu ortamda başvuru PII yazımı kapalıdır. Yalnız sentetik test verisi için açıkça etkinleştirin.",
+      503
+    );
+  }
+};
+
+export const validateBookingAbuseSignals = (signals: {
+  website?: string;
+  elapsedMs?: string;
+}): void => {
+  if (signals.website?.trim()) {
+    throw new AppError(BOOKING_ABUSE_REJECTION_MESSAGE, 400);
+  }
+
+  if (signals.elapsedMs === undefined) return;
+  if (!/^\d{1,10}$/.test(signals.elapsedMs)) {
+    throw new AppError(BOOKING_ABUSE_REJECTION_MESSAGE, 400);
+  }
+
+  if (Number(signals.elapsedMs) < MINIMUM_BOOKING_FORM_ELAPSED_MS) {
+    throw new AppError(BOOKING_ABUSE_REJECTION_MESSAGE, 400);
+  }
+};
+
 export const paymentFlowCookieOptions = (
   maxAgeMs: number,
   environment: "development" | "production" | "test" = env.NODE_ENV
@@ -71,22 +104,41 @@ export const createPublicAvailabilityLimiter = () =>
 
 const publicAvailabilityLimiter = createPublicAvailabilityLimiter();
 
-const publicBookingContactLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const body = req.body as z.infer<typeof bookingBodySchema>;
-    return [
-      body.primaryEmail.trim().toLowerCase(),
-      normalizePhone(body.bridePhone),
-      normalizePhone(body.groomPhone)
-    ].join("|");
-  },
-  store: new DatabaseRateLimitStore("public-booking-contact"),
-  handler: createRateLimitHandler("Bu iletişim bilgileriyle çok fazla başvuru denemesi yapıldı.")
+type PublicBookingBody = z.infer<typeof bookingBodySchema>;
+export const getPublicBookingContactRateLimitKeys = (
+  body: Pick<PublicBookingBody, "primaryEmail" | "bridePhone" | "groomPhone">
+) => ({
+  email: body.primaryEmail.trim().toLowerCase(),
+  bridePhone: normalizePhone(body.bridePhone),
+  groomPhone: normalizePhone(body.groomPhone)
 });
+
+const createPublicBookingContactLimiter = (
+  namespace: string,
+  keyGenerator: (body: PublicBookingBody) => string
+) =>
+  rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => keyGenerator(req.body as PublicBookingBody),
+    store: new DatabaseRateLimitStore(namespace),
+    handler: createRateLimitHandler("Bu iletişim bilgileriyle çok fazla başvuru denemesi yapıldı.")
+  });
+
+const publicBookingEmailLimiter = createPublicBookingContactLimiter(
+  "public-booking-email",
+  (body) => getPublicBookingContactRateLimitKeys(body).email
+);
+const publicBookingBridePhoneLimiter = createPublicBookingContactLimiter(
+  "public-booking-bride-phone",
+  (body) => getPublicBookingContactRateLimitKeys(body).bridePhone
+);
+const publicBookingGroomPhoneLimiter = createPublicBookingContactLimiter(
+  "public-booking-groom-phone",
+  (body) => getPublicBookingContactRateLimitKeys(body).groomPhone
+);
 
 const emptyRequestSchema = z.object({
   body: z.object({}).strict().optional().default({}),
@@ -228,6 +280,11 @@ router.post(
     })
   ),
   asyncHandler(async (req, _res, next) => {
+    validateBookingAbuseSignals({
+      website: req.get("X-Booking-Website"),
+      elapsedMs: req.get("X-Booking-Elapsed-Ms")
+    });
+    assertPublicPiiWritesAllowed();
     const idempotencyKey = req.get("Idempotency-Key");
     if (!idempotencyKey || !z.string().uuid().safeParse(idempotencyKey).success) {
       throw new AppError("Idempotency-Key geçerli bir UUID olmalıdır.", 400);
@@ -239,7 +296,9 @@ router.post(
     });
     next();
   }),
-  publicBookingContactLimiter,
+  publicBookingEmailLimiter,
+  publicBookingBridePhoneLimiter,
+  publicBookingGroomPhoneLimiter,
   asyncHandler(async (req, res) => {
     const rawKey = req.get("Idempotency-Key");
     const idempotencyKey = z.string().uuid().parse(rawKey);
@@ -287,6 +346,7 @@ router.patch(
   publicBookingLimiter,
   validateRequest(paymentFlowUpdateSchema),
   asyncHandler(async (req, res) => {
+    assertPublicPiiWritesAllowed();
     const application = await updatePaymentFlowApplication(
       req.params.id,
       req.body,

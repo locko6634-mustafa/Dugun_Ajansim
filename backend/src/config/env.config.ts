@@ -119,6 +119,9 @@ const DEVELOPMENT_RATE_LIMIT_HMAC_KEY =
 const DEFAULT_DATA_ENCRYPTION_KEYRING_JSON = JSON.stringify({
   legacy: DEVELOPMENT_ENCRYPTION_KEY,
 });
+const DEFAULT_PII_BLIND_INDEX_KEYRING_JSON = JSON.stringify({
+  legacy: DEVELOPMENT_PII_BLIND_INDEX_KEY,
+});
 const ENCRYPTION_KEY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const HEX_32_BYTE_PATTERN = /^[a-fA-F0-9]{64}$/;
 const CSRF_COOKIE_NAME = 'dugunajansim_csrf';
@@ -159,6 +162,41 @@ export const parseDataEncryptionKeyring = (rawValue: string): Record<string, str
     const normalizedKey = rawKey.toLowerCase();
     if (!HEX_32_BYTE_PATTERN.test(normalizedKey) || uniqueKeyMaterial.has(normalizedKey)) {
       throw new Error('DATA_ENCRYPTION_KEYRING_JSON anahtarları benzersiz 32 bayt hex olmalıdır');
+    }
+    uniqueKeyMaterial.add(normalizedKey);
+    keyring[keyId] = normalizedKey;
+  }
+  return keyring;
+};
+
+export const parsePiiBlindIndexKeyring = (rawValue: string): Record<string, string> => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawValue);
+  } catch {
+    throw new Error('PII_BLIND_INDEX_KEYRING_JSON geçerli JSON olmalıdır');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('PII_BLIND_INDEX_KEYRING_JSON bir JSON nesnesi olmalıdır');
+  }
+
+  const entries = Object.entries(parsed);
+  if (entries.length < 1 || entries.length > 8) {
+    throw new Error('PII_BLIND_INDEX_KEYRING_JSON 1-8 anahtar içermelidir');
+  }
+
+  const keyring: Record<string, string> = Object.create(null) as Record<string, string>;
+  const uniqueKeyMaterial = new Set<string>();
+  for (const [keyId, rawKey] of entries) {
+    if (!ENCRYPTION_KEY_ID_PATTERN.test(keyId) || typeof rawKey !== 'string') {
+      throw new Error('PII_BLIND_INDEX_KEYRING_JSON key ID veya anahtar biçimi geçersiz');
+    }
+    const normalizedKey = rawKey.toLowerCase();
+    if (!HEX_32_BYTE_PATTERN.test(normalizedKey) || uniqueKeyMaterial.has(normalizedKey)) {
+      throw new Error(
+        'PII_BLIND_INDEX_KEYRING_JSON anahtarları benzersiz 32 bayt hex olmalıdır',
+      );
     }
     uniqueKeyMaterial.add(normalizedKey);
     keyring[keyId] = normalizedKey;
@@ -232,11 +270,31 @@ const envSchema = z
       .string()
       .regex(HEX_32_BYTE_PATTERN, 'PII_BLIND_INDEX_KEY 32 baytlık hex değer olmalıdır')
       .default(DEVELOPMENT_PII_BLIND_INDEX_KEY),
+    PII_BLIND_INDEX_ACTIVE_KEY_ID: z
+      .string()
+      .regex(ENCRYPTION_KEY_ID_PATTERN, 'PII_BLIND_INDEX_ACTIVE_KEY_ID biçimi geçersiz')
+      .default('legacy'),
+    PII_BLIND_INDEX_KEYRING_JSON: z
+      .string()
+      .superRefine((value, context) => {
+        try {
+          parsePiiBlindIndexKeyring(value);
+        } catch (error) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: error instanceof Error ? error.message : 'Blind-index keyring geçersiz',
+          });
+        }
+      })
+      .default(DEFAULT_PII_BLIND_INDEX_KEYRING_JSON),
     RATE_LIMIT_HMAC_KEY: z
       .string()
       .regex(HEX_32_BYTE_PATTERN, 'RATE_LIMIT_HMAC_KEY 32 baytlık hex değer olmalıdır')
       .default(DEVELOPMENT_RATE_LIMIT_HMAC_KEY),
     PII_ENCRYPTION_MODE: z.enum(['dual', 'encrypted', 'strict']).default('encrypted'),
+    ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES: booleanStringSchema(
+      'ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES',
+    ).default('false'),
     SESSION_COOKIE_NAME: z
       .string()
       .regex(/^[A-Za-z0-9_-]+$/)
@@ -332,6 +390,17 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['SESSION_COOKIE_NAME'],
         message: 'SESSION_COOKIE_NAME CSRF cookie adıyla aynı olamaz',
+      });
+    }
+
+    if (
+      environment.NODE_ENV === 'production' &&
+      environment.ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES'],
+        message: 'Sentetik PII yazım istisnası production ortamında etkinleştirilemez',
       });
     }
 
@@ -476,8 +545,14 @@ const envSchema = z
     }
 
     let keyring: Record<string, string> | undefined;
+    let blindIndexKeyring: Record<string, string> | undefined;
     try {
       keyring = parseDataEncryptionKeyring(environment.DATA_ENCRYPTION_KEYRING_JSON);
+    } catch {
+      // Alan doğrulaması ayrıntılı hatayı zaten üretir.
+    }
+    try {
+      blindIndexKeyring = parsePiiBlindIndexKeyring(environment.PII_BLIND_INDEX_KEYRING_JSON);
     } catch {
       // Alan doğrulaması ayrıntılı hatayı zaten üretir.
     }
@@ -491,9 +566,20 @@ const envSchema = z
     }
     if (
       requiresPiiKeys &&
+      (!blindIndexKeyring || !blindIndexKeyring[environment.PII_BLIND_INDEX_ACTIVE_KEY_ID])
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PII_BLIND_INDEX_ACTIVE_KEY_ID'],
+        message: 'Aktif blind-index key ID blind-index keyring içinde bulunmalıdır',
+      });
+    }
+    if (
+      requiresPiiKeys &&
       keyring &&
       (Object.values(keyring).some(isKnownExampleOrWeakEncryptionKey) ||
-        isKnownExampleOrWeakEncryptionKey(environment.PII_BLIND_INDEX_KEY))
+        isKnownExampleOrWeakEncryptionKey(environment.PII_BLIND_INDEX_KEY) ||
+        Object.values(blindIndexKeyring ?? {}).some(isKnownExampleOrWeakEncryptionKey))
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -504,8 +590,10 @@ const envSchema = z
     if (
       requiresPiiKeys &&
       keyring &&
-      Object.values(keyring).some(
-        (encryptionKey) => encryptionKey === environment.PII_BLIND_INDEX_KEY.toLowerCase(),
+      Object.values(keyring).some((encryptionKey) =>
+        [environment.PII_BLIND_INDEX_KEY, ...Object.values(blindIndexKeyring ?? {})]
+          .map((value) => value.toLowerCase())
+          .includes(encryptionKey),
       )
     ) {
       context.addIssue({
@@ -519,6 +607,9 @@ const envSchema = z
       (environment.RATE_LIMIT_HMAC_KEY === DEVELOPMENT_RATE_LIMIT_HMAC_KEY ||
         environment.RATE_LIMIT_HMAC_KEY.toLowerCase() ===
           environment.PII_BLIND_INDEX_KEY.toLowerCase() ||
+        Object.values(blindIndexKeyring ?? {}).some(
+          (blindIndexKey) => blindIndexKey === environment.RATE_LIMIT_HMAC_KEY.toLowerCase(),
+        ) ||
         Object.values(keyring ?? {}).some(
           (encryptionKey) => encryptionKey === environment.RATE_LIMIT_HMAC_KEY.toLowerCase(),
         ))

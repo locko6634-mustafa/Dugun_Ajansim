@@ -32,6 +32,8 @@ test("bağımlılık audit kapısı ve güvenli transitive sürümler korunur", 
 
 test("kalite workflow'u en az yetki, audit ve immutable action SHA'ları kullanır", () => {
   const workflow = readProjectFile(".github/workflows/quality.yml");
+  const productionCompose = readProjectFile("compose.production.yaml");
+  const postgresDockerfile = readProjectFile("deploy/postgres/Dockerfile");
   const expectedShaByAction = {
     "actions/checkout": "11d5960a326750d5838078e36cf38b85af677262",
     "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020",
@@ -47,8 +49,17 @@ test("kalite workflow'u en az yetki, audit ve immutable action SHA'ları kullan�
   assert.equal(workflow.match(/node-version: 22\.23\.2/g)?.length, 2);
   assert.match(
     workflow,
-    /image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193/
+    /image: postgres:17\.10-alpine3\.23@sha256:8189a1f6e40904781fc9e2612687877791d21679866db58b1de996b31fc312e4/
   );
+  assert.match(productionCompose, /image: dugun-ajansim-postgres/);
+  assert.match(
+    postgresDockerfile,
+    /^FROM postgres:17\.10-alpine3\.23@sha256:8189a1f6e40904781fc9e2612687877791d21679866db58b1de996b31fc312e4 AS patched$/m
+  );
+  assert.match(postgresDockerfile, /^FROM scratch$/m);
+  assert.match(postgresDockerfile, /^COPY --from=patched \/ \/$/m);
+  assert.match(postgresDockerfile, /apk add --no-cache "su-exec=0\.3-r0"/);
+  assert.match(postgresDockerfile, /rm -f \/usr\/local\/bin\/gosu/);
   assert.equal(actionReferences.length, 5);
 
   for (const [, actionName, sha] of actionReferences) {

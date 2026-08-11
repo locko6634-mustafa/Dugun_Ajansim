@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { writeAuditLog } from './audit.js';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
@@ -152,7 +153,7 @@ export const runDataRetentionBatch = async (
         customerUsers: customerUsers.count,
       };
       if (countRetentionDeletes(result) > 0) {
-        await transaction.auditLog.create({
+        await writeAuditLog(transaction, {
           data: {
             action: 'maintenance.data_retention',
             targetType: 'System',

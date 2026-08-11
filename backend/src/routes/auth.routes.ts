@@ -4,14 +4,18 @@ import { z } from 'zod';
 import { env, parseDataEncryptionKeyring } from '../config/env.config.js';
 import { prisma } from '../config/prisma.js';
 import {
+  ADMIN_STEP_UP_TTL_MS,
   authenticate,
   clearAuthCookies,
   csrfCookieOptions,
   CSRF_COOKIE_NAME,
+  getCookie,
   getSessionAbsoluteTtlMs,
   isMfaEnrollmentRequired,
   isPrivilegedRole,
   isTemporaryPasswordExpired,
+  requireChangedPassword,
+  requireRole,
   sessionCookieOptions,
   verifyCsrf,
 } from '../middlewares/auth.middleware.js';
@@ -23,6 +27,7 @@ import {
 import { DatabaseRateLimitStore } from '../middlewares/databaseRateLimitStore.js';
 import { validateRequest } from '../middlewares/validate.middleware.js';
 import {
+  adminStepUpBodySchema,
   isPasswordSimilarToUsername,
   loginBodySchema,
   mfaEnrollmentBodySchema,
@@ -40,6 +45,7 @@ import {
   verifyPassword,
 } from '../utils/crypto.js';
 import { AppError } from '../utils/appError.js';
+import { writeAuditLog } from '../utils/audit.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { normalizeUsername } from '../utils/domain.js';
 import { logFailedLoginSecurityEvent } from '../utils/securityLogger.js';
@@ -55,6 +61,7 @@ import {
 const router = Router();
 const INVALID_CREDENTIALS_MESSAGE = 'Kullanıcı adı veya parola hatalı.';
 const INVALID_MFA_MESSAGE = 'Kullanıcı adı, parola veya doğrulama kodu hatalı.';
+const INVALID_ADMIN_STEP_UP_MESSAGE = 'Yönetici doğrulama bilgileri hatalı.';
 const MFA_RESTRICTED_SESSION_TTL_MS = 10 * 60 * 1000;
 const DUMMY_LOGIN_PASSWORD_HASH =
   '$argon2id$v=19$m=19456,t=2,p=1$aoZyQyB8eVS3LeO40/kqYQ$c0LhPvExxPfDSalntYXGc0qjrgJKJPj7Npz2xelpmnk';
@@ -108,6 +115,30 @@ const mfaManagementLimiter = rateLimit({
   handler: createRateLimitHandler('Çok fazla iki adımlı doğrulama denemesi yaptınız.'),
 });
 
+const adminStepUpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: rateLimitKeyGenerator,
+  store: new DatabaseRateLimitStore('auth-admin-step-up-ip'),
+  skipSuccessfulRequests: true,
+  requestWasSuccessful: isSuccessfulLoginAttempt,
+  handler: createRateLimitHandler('Çok fazla yönetici doğrulama denemesi yaptınız.'),
+});
+
+const adminStepUpAccountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.auth?.userId ?? 'invalid-admin-account',
+  store: new DatabaseRateLimitStore('auth-admin-step-up-account'),
+  skipSuccessfulRequests: true,
+  requestWasSuccessful: isSuccessfulLoginAttempt,
+  handler: createRateLimitHandler('Çok fazla yönetici doğrulama denemesi yaptınız.'),
+});
+
 const passwordSetupLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -144,7 +175,11 @@ router.post(
   loginIpLimiter,
   loginAccountLimiter,
   validateRequest(
-    z.object({ body: loginBodySchema, query: z.object({}).strict(), params: z.object({}).strict() }),
+    z.object({
+      body: loginBodySchema,
+      query: z.object({}).strict(),
+      params: z.object({}).strict(),
+    }),
   ),
   asyncHandler(async (req, res) => {
     const username = normalizeUsername(req.body.username);
@@ -187,8 +222,7 @@ router.post(
     }
     let matchedTotpStep: bigint | undefined;
     let rotatedTotpSecret:
-      | { ciphertext: string; iv: string; authTag: string; keyId: string }
-      | undefined;
+      { ciphertext: string; iv: string; authTag: string; keyId: string } | undefined;
     if (user.totpEnabledAt !== null) {
       if (!req.body.totpCode) {
         throw new AppError('İki adımlı doğrulama kodu gerekli.', 401, true, {
@@ -249,10 +283,7 @@ router.post(
               ? []
               : [
                   {
-                    OR: [
-                      { totpLastUsedStep: null },
-                      { totpLastUsedStep: { lt: matchedTotpStep } },
-                    ],
+                    OR: [{ totpLastUsedStep: null }, { totpLastUsedStep: { lt: matchedTotpStep } }],
                   },
                 ]),
             ...(matchedTotpStep === undefined
@@ -287,7 +318,7 @@ router.post(
           mfaVerifiedAt: user.totpEnabledAt === null ? null : now,
         },
       });
-      await transaction.auditLog.create({
+      await writeAuditLog(transaction, {
         data: {
           actorUserId: user.id,
           action: 'auth.login',
@@ -313,6 +344,161 @@ router.post(
         mustEnrollMfa,
         venueId: user.venueId,
       },
+      correlationId: req.correlationId,
+    });
+  }),
+);
+
+router.post(
+  '/admin-step-up',
+  authenticate,
+  requireChangedPassword,
+  requireRole('ADMIN'),
+  adminStepUpLimiter,
+  adminStepUpAccountLimiter,
+  verifyCsrf,
+  validateRequest(
+    z.object({
+      body: adminStepUpBodySchema,
+      query: z.object({}).strict(),
+      params: z.object({}).strict(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.auth!.userId },
+      select: {
+        id: true,
+        passwordHash: true,
+        role: true,
+        status: true,
+        activeAt: true,
+        mustChangePassword: true,
+        totpSecretCiphertext: true,
+        totpSecretIv: true,
+        totpSecretAuthTag: true,
+        totpKeyId: true,
+        totpEnabledAt: true,
+        totpLastUsedStep: true,
+      },
+    });
+    if (
+      !user ||
+      user.role !== 'ADMIN' ||
+      user.status !== 'ACTIVE' ||
+      user.mustChangePassword ||
+      user.totpEnabledAt === null ||
+      !(await verifyPassword(user.passwordHash, req.body.currentPassword))
+    ) {
+      throw new AppError(INVALID_ADMIN_STEP_UP_MESSAGE, 401);
+    }
+
+    const now = new Date();
+    const totpSecret = decryptTotpSecret(user);
+    const matchedTotpStep = findMatchingTotpStep(totpSecret, req.body.totpCode, now);
+    if (
+      matchedTotpStep === undefined ||
+      (user.totpLastUsedStep !== null && matchedTotpStep <= user.totpLastUsedStep)
+    ) {
+      throw new AppError(INVALID_ADMIN_STEP_UP_MESSAGE, 401);
+    }
+
+    const rotatedTotpSecret =
+      user.totpKeyId === env.DATA_ENCRYPTION_ACTIVE_KEY_ID
+        ? undefined
+        : {
+            ...encryptValueWithKey(
+              totpSecret,
+              dataEncryptionKeyring[env.DATA_ENCRYPTION_ACTIVE_KEY_ID]!,
+              totpEncryptionAad(user.id),
+            ),
+            keyId: env.DATA_ENCRYPTION_ACTIVE_KEY_ID,
+          };
+    const currentToken = getCookie(req, env.SESSION_COOKIE_NAME);
+    if (!currentToken) throw new AppError('Oturum geçersiz veya süresi dolmuş.', 401);
+    const token = createOpaqueToken();
+    const csrfToken = createOpaqueToken();
+
+    const { expiresAt } = await prisma.$transaction(async (transaction) => {
+      const claimedUser = await transaction.user.updateMany({
+        where: {
+          id: user.id,
+          passwordHash: user.passwordHash,
+          role: 'ADMIN',
+          status: 'ACTIVE',
+          mustChangePassword: false,
+          totpEnabledAt: user.totpEnabledAt,
+          totpSecretCiphertext: user.totpSecretCiphertext,
+          AND: [
+            { OR: [{ activeAt: null }, { activeAt: { lte: now } }] },
+            user.totpLastUsedStep === null
+              ? { totpLastUsedStep: null }
+              : { totpLastUsedStep: user.totpLastUsedStep },
+          ],
+        },
+        data: {
+          totpLastUsedStep: matchedTotpStep,
+          ...(rotatedTotpSecret
+            ? {
+                totpSecretCiphertext: rotatedTotpSecret.ciphertext,
+                totpSecretIv: rotatedTotpSecret.iv,
+                totpSecretAuthTag: rotatedTotpSecret.authTag,
+                totpKeyId: rotatedTotpSecret.keyId,
+              }
+            : {}),
+        },
+      });
+      if (claimedUser.count !== 1) {
+        throw new AppError(INVALID_ADMIN_STEP_UP_MESSAGE, 401);
+      }
+
+      const currentSession = await transaction.authSession.findUnique({
+        where: { id: req.auth!.sessionId },
+        select: { expiresAt: true },
+      });
+      if (!currentSession || currentSession.expiresAt <= now) {
+        throw new AppError('Oturum geçersiz veya süresi dolmuş.', 401);
+      }
+      const rotatedSession = await transaction.authSession.updateMany({
+        where: {
+          id: req.auth!.sessionId,
+          userId: user.id,
+          tokenHash: hashToken(currentToken),
+          mfaVerifiedAt: { lte: now },
+          revokedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: {
+          tokenHash: hashToken(token),
+          csrfTokenHash: hashToken(csrfToken),
+          lastUsedAt: now,
+          adminStepUpVerifiedAt: now,
+        },
+      });
+      if (rotatedSession.count !== 1) {
+        throw new AppError('Oturum geçersiz veya süresi dolmuş.', 401);
+      }
+      await writeAuditLog(transaction, {
+        data: {
+          actorUserId: user.id,
+          action: 'auth.admin_step_up',
+          targetType: 'AuthSession',
+          targetId: req.auth!.sessionId,
+          correlationId: req.correlationId,
+        },
+      });
+      return currentSession;
+    });
+
+    const remainingMaxAgeMs = Math.max(1, expiresAt.valueOf() - Date.now());
+    const validUntil = new Date(
+      Math.min(expiresAt.valueOf(), now.valueOf() + ADMIN_STEP_UP_TTL_MS),
+    );
+    res.cookie(env.SESSION_COOKIE_NAME, token, sessionCookieOptions(remainingMaxAgeMs));
+    res.cookie(CSRF_COOKIE_NAME, csrfToken, csrfCookieOptions(remainingMaxAgeMs));
+    res.json({
+      success: true,
+      data: { validUntil },
       correlationId: req.correlationId,
     });
   }),
@@ -431,7 +617,7 @@ router.post(
           secretAuthTag: null,
         },
       });
-      await transaction.auditLog.create({
+      await writeAuditLog(transaction, {
         data: {
           action: 'auth.password_setup',
           targetType: 'User',
@@ -544,6 +730,7 @@ router.post(
           tokenHash: hashToken(token),
           csrfTokenHash: hashToken(csrfToken),
           lastUsedAt: now,
+          adminStepUpVerifiedAt: null,
         },
       });
       if (rotatedSession.count !== 1) {
@@ -573,7 +760,7 @@ router.post(
           secretAuthTag: null,
         },
       });
-      await transaction.auditLog.create({
+      await writeAuditLog(transaction, {
         data: {
           actorUserId: user.id,
           action: 'auth.password_changed',
@@ -652,9 +839,7 @@ router.post(
       totpEncryptionAad(user.id),
     );
     const now = new Date();
-    const enrollmentExpiresAt = new Date(
-      now.valueOf() + TOTP_ENROLLMENT_TTL_MINUTES * 60 * 1000,
-    );
+    const enrollmentExpiresAt = new Date(now.valueOf() + TOTP_ENROLLMENT_TTL_MINUTES * 60 * 1000);
     await prisma.$transaction(async (transaction) => {
       const claimed = await transaction.user.updateMany({
         where: {
@@ -675,7 +860,7 @@ router.post(
       if (claimed.count !== 1) {
         throw new AppError('MFA kurulumu başka bir işlem tarafından değiştirildi.', 409);
       }
-      await transaction.auditLog.create({
+      await writeAuditLog(transaction, {
         data: {
           actorUserId: user.id,
           action: 'auth.mfa_enrollment_started',
@@ -747,11 +932,7 @@ router.post(
     if (!(await verifyPassword(user.passwordHash, req.body.currentPassword))) {
       throw new AppError('Mevcut parola hatalı.', 401);
     }
-    const matchedStep = findMatchingTotpStep(
-      decryptTotpSecret(user),
-      req.body.totpCode,
-      now,
-    );
+    const matchedStep = findMatchingTotpStep(decryptTotpSecret(user), req.body.totpCode, now);
     if (matchedStep === undefined) {
       throw new AppError('Doğrulama kodu hatalı.', 401);
     }
@@ -797,6 +978,7 @@ router.post(
           csrfTokenHash: hashToken(csrfToken),
           lastUsedAt: now,
           mfaVerifiedAt: now,
+          adminStepUpVerifiedAt: null,
         },
       });
       if (rotated.count !== 1) {
@@ -806,7 +988,7 @@ router.post(
         where: { userId: user.id, id: { not: req.auth!.sessionId }, revokedAt: null },
         data: { revokedAt: now },
       });
-      await transaction.auditLog.create({
+      await writeAuditLog(transaction, {
         data: {
           actorUserId: user.id,
           action: 'auth.mfa_enabled',
@@ -873,11 +1055,7 @@ router.post(
       throw new AppError('Mevcut parola hatalı.', 401);
     }
     const now = new Date();
-    const matchedStep = findMatchingTotpStep(
-      decryptTotpSecret(user),
-      req.body.totpCode,
-      now,
-    );
+    const matchedStep = findMatchingTotpStep(decryptTotpSecret(user), req.body.totpCode, now);
     if (matchedStep === undefined || matchedStep <= user.totpLastUsedStep) {
       throw new AppError('Doğrulama kodu hatalı veya daha önce kullanılmış.', 401);
     }
@@ -908,7 +1086,7 @@ router.post(
         where: { userId: user.id, revokedAt: null },
         data: { revokedAt: now },
       });
-      await transaction.auditLog.create({
+      await writeAuditLog(transaction, {
         data: {
           actorUserId: user.id,
           action: 'auth.mfa_disabled',
@@ -948,7 +1126,7 @@ router.post(
         },
         data: { revokedAt: now },
       });
-      await transaction.auditLog.create({
+      await writeAuditLog(transaction, {
         data: {
           actorUserId: req.auth!.userId,
           action: 'auth.logout',

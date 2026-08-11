@@ -5,13 +5,19 @@ import {
   randomBytes,
 } from 'node:crypto';
 import { z } from 'zod';
-import { env, parseDataEncryptionKeyring } from '../config/env.config.js';
+import {
+  env,
+  parseDataEncryptionKeyring,
+  parsePiiBlindIndexKeyring,
+} from '../config/env.config.js';
 import { normalizePhone } from './domain.js';
 
 export const PII_ENCRYPTION_VERSION = 3;
-export const BOOKING_APPLICATION_PII_SCHEMA_VERSION = 1;
+export const PII_BLIND_INDEX_VERSION = 1;
+export const BOOKING_APPLICATION_PII_SCHEMA_VERSION = 2;
 export const WEDDING_PII_SCHEMA_VERSION = 1;
 export const MESSAGE_TASK_PII_SCHEMA_VERSION = 1;
+export const STAFF_PII_SCHEMA_VERSION = 1;
 
 const GCM_IV_BYTES = 12;
 const GCM_AUTH_TAG_BYTES = 16;
@@ -19,7 +25,7 @@ const KEY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const HEX_32_BYTE_PATTERN = /^[a-fA-F0-9]{64}$/;
 
 export type PiiEncryptionMode = 'dual' | 'encrypted' | 'strict';
-export type PiiModel = 'BookingApplication' | 'Wedding' | 'MessageTask';
+export type PiiModel = 'BookingApplication' | 'Wedding' | 'MessageTask' | 'Staff';
 export type BlindIndexContext =
   | 'BookingApplication.primaryEmail'
   | 'BookingApplication.bridePhone'
@@ -27,7 +33,8 @@ export type BlindIndexContext =
   | 'Wedding.primaryEmail'
   | 'Wedding.bridePhone'
   | 'Wedding.groomPhone'
-  | 'MessageTask.recipientPhone';
+  | 'MessageTask.recipientPhone'
+  | 'Staff.phone';
 
 export type PiiEnvelope = {
   piiCiphertext: string;
@@ -63,15 +70,22 @@ export const bookingApplicationPiiSchema = z
     primaryEmail: emailSchema,
     note: nullableNoteSchema,
     rejectionReason: nullableNoteSchema,
+    customVenueName: z.string().trim().min(1).max(160).nullable().default(null),
   })
   .strict();
 
-export const weddingPiiSchema = bookingApplicationPiiSchema.omit({ rejectionReason: true }).strict();
+export const weddingPiiSchema = bookingApplicationPiiSchema
+  .omit({ rejectionReason: true, customVenueName: true })
+  .strict();
 export const messageTaskPiiSchema = z.object({ recipientPhone: phoneSchema }).strict();
+export const staffPiiSchema = z
+  .object({ firstName: personNameSchema, lastName: personNameSchema, phone: phoneSchema })
+  .strict();
 
 export type BookingApplicationPii = z.infer<typeof bookingApplicationPiiSchema>;
 export type WeddingPii = z.infer<typeof weddingPiiSchema>;
 export type MessageTaskPii = z.infer<typeof messageTaskPiiSchema>;
+export type StaffPii = z.infer<typeof staffPiiSchema>;
 type NullablePayloadFields<Payload extends object> = {
   [Key in keyof Payload]?: Payload[Key] | null;
 };
@@ -79,7 +93,9 @@ type NullablePayloadFields<Payload extends object> = {
 type PiiCryptographyConfig = {
   activeKeyId: string;
   keyring: Record<string, string>;
-  blindIndexKey: string;
+  blindIndexKey?: string;
+  blindIndexActiveKeyId?: string;
+  blindIndexKeyring?: Record<string, string>;
 };
 
 const decodeCanonicalBase64 = (value: string): Buffer => {
@@ -94,6 +110,22 @@ const normalizeBlindIndexValue = (value: string, kind: 'email' | 'phone'): strin
   const normalized = value.normalize('NFKC').trim();
   if (kind === 'email') return normalized.toLowerCase();
   return normalizePhone(normalized).replace(/\D/g, '');
+};
+
+export const assertPiiWriteAllowed = (
+  environment: Pick<
+    typeof env,
+    'NODE_ENV' | 'ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES'
+  > = env,
+): void => {
+  if (
+    environment.NODE_ENV !== 'production' &&
+    !environment.ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES
+  ) {
+    throw new Error(
+      'Production dışı ortamda PII yazımı kapalıdır. Yalnız sentetik veri için açık opt-in gerekir.',
+    );
+  }
 };
 
 const piiAad = (
@@ -112,25 +144,55 @@ const piiAad = (
 };
 
 export const createPiiCryptography = (config: PiiCryptographyConfig) => {
-  if (!KEY_ID_PATTERN.test(config.activeKeyId) || !HEX_32_BYTE_PATTERN.test(config.blindIndexKey)) {
+  if (!KEY_ID_PATTERN.test(config.activeKeyId)) {
     throw new Error('PII keyring yapılandırması geçersiz.');
   }
 
   const encryptionKeys = new Map<string, Buffer>();
-  const normalizedBlindIndexKey = config.blindIndexKey.toLowerCase();
   for (const [keyId, rawKey] of Object.entries(config.keyring)) {
     if (!KEY_ID_PATTERN.test(keyId) || !HEX_32_BYTE_PATTERN.test(rawKey)) {
       throw new Error('PII keyring yapılandırması geçersiz.');
-    }
-    if (rawKey.toLowerCase() === normalizedBlindIndexKey) {
-      throw new Error('PII blind-index anahtarı encryption key anahtarından ayrı olmalıdır.');
     }
     encryptionKeys.set(keyId, Buffer.from(rawKey, 'hex'));
   }
   if (!encryptionKeys.has(config.activeKeyId)) {
     throw new Error('Aktif PII encryption key keyring içinde bulunamadı.');
   }
-  const blindIndexKey = Buffer.from(config.blindIndexKey, 'hex');
+  const blindIndexKeyring: Record<string, string> =
+    config.blindIndexKeyring ??
+    (config.blindIndexKey
+      ? { legacy: config.blindIndexKey }
+      : (Object.create(null) as Record<string, string>));
+  const blindIndexKeyId = config.blindIndexActiveKeyId ?? 'legacy';
+  const blindIndexEntries = Object.entries(blindIndexKeyring);
+  if (
+    !KEY_ID_PATTERN.test(blindIndexKeyId) ||
+    blindIndexEntries.length < 1 ||
+    blindIndexEntries.length > 8
+  ) {
+    throw new Error('PII blind-index keyring yapılandırması geçersiz.');
+  }
+  const encryptionMaterials = new Set(
+    Object.values(config.keyring).map((rawKey) => rawKey.toLowerCase()),
+  );
+  const blindIndexKeys = new Map<string, Buffer>();
+  const blindIndexMaterials = new Set<string>();
+  for (const [keyId, rawKey] of blindIndexEntries) {
+    const normalizedKey = rawKey.toLowerCase();
+    if (
+      !KEY_ID_PATTERN.test(keyId) ||
+      !HEX_32_BYTE_PATTERN.test(rawKey) ||
+      blindIndexMaterials.has(normalizedKey) ||
+      encryptionMaterials.has(normalizedKey)
+    ) {
+      throw new Error('PII blind-index anahtarları benzersiz ve encryption keylerden ayrı olmalıdır.');
+    }
+    blindIndexMaterials.add(normalizedKey);
+    blindIndexKeys.set(keyId, Buffer.from(rawKey, 'hex'));
+  }
+  if (!blindIndexKeys.has(blindIndexKeyId)) {
+    throw new Error('Aktif PII blind-index anahtarı keyring içinde bulunamadı.');
+  }
 
   const encryptPayload = (
     model: PiiModel,
@@ -138,6 +200,7 @@ export const createPiiCryptography = (config: PiiCryptographyConfig) => {
     schemaVersion: number,
     payload: unknown,
   ): PiiEnvelope => {
+    assertPiiWriteAllowed();
     const keyId = config.activeKeyId;
     const encryptionKey = encryptionKeys.get(keyId)!;
     const iv = randomBytes(GCM_IV_BYTES);
@@ -194,12 +257,34 @@ export const createPiiCryptography = (config: PiiCryptographyConfig) => {
     context: BlindIndexContext,
     value: string,
     kind: 'email' | 'phone',
-  ): string =>
-    createHmac('sha256', blindIndexKey)
+    keyId = blindIndexKeyId,
+  ): string => {
+    const key = blindIndexKeys.get(keyId);
+    if (!key) throw new Error('PII blind-index anahtarı bulunamadı.');
+    return createHmac('sha256', key)
       .update(`dugun-ajansim:blind:v1:${context}\0${normalizeBlindIndexValue(value, kind)}`, 'utf8')
       .digest('hex');
+  };
 
-  return Object.freeze({ encryptPayload, decryptPayload, blindIndex });
+  const blindIndexCandidates = (
+    context: BlindIndexContext,
+    value: string,
+    kind: 'email' | 'phone',
+  ) =>
+    [...blindIndexKeys.keys()].map((keyId) => ({
+      keyId,
+      version: PII_BLIND_INDEX_VERSION,
+      value: blindIndex(context, value, kind, keyId),
+    }));
+
+  return Object.freeze({
+    encryptPayload,
+    decryptPayload,
+    blindIndex,
+    blindIndexCandidates,
+    blindIndexKeyId,
+    blindIndexVersion: PII_BLIND_INDEX_VERSION,
+  });
 };
 
 export type PiiCryptography = ReturnType<typeof createPiiCryptography>;
@@ -207,7 +292,8 @@ export type PiiCryptography = ReturnType<typeof createPiiCryptography>;
 export const piiCryptography = createPiiCryptography({
   activeKeyId: env.DATA_ENCRYPTION_ACTIVE_KEY_ID,
   keyring: parseDataEncryptionKeyring(env.DATA_ENCRYPTION_KEYRING_JSON),
-  blindIndexKey: env.PII_BLIND_INDEX_KEY,
+  blindIndexActiveKeyId: env.PII_BLIND_INDEX_ACTIVE_KEY_ID,
+  blindIndexKeyring: parsePiiBlindIndexKeyring(env.PII_BLIND_INDEX_KEYRING_JSON),
 });
 
 const envelopeOrNull = (source: NullablePiiEnvelope): PiiEnvelope | null => {
@@ -252,6 +338,8 @@ export const encryptBookingApplicationPii = (
       payload.groomPhone,
       'phone',
     ),
+    piiBlindIndexKeyId: cryptography.blindIndexKeyId,
+    piiBlindIndexVersion: cryptography.blindIndexVersion,
   };
 };
 
@@ -278,6 +366,7 @@ export const decryptBookingApplicationPii = (
     primaryEmail: source.primaryEmail,
     note: source.note ?? null,
     rejectionReason: source.rejectionReason ?? null,
+    customVenueName: null,
   });
 };
 
@@ -304,6 +393,8 @@ export const encryptWeddingPii = (
       payload.groomPhone,
       'phone',
     ),
+    piiBlindIndexKeyId: cryptography.blindIndexKeyId,
+    piiBlindIndexVersion: cryptography.blindIndexVersion,
   };
 };
 
@@ -348,6 +439,8 @@ export const encryptMessageTaskPii = (
       payload.recipientPhone,
       'phone',
     ),
+    piiBlindIndexKeyId: cryptography.blindIndexKeyId,
+    piiBlindIndexVersion: cryptography.blindIndexVersion,
   };
 };
 
@@ -367,10 +460,96 @@ export const decryptMessageTaskPii = (
   return messageTaskPiiSchema.parse({ recipientPhone: source.recipientPhone });
 };
 
+export const encryptStaffPii = (
+  recordId: string,
+  input: unknown,
+  cryptography: PiiCryptography = piiCryptography,
+) => {
+  const payload = staffPiiSchema.parse(input);
+  return {
+    ...cryptography.encryptPayload('Staff', recordId, STAFF_PII_SCHEMA_VERSION, payload),
+    phoneBlindIndex: cryptography.blindIndex('Staff.phone', payload.phone, 'phone'),
+    piiBlindIndexKeyId: cryptography.blindIndexKeyId,
+    piiBlindIndexVersion: cryptography.blindIndexVersion,
+  };
+};
+
+export const decryptStaffPii = (
+  recordId: string,
+  source: NullablePiiEnvelope & NullablePayloadFields<StaffPii>,
+  cryptography: PiiCryptography = piiCryptography,
+  mode: PiiEncryptionMode = env.PII_ENCRYPTION_MODE,
+): StaffPii => {
+  const envelope = envelopeOrNull(source);
+  if (envelope) {
+    return staffPiiSchema.parse(cryptography.decryptPayload('Staff', recordId, envelope));
+  }
+  if (mode === 'strict') throw new Error('Şifreli personel PII payload bulunamadı.');
+  return staffPiiSchema.parse({
+    firstName: source.firstName,
+    lastName: source.lastName,
+    phone: source.phone,
+  });
+};
+
+type LegacyPiiString = string | null | undefined;
+
+const normalizeLegacyText = (value: string): string => value.normalize('NFKC').trim();
+const normalizeLegacyEmail = (value: string): string => normalizeLegacyText(value).toLowerCase();
+const normalizeLegacyPhone = (value: string): string => normalizePhone(normalizeLegacyText(value));
+
+const legacyValueMatches = (
+  legacyValue: LegacyPiiString,
+  encryptedValue: LegacyPiiString,
+  normalize: (value: string) => string = normalizeLegacyText,
+): boolean =>
+  legacyValue == null ||
+  (encryptedValue != null && normalize(legacyValue) === normalize(encryptedValue));
+
+export const bookingApplicationLegacyPiiMatches = (
+  source: NullablePayloadFields<BookingApplicationPii>,
+  payload: BookingApplicationPii,
+): boolean =>
+  legacyValueMatches(source.brideFirstName, payload.brideFirstName) &&
+  legacyValueMatches(source.brideLastName, payload.brideLastName) &&
+  legacyValueMatches(source.bridePhone, payload.bridePhone, normalizeLegacyPhone) &&
+  legacyValueMatches(source.groomFirstName, payload.groomFirstName) &&
+  legacyValueMatches(source.groomLastName, payload.groomLastName) &&
+  legacyValueMatches(source.groomPhone, payload.groomPhone, normalizeLegacyPhone) &&
+  legacyValueMatches(source.primaryEmail, payload.primaryEmail, normalizeLegacyEmail) &&
+  legacyValueMatches(source.note, payload.note) &&
+  legacyValueMatches(source.rejectionReason, payload.rejectionReason);
+
+export const weddingLegacyPiiMatches = (
+  source: NullablePayloadFields<WeddingPii>,
+  payload: WeddingPii,
+): boolean =>
+  legacyValueMatches(source.brideFirstName, payload.brideFirstName) &&
+  legacyValueMatches(source.brideLastName, payload.brideLastName) &&
+  legacyValueMatches(source.bridePhone, payload.bridePhone, normalizeLegacyPhone) &&
+  legacyValueMatches(source.groomFirstName, payload.groomFirstName) &&
+  legacyValueMatches(source.groomLastName, payload.groomLastName) &&
+  legacyValueMatches(source.groomPhone, payload.groomPhone, normalizeLegacyPhone) &&
+  legacyValueMatches(source.primaryEmail, payload.primaryEmail, normalizeLegacyEmail) &&
+  legacyValueMatches(source.note, payload.note);
+
+export const messageTaskLegacyPiiMatches = (
+  source: NullablePayloadFields<MessageTaskPii>,
+  payload: MessageTaskPii,
+): boolean => legacyValueMatches(source.recipientPhone, payload.recipientPhone, normalizeLegacyPhone);
+
+export const staffLegacyPiiMatches = (
+  source: NullablePayloadFields<StaffPii>,
+  payload: StaffPii,
+): boolean =>
+  legacyValueMatches(source.firstName, payload.firstName) &&
+  legacyValueMatches(source.lastName, payload.lastName) &&
+  legacyValueMatches(source.phone, payload.phone, normalizeLegacyPhone);
+
 export const legacyPiiValue = <Value>(
   value: Value,
   mode: PiiEncryptionMode = env.PII_ENCRYPTION_MODE,
-): Value | null => (mode === 'dual' ? value : null);
+): Value | null => (mode === 'encrypted' ? null : value);
 
 export const buildBookingApplicationPiiData = (
   recordId: string,
@@ -432,13 +611,33 @@ export const buildMessageTaskPiiData = (
   };
 };
 
+export const buildStaffPiiData = (
+  recordId: string,
+  input: unknown,
+  piiRevision: number,
+  mode: PiiEncryptionMode = env.PII_ENCRYPTION_MODE,
+  cryptography: PiiCryptography = piiCryptography,
+) => {
+  const payload = staffPiiSchema.parse(input);
+  return {
+    firstName: legacyPiiValue(payload.firstName, mode),
+    lastName: legacyPiiValue(payload.lastName, mode),
+    phone: legacyPiiValue(payload.phone, mode),
+    ...encryptStaffPii(recordId, payload, cryptography),
+    piiRevision,
+  };
+};
+
 type EnvelopePersistenceKey =
   | keyof NullablePiiEnvelope
   | 'piiRevision'
   | 'primaryEmailBlindIndex'
   | 'bridePhoneBlindIndex'
   | 'groomPhoneBlindIndex'
-  | 'recipientPhoneBlindIndex';
+  | 'recipientPhoneBlindIndex'
+  | 'phoneBlindIndex'
+  | 'piiBlindIndexKeyId'
+  | 'piiBlindIndexVersion';
 
 export type DecryptedBookingApplication<Row> = Omit<
   Row,
@@ -448,6 +647,7 @@ export type DecryptedBookingApplication<Row> = Omit<
 export type DecryptedWedding<Row> = Omit<Row, EnvelopePersistenceKey | keyof WeddingPii> & WeddingPii;
 export type DecryptedMessageTask<Row> = Omit<Row, EnvelopePersistenceKey | keyof MessageTaskPii> &
   MessageTaskPii;
+export type DecryptedStaff<Row> = Omit<Row, EnvelopePersistenceKey | keyof StaffPii> & StaffPii;
 
 const stripEnvelopePersistence = (source: Record<string, unknown>): Record<string, unknown> => {
   const {
@@ -462,6 +662,15 @@ const stripEnvelopePersistence = (source: Record<string, unknown>): Record<strin
     bridePhoneBlindIndex: _bridePhoneBlindIndex,
     groomPhoneBlindIndex: _groomPhoneBlindIndex,
     recipientPhoneBlindIndex: _recipientPhoneBlindIndex,
+    phoneBlindIndex: _phoneBlindIndex,
+    piiBlindIndexKeyId: _blindIndexKeyId,
+    piiBlindIndexVersion: _blindIndexVersion,
+    idempotencyKey: _idempotencyKey,
+    idempotencyFingerprint: _idempotencyFingerprint,
+    idempotencyFingerprintHmac: _idempotencyFingerprintHmac,
+    idempotencyFingerprintKeyId: _idempotencyFingerprintKeyId,
+    idempotencyFingerprintVersion: _idempotencyFingerprintVersion,
+    paymentFlowTokenHash: _paymentFlowTokenHash,
     ...safe
   } = source;
   return safe;
@@ -469,8 +678,12 @@ const stripEnvelopePersistence = (source: Record<string, unknown>): Record<strin
 
 export const bookingApplicationWithDecryptedPii = <
   Row extends NullablePiiEnvelope & NullablePayloadFields<BookingApplicationPii> & { id: string },
->(row: Row): DecryptedBookingApplication<Row> => {
-  const pii = decryptBookingApplicationPii(row.id, row);
+>(
+  row: Row,
+  cryptography: PiiCryptography = piiCryptography,
+  mode: PiiEncryptionMode = env.PII_ENCRYPTION_MODE,
+): DecryptedBookingApplication<Row> => {
+  const pii = decryptBookingApplicationPii(row.id, row, cryptography, mode);
   const {
     brideFirstName: _brideFirstName,
     brideLastName: _brideLastName,
@@ -519,4 +732,24 @@ export const messageTaskWithDecryptedPii = <
     ...stripEnvelopePersistence(withoutLegacyPii),
     ...pii,
   } as DecryptedMessageTask<Row>;
+};
+
+export const staffWithDecryptedPii = <
+  Row extends NullablePiiEnvelope & NullablePayloadFields<StaffPii> & { id: string },
+>(
+  row: Row,
+  cryptography: PiiCryptography = piiCryptography,
+  mode: PiiEncryptionMode = env.PII_ENCRYPTION_MODE,
+): DecryptedStaff<Row> => {
+  const pii = decryptStaffPii(row.id, row, cryptography, mode);
+  const {
+    firstName: _firstName,
+    lastName: _lastName,
+    phone: _phone,
+    ...withoutLegacyPii
+  } = row;
+  return {
+    ...stripEnvelopePersistence(withoutLegacyPii),
+    ...pii,
+  } as DecryptedStaff<Row>;
 };

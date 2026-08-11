@@ -132,14 +132,18 @@ const normalizeCredentialComparison = (value: string): string =>
   value
     .normalize("NFKD")
     .toLowerCase()
-    .replace(/[013457]/g, (character) => ({
-      "0": "o",
-      "1": "i",
-      "3": "e",
-      "4": "a",
-      "5": "s",
-      "7": "t"
-    })[character]!)
+    .replace(
+      /[013457]/g,
+      (character) =>
+        ({
+          "0": "o",
+          "1": "i",
+          "3": "e",
+          "4": "a",
+          "5": "s",
+          "7": "t"
+        })[character]!
+    )
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
 
@@ -166,7 +170,11 @@ const addUsernamePasswordIssue = (
   value: { username?: string; password?: string },
   context: z.RefinementCtx
 ): void => {
-  if (value.username && value.password && isPasswordSimilarToUsername(value.password, value.username)) {
+  if (
+    value.username &&
+    value.password &&
+    isPasswordSimilarToUsername(value.password, value.username)
+  ) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["password"],
@@ -175,7 +183,10 @@ const addUsernamePasswordIssue = (
   }
 };
 
-export const totpCodeSchema = z.string().trim().regex(/^\d{6}$/, "6 haneli doğrulama kodunu girin.");
+export const totpCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, "6 haneli doğrulama kodunu girin.");
 
 const bookingBodyBaseSchema = z
   .object({
@@ -260,8 +271,8 @@ export const passwordChangeBodySchema = z
 
 export const passwordSetupBodySchema = z
   .object({
-    token: z.string().regex(/^[A-Za-z0-9_-]{43}$/, 'Kurulum bağlantısı geçersiz'),
-    newPassword: strongPasswordSchema,
+    token: z.string().regex(/^[A-Za-z0-9_-]{43}$/, "Kurulum bağlantısı geçersiz"),
+    newPassword: strongPasswordSchema
   })
   .strict();
 
@@ -275,6 +286,8 @@ export const mfaProtectedActionBodySchema = z
     totpCode: totpCodeSchema
   })
   .strict();
+
+export const adminStepUpBodySchema = mfaProtectedActionBodySchema;
 
 export const rejectBookingBodySchema = z
   .object({
@@ -516,8 +529,11 @@ export const archivedQuerySchema = z
   })
   .strict();
 
-export const permanentDeleteBodySchema = z
+export const criticalAdminActionBodySchema = z
   .object({
-    confirmText: z.string().trim().min(3).max(160)
+    confirmText: z.string().trim().min(3).max(160),
+    reason: z.string().trim().min(10).max(500)
   })
   .strict();
+
+export const permanentDeleteBodySchema = criticalAdminActionBodySchema;

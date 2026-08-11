@@ -1,6 +1,28 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import process from "node:process";
 import test from "node:test";
+
+const repositoryRoot = resolve(import.meta.dirname, "..");
+const windowsSystemBash = `${process.env.SystemRoot ?? "C:\\Windows"}\\System32\\bash.exe`;
+const useWindowsSubsystemBash = process.platform === "win32" && existsSync(windowsSystemBash);
+const bashExecutable =
+  process.platform === "win32"
+    ? useWindowsSubsystemBash
+      ? windowsSystemBash
+      : [
+          "C:\\Program Files\\Git\\bin\\bash.exe",
+          "C:\\Program Files\\Git\\usr\\bin\\bash.exe"
+        ].find(existsSync)
+    : "bash";
+
+const toWindowsSubsystemPath = (windowsPath) => {
+  const match = /^([A-Za-z]):\\(.*)$/.exec(windowsPath);
+  assert.ok(match, `WSL yoluna çevrilemeyen Windows yolu: ${windowsPath}`);
+  return `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll("\\", "/")}`;
+};
 
 const readProjectFile = (relativePath) =>
   readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
@@ -146,41 +168,156 @@ test("üretim bakım servisleri kesin proxy IP allowlist'ini devralır", () => {
 
 test("PII bakım döngüsü global operasyon seçeneğini gölgelemez", () => {
   const deployScript = readProjectFile("deploy/deploy-production.sh");
+  const resultParser = readProjectFile("deploy/parse-pii-maintenance-result.mjs");
 
   assert.match(deployScript, /run_pii_batches\(\) \{\s+local pii_operation="\$1"/);
   assert.doesNotMatch(deployScript, /local operation=/);
-  assert.match(deployScript, /node dist\/scripts\/maintainPiiEncryption\.js "\$pii_operation"/);
+  assert.match(deployScript, /node dist\/scripts\/maintainPiiEncryption\.js "\$1"/);
+  assert.match(deployScript, /result_status.*"10"/s);
+  assert.doesNotMatch(deployScript, /"bookingApplications":0,"weddings":0,"messageTasks":0/);
+  for (const counter of [
+    "bookingApplications",
+    "weddings",
+    "messageTasks",
+    "staff",
+    "deliveries"
+  ]) {
+    assert.match(resultParser, new RegExp(`"${counter}"`));
+  }
 });
 
-test("file-backed secret modu opt-in kalır ve rollback aynı overlay'i kullanır", () => {
+test("şifreleme rollout'u trafiği enforcement ve RLS tamamlanana dek kapalı tutar", () => {
   const deployScript = readProjectFile("deploy/deploy-production.sh");
+  const maintenance = deployScript.indexOf('log "MAINTENANCE_TRAFFIC_STOPPING=1"');
+  const trafficStop = deployScript.indexOf("stop --timeout 30 frontend backend", maintenance);
+  const migration = deployScript.indexOf("run --rm --no-deps -T migrate", trafficStop);
+  const internalStart = deployScript.indexOf("--label traefik.enable=false backend", migration);
+  const internalHealth = deployScript.indexOf(
+    'log "STRICT_BACKEND_INTERNAL_HEALTHY=1"',
+    internalStart
+  );
+  const rollbackClosed = deployScript.indexOf("rollback_window_closed=1", internalHealth);
+  const firstBackfill = deployScript.indexOf("run_pii_batches --backfill", rollbackClosed);
+  const firstVerify = deployScript.indexOf("--verify-backfill", firstBackfill);
+  const deltaBackfill = deployScript.indexOf("run_pii_batches --backfill", firstBackfill + 1);
+  const deltaVerify = deployScript.indexOf("--verify-backfill", deltaBackfill);
+  const redact = deployScript.indexOf("run_pii_batches --redact-legacy", deltaVerify);
+  const verify = deployScript.indexOf("maintainPiiEncryption.js --verify", redact);
+  const enable = deployScript.indexOf("\nenable_data_encryption_enforcement\n", verify);
+  const rls = deployScript.indexOf("\nset_rls_enforcement true\n", enable);
+  const enforcedHealth = deployScript.indexOf('log "STRICT_BACKEND_ENFORCED_HEALTHY=1"', rls);
+  const edgeBackend = deployScript.indexOf(
+    '--scale backend="$backend_replicas" backend',
+    enforcedHealth
+  );
+  const frontend = deployScript.indexOf("up -d --no-build --no-deps --wait frontend", edgeBackend);
+  const publicHealthy = deployScript.indexOf('log "PUBLIC_TRAFFIC_HEALTHY=1"', frontend);
+  const positions = [
+    maintenance,
+    trafficStop,
+    migration,
+    internalStart,
+    internalHealth,
+    rollbackClosed,
+    firstBackfill,
+    firstVerify,
+    deltaBackfill,
+    deltaVerify,
+    redact,
+    verify,
+    enable,
+    rls,
+    enforcedHealth,
+    edgeBackend,
+    frontend,
+    publicHealthy
+  ];
+
+  assert.ok(positions.every((position) => position >= 0));
+  for (let index = 1; index < positions.length; index += 1) {
+    assert.ok(positions[index - 1] < positions[index]);
+  }
+  assert.match(
+    deployScript,
+    /enable_data_encryption_enforcement\(\).*postgres_owner_exec.*SELECT public\.enable_data_encryption_enforcement\(\)/s
+  );
+  assert.match(deployScript, /ROLLBACK_BLOCKED_FORWARD_ONLY=1/);
+  assert.match(deployScript, /MAINTENANCE_OUTAGE=1/);
+  assert.match(deployScript, /ROLLBACK_BACKUP=%s/);
+  assert.ok(
+    deployScript.indexOf('log "PUBLIC_TRAFFIC_HEALTHY=1"') <
+      deployScript.lastIndexOf("deployment_verified=1")
+  );
+});
+
+test("file-backed secret modu production ve rollback için fail-closed zorunludur", () => {
+  const deployScript = readProjectFile("deploy/deploy-production.sh");
+  const watchdog = readProjectFile("deploy/watchdog.sh");
+  const validator = readProjectFile("deploy/validate-production-secrets.sh");
   const deployWorkflow = readProjectFile(".github/workflows/deploy.yml");
   const backupWorkflow = readProjectFile(".github/workflows/production-backup.yml");
   const exampleEnvironment = readProjectFile(".env.production.example");
   const overlay = readProjectFile("compose.production.secrets.yaml");
 
-  assert.match(exampleEnvironment, /^USE_FILE_SECRETS=0$/m);
-  assert.match(deployWorkflow, /USE_FILE_SECRETS:.*\|\| '0'/);
-  assert.match(backupWorkflow, /USE_FILE_SECRETS:.*\|\| '0'/);
-  assert.match(deployScript, /compose\+=\(-f compose\.production\.secrets\.yaml\)/);
-  assert.match(deployScript, /rollback_compose\+=\(-f compose\.production\.secrets\.yaml\)/);
+  assert.match(exampleEnvironment, /^USE_FILE_SECRETS=1$/m);
+  assert.match(
+    exampleEnvironment,
+    /^BACKUP_ENCRYPTION_KEYRING_SECRET_FILE=\/run\/dugun-ajansim-secrets\/backup-encryption-keyring$/m
+  );
+  assert.match(
+    exampleEnvironment,
+    /^PII_BLIND_INDEX_KEYRING_SECRET_FILE=\/run\/dugun-ajansim-secrets\/pii-blind-index-keyring$/m
+  );
+  assert.match(deployWorkflow, /^\s*USE_FILE_SECRETS: "1"$/m);
+  assert.match(backupWorkflow, /^\s*USE_FILE_SECRETS: "1"$/m);
+  assert.match(deployScript, /USE_FILE_SECRETS=1 olmadan çalıştırılamaz/);
+  assert.match(watchdog, /USE_FILE_SECRETS=1 olmadan çalıştırılamaz/);
+  assert.match(deployScript, /validate_production_secret_sources/);
+  assert.match(watchdog, /validate_production_secret_sources/);
+  assert.match(deployScript, /compose=.*compose\.production\.secrets\.yaml/s);
+  assert.match(deployScript, /rollback_compose=.*compose\.production\.secrets\.yaml/s);
   assert.match(overlay, /DATABASE_URL: !reset null/);
   assert.match(overlay, /DATA_ENCRYPTION_KEY: !reset null/);
-  assert.match(overlay, /BACKUP_ENCRYPTION_KEY: !reset null/);
+  assert.match(overlay, /BACKUP_ENCRYPTION_KEYRING_JSON: !reset null/);
+  assert.match(
+    overlay,
+    /PII_BLIND_INDEX_KEYRING_JSON_FILE: \/run\/secrets\/pii_blind_index_keyring/
+  );
   assert.match(overlay, /DATABASE_URL_FILE: \/run\/secrets\/database_url_runtime/);
+  assert.match(validator, /izinleri yalnız 600 veya 400 olabilir/);
+  assert.match(validator, /birden fazla hard link içeremez/);
+  assert.match(validator, /dağıtım kullanıcısına ait olmalıdır/);
+  assert.match(validator, /1-65536 bayt aralığında olmalıdır/);
+  assert.match(validator, /NUL baytı içeremez/);
 });
 
-test("RLS enforcement yalnız yeni backend sağlıklıyken açılır ve rollback öncesi kapanır", () => {
+test("production secret kaynak doğrulayıcısı eksik ve gevşek izinli dosyaları reddeder", () => {
+  const shellTest = resolve(
+    import.meta.dirname,
+    "../deploy/tests/production-secret-sources.test.sh"
+  );
+  assert.ok(bashExecutable, "Bash çalıştırıcısı bulunamadı.");
+  const shellTestArgument = useWindowsSubsystemBash ? toWindowsSubsystemPath(shellTest) : shellTest;
+  const result = spawnSync(bashExecutable, [shellTestArgument], {
+    cwd: repositoryRoot,
+    encoding: "utf8"
+  });
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stdout, /Production secret kaynak kontrolleri geçti\./);
+});
+
+test("RLS enforcement iç sağlık sonrası ve edge açılmadan önce etkinleşir; rollback öncesi kapanır", () => {
   const deployScript = readProjectFile("deploy/deploy-production.sh");
   const rollbackStart = deployScript.indexOf('log "ROLLBACK_STARTED_SHA=$rollback_sha"');
   const rollbackDisable = deployScript.indexOf("set_rls_enforcement false", rollbackStart);
   const rollbackCheckout = deployScript.indexOf('git reset --hard "$rollback_sha"', rollbackStart);
-  const firstHealth = deployScript.indexOf('"$PUBLIC_ORIGIN/api/v1/health" >/dev/null');
-  const enable = deployScript.indexOf("set_rls_enforcement true", firstHealth);
-  const verified = deployScript.indexOf("deployment_verified=1", enable);
+  const internalHealth = deployScript.indexOf('log "STRICT_BACKEND_INTERNAL_HEALTHY=1"');
+  const enable = deployScript.indexOf("set_rls_enforcement true", internalHealth);
+  const edgeBackend = deployScript.indexOf('--scale backend="$backend_replicas" backend', enable);
 
   assert.notEqual(rollbackStart, -1);
   assert.ok(rollbackStart < rollbackDisable && rollbackDisable < rollbackCheckout);
-  assert.ok(firstHealth < enable && enable < verified);
+  assert.ok(internalHealth < enable && enable < edgeBackend);
   assert.match(deployScript, /RLS enforcement kapatılamadığı için eski backend rollback'i/);
 });

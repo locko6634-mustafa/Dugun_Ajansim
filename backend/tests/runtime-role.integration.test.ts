@@ -166,6 +166,51 @@ test("sentetik runtime rolü uygulama CRUD yetkilerini korur ve yönetim işleml
   );
 });
 
+test("admin dışı HTTP bağlamları audit kaydı ekler ancak kaydı okuyamaz", async (context) => {
+  const marker = randomUUID();
+  const actorContexts: RuntimeContext[] = [
+    { actorRole: "auth", purpose: "http.auth" },
+    { actorRole: "operations", purpose: "http.operations" },
+    { actorRole: "customer", purpose: "http.customer" },
+    { actorRole: "public", purpose: "http.public" }
+  ];
+  const targetIds = actorContexts.map(({ actorRole }) => `${marker}:${actorRole}`);
+
+  context.after(async () => {
+    await ownerPrisma.auditLog.deleteMany({
+      where: { targetType: "RuntimeAuditInsertTest", targetId: { in: targetIds } }
+    });
+  });
+
+  for (const [index, actorContext] of actorContexts.entries()) {
+    const targetId = targetIds[index]!;
+    const inserted = await withRuntimeContext(actorContext, (transaction) =>
+      transaction.auditLog.createMany({
+        data: {
+          action: "runtime-role.audit-insert",
+          targetType: "RuntimeAuditInsertTest",
+          targetId,
+          correlationId: marker
+        }
+      })
+    );
+    assert.equal(inserted.count, 1);
+    assert.equal(
+      await withRuntimeContext(actorContext, (transaction) =>
+        transaction.auditLog.findFirst({ where: { targetId } })
+      ),
+      null
+    );
+  }
+
+  assert.equal(
+    await ownerPrisma.auditLog.count({
+      where: { targetType: "RuntimeAuditInsertTest", targetId: { in: targetIds } }
+    }),
+    actorContexts.length
+  );
+});
+
 test("RLS enforcement salon, müşteri, public, auth ve maintenance bağlamlarını ayırır", async (context) => {
   const marker = randomUUID();
   const startsAt = new Date("2026-09-20T15:00:00Z");

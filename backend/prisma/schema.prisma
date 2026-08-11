@@ -158,6 +158,7 @@ model AuthSession {
   expiresAt     DateTime
   lastUsedAt    DateTime  @default(now())
   mfaVerifiedAt DateTime?
+  adminStepUpVerifiedAt DateTime?
   revokedAt     DateTime?
   createdAt     DateTime  @default(now())
 
@@ -241,6 +242,9 @@ model BookingApplication {
   referenceCode          String                      @unique
   idempotencyKey         String?                     @unique
   idempotencyFingerprint String?
+  idempotencyFingerprintHmac String?                 @db.Char(64)
+  idempotencyFingerprintKeyId String?
+  idempotencyFingerprintVersion Int?
   source                 BookingSource
   status                 BookingStatus               @default(ONAY_BEKLIYOR)
   brideFirstName         String?
@@ -261,10 +265,12 @@ model BookingApplication {
   primaryEmailBlindIndex String?                     @db.Char(64)
   bridePhoneBlindIndex   String?                     @db.Char(64)
   groomPhoneBlindIndex   String?                     @db.Char(64)
+  piiBlindIndexKeyId     String?
+  piiBlindIndexVersion   Int?
   weddingStartsAt        DateTime
   weddingEndsAt          DateTime
-  venueId                String
-  venue                  Venue                       @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  venueId                String?
+  venue                  Venue?                      @relation(fields: [venueId], references: [id], onDelete: Restrict)
   packageId              String
   package                Package                     @relation(fields: [packageId], references: [id], onDelete: Restrict)
   packageCodeSnapshot    String
@@ -343,6 +349,8 @@ model Wedding {
   primaryEmailBlindIndex String?     @db.Char(64)
   bridePhoneBlindIndex String?       @db.Char(64)
   groomPhoneBlindIndex String?       @db.Char(64)
+  piiBlindIndexKeyId String?
+  piiBlindIndexVersion Int?
   startsAt       DateTime
   endsAt         DateTime
   venueId        String
@@ -367,9 +375,19 @@ model Wedding {
 
 model Staff {
   id          String              @id @default(uuid())
-  firstName   String
-  lastName    String
-  phone       String
+  firstName   String?
+  lastName    String?
+  phone       String?
+  piiCiphertext String?
+  piiIv String?
+  piiAuthTag String?
+  piiKeyId String?
+  piiEncryptionVersion Int?
+  piiSchemaVersion Int?
+  piiRevision Int @default(0)
+  phoneBlindIndex String? @db.Char(64)
+  piiBlindIndexKeyId String?
+  piiBlindIndexVersion Int?
   specialties StaffSpecialty[]
   isActive    Boolean             @default(true)
   venueId      String
@@ -378,8 +396,8 @@ model Staff {
   updatedAt   DateTime            @updatedAt
   assignments WeddingAssignment[]
 
-  @@index([isActive, lastName, firstName])
-  @@index([venueId, isActive, lastName, firstName])
+  @@index([isActive])
+  @@index([venueId, isActive])
   @@map("staff")
 }
 
@@ -408,6 +426,7 @@ model Delivery {
   driveUrlCiphertext String?
   driveUrlIv         String?
   driveUrlAuthTag    String?
+  driveUrlKeyId      String?
   encryptionVersion  Int                     @default(2)
   releasedAt         DateTime?
   createdAt          DateTime                @default(now())
@@ -449,6 +468,8 @@ model MessageTask {
   piiSchemaVersion  Int?
   piiRevision       Int           @default(0)
   recipientPhoneBlindIndex String? @db.Char(64)
+  piiBlindIndexKeyId String?
+  piiBlindIndexVersion Int?
   secretCiphertext  String?
   secretIv          String?
   secretAuthTag     String?

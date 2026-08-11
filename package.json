@@ -24,7 +24,7 @@
     "validate:dependency-security": "node --test tools/dependency-security.test.mjs",
     "validate:operations-security": "node --test tools/operations-security.test.mjs",
     "validate:backup-safety": "node --test deploy/tests/backup-pruning.test.mjs",
-    "validate:file-secrets": "node --test deploy/tests/postgres-file-secrets.test.mjs && node --test deploy/tests/backup-crypto.test.mjs",
+    "validate:file-secrets": "node --test deploy/tests/postgres-file-secrets.test.mjs && node --test deploy/tests/backup-crypto.test.mjs && node --test deploy/tests/pii-maintenance-result.test.mjs",
     "validate": "npm run format:check && npm run lint:js && npm run lint:css && npm run validate:html && npm run validate:domain-contract && npm run validate:site-content && npm run validate:asset-cache && npm run validate:asset-url && npm run validate:runtime-config && npm run validate:booking-schedule-policy && npm run validate:serve-security && npm run validate:dependency-security && npm run validate:operations-security && npm run validate:backup-safety && npm run validate:file-secrets",
     "test:targeted": "playwright test",
     "test:quick": "node tools/agent-check.mjs",

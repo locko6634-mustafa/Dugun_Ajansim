@@ -162,6 +162,163 @@ export function showCustomPrompt({
 }
 
 /**
+ * Verifies a privileged admin action without returning credentials to the caller.
+ * Password and TOTP values live only for the duration of the submit callback and
+ * are scrubbed whenever the dialog closes or a verification attempt finishes.
+ */
+export function showAdminStepUpDialog({
+  title = "Yönetici doğrulaması",
+  message = "Bu hassas işleme devam etmek için parolanızı ve doğrulama kodunuzu yeniden girin.",
+  onVerify
+} = {}) {
+  if (typeof onVerify !== "function") {
+    throw new TypeError("Yönetici doğrulama işlemi tanımlanmalıdır.");
+  }
+
+  const dialog = getOrCreateDialog();
+  dialog.innerHTML = `
+    <form class="form-shell custom-dialog-shell js-admin-step-up-form" method="dialog">
+      <div class="sheet-heading">
+        <div>
+          <p class="section-index custom-dialog-badge custom-badge--warning">EK DOĞRULAMA</p>
+          <h2 class="custom-dialog-title">${escapeHtml(title)}</h2>
+        </div>
+        <button class="dialog-close js-dialog-cancel" type="button" aria-label="Kapat">×</button>
+      </div>
+      <div class="custom-dialog-body">
+        <p class="custom-dialog-message">${escapeHtml(message)}</p>
+        <div class="admin-step-up-fields">
+          <label class="custom-dialog-label">
+            <span>Güncel yönetici parolası</span>
+            <input
+              class="custom-dialog-input js-admin-step-up-password"
+              type="password"
+              autocomplete="current-password"
+              maxlength="256"
+              required
+            />
+          </label>
+          <label class="custom-dialog-label">
+            <span>6 haneli doğrulama kodu</span>
+            <input
+              class="custom-dialog-input admin-step-up-code js-admin-step-up-totp"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              pattern="[0-9]{6}"
+              minlength="6"
+              maxlength="6"
+              required
+            />
+          </label>
+        </div>
+        <p class="custom-dialog-security-note">
+          Bilgileriniz yalnız bu doğrulama isteğinde kullanılır ve pencere kapanınca temizlenir.
+        </p>
+        <p class="dialog-message js-dialog-error" role="status" aria-live="polite"></p>
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary-button js-dialog-cancel" type="button">Vazgeç</button>
+        <button class="primary-button js-dialog-submit" type="submit">Doğrula ve devam et</button>
+      </div>
+    </form>
+  `;
+
+  return new Promise((resolve) => {
+    const form = dialog.querySelector(".js-admin-step-up-form");
+    const passwordInput = dialog.querySelector(".js-admin-step-up-password");
+    const totpInput = dialog.querySelector(".js-admin-step-up-totp");
+    const errorElement = dialog.querySelector(".js-dialog-error");
+    const submitButton = dialog.querySelector(".js-dialog-submit");
+    const cancelButtons = dialog.querySelectorAll(".js-dialog-cancel");
+    let settled = false;
+    let verificationController = null;
+
+    const scrubCredentials = () => {
+      if (passwordInput) passwordInput.value = "";
+      if (totpInput) totpInput.value = "";
+      form?.reset();
+    };
+
+    const finish = (verified, abortPending = false) => {
+      if (settled) return;
+      settled = true;
+      if (abortPending) verificationController?.abort();
+      scrubCredentials();
+      form.onsubmit = null;
+      dialog.removeEventListener("close", onClose);
+      if (dialog.open) dialog.close();
+      dialog.replaceChildren();
+      resolve(verified);
+    };
+
+    const onClose = () => finish(false, true);
+    dialog.addEventListener("close", onClose, { once: true });
+    cancelButtons.forEach((button) => {
+      button.addEventListener("click", () => finish(false, true), { once: true });
+    });
+
+    totpInput?.addEventListener("input", () => {
+      totpInput.value = totpInput.value.replace(/\D/g, "").slice(0, 6);
+    });
+
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      if (submitButton.disabled) return;
+
+      let currentPassword = passwordInput?.value || "";
+      let totpCode = totpInput?.value.trim() || "";
+      if (!currentPassword || !/^\d{6}$/.test(totpCode)) {
+        errorElement.textContent = "Parolanızı ve 6 haneli doğrulama kodunu eksiksiz girin.";
+        (currentPassword ? totpInput : passwordInput)?.focus();
+        currentPassword = "";
+        totpCode = "";
+        return;
+      }
+
+      submitButton.disabled = true;
+      cancelButtons.forEach((button) => {
+        button.disabled = true;
+      });
+      errorElement.textContent = "Doğrulanıyor…";
+      verificationController = new window.AbortController();
+
+      try {
+        await onVerify({
+          currentPassword,
+          totpCode,
+          signal: verificationController.signal
+        });
+        currentPassword = "";
+        totpCode = "";
+        finish(true);
+      } catch (error) {
+        currentPassword = "";
+        totpCode = "";
+        if (settled) return;
+        scrubCredentials();
+        errorElement.textContent =
+          error?.status === 429
+            ? "Çok fazla doğrulama denemesi yapıldı. Lütfen daha sonra tekrar deneyin."
+            : "Doğrulama başarısız. Parolanızı ve güncel kodunuzu yeniden girin.";
+        passwordInput?.focus();
+      } finally {
+        verificationController = null;
+        if (!settled) {
+          submitButton.disabled = false;
+          cancelButtons.forEach((button) => {
+            button.disabled = false;
+          });
+        }
+      }
+    };
+
+    dialog.showModal();
+    setTimeout(() => passwordInput?.focus(), 0);
+  });
+}
+
+/**
  * Show a form modal specifically for adding catalog packages or services
  */
 /**

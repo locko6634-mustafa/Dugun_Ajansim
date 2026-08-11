@@ -70,6 +70,7 @@ const state = {
   bookingSchedulePolicy: null,
   botProtection: { enabled: false, siteKey: null, action: BOOKING_TURNSTILE_ACTION },
   botChallengeToken: null,
+  bookingFormStartedAt: window.performance.now(),
   catalogReady: false
 };
 
@@ -116,6 +117,7 @@ const detailThumbs = document.querySelector(".js-detail-thumbs");
 const detailAddButton = document.querySelector(".js-detail-add");
 const paymentInputs = [...document.querySelectorAll('input[name="payment-method"]')];
 const checkoutForm = document.querySelector("#checkout-form");
+const bookingHoneypotInput = checkoutForm?.querySelector('input[name="companyWebsite"]');
 const orderItemsContainer = document.querySelector(".js-order-items");
 const paymentNotificationForm = document.querySelector("#payment-notification-form");
 const paymentNotificationStatus = document.querySelector(".js-payment-notification-status");
@@ -865,6 +867,10 @@ async function savePaymentFlow() {
           ...(!isUpdate
             ? {
                 "Idempotency-Key": state.idempotencyKey,
+                "X-Booking-Elapsed-Ms": String(
+                  Math.max(0, Math.floor(window.performance.now() - state.bookingFormStartedAt))
+                ),
+                "X-Booking-Website": bookingHoneypotInput?.value ?? "",
                 ...(state.botChallengeToken ? { "Turnstile-Token": state.botChallengeToken } : {})
               }
             : {})

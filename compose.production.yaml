@@ -8,7 +8,10 @@ x-default-logging: &default-logging
 
 services:
   postgres:
-    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    image: dugun-ajansim-postgres
+    build:
+      context: .
+      dockerfile: deploy/postgres/Dockerfile
     restart: unless-stopped
     stop_grace_period: 30s
     read_only: true
@@ -30,9 +33,9 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-dugun_ajansim}
       POSTGRES_USER: ${POSTGRES_USER:-dugun_app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD zorunludur}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_RUNTIME_USER: ${POSTGRES_RUNTIME_USER:-dugun_runtime}
-      POSTGRES_RUNTIME_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}
+      POSTGRES_RUNTIME_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:-}
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -57,7 +60,7 @@ services:
       dockerfile: backend/Dockerfile
       target: migrate
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-dugun_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dugun_app}:${POSTGRES_PASSWORD:-file-secret-required}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,11 +84,11 @@ services:
 
   seed:
     image: dugun-ajansim-migrate
-    command: ["npm", "run", "seed"]
+    command: ["node", "--import", "tsx", "prisma/seed.ts"]
     profiles:
       - bootstrap
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:-file-secret-required}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
     depends_on:
       db-runtime-hardening:
         condition: service_completed_successfully
@@ -116,7 +119,7 @@ services:
       NODE_ENV: production
       APP_PROCESS_ROLE: admin-bootstrap
       CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
-      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:-file-secret-required}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
       ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
       TRUST_PROXY: ${TRUST_PROXY:?TRUST_PROXY kesin Traefik IP adresi zorunludur}
       TEMPORARY_PASSWORD_TTL_HOURS: ${TEMPORARY_PASSWORD_TTL_HOURS:-24}
@@ -142,16 +145,16 @@ services:
     logging: *default-logging
 
   db-role-bootstrap:
-    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    image: dugun-ajansim-postgres
     command: ["sh", "/usr/local/bin/init-runtime-role.sh"]
     environment:
       PGHOST: postgres
       PGPORT: 5432
-      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD zorunludur}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: ${POSTGRES_DB:-dugun_ajansim}
       POSTGRES_USER: ${POSTGRES_USER:-dugun_app}
       POSTGRES_RUNTIME_USER: ${POSTGRES_RUNTIME_USER:-dugun_runtime}
-      POSTGRES_RUNTIME_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}
+      POSTGRES_RUNTIME_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:-}
     volumes:
       - ./deploy/postgres/init-runtime-role.sh:/usr/local/bin/init-runtime-role.sh:ro
     depends_on:
@@ -176,12 +179,12 @@ services:
     logging: *default-logging
 
   db-runtime-hardening:
-    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    image: dugun-ajansim-postgres
     command: ["sh", "/usr/local/bin/configure-runtime-timeouts.sh"]
     environment:
       PGHOST: postgres
       PGPORT: 5432
-      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD zorunludur}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: ${POSTGRES_DB:-dugun_ajansim}
       POSTGRES_USER: ${POSTGRES_USER:-dugun_app}
       POSTGRES_RUNTIME_USER: ${POSTGRES_RUNTIME_USER:-dugun_runtime}
@@ -221,8 +224,9 @@ services:
     profiles:
       - operations
     environment:
-      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY zorunludur}
-      APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS: ${APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS:?APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS zorunludur}
+      BACKUP_ENCRYPTION_ACTIVE_KEY_ID: ${BACKUP_ENCRYPTION_ACTIVE_KEY_ID:?BACKUP_ENCRYPTION_ACTIVE_KEY_ID zorunludur}
+      BACKUP_ENCRYPTION_KEYRING_JSON: ${BACKUP_ENCRYPTION_KEYRING_JSON:-}
+      APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS: ${APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS:-}
     network_mode: none
     restart: "no"
     stop_grace_period: 5s
@@ -247,12 +251,14 @@ services:
       NODE_ENV: production
       APP_PROCESS_ROLE: pii-maintenance
       CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
-      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:-file-secret-required}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
       ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
       TRUST_PROXY: ${TRUST_PROXY:?TRUST_PROXY kesin Traefik IP adresi zorunludur}
       DATA_ENCRYPTION_ACTIVE_KEY_ID: ${DATA_ENCRYPTION_ACTIVE_KEY_ID:?DATA_ENCRYPTION_ACTIVE_KEY_ID zorunludur}
-      DATA_ENCRYPTION_KEYRING_JSON: ${DATA_ENCRYPTION_KEYRING_JSON:?DATA_ENCRYPTION_KEYRING_JSON zorunludur}
-      PII_BLIND_INDEX_KEY: ${PII_BLIND_INDEX_KEY:?PII_BLIND_INDEX_KEY zorunludur}
+      DATA_ENCRYPTION_KEYRING_JSON: ${DATA_ENCRYPTION_KEYRING_JSON:-}
+      PII_BLIND_INDEX_ACTIVE_KEY_ID: ${PII_BLIND_INDEX_ACTIVE_KEY_ID:-legacy}
+      PII_BLIND_INDEX_KEYRING_JSON: ${PII_BLIND_INDEX_KEYRING_JSON:-}
+      PII_BLIND_INDEX_KEY: ${PII_BLIND_INDEX_KEY:-}
     depends_on:
       db-runtime-hardening:
         condition: service_completed_successfully
@@ -283,7 +289,7 @@ services:
       NODE_ENV: production
       APP_PROCESS_ROLE: data-retention
       CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
-      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:-file-secret-required}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
       ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
       TRUST_PROXY: ${TRUST_PROXY:?TRUST_PROXY kesin Traefik IP adresi zorunludur}
       PUBLIC_APPLICATION_RETENTION_DAYS: ${PUBLIC_APPLICATION_RETENTION_DAYS:-90}
@@ -341,22 +347,24 @@ services:
       PORT: 5000
       CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
       BOT_PROTECTION_MODE: ${BOT_PROTECTION_MODE:?BOT_PROTECTION_MODE zorunludur}
-      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:?TURNSTILE_SITE_KEY zorunludur}
-      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY zorunludur}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
       TURNSTILE_EXPECTED_HOSTNAME: ${APP_DOMAIN:?APP_DOMAIN zorunludur}
       TURNSTILE_VERIFY_TIMEOUT_MS: ${TURNSTILE_VERIFY_TIMEOUT_MS:-5000}
-      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:?POSTGRES_RUNTIME_PASSWORD zorunludur}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
+      DATABASE_URL: postgresql://${POSTGRES_RUNTIME_USER:-dugun_runtime}:${POSTGRES_RUNTIME_PASSWORD:-file-secret-required}@postgres:5432/${POSTGRES_DB:-dugun_ajansim}?sslmode=disable&connect_timeout=5&pool_timeout=10
       ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: "true"
       TRUST_PROXY: ${TRUST_PROXY:?TRUST_PROXY kesin Traefik IP adresi zorunludur}
       HEALTHCHECK_TIMEOUT_MS: 3000
       HTTP_REQUEST_TIMEOUT_MS: ${HTTP_REQUEST_TIMEOUT_MS:-15000}
       HTTP_HEADERS_TIMEOUT_MS: ${HTTP_HEADERS_TIMEOUT_MS:-10000}
       HTTP_KEEP_ALIVE_TIMEOUT_MS: ${HTTP_KEEP_ALIVE_TIMEOUT_MS:-5000}
-      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY zorunludur}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
       DATA_ENCRYPTION_ACTIVE_KEY_ID: ${DATA_ENCRYPTION_ACTIVE_KEY_ID:?DATA_ENCRYPTION_ACTIVE_KEY_ID zorunludur}
-      DATA_ENCRYPTION_KEYRING_JSON: ${DATA_ENCRYPTION_KEYRING_JSON:?DATA_ENCRYPTION_KEYRING_JSON zorunludur}
-      PII_BLIND_INDEX_KEY: ${PII_BLIND_INDEX_KEY:?PII_BLIND_INDEX_KEY zorunludur}
-      RATE_LIMIT_HMAC_KEY: ${RATE_LIMIT_HMAC_KEY:?RATE_LIMIT_HMAC_KEY zorunludur}
+      DATA_ENCRYPTION_KEYRING_JSON: ${DATA_ENCRYPTION_KEYRING_JSON:-}
+      PII_BLIND_INDEX_ACTIVE_KEY_ID: ${PII_BLIND_INDEX_ACTIVE_KEY_ID:-legacy}
+      PII_BLIND_INDEX_KEYRING_JSON: ${PII_BLIND_INDEX_KEYRING_JSON:-}
+      PII_BLIND_INDEX_KEY: ${PII_BLIND_INDEX_KEY:-}
+      RATE_LIMIT_HMAC_KEY: ${RATE_LIMIT_HMAC_KEY:-}
       PII_ENCRYPTION_MODE: ${PII_ENCRYPTION_MODE:-strict}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-dugunajansim_session}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}

@@ -16,7 +16,7 @@
     "test:quick": "npm run build && npm run typecheck:tests && npm run test:targeted -- --test-name-pattern=backend-unit tests/backend.test.ts tests/mvp.test.ts",
     "test": "npm run build && npm run typecheck:tests && tsx --env-file=tests/test.env --test tests/backend.test.ts tests/mvp.test.ts",
     "test:integration": "tsx --env-file=tests/test.env src/scripts/migrateTestDatabase.ts && tsx --env-file=tests/test.env --test tests/database.integration.test.ts",
-    "test:runtime-role": "tsx --env-file=tests/test.env --test tests/runtime-role.integration.test.ts",
+    "test:runtime-role": "tsx --env-file=tests/test.env --test tests/runtime-role.integration.test.ts tests/runtime-http.integration.test.ts",
     "test:db:up": "docker compose -f compose.test.yaml up -d --wait",
     "test:db:down": "docker compose -f compose.test.yaml down",
     "audit:dependencies": "npm audit",
@@ -29,6 +29,7 @@
     "mfa:recovery-reset": "tsx src/scripts/resetPrivilegedMfa.ts",
     "pii:backfill": "tsx src/scripts/maintainPiiEncryption.ts --backfill",
     "pii:redact-legacy": "tsx src/scripts/maintainPiiEncryption.ts --redact-legacy",
+    "pii:verify-backfill": "tsx src/scripts/maintainPiiEncryption.ts --verify-backfill",
     "pii:verify": "tsx src/scripts/maintainPiiEncryption.ts --verify",
     "data:retention": "tsx src/scripts/maintainDataRetention.ts"
   },

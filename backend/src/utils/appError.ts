@@ -9,8 +9,17 @@ export class AppError extends Error {
   // İsteğe bağlı olarak ek ayrıntılar veya validasyon (doğrulama) hatası listesi
   public readonly errors?: unknown;
 
+  // Belirli istemci akışlarının güvenle ayırt edebileceği makine-okunur ayrıntılar
+  public readonly details?: unknown;
+
   // Yapıcı metod: Hata mesajı, durum kodu, operasyonel durumu ve detayları alır
-  constructor(message: string, statusCode: number = 500, isOperational: boolean = true, errors?: unknown) {
+  constructor(
+    message: string,
+    statusCode: number = 500,
+    isOperational: boolean = true,
+    errors?: unknown,
+    details?: unknown
+  ) {
     // Üst sınıf olan varsayılan JavaScript Error sınıfına hata mesajını ilet
     super(message);
 
@@ -22,6 +31,7 @@ export class AppError extends Error {
 
     // Varsa ek hata detaylarını sınıfa ata
     this.errors = errors;
+    this.details = details;
 
     // Prototype zincirini düzgün korumak için Object.setPrototypeOf kullan (TypeScript/ES5 kalıtım uyumlaştırması)
     Object.setPrototypeOf(this, new.target.prototype);
@@ -30,5 +40,3 @@ export class AppError extends Error {
     Error.captureStackTrace(this, this.constructor);
   }
 }
-
-

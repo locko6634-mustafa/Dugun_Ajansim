@@ -1,6 +1,7 @@
 import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
 import {
+  showAdminStepUpDialog,
   showCustomConfirm,
   showCustomPrompt,
   showCatalogFormModal,
@@ -93,7 +94,7 @@ dangerForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
 });
 
 function requestDangerConfirmation(
-  { title, copy, confirmation = "", button = "Kalıcı sil" },
+  { title, copy, confirmation = "", button = "Kalıcı sil", reasonRequired = false },
   trigger
 ) {
   dangerTrigger = trigger;
@@ -104,34 +105,85 @@ function requestDangerConfirmation(
   const input = dangerForm.querySelector(".js-danger-confirm");
   input.value = "";
   input.required = Boolean(confirmation);
+  const reasonWrap = dangerForm.querySelector(".js-danger-reason-wrap");
+  const reasonInput = dangerForm.querySelector(".js-danger-reason");
+  reasonWrap.hidden = !reasonRequired;
+  reasonInput.value = "";
+  reasonInput.required = reasonRequired;
   dangerForm.querySelector(".js-danger-message").textContent = "";
   dangerForm.querySelector(".js-danger-submit").textContent = button;
   dangerDialog.showModal();
   setTimeout(
-    () => (confirmation ? input : dangerForm.querySelector(".js-danger-submit")).focus(),
+    () =>
+      (confirmation
+        ? input
+        : reasonRequired
+          ? reasonInput
+          : dangerForm.querySelector(".js-danger-submit")
+      ).focus(),
     0
   );
   return new Promise((resolve) => {
-    const done = (accepted) => {
+    let settled = false;
+    const done = (result) => {
+      if (settled) return;
+      settled = true;
       dangerDialog.removeEventListener("close", closed);
-      resolve(accepted ? input.value.trim() || true : null);
+      dangerForm.onsubmit = null;
+      input.value = "";
+      reasonInput.value = "";
+      if (dangerDialog.open) dangerDialog.close();
+      resolve(result);
       dangerTrigger?.focus();
       dangerTrigger = null;
     };
-    const closed = () => done(false);
+    const closed = () => done(null);
     dangerDialog.addEventListener("close", closed, { once: true });
     dangerForm.onsubmit = (event) => {
       event.preventDefault();
-      if (confirmation && !input.value.trim()) {
+      const confirmText = input.value.trim();
+      const reason = reasonInput.value.trim();
+      if (confirmation && confirmText !== confirmation) {
         dangerForm.querySelector(".js-danger-message").textContent =
-          "Devam etmek için onay metnini yazın.";
+          "Onay metni gösterilen değerle tam olarak eşleşmelidir.";
         input.focus();
         return;
       }
-      done(true);
-      dangerDialog.close();
+      if (reasonRequired && reason.length < 10) {
+        dangerForm.querySelector(".js-danger-message").textContent =
+          "İşlem gerekçesi en az 10 karakter olmalıdır.";
+        reasonInput.focus();
+        return;
+      }
+      done(reasonRequired ? { confirmText, reason } : confirmation ? confirmText : true);
     };
   });
+}
+
+const isAdminStepUpRequired = (error) =>
+  error?.status === 428 && error?.payload?.details?.code === "ADMIN_STEP_UP_REQUIRED";
+
+const requestAdminStepUp = (actionLabel) =>
+  showAdminStepUpDialog({
+    message: `${actionLabel} için güncel yönetici parolanız ve doğrulama uygulamanızdaki kod gereklidir.`,
+    onVerify: ({ currentPassword, totpCode, signal }) =>
+      apiRequest("/auth/admin-step-up", {
+        method: "POST",
+        signal,
+        body: { currentPassword, totpCode }
+      })
+  });
+
+async function apiRequestWithAdminStepUp(path, options, { actionLabel = "Bu işlem" } = {}) {
+  try {
+    return await apiRequest(path, options);
+  } catch (error) {
+    if (!isAdminStepUpRequired(error)) throw error;
+  }
+
+  const verified = await requestAdminStepUp(actionLabel);
+  if (!verified) return null;
+  return apiRequest(path, options);
 }
 
 const escapeHtml = (value) =>
@@ -873,7 +925,7 @@ function renderWeddingDetail(wedding) {
   const assignedIds = new Set(wedding.assignments.map((assignment) => assignment.staffId));
   const available = wedding.availableStaff.filter((staff) => !assignedIds.has(staff.id));
   document.querySelector(".js-detail-title").textContent = coupleName(wedding);
-  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span></div><div class="detail-actions">${wedding.deletedAt ? `<button class="secondary-button" type="button" data-restore-wedding="${wedding.id}">Geri Yükle</button>` : `<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}">Müşteri parolasını sıfırla</button><button class="secondary-button" type="button" data-archive-wedding="${wedding.id}">Arşivle</button>`}</div></section>
+  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span></div><div class="detail-actions">${wedding.deletedAt ? `<button class="secondary-button" type="button" data-restore-wedding="${wedding.id}">Geri Yükle</button>` : `<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}" data-confirm="${escapeHtml(wedding.customerUser.username)}">Müşteri parolasını sıfırla</button><button class="secondary-button" type="button" data-reset-mfa="${escapeHtml(wedding.customerUser.id)}" data-confirm="${escapeHtml(wedding.customerUser.username)}">Müşteri MFA'sını sıfırla</button><button class="secondary-button" type="button" data-archive-wedding="${wedding.id}">Arşivle</button>`}</div></section>
   <div class="detail-grid">
     <section class="detail-block"><h3>Çift ve iletişim</h3><div class="contact-line"><span>${escapeHtml(wedding.brideFirstName)} ${escapeHtml(wedding.brideLastName)}</span><a href="${safePhoneHref(wedding.bridePhone)}">${escapeHtml(wedding.bridePhone)}</a></div><div class="contact-line"><span>${escapeHtml(wedding.groomFirstName)} ${escapeHtml(wedding.groomLastName)}</span><a href="${safePhoneHref(wedding.groomPhone)}">${escapeHtml(wedding.groomPhone)}</a></div><div class="contact-line"><span>E-posta</span><a href="mailto:${escapeHtml(wedding.primaryEmail)}">${escapeHtml(wedding.primaryEmail)}</a></div></section>
     <section class="detail-block"><h3>Paket</h3>${packageDetail(wedding.packageSummary)}${wedding.note ? `<p>${escapeHtml(wedding.note)}</p>` : ""}</section>
@@ -1058,7 +1110,7 @@ async function loadMessages() {
             (task) =>
               `<article class="data-row"><div><strong>${escapeHtml(task.wedding.brideFirstName)} &amp; ${escapeHtml(task.wedding.groomFirstName)}</strong><small>${escapeHtml(MESSAGE_LABELS[task.kind] || task.kind)}</small></div><div><small>Alıcı</small><strong>${escapeHtml(task.recipientPhone)}</strong></div><div><small>${task.status === "SENT" ? "Gönderilen" : "Planlanan"}</small><strong>${formatDate(task.sentAt || task.dueAt, true)}</strong></div><div class="data-row__actions">${
                 task.status === "PENDING"
-                  ? `<button class="mini-button mini-button--primary" type="button" data-open-message="${task.id}">WhatsApp</button><button class="mini-button" type="button" data-mark-sent="${task.id}" data-task-updated-at="${escapeHtml(task.updatedAt)}">Gönderildi</button>`
+                  ? `<button class="mini-button mini-button--primary" type="button" data-open-message="${task.id}" data-message-kind="${escapeHtml(task.kind)}">WhatsApp</button><button class="mini-button" type="button" data-mark-sent="${task.id}" data-task-updated-at="${escapeHtml(task.updatedAt)}">Gönderildi</button>`
                   : `<span class="status-dot" data-status="TESLIM_EDILDI">${escapeHtml(MESSAGE_STATUS_LABELS[task.status] || task.status)}</span>`
               }</div></article>`
           )
@@ -1362,16 +1414,25 @@ async function handleApplicationAction(event) {
           title: "Başvuruyu kalıcı sil",
           copy: "Bu işlem geri alınamaz. Başvuru ve bağlı hizmet seçimleri silinecektir.",
           confirmation: deleteButton.dataset.confirm,
-          button: "Kalıcı Sil"
+          button: "Kalıcı Sil",
+          reasonRequired: true
         },
         deleteButton
       );
       if (confirmation === null) return;
       deleteButton.disabled = true;
-      await apiRequest(`/admin/booking-applications/${deleteButton.dataset.deleteApplication}`, {
-        method: "DELETE",
-        body: { confirmText: confirmation }
-      });
+      const response = await apiRequestWithAdminStepUp(
+        `/admin/booking-applications/${deleteButton.dataset.deleteApplication}`,
+        {
+          method: "DELETE",
+          body: confirmation
+        },
+        { actionLabel: "Başvuruyu kalıcı silme" }
+      );
+      if (!response) {
+        deleteButton.disabled = false;
+        return;
+      }
       setMessage("Başvuru kalıcı olarak silindi.", true);
       if (appDetailDialog?.open) appDetailDialog.close();
     } else return;
@@ -1448,6 +1509,7 @@ detailContent.addEventListener("click", async (event) => {
   const saveButton = event.target.closest("[data-save-delivery]");
   const deliverButton = event.target.closest("[data-deliver]");
   const resetButton = event.target.closest("[data-reset-user]");
+  const resetMfaButton = event.target.closest("[data-reset-mfa]");
   const removeButton = event.target.closest("[data-remove-assignment]");
   const archiveWeddingButton = event.target.closest("[data-archive-wedding]");
   const restoreWeddingButton = event.target.closest("[data-restore-wedding]");
@@ -1482,25 +1544,53 @@ detailContent.addEventListener("click", async (event) => {
       });
       setMessage("Teslimat müşteriye açıldı ve mesaj görevi oluşturuldu.", true);
     } else if (resetButton) {
-      const confirmed = await showCustomConfirm({
-        title: "Parola Bağlantısı Oluştur",
-        message: "Müşteri için tek kullanımlık parola belirleme bağlantısı hazırlansın mı?",
-        confirmText: "Bağlantı Hazırla",
-        cancelText: "Vazgeç"
-      });
-      if (!confirmed) return;
+      const confirmation = await requestDangerConfirmation(
+        {
+          title: "Müşteri parolasını sıfırla",
+          copy: "Müşterinin açık oturumları kapatılır ve tek kullanımlık parola belirleme bağlantısı hazırlanır.",
+          confirmation: resetButton.dataset.confirm,
+          button: "Parolayı Sıfırla",
+          reasonRequired: true
+        },
+        resetButton
+      );
+      if (confirmation === null) return;
       const popup = openBlankPopup();
       try {
-        const response = await apiRequest(
+        const response = await apiRequestWithAdminStepUp(
           `/admin/customers/${resetButton.dataset.resetUser}/reset-password`,
-          { method: "POST" }
+          { method: "POST", body: confirmation },
+          { actionLabel: "Müşteri parolasını sıfırlama" }
         );
+        if (!response) {
+          popup?.close();
+          return;
+        }
         await openWhatsAppMessage(response.data, popup);
         setMessage("Tek kullanımlık bağlantı panoya kopyalandı ve WhatsApp açıldı.", true);
       } catch (error) {
         popup?.close();
         throw error;
       }
+    } else if (resetMfaButton) {
+      const confirmation = await requestDangerConfirmation(
+        {
+          title: "Müşteri MFA kaydını sıfırla",
+          copy: "Müşterinin doğrulama uygulaması kaydı kaldırılır ve tüm açık oturumları kapatılır. Müşteri yeniden giriş yapmak zorundadır.",
+          confirmation: resetMfaButton.dataset.confirm,
+          button: "MFA'yı Sıfırla",
+          reasonRequired: true
+        },
+        resetMfaButton
+      );
+      if (confirmation === null) return;
+      const response = await apiRequestWithAdminStepUp(
+        `/admin/customers/${resetMfaButton.dataset.resetMfa}/reset-mfa`,
+        { method: "POST", body: confirmation },
+        { actionLabel: "Müşteri MFA kaydını sıfırlama" }
+      );
+      if (!response) return;
+      setMessage("Müşteri MFA kaydı sıfırlandı ve açık oturumları kapatıldı.", true);
     } else if (archiveWeddingButton) {
       const accepted = await requestDangerConfirmation(
         {
@@ -1527,33 +1617,46 @@ detailContent.addEventListener("click", async (event) => {
           title: "Düğünü kalıcı sil",
           copy: "Bu işlem geri alınamaz. Operasyon kayıtları silinir; denetim kayıtları korunur.",
           confirmation: deleteWeddingButton.dataset.confirm,
-          button: "Kalıcı Sil"
+          button: "Kalıcı Sil",
+          reasonRequired: true
         },
         deleteWeddingButton
       );
       if (confirmation === null) return;
       deleteWeddingButton.disabled = true;
-      await apiRequest(`/admin/weddings/${deleteWeddingButton.dataset.deleteWedding}`, {
-        method: "DELETE",
-        body: { confirmText: confirmation }
-      });
+      const response = await apiRequestWithAdminStepUp(
+        `/admin/weddings/${deleteWeddingButton.dataset.deleteWedding}`,
+        { method: "DELETE", body: confirmation },
+        { actionLabel: "Düğünü kalıcı silme" }
+      );
+      if (!response) {
+        deleteWeddingButton.disabled = false;
+        return;
+      }
       detailDialog.close();
       setMessage("Düğün kalıcı olarak silindi.", true);
     } else if (removeButton) {
-      const accepted = await requestDangerConfirmation(
+      const confirmation = await requestDangerConfirmation(
         {
           title: "Personel atamasını kaldır",
           copy: "Bu işlem yalnızca atamayı kaldırır; geçmiş düğün ve personel kayıtları silinmez.",
-          button: "Atamayı kaldır"
+          confirmation: "ATAMAYI KALDIR",
+          button: "Atamayı kaldır",
+          reasonRequired: true
         },
         removeButton
       );
-      if (accepted === null) return;
+      if (confirmation === null) return;
       removeButton.disabled = true;
-      await apiRequest(
+      const response = await apiRequestWithAdminStepUp(
         `/admin/weddings/${state.currentWedding.id}/assignments/${removeButton.dataset.removeAssignment}`,
-        { method: "DELETE" }
+        { method: "DELETE", body: confirmation },
+        { actionLabel: "Personel atamasını kaldırma" }
       );
+      if (!response) {
+        removeButton.disabled = false;
+        return;
+      }
       removeButton.disabled = false;
       setMessage("Personel ataması kaldırıldı.", true);
     } else return;
@@ -1603,17 +1706,20 @@ document.querySelector(".js-staff").addEventListener("click", (event) => {
         title: "Personeli sil",
         copy: "Ataması varsa personel silinmez, pasife alınır. Ataması yoksa işlem geri alınamaz.",
         confirmation: deleteButton.dataset.confirm,
-        button: "Devam et"
+        button: "Devam et",
+        reasonRequired: true
       },
       deleteButton
     ).then(async (confirmation) => {
       if (confirmation === null) return;
       deleteButton.disabled = true;
       try {
-        const response = await apiRequest(`/admin/staff/${deleteButton.dataset.deleteStaff}`, {
-          method: "DELETE",
-          body: { confirmText: confirmation }
-        });
+        const response = await apiRequestWithAdminStepUp(
+          `/admin/staff/${deleteButton.dataset.deleteStaff}`,
+          { method: "DELETE", body: confirmation },
+          { actionLabel: "Personel kaydını silme" }
+        );
+        if (!response) return;
         setMessage(
           response.data.action === "deactivated"
             ? "Personelin geçmiş atamaları var; pasife alındı."
@@ -1689,10 +1795,19 @@ managerForm.addEventListener("submit", async (event) => {
     ...(data.get("password") ? { password: data.get("password") } : {})
   };
   try {
-    await apiRequest(managerId ? `/admin/venue-managers/${managerId}` : "/admin/venue-managers", {
-      method: managerId ? "PATCH" : "POST",
-      body
-    });
+    const response = await apiRequestWithAdminStepUp(
+      managerId ? `/admin/venue-managers/${managerId}` : "/admin/venue-managers",
+      {
+        method: managerId ? "PATCH" : "POST",
+        body
+      },
+      {
+        actionLabel: managerId
+          ? "Salon sorumlusu hesabını değiştirme"
+          : "Salon sorumlusu hesabı oluşturma"
+      }
+    );
+    if (!response) return;
     managerDialog.close();
     setMessage(managerId ? "Salon sorumlusu güncellendi." : "Salon sorumlusu eklendi.", true);
     await loadManagers();
@@ -1708,10 +1823,15 @@ document.querySelector(".js-messages").addEventListener("click", async (event) =
     if (openButton) {
       const popup = openBlankPopup();
       try {
-        const response = await apiRequest(
+        const response = await apiRequestWithAdminStepUp(
           `/admin/message-tasks/${openButton.dataset.openMessage}/render`,
-          { method: "POST", body: {} }
+          { method: "POST", body: {} },
+          { actionLabel: "Hassas müşteri mesajını ve kimlik bağlantısını hazırlama" }
         );
+        if (!response) {
+          popup?.close();
+          return;
+        }
         await openWhatsAppMessage(response.data, popup);
         const markButton = document.querySelector(
           `[data-mark-sent="${openButton.dataset.openMessage}"]`
@@ -1839,21 +1959,26 @@ document
             : "Mekânı";
       const name = row.dataset.catalogName || "Katalog kaydı";
       const isVenue = row.dataset.catalogType === "venues";
-      const accepted = await showCustomConfirm({
-        title: `${typeLabel} ${isVenue ? "Kaldır" : "Sil"}`,
-        message: isVenue
-          ? `"${name}" mekânını kaldırmak istediğinizden emin misiniz? İlişkili operasyon kayıtları varsa mekân güvenli biçimde pasife alınır.`
-          : `"${name}" seçeneğini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`,
-        badge: isVenue ? "KALDIRMA ONAYI" : "SİLME ONAYI",
-        confirmText: isVenue ? "Kaldır" : "Sil",
-        cancelText: "Vazgeç",
-        isDanger: true
-      });
-      if (!accepted) return;
+      const confirmation = await requestDangerConfirmation(
+        {
+          title: `${typeLabel} ${isVenue ? "kaldır" : "sil"}`,
+          copy: isVenue
+            ? `"${name}" mekânı ilişkili operasyon kaydı varsa pasife alınır; yoksa kalıcı silinir.`
+            : `"${name}" seçeneği kullanılmıyorsa kalıcı silinir; ilişkili kayıt varsa pasife alınır.`,
+          confirmation: name,
+          button: isVenue ? "Kaldır" : "Sil",
+          reasonRequired: true
+        },
+        deleteButton
+      );
+      if (confirmation === null) return;
       try {
-        await apiRequest(`/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`, {
-          method: "DELETE"
-        });
+        const response = await apiRequestWithAdminStepUp(
+          `/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`,
+          { method: "DELETE", body: confirmation },
+          { actionLabel: `${typeLabel} ${isVenue ? "kaldırma" : "silme"}` }
+        );
+        if (!response) return;
         await loadCatalogAdmin();
         setMessage(`${typeLabel} ${isVenue ? "kaldırıldı" : "silindi"}.`, true);
       } catch (error) {
@@ -2124,27 +2249,32 @@ weddingForm.addEventListener("submit", async (event) => {
   const data = new FormData(weddingForm);
   const weddingId = data.get("weddingId");
   try {
-    const response = await apiRequest(`/admin/weddings/${weddingId}`, {
-      method: "PATCH",
-      body: {
-        brideFirstName: data.get("brideFirstName"),
-        brideLastName: data.get("brideLastName"),
-        bridePhone: data.get("bridePhone"),
-        groomFirstName: data.get("groomFirstName"),
-        groomLastName: data.get("groomLastName"),
-        groomPhone: data.get("groomPhone"),
-        primaryContact: data.get("primaryContact"),
-        primaryEmail: data.get("primaryEmail"),
-        weddingDate: data.get("weddingDate"),
-        startTime: data.get("startTime"),
-        endTime: data.get("endTime"),
-        endsNextDay: data.has("endsNextDay"),
-        venueId: data.get("venueId"),
-        packageCode: data.get("packageCode"),
-        serviceCodes: data.getAll("serviceCodes"),
-        note: data.get("note") || undefined
-      }
-    });
+    const response = await apiRequestWithAdminStepUp(
+      `/admin/weddings/${weddingId}`,
+      {
+        method: "PATCH",
+        body: {
+          brideFirstName: data.get("brideFirstName"),
+          brideLastName: data.get("brideLastName"),
+          bridePhone: data.get("bridePhone"),
+          groomFirstName: data.get("groomFirstName"),
+          groomLastName: data.get("groomLastName"),
+          groomPhone: data.get("groomPhone"),
+          primaryContact: data.get("primaryContact"),
+          primaryEmail: data.get("primaryEmail"),
+          weddingDate: data.get("weddingDate"),
+          startTime: data.get("startTime"),
+          endTime: data.get("endTime"),
+          endsNextDay: data.has("endsNextDay"),
+          venueId: data.get("venueId"),
+          packageCode: data.get("packageCode"),
+          serviceCodes: data.getAll("serviceCodes"),
+          note: data.get("note") || undefined
+        }
+      },
+      { actionLabel: "Düğün ve müşteri kimlik bilgilerini güncelleme" }
+    );
+    if (!response) return;
     weddingDialog.close();
     setMessage(
       response.data.credentialsRegenerated

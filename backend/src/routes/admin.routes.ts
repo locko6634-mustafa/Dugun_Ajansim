@@ -1,12 +1,14 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type StaffSpecialty } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { env } from "../config/env.config.js";
 import { prisma } from "../config/prisma.js";
 import {
+  assertRecentAdminStepUp,
   authenticate,
   requireChangedPassword,
+  requireRecentAdminStepUp,
   requireRole,
   verifyCsrf
 } from "../middlewares/auth.middleware.js";
@@ -45,14 +47,14 @@ import {
 } from "../services/booking.service.js";
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { createOpaqueToken, decryptValue, encryptValue, hashPassword } from "../utils/crypto.js";
+import { createOpaqueToken, hashPassword } from "../utils/crypto.js";
+import { buildDeliveryDriveUrlData, decryptDeliveryDriveUrl } from "../utils/delivery-crypto.js";
 import {
   assertGoogleDriveUrl,
   addCalendarDays,
   atIstanbulTime,
   createTemporaryPasswordExpiry,
   createWeddingRange,
-  deliveryEncryptionAad,
   getIstanbulDate,
   normalizePhone
 } from "../utils/domain.js";
@@ -60,11 +62,13 @@ import {
   bookingApplicationWithDecryptedPii,
   buildBookingApplicationPiiData,
   buildMessageTaskPiiData,
+  buildStaffPiiData,
   buildWeddingPiiData,
   decryptBookingApplicationPii,
   decryptMessageTaskPii,
   decryptWeddingPii,
   messageTaskWithDecryptedPii,
+  staffWithDecryptedPii,
   weddingWithDecryptedPii
 } from "../utils/pii-crypto.js";
 import { createPasswordSetupUrl, issuePasswordSetupToken } from "../utils/passwordSetup.js";
@@ -97,7 +101,7 @@ const dashboardWeddingInclude = {
   venue: { select: { name: true } },
   delivery: { select: { id: true, status: true, dueDate: true, releasedAt: true } },
   assignments: {
-    include: { staff: { select: { id: true, firstName: true, lastName: true, isActive: true } } },
+    include: { staff: true },
     orderBy: { createdAt: "asc" as const }
   }
 } satisfies Prisma.WeddingInclude;
@@ -132,6 +136,28 @@ const weddingNames = (wedding: WeddingPiiSelection) => {
   };
 };
 
+const staffNameCollator = new Intl.Collator("tr-TR", { sensitivity: "base" });
+const sortStaffByName = <StaffMember extends { firstName: string; lastName: string }>(
+  staff: StaffMember[]
+): StaffMember[] =>
+  [...staff].sort(
+    (left, right) =>
+      staffNameCollator.compare(left.lastName, right.lastName) ||
+      staffNameCollator.compare(left.firstName, right.firstName)
+  );
+
+const sortStaffByStatusAndName = <
+  StaffMember extends { firstName: string; lastName: string; isActive: boolean }
+>(
+  staff: StaffMember[]
+): StaffMember[] =>
+  [...staff].sort(
+    (left, right) =>
+      Number(right.isActive) - Number(left.isActive) ||
+      staffNameCollator.compare(left.lastName, right.lastName) ||
+      staffNameCollator.compare(left.firstName, right.firstName)
+  );
+
 const mondayOf = (date: string): string => {
   const day = new Date(`${date}T12:00:00.000Z`).getUTCDay();
   return addCalendarDays(date, -(day === 0 ? 6 : day - 1));
@@ -158,7 +184,10 @@ const dashboardWedding = (
     venue: wedding.venue,
     packageSummary: wedding.packageSummary,
     delivery: wedding.delivery,
-    assignments: wedding.assignments
+    assignments: wedding.assignments.map((assignment) => ({
+      ...assignment,
+      staff: staffWithDecryptedPii(assignment.staff)
+    }))
   };
 };
 
@@ -407,6 +436,9 @@ router.post(
           if (!archived) throw new AppError("Arşivde başvuru bulunamadı.", 404);
 
           if (archived.status === "ONAY_BEKLIYOR") {
+            if (!archived.venueId) {
+              throw new AppError("Salon bilgisi olmayan başvuru geri yüklenemez.", 409);
+            }
             await assertVenueScheduleAvailable(transaction, {
               venueId: archived.venueId,
               startsAt: archived.weddingStartsAt,
@@ -459,6 +491,7 @@ router.post(
 router.delete(
   "/booking-applications/:id",
   verifyCsrf,
+  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -488,7 +521,7 @@ router.delete(
           targetType: "BookingApplication",
           targetId: application.id,
           correlationId: req.correlationId,
-          metadata: { referenceCode: application.referenceCode }
+          metadata: { referenceCode: application.referenceCode, reason: req.body.reason }
         });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
@@ -586,8 +619,7 @@ router.get(
               }
             }
           }
-        },
-        orderBy: [{ lastName: "asc" }, { firstName: "asc" }]
+        }
       }),
       prisma.venue.findMany({
         where: { isActive: true },
@@ -624,13 +656,19 @@ router.get(
     const assignments = weekWeddings.flatMap((wedding) =>
       wedding.assignments.map((assignment) => ({ assignment, wedding }))
     );
+    const safeActiveStaff = sortStaffByName(
+      activeStaff.map(({ assignments: staffAssignments, ...staff }) => ({
+        ...staffWithDecryptedPii(staff),
+        assignments: staffAssignments
+      }))
+    );
     const conflictResult = findBoundedIntervalConflicts(assignments, {
       groupKey: ({ assignment }) => assignment.staffId,
       startsAt: ({ wedding }) => wedding.startsAt,
       endsAt: ({ wedding }) => wedding.endsAt
     });
     const conflicts = conflictResult.pairs.map(([left, right]) => ({
-      staff: left.assignment.staff,
+      staff: staffWithDecryptedPii(left.assignment.staff),
       firstWedding: dashboardWedding(left.wedding),
       secondWedding: dashboardWedding(right.wedding)
     }));
@@ -662,10 +700,10 @@ router.get(
         todayWeddings: todayWeddings.map(dashboardWedding),
         tomorrowWeddings: tomorrowWeddings.map(dashboardWedding),
         weekWeddings: weekWeddings.map(dashboardWedding),
-        idleStaff: activeStaff
+        idleStaff: safeActiveStaff
           .filter((staff) => staff.assignments.length === 0)
           .map(({ assignments: _a, ...staff }) => staff),
-        staffAvailability: activeStaff.map(({ assignments, ...staff }) => ({
+        staffAvailability: safeActiveStaff.map(({ assignments, ...staff }) => ({
           ...staff,
           isAvailable: assignments.length === 0,
           assignments: assignments.map(({ wedding, ...assignment }) => {
@@ -771,25 +809,26 @@ router.get(
           orderBy: { wedding: { startsAt: "asc" } },
           take: 5
         }
-      },
-      orderBy: [{ isActive: "desc" }, { lastName: "asc" }, { firstName: "asc" }]
+      }
     });
-    const safeStaff = staff.map(({ assignments, ...member }) => ({
-      ...member,
-      assignments: assignments.map(({ wedding, ...assignment }) => {
-        const names = weddingNames(wedding);
-        return {
-          ...assignment,
-          wedding: {
-            id: wedding.id,
-            brideFirstName: names.brideFirstName,
-            groomFirstName: names.groomFirstName,
-            startsAt: wedding.startsAt,
-            endsAt: wedding.endsAt
-          }
-        };
-      })
-    }));
+    const safeStaff = sortStaffByStatusAndName(
+      staff.map(({ assignments, ...member }) => ({
+        ...staffWithDecryptedPii(member),
+        assignments: assignments.map(({ wedding, ...assignment }) => {
+          const names = weddingNames(wedding);
+          return {
+            ...assignment,
+            wedding: {
+              id: wedding.id,
+              brideFirstName: names.brideFirstName,
+              groomFirstName: names.groomFirstName,
+              startsAt: wedding.startsAt,
+              endsAt: wedding.endsAt
+            }
+          };
+        })
+      }))
+    );
     res.json({ success: true, data: safeStaff, correlationId: req.correlationId });
   })
 );
@@ -800,11 +839,22 @@ router.post(
   validateRequest(z.object({ body: staffBodySchema, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const staff = await prisma.$transaction(async (transaction) => {
+      const staffId = randomUUID();
       const created = await transaction.staff.create({
         data: {
-          ...req.body,
-          phone: normalizePhone(req.body.phone),
-          specialties: [...new Set(req.body.specialties)]
+          id: staffId,
+          ...buildStaffPiiData(
+            staffId,
+            {
+              firstName: req.body.firstName,
+              lastName: req.body.lastName,
+              phone: normalizePhone(req.body.phone)
+            },
+            1
+          ),
+          specialties: [...new Set(req.body.specialties)] as StaffSpecialty[],
+          isActive: req.body.isActive,
+          venueId: req.body.venueId
         }
       });
       await createAudit(transaction, {
@@ -814,7 +864,7 @@ router.post(
         targetId: created.id,
         correlationId: req.correlationId
       });
-      return created;
+      return staffWithDecryptedPii(created);
     });
     res.status(201).json({ success: true, data: staff, correlationId: req.correlationId });
   })
@@ -829,12 +879,26 @@ router.patch(
   asyncHandler(async (req, res) => {
     try {
       const staff = await prisma.$transaction(async (transaction) => {
+        const current = await transaction.staff.findUnique({ where: { id: req.params.id } });
+        if (!current) throw new AppError("Personel bulunamadı.", 404);
+        const currentPii = staffWithDecryptedPii(current);
         const updated = await transaction.staff.update({
-          where: { id: req.params.id },
+          where: { id: current.id, piiRevision: current.piiRevision },
           data: {
-            ...req.body,
-            ...(req.body.phone ? { phone: normalizePhone(req.body.phone) } : {}),
-            ...(req.body.specialties ? { specialties: [...new Set(req.body.specialties)] } : {})
+            ...buildStaffPiiData(
+              current.id,
+              {
+                firstName: req.body.firstName ?? currentPii.firstName,
+                lastName: req.body.lastName ?? currentPii.lastName,
+                phone: req.body.phone ? normalizePhone(req.body.phone) : currentPii.phone
+              },
+              current.piiRevision + 1
+            ),
+            ...(req.body.specialties
+              ? { specialties: [...new Set(req.body.specialties)] as StaffSpecialty[] }
+              : {}),
+            ...(req.body.isActive === undefined ? {} : { isActive: req.body.isActive }),
+            ...(req.body.venueId ? { venueId: req.body.venueId } : {})
           }
         });
         await createAudit(transaction, {
@@ -845,7 +909,7 @@ router.patch(
           correlationId: req.correlationId,
           metadata: { active: updated.isActive }
         });
-        return updated;
+        return staffWithDecryptedPii(updated);
       });
       res.json({ success: true, data: staff, correlationId: req.correlationId });
     } catch (error) {
@@ -858,6 +922,7 @@ router.patch(
 router.delete(
   "/staff/:id",
   verifyCsrf,
+  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -866,16 +931,11 @@ router.delete(
       async (transaction) => {
         const staff = await transaction.staff.findUnique({
           where: { id: req.params.id },
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            isActive: true,
-            _count: { select: { assignments: true } }
-          }
+          include: { _count: { select: { assignments: true } } }
         });
         if (!staff) throw new AppError("Personel bulunamadı.", 404);
-        const name = `${staff.firstName} ${staff.lastName}`;
+        const staffPii = staffWithDecryptedPii(staff);
+        const name = `${staffPii.firstName} ${staffPii.lastName}`;
         if (normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation(name))
           throw new AppError("Onay metni personel adıyla eşleşmiyor.", 400);
         if (staff._count.assignments > 0) {
@@ -889,7 +949,10 @@ router.delete(
             targetType: "Staff",
             targetId: staff.id,
             correlationId: req.correlationId,
-            metadata: { reason: "historical_assignments" }
+            metadata: {
+              reason: req.body.reason,
+              dispositionReason: "historical_assignments"
+            }
           });
           return { id: updated.id, action: "deactivated" };
         }
@@ -899,7 +962,8 @@ router.delete(
           action: "staff.permanently_deleted",
           targetType: "Staff",
           targetId: staff.id,
-          correlationId: req.correlationId
+          correlationId: req.correlationId,
+          metadata: { reason: req.body.reason }
         });
         return { id: staff.id, action: "deleted" };
       },
@@ -933,6 +997,7 @@ router.get(
 router.post(
   "/venue-managers",
   verifyCsrf,
+  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: venueManagerBodySchema, query: emptyQuery, params: z.object({}) })
   ),
@@ -987,6 +1052,7 @@ router.post(
 router.patch(
   "/venue-managers/:id",
   verifyCsrf,
+  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: venueManagerUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -1097,6 +1163,10 @@ router.get(
     });
     const safeWeddings = weddings.map((wedding) => ({
       ...weddingWithDecryptedPii(wedding),
+      assignments: wedding.assignments.map((assignment) => ({
+        ...assignment,
+        staff: staffWithDecryptedPii(assignment.staff)
+      })),
       delivery: wedding.delivery
         ? {
             id: wedding.delivery.id,
@@ -1166,27 +1236,20 @@ router.get(
             }
           }
         }
-      },
-      orderBy: [{ lastName: "asc" }, { firstName: "asc" }]
+      }
     });
 
     const { delivery, ...safeWedding } = weddingWithDecryptedPii(wedding);
     const safeMessageTasks = wedding.messageTasks.map(messageTaskWithDecryptedPii);
-    let driveUrl: string | null = null;
-    if (delivery?.driveUrlCiphertext && delivery.driveUrlIv && delivery.driveUrlAuthTag) {
-      driveUrl = decryptValue(
-        {
-          ciphertext: delivery.driveUrlCiphertext,
-          iv: delivery.driveUrlIv,
-          authTag: delivery.driveUrlAuthTag
-        },
-        delivery.encryptionVersion >= 2 ? deliveryEncryptionAad(delivery.id) : undefined
-      );
-    }
+    const driveUrl = delivery ? decryptDeliveryDriveUrl(delivery) : null;
     res.json({
       success: true,
       data: {
         ...safeWedding,
+        assignments: wedding.assignments.map((assignment) => ({
+          ...assignment,
+          staff: staffWithDecryptedPii(assignment.staff)
+        })),
         messageTasks: safeMessageTasks,
         delivery: delivery
           ? {
@@ -1199,7 +1262,9 @@ router.get(
               driveUrl
             }
           : null,
-        availableStaff
+        availableStaff: sortStaffByName(
+          availableStaff.map((member) => staffWithDecryptedPii(member))
+        )
       },
       correlationId: req.correlationId
     });
@@ -1264,6 +1329,7 @@ router.post(
 router.delete(
   "/weddings/:id",
   verifyCsrf,
+  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -1316,7 +1382,11 @@ router.delete(
           targetType: "Wedding",
           targetId: wedding.id,
           correlationId: req.correlationId,
-          metadata: { applicationId: wedding.applicationId, operationalRecordsDeleted: true }
+          metadata: {
+            applicationId: wedding.applicationId,
+            operationalRecordsDeleted: true,
+            reason: req.body.reason
+          }
         });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
@@ -1420,7 +1490,11 @@ router.post(
             conflictOverride: conflicts.length > 0
           }
         });
-        return { ...created, hasConflict: conflicts.length > 0 };
+        return {
+          ...created,
+          staff: staffWithDecryptedPii(created.staff),
+          hasConflict: conflicts.length > 0
+        };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
@@ -1431,13 +1505,19 @@ router.post(
 router.delete(
   "/weddings/:id/assignments/:assignmentId",
   verifyCsrf,
-  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: assignmentParamsSchema })),
+  requireRecentAdminStepUp,
+  validateRequest(
+    z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: assignmentParamsSchema })
+  ),
   asyncHandler(async (req, res) => {
     const deleted = await prisma.$transaction(async (transaction) => {
       const assignment = await transaction.weddingAssignment.findFirst({
         where: { id: req.params.assignmentId, weddingId: req.params.id }
       });
       if (!assignment) throw new AppError("Personel ataması bulunamadı.", 404);
+      if (normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation("ATAMAYI KALDIR")) {
+        throw new AppError("Onay metni beklenen değerle eşleşmiyor.", 400);
+      }
       const removed = await transaction.weddingAssignment.deleteMany({
         where: { id: assignment.id, weddingId: assignment.weddingId }
       });
@@ -1449,7 +1529,11 @@ router.delete(
         targetType: "WeddingAssignment",
         targetId: assignment.id,
         correlationId: req.correlationId,
-        metadata: { weddingId: assignment.weddingId, staffId: assignment.staffId }
+        metadata: {
+          weddingId: assignment.weddingId,
+          staffId: assignment.staffId,
+          reason: req.body.reason
+        }
       });
       return assignment;
     });
@@ -1560,6 +1644,9 @@ router.patch(
     const canRegenerateCredentials =
       wedding.customerUser.mustChangePassword && !wedding.customerUser.passwordChangedAt;
     const regenerateCredentials = canRegenerateCredentials && (dateChanged || namesChanged);
+    if (regenerateCredentials) {
+      assertRecentAdminStepUp(req.auth!.adminStepUpVerifiedAt);
+    }
     const recipientPhone = req.body.primaryContact === "GELIN" ? bridePhone : groomPhone;
     const activationAt = atIstanbulTime(addCalendarDays(req.body.weddingDate, 1), "09:00");
     const preparationAt = atIstanbulTime(addCalendarDays(req.body.weddingDate, 2), "10:00");
@@ -1817,11 +1904,7 @@ router.patch(
                     weddingId: wedding.id,
                     kind: "ACCOUNT_ACTIVATION",
                     dueAt: activationAt,
-                    ...buildMessageTaskPiiData(
-                      activationTaskId,
-                      { recipientPhone },
-                      1
-                    )
+                    ...buildMessageTaskPiiData(activationTaskId, { recipientPhone }, 1)
                   }
                 });
               }
@@ -1911,10 +1994,12 @@ router.patch(
     }
 
     const hasDriveUrlUpdate = Object.hasOwn(req.body, "driveUrl");
-    const encrypted =
-      typeof req.body.driveUrl === "string"
-        ? encryptValue(assertGoogleDriveUrl(req.body.driveUrl), deliveryEncryptionAad(delivery.id))
-        : undefined;
+    const driveUrlData = hasDriveUrlUpdate
+      ? buildDeliveryDriveUrlData(
+          delivery.id,
+          typeof req.body.driveUrl === "string" ? assertGoogleDriveUrl(req.body.driveUrl) : null
+        )
+      : undefined;
     const nextStatus = req.body.status ?? delivery.status;
     const dueDate = req.body.dueDate ? new Date(`${req.body.dueDate}T00:00:00.000Z`) : undefined;
 
@@ -1929,21 +2014,7 @@ router.patch(
         data: {
           status: nextStatus,
           dueDate,
-          ...(hasDriveUrlUpdate
-            ? encrypted
-              ? {
-                  driveUrlCiphertext: encrypted.ciphertext,
-                  driveUrlIv: encrypted.iv,
-                  driveUrlAuthTag: encrypted.authTag,
-                  encryptionVersion: 2
-                }
-              : {
-                  driveUrlCiphertext: null,
-                  driveUrlIv: null,
-                  driveUrlAuthTag: null,
-                  encryptionVersion: 2
-                }
-            : {})
+          ...(driveUrlData ?? {})
         }
       });
       if (claimed.count !== 1) {
@@ -2187,7 +2258,10 @@ const catalogRoutes = (path: "packages" | "services", schema: z.ZodObject<any>) 
   router.delete(
     `/${path}/:id`,
     verifyCsrf,
-    validateRequest(uuidRequest),
+    requireRecentAdminStepUp,
+    validateRequest(
+      z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
+    ),
     asyncHandler(async (req, res) => {
       let row;
       try {
@@ -2195,13 +2269,19 @@ const catalogRoutes = (path: "packages" | "services", schema: z.ZodObject<any>) 
         row = await prisma.$transaction(async (transaction) => {
           const lockedRows =
             path === "packages"
-              ? await transaction.$queryRaw<Array<{ id: string }>>`
-                  SELECT "id" FROM "packages" WHERE "id" = ${id} FOR UPDATE
+              ? await transaction.$queryRaw<Array<{ id: string; name: string }>>`
+                  SELECT "id", "name" FROM "packages" WHERE "id" = ${id} FOR UPDATE
                 `
-              : await transaction.$queryRaw<Array<{ id: string }>>`
-                  SELECT "id" FROM "services" WHERE "id" = ${id} FOR UPDATE
+              : await transaction.$queryRaw<Array<{ id: string; name: string }>>`
+                  SELECT "id", "name" FROM "services" WHERE "id" = ${id} FOR UPDATE
                 `;
           if (lockedRows.length !== 1) throw new AppError("Katalog kaydı bulunamadı.", 404);
+          if (
+            normalizeConfirmation(req.body.confirmText) !==
+            normalizeConfirmation(lockedRows[0]!.name)
+          ) {
+            throw new AppError("Onay metni katalog adıyla eşleşmiyor.", 400);
+          }
 
           const isReferenced =
             path === "packages"
@@ -2234,7 +2314,8 @@ const catalogRoutes = (path: "packages" | "services", schema: z.ZodObject<any>) 
             action: `${actionPrefix}.${isReferenced ? "deactivated" : "deleted"}`,
             targetType,
             targetId: result.id,
-            correlationId: req.correlationId
+            correlationId: req.correlationId,
+            metadata: { reason: req.body.reason }
           });
           return result;
         });
@@ -2321,16 +2402,24 @@ router.patch(
 router.delete(
   "/venues/:id",
   verifyCsrf,
-  validateRequest(uuidRequest),
+  requireRecentAdminStepUp,
+  validateRequest(
+    z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
+  ),
   asyncHandler(async (req, res) => {
     let venue;
     try {
       const id = req.params.id;
       venue = await prisma.$transaction(async (transaction) => {
-        const lockedRows = await transaction.$queryRaw<Array<{ id: string }>>`
-          SELECT "id" FROM "venues" WHERE "id" = ${id} FOR UPDATE
+        const lockedRows = await transaction.$queryRaw<Array<{ id: string; name: string }>>`
+          SELECT "id", "name" FROM "venues" WHERE "id" = ${id} FOR UPDATE
         `;
         if (lockedRows.length !== 1) throw new AppError("Mekân bulunamadı.", 404);
+        if (
+          normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation(lockedRows[0]!.name)
+        ) {
+          throw new AppError("Onay metni mekân adıyla eşleşmiyor.", 400);
+        }
 
         const referenceCounts = await Promise.all([
           transaction.user.count({ where: { venueId: id } }),
@@ -2355,7 +2444,8 @@ router.delete(
           action: `venue.${isReferenced ? "deactivated" : "deleted"}`,
           targetType: "Venue",
           targetId: result.id,
-          correlationId: req.correlationId
+          correlationId: req.correlationId,
+          metadata: { reason: req.body.reason }
         });
         return result;
       });
@@ -2406,6 +2496,7 @@ router.get(
         secretCiphertext: _ciphertext,
         secretIv: _iv,
         secretAuthTag: _tag,
+        encryptionVersion: _secretEncryptionVersion,
         wedding: rawWedding,
         ...task
       } = decryptedTask;
@@ -2418,6 +2509,7 @@ router.get(
 const renderMessage = async (
   taskId: string,
   actorUserId: string,
+  adminStepUpVerifiedAt: Date | null,
   transaction: Prisma.TransactionClient = prisma
 ) => {
   const task = await transaction.messageTask.findUnique({
@@ -2432,10 +2524,12 @@ const renderMessage = async (
     }
   });
   if (!task) throw new AppError("Mesaj görevi bulunamadı.", 404);
-  if (
-    (task.kind === "ACCOUNT_ACTIVATION" || task.kind === "PASSWORD_RESET") &&
-    task.status !== "PENDING"
-  ) {
+  const isSensitiveCredentialTask =
+    task.kind === "ACCOUNT_ACTIVATION" || task.kind === "PASSWORD_RESET";
+  if (isSensitiveCredentialTask) {
+    assertRecentAdminStepUp(adminStepUpVerifiedAt);
+  }
+  if (isSensitiveCredentialTask && task.status !== "PENDING") {
     throw new AppError("Bu parola bağlantısı görevi artık etkin değil.", 409);
   }
 
@@ -2490,7 +2584,12 @@ router.post(
   validateRequest(uuidRequest),
   asyncHandler(async (req, res) => {
     const rendered = await prisma.$transaction(async (transaction) => {
-      const result = await renderMessage(req.params.id, req.auth!.userId, transaction);
+      const result = await renderMessage(
+        req.params.id,
+        req.auth!.userId,
+        req.auth!.adminStepUpVerifiedAt,
+        transaction
+      );
       if (result.task.kind === "ACCOUNT_ACTIVATION" || result.task.kind === "PASSWORD_RESET") {
         await createAudit(transaction, {
           actorUserId: req.auth!.userId,
@@ -2569,7 +2668,10 @@ router.post(
 router.post(
   "/customers/:id/reset-password",
   verifyCsrf,
-  validateRequest(uuidRequest),
+  requireRecentAdminStepUp,
+  validateRequest(
+    z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
+  ),
   asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { id: req.params.id },
@@ -2577,6 +2679,9 @@ router.post(
     });
     if (!user || user.role !== "MUSTERI" || !user.customerWedding) {
       throw new AppError("Müşteri hesabı bulunamadı.", 404);
+    }
+    if (normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation(user.username)) {
+      throw new AppError("Onay metni müşteri kullanıcı adıyla eşleşmiyor.", 400);
     }
 
     const passwordHash = await hashPassword(createOpaqueToken(48));
@@ -2681,15 +2786,110 @@ router.post(
         action: "customer.password_reset",
         targetType: "User",
         targetId: user.id,
-        correlationId: req.correlationId
+        correlationId: req.correlationId,
+        metadata: { reason: req.body.reason }
       });
       return messageTask;
     });
-    const rendered = await renderMessage(task.id, req.auth!.userId);
+    const rendered = await renderMessage(
+      task.id,
+      req.auth!.userId,
+      req.auth!.adminStepUpVerifiedAt
+    );
     res.set("Cache-Control", "no-store");
     res.json({
       success: true,
       data: { taskId: task.id, message: rendered.message, whatsappUrl: rendered.whatsappUrl },
+      correlationId: req.correlationId
+    });
+  })
+);
+
+router.post(
+  "/customers/:id/reset-mfa",
+  verifyCsrf,
+  requireRecentAdminStepUp,
+  validateRequest(
+    z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
+  ),
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        updatedAt: true,
+        totpSecretCiphertext: true,
+        totpEnabledAt: true,
+        customerWedding: { select: { id: true } }
+      }
+    });
+    if (!user || user.role !== "MUSTERI" || !user.customerWedding) {
+      throw new AppError("Müşteri hesabı bulunamadı.", 404);
+    }
+    if (normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation(user.username)) {
+      throw new AppError("Onay metni müşteri kullanıcı adıyla eşleşmiyor.", 400);
+    }
+    if (user.totpEnabledAt === null) {
+      throw new AppError("Müşteri hesabında etkin iki adımlı doğrulama bulunmuyor.", 409);
+    }
+
+    const now = new Date();
+    const result = await prisma.$transaction(
+      async (transaction) => {
+        const claimedUser = await transaction.user.updateMany({
+          where: {
+            id: user.id,
+            role: "MUSTERI",
+            updatedAt: user.updatedAt,
+            totpEnabledAt: user.totpEnabledAt,
+            totpSecretCiphertext: user.totpSecretCiphertext
+          },
+          data: {
+            totpSecretCiphertext: null,
+            totpSecretIv: null,
+            totpSecretAuthTag: null,
+            totpKeyId: null,
+            totpEnrollmentExpiresAt: null,
+            totpEnabledAt: null,
+            totpLastUsedStep: null
+          }
+        });
+        if (claimedUser.count !== 1) {
+          throw new AppError("Müşteri MFA kaydı başka bir işlemde güncellendi.", 409);
+        }
+        const revokedSessions = await transaction.authSession.updateMany({
+          where: { userId: user.id, revokedAt: null },
+          data: { revokedAt: now }
+        });
+        const revokedSetupTokens = await transaction.passwordSetupToken.updateMany({
+          where: { userId: user.id, usedAt: null, revokedAt: null },
+          data: { revokedAt: now }
+        });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "customer.mfa_recovery_reset",
+          targetType: "User",
+          targetId: user.id,
+          correlationId: req.correlationId,
+          metadata: {
+            reason: req.body.reason,
+            sessionsRevoked: revokedSessions.count,
+            passwordSetupTokensRevoked: revokedSetupTokens.count
+          }
+        });
+        return {
+          sessionsRevoked: revokedSessions.count,
+          passwordSetupTokensRevoked: revokedSetupTokens.count
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+
+    res.json({
+      success: true,
+      data: { mfaEnabled: false, ...result },
       correlationId: req.correlationId
     });
   })
