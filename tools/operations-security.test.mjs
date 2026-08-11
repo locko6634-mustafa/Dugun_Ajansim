@@ -51,6 +51,59 @@ test("watchdog yalnız uygulama katmanını onarır ve PostgreSQL arızasını o
   assert.match(deployWorkflow, /group: production-operations/);
 });
 
+test("üretim domaini deploy ve watchdog sağlık kapılarında tek sözleşmedir", () => {
+  const exampleEnvironment = readProjectFile(".env.production.example");
+  const deployWorkflow = readProjectFile(".github/workflows/deploy.yml");
+  const watchdogWorkflow = readProjectFile(".github/workflows/production-watchdog.yml");
+  const deployReadme = readProjectFile("deploy/README.md");
+  const productionFiles = [exampleEnvironment, deployWorkflow, watchdogWorkflow, deployReadme];
+
+  assert.match(exampleEnvironment, /^APP_DOMAIN=dugunajansim\.com$/m);
+  assert.match(deployWorkflow, /^\s*PUBLIC_ORIGIN: https:\/\/dugunajansim\.com$/m);
+  assert.match(watchdogWorkflow, /^\s*PUBLIC_ORIGIN: https:\/\/dugunajansim\.com$/m);
+  assert.match(deployReadme, /curl -fsS "https:\/\/dugunajansim\.com\/healthz"/);
+  assert.match(deployReadme, /curl -fsS "https:\/\/dugunajansim\.com\/api\/v1\/health"/);
+
+  for (const productionFile of productionFiles) {
+    assert.doesNotMatch(productionFile, /dugun\.n8n-mustafa\.me/);
+  }
+});
+
+test("edge proxy Docker API erişimini exact allowlistli internal proxy ile sınırlar", () => {
+  const edgeProxy = readProjectFile("deploy/edge-proxy.compose.yaml");
+
+  assert.match(
+    edgeProxy,
+    /ghcr\.io\/wollomatic\/socket-proxy:1\.13\.0@sha256:0cca81832f3cc99df2b9eca6a25d133b2a2594ab9474bfdc1366fc38495daf97/
+  );
+  assert.match(edgeProxy, /user: "65534:\$\{DOCKER_GID:\?DOCKER_GID must be set\}"/);
+  assert.match(edgeProxy, /SP_ALLOWFROM: "traefik"/);
+  assert.match(edgeProxy, /SP_ALLOW_HEAD: "\/_ping"/);
+  assert.match(
+    edgeProxy,
+    /SP_ALLOW_GET: '\/v\[0-9\]\+\\\.\[0-9\]\+\/\(version\|containers\/json\|containers\/\[0-9a-f\]\{64\}\/json\|events\)'/
+  );
+  assert.match(edgeProxy, /--providers\.docker\.endpoint=tcp:\/\/socket-proxy:2375/);
+  assert.doesNotMatch(edgeProxy, /--providers\.docker\.endpoint=unix:/);
+  assert.equal(edgeProxy.match(/source: \/var\/run\/docker\.sock/g)?.length, 1);
+  assert.match(
+    edgeProxy,
+    /socket_proxy:\s+name: edge_socket_proxy\s+driver: bridge\s+internal: true/
+  );
+  assert.match(edgeProxy, /ipv4_address: 172\.30\.0\.2/);
+  assert.match(edgeProxy, /- "80:80\/tcp"/);
+  assert.match(edgeProxy, /- "443:443\/tcp"/);
+});
+
+test("SSH drop-in kalan forwarding ve kullanıcı RC yüzeylerini kapatır", () => {
+  const sshPolicy = readProjectFile("deploy/ssh/00-dugun-restrictions.conf");
+
+  assert.match(sshPolicy, /^AllowStreamLocalForwarding no$/m);
+  assert.match(sshPolicy, /^PermitUserRC no$/m);
+  assert.match(sshPolicy, /^ClientAliveInterval 300$/m);
+  assert.match(sshPolicy, /^ClientAliveCountMax 2$/m);
+});
+
 test("dağıtım ve geri alma en az iki backend replikasını korur", () => {
   const deployScript = readProjectFile("deploy/deploy-production.sh");
   const deployReadme = readProjectFile("deploy/README.md");

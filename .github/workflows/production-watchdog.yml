@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     env:
-      PUBLIC_ORIGIN: https://dugun.n8n-mustafa.me
+      PUBLIC_ORIGIN: https://dugunajansim.com
       BACKEND_REPLICAS: "2"
       WATCHDOG_RECOVERY_TIMEOUT_SECONDS: "90"
       SERVER_HOST_FINGERPRINT: ${{ secrets.SERVER_HOST_FINGERPRINT }}

@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
-      PUBLIC_ORIGIN: https://dugun.n8n-mustafa.me
+      PUBLIC_ORIGIN: https://dugunajansim.com
       BACKUP_MIN_FREE_MIB: "1024"
       BACKUP_RETENTION_DAYS: "30"
       BACKUP_MAX_FILES: "30"

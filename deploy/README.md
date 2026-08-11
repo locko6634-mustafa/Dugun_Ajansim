@@ -8,6 +8,25 @@
 - GitHub production environment içinde sunucu bilgileri, SSH anahtarı ve doğrulanmış
   `SERVER_HOST_FINGERPRINT` secret'ı tanımlanmalı.
 
+`deploy/edge-proxy.compose.yaml`, sunucudaki `/opt/edge-proxy/compose.yaml` için kanonik
+güvenlik sözleşmesidir. Traefik Docker socket'ini doğrudan bağlamaz; yalnız Traefik ile non-root
+socket proxy'nin yer aldığı `internal` ağ üzerinden exact method/path allowlist'i kullanır.
+`/opt/edge-proxy/.env` yalnız `deploy/edge-proxy.env.example` içindeki `ACME_EMAIL` ve
+`DOCKER_GID` adlarını sağlamalı; `DOCKER_GID` değeri sunucuda
+`stat -Lc '%g' /var/run/docker.sock` ile doğrulanmalıdır. Edge proxy değişikliğini etkinleştirmeden
+önce şu salt okunur parse kontrolünü çalıştırın:
+
+```bash
+sudo docker compose --env-file /opt/edge-proxy/.env \
+  -f /opt/edge-proxy/compose.yaml config -q
+```
+
+Sunucudaki `/etc/ssh/sshd_config.d/00-dugun-restrictions.conf`, izlenen
+`deploy/ssh/00-dugun-restrictions.conf` dosyasıyla birebir eşleşmeli ve `root:root 600` olmalıdır.
+Değişiklik yalnız `sudo sshd -t` ile sözdizimi, `sudo sshd -T` ile etkili değerler doğrulandıktan
+sonra `sudo systemctl reload ssh` ile etkinleştirilmelidir; mevcut kurtarma oturumu yeni public-key
+bağlantısı ve `sudo -n` doğrulanana kadar kapatılmamalıdır.
+
 ## İlk kurulum
 
 ```bash
@@ -150,8 +169,8 @@ ayda bir bu kopyadan bağımsız restore tatbikatı yapın.
 
 ```bash
 docker compose --env-file .env.production -f compose.production.yaml ps
-curl -fsS "https://dugun.n8n-mustafa.me/healthz"
-curl -fsS "https://dugun.n8n-mustafa.me/api/v1/health"
+curl -fsS "https://dugunajansim.com/healthz"
+curl -fsS "https://dugunajansim.com/api/v1/health"
 ```
 
 `.env.production` dosyasını repoya eklemeyin. `DATA_ENCRYPTION_KEY` değişirse mevcut şifreli
