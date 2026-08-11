@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-readonly production_secret_root="/run/dugun-ajansim-secrets"
-
 production_secret_error() {
   printf '%s\n' "Production secret doğrulaması başarısız: $1" >&2
   return 1
@@ -83,7 +81,8 @@ require_empty_production_environment_value() {
 validate_production_secret_sources() {
   local environment_file_path="$1"
   local expected_owner_id="$2"
-  local secret_root="${3:-$production_secret_root}"
+  local secret_root="${3:-}"
+  local canonical_secret_root
   local secret_root_mode
   local secret_root_owner
   local variable_name
@@ -96,6 +95,15 @@ validate_production_secret_sources() {
 
   [[ "$(read_production_environment_value "$environment_file_path" USE_FILE_SECRETS)" == "1" ]] || {
     production_secret_error "USE_FILE_SECRETS .env.production içinde tam olarak 1 olmalıdır."
+    return 1
+  }
+
+  if [[ -z "$secret_root" ]]; then
+    secret_root="$(read_production_environment_value "$environment_file_path" PRODUCTION_SECRET_ROOT)" ||
+      return 1
+  fi
+  [[ "$secret_root" == /* && "$secret_root" != *$'\n'* && "$secret_root" != *$'\r'* ]] || {
+    production_secret_error "PRODUCTION_SECRET_ROOT mutlak ve tek satırlı bir yol olmalıdır."
     return 1
   }
 
@@ -120,6 +128,11 @@ DIRECT_SECRET_CONTRACT
 
   [[ -d "$secret_root" && ! -L "$secret_root" ]] || {
     production_secret_error "$secret_root normal bir dizin olmalıdır."
+    return 1
+  }
+  canonical_secret_root="$(cd "$secret_root" && pwd -P)" || return 1
+  [[ "$canonical_secret_root" == "$secret_root" ]] || {
+    production_secret_error "PRODUCTION_SECRET_ROOT symlink veya kanonik olmayan yol içeremez."
     return 1
   }
   secret_root_mode="$(stat -c '%a' -- "$secret_root")"
@@ -149,8 +162,9 @@ DIRECT_SECRET_CONTRACT
     secret_owner="$(stat -c '%u' -- "$secret_path")"
     secret_links="$(stat -c '%h' -- "$secret_path")"
     secret_size="$(stat -c '%s' -- "$secret_path")"
-    [[ "$secret_mode" == "600" || "$secret_mode" == "400" ]] || {
-      production_secret_error "$variable_name izinleri yalnız 600 veya 400 olabilir."
+    [[ "$secret_mode" == "400" || "$secret_mode" == "440" || "$secret_mode" == "444" ||
+      "$secret_mode" == "600" ]] || {
+      production_secret_error "$variable_name izinleri yalnız 400, 440, 444 veya 600 olabilir."
       return 1
     }
     [[ "$secret_owner" == "$expected_owner_id" ]] || {

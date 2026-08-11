@@ -11,6 +11,7 @@ readonly backend_replicas="${BACKEND_REPLICAS:-2}"
 readonly recovery_timeout_seconds="${WATCHDOG_RECOVERY_TIMEOUT_SECONDS:-90}"
 
 source "$watchdog_script_directory/validate-production-secrets.sh"
+source "$watchdog_script_directory/public-health.sh"
 
 fail() {
   printf '%s\n' "Watchdog güvenlik kontrolü başarısız: $1" >&2
@@ -39,8 +40,7 @@ done
 require_integer_range "BACKEND_REPLICAS" "$backend_replicas" 2 8
 require_integer_range "WATCHDOG_RECOVERY_TIMEOUT_SECONDS" "$recovery_timeout_seconds" 30 300
 [[ "$use_file_secrets" == "1" ]] || fail "Watchdog USE_FILE_SECRETS=1 olmadan çalıştırılamaz."
-[[ "${PUBLIC_ORIGIN:-}" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] ||
-  fail "PUBLIC_ORIGIN yalnızca güvenli HTTPS origin olmalıdır."
+validate_public_healthcheck_configuration
 
 repository_root="$(git rev-parse --show-toplevel)"
 [[ "$(pwd -P)" == "$(cd "$repository_root" && pwd -P)" ]] ||
@@ -146,9 +146,6 @@ mapfile -t postgres_ids <<<"$postgres_output"
 reconcile_service backend "$backend_replicas"
 reconcile_service frontend 1
 
-curl -fsS --max-time 10 --retry 2 --retry-delay 2 --retry-all-errors \
-  "$PUBLIC_ORIGIN/healthz" | grep -qx ok
-curl -fsS --max-time 10 --retry 2 --retry-delay 2 --retry-all-errors \
-  "$PUBLIC_ORIGIN/api/v1/health" >/dev/null
+verify_public_edge_health 10 2 2
 
 printf 'WATCHDOG_OK=1\n'

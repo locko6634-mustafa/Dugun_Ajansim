@@ -28,6 +28,7 @@ jobs:
     env:
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
       PUBLIC_ORIGIN: https://dugunajansim.com
+      PUBLIC_HEALTHCHECK_MODE: ${{ vars.PUBLIC_HEALTHCHECK_MODE || 'strict' }}
       BACKUP_MIN_FREE_MIB: "1024"
       BACKUP_RETENTION_DAYS: "30"
       BACKUP_MAX_FILES: "30"
@@ -54,7 +55,7 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           timeout: 60s
           command_timeout: 45m
-          envs: DEPLOY_SHA,PUBLIC_ORIGIN,BACKUP_MIN_FREE_MIB,BACKUP_RETENTION_DAYS,BACKUP_MAX_FILES,LEGACY_PLAINTEXT_BACKUP_CLEANUP,USE_FILE_SECRETS,BACKEND_REPLICAS
+          envs: DEPLOY_SHA,PUBLIC_ORIGIN,PUBLIC_HEALTHCHECK_MODE,BACKUP_MIN_FREE_MIB,BACKUP_RETENTION_DAYS,BACKUP_MAX_FILES,LEGACY_PLAINTEXT_BACKUP_CLEANUP,USE_FILE_SECRETS,BACKEND_REPLICAS
           script_stop: true
           script: |
             set -eu

@@ -18,6 +18,7 @@ readonly backend_replicas="${BACKEND_REPLICAS:-2}"
 readonly operation="${1:-deploy}"
 
 source "$deployment_script_directory/validate-production-secrets.sh"
+source "$deployment_script_directory/public-health.sh"
 
 backup_only=0
 case "$operation" in
@@ -469,8 +470,7 @@ done
 is_sha "${DEPLOY_SHA:-}" || fail "DEPLOY_SHA 40 karakterlik küçük harf SHA olmalıdır."
 if (( backup_only == 0 )); then
   is_sha "${PREVIOUS_SHA:-}" || fail "PREVIOUS_SHA 40 karakterlik küçük harf SHA olmalıdır."
-  [[ "${PUBLIC_ORIGIN:-}" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] ||
-    fail "PUBLIC_ORIGIN yalnızca güvenli HTTPS origin olmalıdır."
+  validate_public_healthcheck_configuration
 fi
 require_integer_range "BACKUP_MIN_FREE_MIB" "$minimum_backup_reserve_mib" 256 1048576
 require_integer_range "BACKUP_RETENTION_DAYS" "$backup_retention_days" 1 3650
@@ -741,11 +741,7 @@ verify_backend_replicas
 "${compose[@]}" up -d --no-build --no-deps --wait frontend
 "${compose[@]}" exec -T frontend sh -c \
   "wget -qO- http://127.0.0.1:8080/healthz | grep -qx ok"
-curl -fsS --max-time 10 --retry 5 --retry-delay 3 --retry-all-errors \
-  "$PUBLIC_ORIGIN/healthz" | grep -qx ok
-curl -fsS --max-time 10 --retry 5 --retry-delay 3 --retry-all-errors \
-  "$PUBLIC_ORIGIN/api/v1/health" >/dev/null
-log "PUBLIC_TRAFFIC_HEALTHY=1"
+verify_public_edge_health 10 5 3
 deployment_verified=1
 
 "${compose[@]}" --profile operations run --rm --no-deps -T data-retention

@@ -36,6 +36,7 @@ mkdir -p -- "$secret_root"
 chmod 700 "$secret_root"
 : >"$fixture_environment_file"
 printf '%s\n' "USE_FILE_SECRETS=1" >>"$fixture_environment_file"
+printf 'PRODUCTION_SECRET_ROOT=%s\n' "$secret_root" >>"$fixture_environment_file"
 for contract in "${secret_contract[@]}"; do
   variable_name="${contract%%:*}"
   filename="${contract#*:}"
@@ -45,7 +46,22 @@ for contract in "${secret_contract[@]}"; do
 done
 
 current_user_id="$(id -u)"
-validate_production_secret_sources "$fixture_environment_file" "$current_user_id" "$secret_root"
+validate_production_secret_sources "$fixture_environment_file" "$current_user_id"
+
+chmod 444 "$secret_root/postgres-owner-password"
+validate_production_secret_sources "$fixture_environment_file" "$current_user_id"
+chmod 600 "$secret_root/postgres-owner-password"
+
+sed '/^PRODUCTION_SECRET_ROOT=/d' "$fixture_environment_file" >"$temporary_root/missing-root.env"
+if validate_production_secret_sources "$temporary_root/missing-root.env" "$current_user_id" >/dev/null 2>&1; then
+  fail_test "Eksik PRODUCTION_SECRET_ROOT kabul edildi."
+fi
+
+sed "s#^PRODUCTION_SECRET_ROOT=.*#PRODUCTION_SECRET_ROOT=$secret_root/../secrets#" \
+  "$fixture_environment_file" >"$temporary_root/noncanonical-root.env"
+if validate_production_secret_sources "$temporary_root/noncanonical-root.env" "$current_user_id" >/dev/null 2>&1; then
+  fail_test "Kanonik olmayan PRODUCTION_SECRET_ROOT kabul edildi."
+fi
 
 chmod 644 "$secret_root/postgres-owner-password"
 if validate_production_secret_sources "$fixture_environment_file" "$current_user_id" "$secret_root" >/dev/null 2>&1; then

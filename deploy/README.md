@@ -7,6 +7,8 @@
 - Traefik v3, `mytlschallenge` sertifika çözücüsünü sağlamalı.
 - GitHub production environment içinde sunucu bilgileri, SSH anahtarı ve doğrulanmış
   `SERVER_HOST_FINGERPRINT` secret'ı tanımlanmalı.
+- DNS hazırlanana kadar GitHub production `PUBLIC_HEALTHCHECK_MODE` variable'ı `pre-dns`, DNS ve
+  geçerli TLS hazır olduktan sonra `strict` olmalı. Variable yoksa güvenli varsayılan `strict`tir.
 
 `deploy/edge-proxy.compose.yaml`, sunucudaki `/opt/edge-proxy/compose.yaml` için kanonik
 güvenlik sözleşmesidir. Traefik Docker socket'ini doğrudan bağlamaz; yalnız Traefik ile non-root
@@ -36,10 +38,13 @@ install -m 600 .env.production.example .env.production
 # DATA_ENCRYPTION_KEY ve ondan farklı BACKUP_ENCRYPTION_KEY için ayrı ayrı: openssl rand -hex 32
 # TRUST_PROXY değerini edge_proxy ağındaki sabit Traefik container IP'si olarak ayarlayın.
 # PAYMENT_MODE=live kullanın; banka, hesap sahibi, IBAN ve WhatsApp alanlarının beşi de zorunludur.
-docker compose --env-file .env.production -f compose.production.yaml config -q
 docker compose --env-file .env.production -f compose.production.yaml \
+  -f compose.production.secrets.yaml config -q
+docker compose --env-file .env.production -f compose.production.yaml \
+  -f compose.production.secrets.yaml \
   up -d --build --wait --scale backend=2
-docker compose --env-file .env.production -f compose.production.yaml --profile bootstrap run --rm seed
+docker compose --env-file .env.production -f compose.production.yaml \
+  -f compose.production.secrets.yaml --profile bootstrap run --rm seed
 ```
 
 Compose; PostgreSQL'i yalnız izole Docker ağına açar, migration'ları çalıştırır, backend
@@ -180,14 +185,28 @@ Dosyanın izinlerini `stat -c '%a %n' .env.production` ile kontrol edin; beklene
 
 ## Sunucu taşıması sonrası file-backed secret geçişi
 
-`compose.production.secrets.yaml`, mevcut production Compose'u değiştirmeyen isteğe bağlı bir
-overlay'dir. `USE_FILE_SECRETS=0` varsayılanında doğrudan environment değerleri kullanılmaya devam
-eder. Taşıma sonrasında secret dosyaları normal dosya olarak, yalnız dağıtım kullanıcısının
-okuyabileceği izinlerle hazırlanıp `.env.production` içindeki `*_SECRET_FILE` yolları tanımlandıktan
-sonra `USE_FILE_SECRETS=1` yapılabilir. Dağıtım ve otomatik rollback aynı overlay'i kullanır.
+`compose.production.secrets.yaml` production için zorunlu overlay'dir ve `USE_FILE_SECRETS=1`
+olmalıdır. Secret dosyaları normal dosya olarak yalnız dağıtım kullanıcısının okuyabileceği
+izinlerle hazırlanmalı; Compose bind-mount secret'larının container içindeki non-root süreçlerce
+okunabilmesi için dosyalar `0444`, onları çevreleyen secret kökü ise `0700` olmalıdır. Böylece host
+üzerindeki diğer kullanıcılar dizini geçemezken container süreçleri salt okunur mountu okuyabilir.
+`.env.production` içindeki doğrudan secret alanları boş kalmalıdır.
+`PRODUCTION_SECRET_ROOT` altındaki dizin ve dosyalar dağıtım kullanıcısına ait olmalıdır. `/run`
+kullanılıyorsa dosyalar root erişimli kalıcı kaynaktan Docker başlamadan önce yeniden
+oluşturulmalıdır. Alternatif olarak dağıtım kullanıcısının home dizininde rebootta kalıcı,
+`0700` izinli bir dizin seçilip tüm `*_SECRET_FILE` yolları aynı köke yönlendirilebilir.
 
 Uygulama ve yardımcı betikler yalnız allowlist'teki `*_FILE` değişkenlerini kabul eder. Doğrudan
 değer ile karşılık gelen `_FILE` aynı anda verilirse; dosya boşsa, aşırı büyükse, NUL içeriyorsa,
 symlink ise veya normal dosya değilse işlem fail-closed durur. Overlay etkinleştirilmeden önce yeni
 secret seti ve şifreli yedek restore testi doğrulanmalıdır. Canlı aktivasyon, anahtar rotasyonu ve
 eski `.env` secret değerlerinin temizlenmesi sunucu taşıması sonrası ayrı operasyon adımıdır.
+
+## DNS öncesi doğrulama
+
+İlk sunucu hazırlığında `PUBLIC_HEALTHCHECK_MODE=pre-dns`, domaini yalnız hedef hostun
+`127.0.0.1:443` Traefik girişine `curl --resolve` ile bağlar. Sertifika doğrulaması yalnız bu yerel
+pre-DNS kontrolde kapatılır; frontend ve API routerları yine gerçek domain Host/SNI değeriyle
+doğrulanır. DNS A/AAAA kaydı hedef IP'ye taşınıp ACME sertifikası üretildikten sonra variable
+`strict` yapılmalı; böylece sonraki deploy ve watchdog kontrolleri gerçek DNS ve TLS zincirini
+zorunlu tutar.

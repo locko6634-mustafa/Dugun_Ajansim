@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PUBLIC_ORIGIN: https://dugunajansim.com
+      PUBLIC_HEALTHCHECK_MODE: ${{ vars.PUBLIC_HEALTHCHECK_MODE || 'strict' }}
       BACKEND_REPLICAS: "2"
       WATCHDOG_RECOVERY_TIMEOUT_SECONDS: "90"
       SERVER_HOST_FINGERPRINT: ${{ secrets.SERVER_HOST_FINGERPRINT }}
@@ -42,7 +43,7 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           timeout: 60s
           command_timeout: 8m
-          envs: PUBLIC_ORIGIN,BACKEND_REPLICAS,WATCHDOG_RECOVERY_TIMEOUT_SECONDS
+          envs: PUBLIC_ORIGIN,PUBLIC_HEALTHCHECK_MODE,BACKEND_REPLICAS,WATCHDOG_RECOVERY_TIMEOUT_SECONDS
           script_stop: true
           script: |
             set -eu

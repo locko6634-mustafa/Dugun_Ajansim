@@ -17,6 +17,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     runtimeRoleScript,
     runtimeTimeoutScript,
     deployScript,
+    publicHealth,
     backupCrypto,
     homePage,
     homeBootstrap,
@@ -35,6 +36,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     readProjectFile("deploy/postgres/init-runtime-role.sh"),
     readProjectFile("deploy/postgres/configure-runtime-timeouts.sh"),
     readProjectFile("deploy/deploy-production.sh"),
+    readProjectFile("deploy/public-health.sh"),
     readProjectFile("deploy/backup-crypto.mjs"),
     readProjectFile("index.html"),
     readProjectFile("js/home/bootstrap.js"),
@@ -271,8 +273,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(deployScript).toContain('git reset --hard "$rollback_sha"');
   expect(deployScript).toContain("http://127.0.0.1:5000/api/v1/health");
   expect(deployScript).toContain("http://127.0.0.1:8080/healthz");
-  expect(deployScript).toContain('"$PUBLIC_ORIGIN/healthz"');
-  expect(deployScript).toContain('"$PUBLIC_ORIGIN/api/v1/health"');
+  expect(publicHealth).toContain('"$PUBLIC_ORIGIN/healthz"');
+  expect(publicHealth).toContain('"$PUBLIC_ORIGIN/api/v1/health"');
   expect(deployScript).toContain("DEPLOYED_GIT_SHA=%s");
 
   expect(backupCrypto).toContain('const ALGORITHM = "aes-256-gcm"');

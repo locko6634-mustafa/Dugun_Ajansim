@@ -171,6 +171,7 @@ test("PII bakım döngüsü global operasyon seçeneğini gölgelemez", () => {
 
 test("şifreleme rollout'u trafiği enforcement ve RLS tamamlanana dek kapalı tutar", () => {
   const deployScript = readProjectFile("deploy/deploy-production.sh");
+  const publicHealth = readProjectFile("deploy/public-health.sh");
   const maintenance = deployScript.indexOf('log "MAINTENANCE_TRAFFIC_STOPPING=1"');
   const trafficStop = deployScript.indexOf("stop --timeout 30 frontend backend", maintenance);
   const migration = deployScript.indexOf("run --rm --no-deps -T migrate", trafficStop);
@@ -194,7 +195,7 @@ test("şifreleme rollout'u trafiği enforcement ve RLS tamamlanana dek kapalı t
     enforcedHealth
   );
   const frontend = deployScript.indexOf("up -d --no-build --no-deps --wait frontend", edgeBackend);
-  const publicHealthy = deployScript.indexOf('log "PUBLIC_TRAFFIC_HEALTHY=1"', frontend);
+  const publicHealthy = deployScript.indexOf("verify_public_edge_health", frontend);
   const positions = [
     maintenance,
     trafficStop,
@@ -227,8 +228,9 @@ test("şifreleme rollout'u trafiği enforcement ve RLS tamamlanana dek kapalı t
   assert.match(deployScript, /ROLLBACK_BLOCKED_FORWARD_ONLY=1/);
   assert.match(deployScript, /MAINTENANCE_OUTAGE=1/);
   assert.match(deployScript, /ROLLBACK_BACKUP=%s/);
+  assert.match(publicHealth, /PUBLIC_TRAFFIC_HEALTHY=1/);
   assert.ok(
-    deployScript.indexOf('log "PUBLIC_TRAFFIC_HEALTHY=1"') <
+    deployScript.lastIndexOf("verify_public_edge_health") <
       deployScript.lastIndexOf("deployment_verified=1")
   );
 });
@@ -267,7 +269,7 @@ test("file-backed secret modu production ve rollback için fail-closed zorunludu
     /PII_BLIND_INDEX_KEYRING_JSON_FILE: \/run\/secrets\/pii_blind_index_keyring/
   );
   assert.match(overlay, /DATABASE_URL_FILE: \/run\/secrets\/database_url_runtime/);
-  assert.match(validator, /izinleri yalnız 600 veya 400 olabilir/);
+  assert.match(validator, /izinleri yalnız 400, 440, 444 veya 600 olabilir/);
   assert.match(validator, /birden fazla hard link içeremez/);
   assert.match(validator, /dağıtım kullanıcısına ait olmalıdır/);
   assert.match(validator, /1-65536 bayt aralığında olmalıdır/);
