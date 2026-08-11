@@ -8,7 +8,7 @@ production_secret_error() {
 }
 
 read_production_environment_value() {
-  local environment_file="$1"
+  local environment_file_path="$1"
   local variable_name="$2"
   local value
 
@@ -27,7 +27,7 @@ read_production_environment_value() {
         if (matches != 1) exit matches == 0 ? 2 : 3
         print value
       }
-    ' "$environment_file"
+    ' "$environment_file_path"
   )" || {
     production_secret_error "$variable_name tam olarak bir kez tanımlanmalıdır."
     return 1
@@ -45,7 +45,7 @@ read_production_environment_value() {
 }
 
 require_empty_production_environment_value() {
-  local environment_file="$1"
+  local environment_file_path="$1"
   local variable_name="$2"
   local value
 
@@ -64,7 +64,7 @@ require_empty_production_environment_value() {
         if (matches > 1) exit 3
         if (matches == 1) print value
       }
-    ' "$environment_file"
+    ' "$environment_file_path"
   )" || {
     production_secret_error "$variable_name en fazla bir kez tanımlanabilir."
     return 1
@@ -81,7 +81,7 @@ require_empty_production_environment_value() {
 }
 
 validate_production_secret_sources() {
-  local environment_file="$1"
+  local environment_file_path="$1"
   local expected_owner_id="$2"
   local secret_root="${3:-$production_secret_root}"
   local secret_root_mode
@@ -94,14 +94,14 @@ validate_production_secret_sources() {
   local secret_links
   local secret_size
 
-  [[ "$(read_production_environment_value "$environment_file" USE_FILE_SECRETS)" == "1" ]] || {
+  [[ "$(read_production_environment_value "$environment_file_path" USE_FILE_SECRETS)" == "1" ]] || {
     production_secret_error "USE_FILE_SECRETS .env.production içinde tam olarak 1 olmalıdır."
     return 1
   }
 
   while IFS= read -r variable_name; do
     [[ -n "$variable_name" ]] || continue
-    require_empty_production_environment_value "$environment_file" "$variable_name" || return 1
+    require_empty_production_environment_value "$environment_file_path" "$variable_name" || return 1
   done <<'DIRECT_SECRET_CONTRACT'
 POSTGRES_PASSWORD
 POSTGRES_RUNTIME_PASSWORD
@@ -135,7 +135,7 @@ DIRECT_SECRET_CONTRACT
 
   while IFS=: read -r variable_name expected_filename; do
     [[ -n "$variable_name" ]] || continue
-    secret_path="$(read_production_environment_value "$environment_file" "$variable_name")" || return 1
+    secret_path="$(read_production_environment_value "$environment_file_path" "$variable_name")" || return 1
     [[ "$secret_path" == "$secret_root/$expected_filename" ]] || {
       production_secret_error "$variable_name yalnız sabit production secret dizinindeki beklenen dosyayı gösterebilir."
       return 1

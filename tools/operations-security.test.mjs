@@ -1,28 +1,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 import test from "node:test";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
-const windowsSystemBash = `${process.env.SystemRoot ?? "C:\\Windows"}\\System32\\bash.exe`;
-const useWindowsSubsystemBash = process.platform === "win32" && existsSync(windowsSystemBash);
-const bashExecutable =
-  process.platform === "win32"
-    ? useWindowsSubsystemBash
-      ? windowsSystemBash
-      : [
-          "C:\\Program Files\\Git\\bin\\bash.exe",
-          "C:\\Program Files\\Git\\usr\\bin\\bash.exe"
-        ].find(existsSync)
-    : "bash";
-
-const toWindowsSubsystemPath = (windowsPath) => {
-  const match = /^([A-Za-z]):\\(.*)$/.exec(windowsPath);
-  assert.ok(match, `WSL yoluna çevrilemeyen Windows yolu: ${windowsPath}`);
-  return `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll("\\", "/")}`;
-};
 
 const readProjectFile = (relativePath) =>
   readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
@@ -292,13 +275,23 @@ test("file-backed secret modu production ve rollback için fail-closed zorunludu
 });
 
 test("production secret kaynak doğrulayıcısı eksik ve gevşek izinli dosyaları reddeder", () => {
-  const shellTest = resolve(
-    import.meta.dirname,
-    "../deploy/tests/production-secret-sources.test.sh"
-  );
-  assert.ok(bashExecutable, "Bash çalıştırıcısı bulunamadı.");
-  const shellTestArgument = useWindowsSubsystemBash ? toWindowsSubsystemPath(shellTest) : shellTest;
-  const result = spawnSync(bashExecutable, [shellTestArgument], {
+  const shellTest = "deploy/tests/production-secret-sources.test.sh";
+  const executable = process.platform === "win32" ? "docker" : "bash";
+  const args =
+    process.platform === "win32"
+      ? [
+          "run",
+          "--rm",
+          "--mount",
+          `type=bind,source=${repositoryRoot},target=/workspace,readonly`,
+          "-w",
+          "/workspace",
+          "postgres:17-alpine",
+          "bash",
+          shellTest
+        ]
+      : [shellTest];
+  const result = spawnSync(executable, args, {
     cwd: repositoryRoot,
     encoding: "utf8"
   });
