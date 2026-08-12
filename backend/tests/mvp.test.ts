@@ -18,13 +18,21 @@ import { calculatePayment, paymentPolicy } from "../src/services/booking.service
 import { decryptValue, encryptValue, hashPassword, verifyPassword } from "../src/utils/crypto.js";
 import {
   addCalendarDays,
+  assertDeliveryDueDateWithinSla,
+  assertDeliveryStatusTransition,
   assertGoogleDriveUrl,
+  assertWeddingStartsInFuture,
   createTemporaryPasswordExpiry,
   createWeddingRange,
   deliveryEncryptionAad,
+  getAllowedDeliveryTransitions,
+  isDeliveryBackwardTransition,
+  isDeliveryForwardTransition,
+  isDeliveryReleaseTransition,
   isStrictGregorianDate,
   normalizePhone,
   normalizeUsername,
+  randomReferenceCode,
   randomTemporaryPassword
 } from "../src/utils/domain.js";
 
@@ -36,6 +44,40 @@ test("gece yarısını aşan düğün aralığı İstanbul saatine göre oluştu
   assert.equal(range.startsAt.toISOString(), "2026-08-10T17:00:00.000Z");
   assert.equal(range.endsAt.toISOString(), "2026-08-10T23:00:00.000Z");
   assert.throws(() => createWeddingRange("2026-08-10", "20:00", "19:00", false));
+});
+
+test("domain tarih, saat ve teslimat politikaları tek allowlist ile korunur", () => {
+  assert.deepEqual(bookingSchedulePolicy, {
+    earliestTime: "00:00",
+    latestTime: "23:30",
+    stepMinutes: 30,
+    allowNextDay: true
+  });
+  assert.throws(() => createWeddingRange("2026-08-10", "19:15", "23:30", false));
+  assert.doesNotThrow(() => createWeddingRange("2026-08-10", "19:30", "23:30", false));
+  assert.throws(() => createWeddingRange("2026-08-10", "19:30", "19:30", false));
+
+  const startsAt = new Date("2026-08-10T16:30:00.000Z");
+  assert.throws(() =>
+    assertWeddingStartsInFuture(startsAt, new Date("2026-08-10T16:31:00.000Z"))
+  );
+  assert.match(
+    randomReferenceCode(new Date("2026-08-10T21:30:00.000Z")),
+    /^DA-20260811-\d{6}$/
+  );
+
+  assert.deepEqual(getAllowedDeliveryTransitions("MONTAJ"), ["HAZIRLANIYOR", "KONTROL"]);
+  assert.equal(isDeliveryForwardTransition("HAZIRLANIYOR", "MONTAJ"), true);
+  assert.equal(isDeliveryForwardTransition("HAZIRLANIYOR", "KONTROL"), false);
+  assert.equal(isDeliveryBackwardTransition("KONTROL", "MONTAJ"), true);
+  assert.equal(isDeliveryBackwardTransition("KONTROL", "HAZIRLANIYOR"), false);
+  assert.equal(isDeliveryReleaseTransition("TESLIME_HAZIR", "TESLIM_EDILDI"), true);
+  assert.throws(() => assertDeliveryStatusTransition("TESLIME_HAZIR", "TESLIM_EDILDI"));
+  assert.doesNotThrow(() => assertDeliveryStatusTransition("MONTAJ", "KONTROL"));
+
+  assert.throws(() => assertDeliveryDueDateWithinSla("2026-08-10", startsAt));
+  assert.doesNotThrow(() => assertDeliveryDueDateWithinSla("2026-08-31", startsAt));
+  assert.throws(() => assertDeliveryDueDateWithinSla("2026-09-01", startsAt));
 });
 
 test("müşteri kullanıcı adı ve geçici parola kuralları güvenli çalışır", () => {

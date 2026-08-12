@@ -55,6 +55,22 @@ document.querySelector(".js-application-filter").innerHTML = `${domainOptions({
   ONAYLANDI: BOOKING_STATUS_LABELS.ONAYLANDI,
   REDDEDILDI: BOOKING_STATUS_LABELS.REDDEDILDI
 })}<option value="ARCHIVED">Arşiv</option>`;
+document.querySelector(".js-message-kind-filter").innerHTML =
+  `<option value="">Tüm mesaj türleri</option>${domainOptions(MESSAGE_KIND_LABELS)}`;
+document.querySelector(".js-message-status-filter").innerHTML =
+  `<option value="">Tüm mesaj durumları</option>${domainOptions(MESSAGE_STATUS_LABELS)}`;
+
+const createPaginationState = () => ({
+  cursor: null,
+  history: [],
+  nextCursor: null,
+  pageSize: 50,
+  totalItems: 0,
+  itemCount: 0,
+  isLegacy: false,
+  loading: false
+});
+
 const state = {
   dashboard: null,
   weekStart: "",
@@ -72,8 +88,46 @@ const state = {
   services: [],
   catalogFormConstraints: null,
   currentWedding: null,
-  openedMessageTaskIds: new Set()
+  openedMessageTaskIds: new Set(),
+  pagination: {
+    applications: createPaginationState(),
+    weddings: createPaginationState(),
+    messages: createPaginationState()
+  }
 };
+
+function resetPagination(key) {
+  state.pagination[key] = createPaginationState();
+  renderPagination(key);
+}
+
+function unpackPaginatedList(key, data) {
+  const pager = state.pagination[key];
+  const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+  const metadata = Array.isArray(data) ? null : data?.pagination;
+  pager.isLegacy = Array.isArray(data);
+  pager.pageSize = Number.isInteger(metadata?.pageSize) ? metadata.pageSize : pager.pageSize;
+  pager.totalItems = Number.isInteger(metadata?.totalItems) ? metadata.totalItems : items.length;
+  pager.nextCursor = typeof metadata?.nextCursor === "string" ? metadata.nextCursor : null;
+  pager.itemCount = items.length;
+  renderPagination(key);
+  return items;
+}
+
+function renderPagination(key) {
+  const pager = state.pagination[key];
+  const nav = document.querySelector(`.js-${key}-pagination`);
+  if (!nav) return;
+  const hasPrevious = pager.history.length > 0;
+  const hasNext = Boolean(pager.nextCursor);
+  nav.hidden = pager.itemCount === 0 && !hasPrevious && !hasNext;
+  nav.querySelector(`[data-pagination-prev="${key}"]`).disabled = pager.loading || !hasPrevious;
+  nav.querySelector(`[data-pagination-next="${key}"]`).disabled = pager.loading || !hasNext;
+  const firstItem = pager.totalItems > 0 ? pager.history.length * pager.pageSize + 1 : 0;
+  const lastItem = Math.min(firstItem + Math.max(pager.itemCount - 1, 0), pager.totalItems);
+  nav.querySelector(`.js-${key}-pagination-summary`).textContent =
+    pager.totalItems > 0 ? `${firstItem}–${lastItem} / ${pager.totalItems}` : "0 kayıt";
+}
 
 const globalMessage = document.querySelector(".global-message");
 const detailDialog = document.querySelector(".js-wedding-detail");
@@ -188,6 +242,17 @@ async function apiRequestWithAdminStepUp(path, options, { actionLabel = "Bu işl
   const verified = await requestAdminStepUp(actionLabel);
   if (!verified) return null;
   return apiRequest(path, options);
+}
+
+async function requestRequiredReason(options) {
+  const value = await showCustomPrompt({ ...options, required: true });
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const reason = String(value).trim();
+  if (reason.length < 10) {
+    setMessage("İşlem gerekçesi en az 10 karakter olmalıdır.");
+    return null;
+  }
+  return reason;
 }
 
 const formatDate = (value, includeTime = false) =>
@@ -547,19 +612,23 @@ async function loadCalendar(month = state.calendarMonth, venueId = state.calenda
 
 async function loadApplications() {
   const container = document.querySelector(".js-applications");
+  const pager = state.pagination.applications;
   const filter = document.querySelector(".js-application-filter").value;
   const referenceCode = document.querySelector(".js-application-reference").value.trim();
   const query = new window.URLSearchParams();
   if (filter === "ARCHIVED") query.set("includeArchived", "true");
   else if (filter) query.set("status", filter);
   if (referenceCode) query.set("referenceCode", referenceCode);
+  query.set("pageSize", String(pager.pageSize));
+  if (pager.cursor) query.set("cursor", pager.cursor);
   container.innerHTML = empty("Başvurular yükleniyor…");
   try {
     const response = await apiRequest(
       `/admin/booking-applications${query.size ? `?${query}` : ""}`
     );
-    container.innerHTML = response.data.length
-      ? response.data.map((item) => renderApplicationCard(item)).join("")
+    const applications = unpackPaginatedList("applications", response.data);
+    container.innerHTML = applications.length
+      ? applications.map((item) => renderApplicationCard(item)).join("")
       : empty("Bu durumda başvuru yok.");
   } catch (error) {
     container.innerHTML = empty(error.message);
@@ -846,11 +915,18 @@ function renderApplicationDetailModal(item) {
 
 async function loadWeddings() {
   const container = document.querySelector(".js-weddings");
+  const pager = state.pagination.weddings;
   container.innerHTML = empty("Düğünler yükleniyor…");
   try {
-    const archived = document.querySelector(".js-wedding-status").value === "ARCHIVED";
-    const response = await apiRequest(`/admin/weddings${archived ? "?includeArchived=true" : ""}`);
-    state.weddings = response.data;
+    const status = document.querySelector(".js-wedding-status").value;
+    const search = document.querySelector(".js-wedding-search").value.trim();
+    const query = new window.URLSearchParams();
+    if (status === "ARCHIVED") query.set("includeArchived", "true");
+    else if (status) query.set("deliveryStatus", status);
+    if (search.length >= 2) query.set("search", search);
+    if (pager.cursor) query.set("cursor", pager.cursor);
+    const response = await apiRequest(`/admin/weddings${query.size ? `?${query}` : ""}`);
+    state.weddings = unpackPaginatedList("weddings", response.data);
     renderWeddings();
   } catch (error) {
     container.innerHTML = empty(error.message);
@@ -863,16 +939,18 @@ function renderWeddings() {
     .value.trim()
     .toLocaleLowerCase(APP_LOCALE);
   const status = document.querySelector(".js-wedding-status").value;
-  const rows = state.weddings.filter((wedding) => {
-    const haystack =
-      `${coupleName(wedding)} ${wedding.bridePhone} ${wedding.groomPhone} ${wedding.venue.name}`.toLocaleLowerCase(
-        APP_LOCALE
-      );
-    return (
-      (!term || haystack.includes(term)) &&
-      (!status || status === "ARCHIVED" || wedding.delivery?.status === status)
-    );
-  });
+  const rows = state.pagination.weddings.isLegacy
+    ? state.weddings.filter((wedding) => {
+        const haystack =
+          `${coupleName(wedding)} ${wedding.bridePhone} ${wedding.groomPhone} ${wedding.venue.name}`.toLocaleLowerCase(
+            APP_LOCALE
+          );
+        return (
+          (!term || haystack.includes(term)) &&
+          (!status || status === "ARCHIVED" || wedding.delivery?.status === status)
+        );
+      })
+    : state.weddings;
   document.querySelector(".js-weddings").innerHTML = rows.length
     ? rows
         .map((wedding) => {
@@ -900,28 +978,60 @@ function packageDetail(summary = {}) {
   }`;
 }
 
+const DELIVERY_STATUS_ORDER = ["HAZIRLANIYOR", "MONTAJ", "KONTROL", "TESLIME_HAZIR"];
+
+function deliveryAllowedTransitions(wedding, delivery) {
+  const transitions =
+    delivery?.allowedTransitions ||
+    wedding.allowedTransitions ||
+    wedding.allowedDeliveryTransitions ||
+    [];
+  return Array.isArray(transitions) ? transitions : [];
+}
+
+function isBackwardDeliveryTransition(currentStatus, nextStatus) {
+  return DELIVERY_STATUS_ORDER.indexOf(nextStatus) < DELIVERY_STATUS_ORDER.indexOf(currentStatus);
+}
+
+function renderWeddingLifecycleActions(wedding) {
+  if (wedding.deletedAt) {
+    return `<button class="secondary-button" type="button" data-restore-wedding="${wedding.id}">Geri Yükle</button>`;
+  }
+  if (wedding.cancelledAt) {
+    return `<button class="secondary-button" type="button" data-reinstate-wedding="${wedding.id}">İptali geri al</button><button class="secondary-button" type="button" data-archive-wedding="${wedding.id}">Arşivle</button>`;
+  }
+
+  const commonActions = `<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}" data-confirm="${escapeHtml(wedding.customerUser.username)}">Müşteri parolasını sıfırla</button>`;
+  if (new Date(wedding.endsAt).valueOf() > Date.now()) {
+    return `${commonActions}<button class="secondary-button" type="button" data-cancel-wedding="${wedding.id}">Düğünü iptal et</button><small>Aktif düğün arşivlenmeden önce iptal edilmelidir.</small>`;
+  }
+  return `${commonActions}<button class="secondary-button" type="button" data-archive-wedding="${wedding.id}">Arşivle</button>`;
+}
+
 function renderWeddingDetail(wedding) {
   const delivery = wedding.delivery;
+  const deliveryLocked = Boolean(wedding.cancelledAt || wedding.deletedAt);
+  const deliveryInputsDisabled = deliveryLocked || delivery?.status === "TESLIM_EDILDI";
+  const allowedDeliveryStatuses = delivery
+    ? [...new Set([delivery.status, ...deliveryAllowedTransitions(wedding, delivery)])]
+    : [];
   const assignedIds = new Set(wedding.assignments.map((assignment) => assignment.staffId));
   const available = wedding.availableStaff.filter((staff) => !assignedIds.has(staff.id));
   document.querySelector(".js-detail-title").textContent = coupleName(wedding);
-  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span></div><div class="detail-actions">${wedding.deletedAt ? `<button class="secondary-button" type="button" data-restore-wedding="${wedding.id}">Geri Yükle</button>` : `<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}" data-confirm="${escapeHtml(wedding.customerUser.username)}">Müşteri parolasını sıfırla</button><button class="secondary-button" type="button" data-archive-wedding="${wedding.id}">Arşivle</button>`}</div></section>
+  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(wedding.cancelledAt ? "İptal edildi" : STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span>${wedding.cancelledAt && wedding.cancellationReason ? `<small>İptal nedeni: ${escapeHtml(wedding.cancellationReason)}</small>` : ""}</div><div class="detail-actions">${renderWeddingLifecycleActions(wedding)}</div></section>
   <div class="detail-grid">
     <section class="detail-block"><h3>Çift ve iletişim</h3><div class="contact-line"><span>${escapeHtml(wedding.brideFirstName)} ${escapeHtml(wedding.brideLastName)}</span><a href="${safePhoneHref(wedding.bridePhone)}">${escapeHtml(wedding.bridePhone)}</a></div><div class="contact-line"><span>${escapeHtml(wedding.groomFirstName)} ${escapeHtml(wedding.groomLastName)}</span><a href="${safePhoneHref(wedding.groomPhone)}">${escapeHtml(wedding.groomPhone)}</a></div><div class="contact-line"><span>E-posta</span><a href="mailto:${escapeHtml(wedding.primaryEmail)}">${escapeHtml(wedding.primaryEmail)}</a></div></section>
     <section class="detail-block"><h3>Paket</h3>${packageDetail(wedding.packageSummary)}${wedding.note ? `<p>${escapeHtml(wedding.note)}</p>` : ""}</section>
     <section class="detail-block wide"><h3>Teslimat</h3>${
       delivery
-        ? `<div class="delivery-controls" data-delivery-row="${delivery.id}"><select data-field="status" aria-label="Teslimat durumu" ${delivery.status === "TESLIM_EDILDI" ? "disabled" : ""}>${Object.entries(
-            STATUS_LABELS
-          )
-            .filter(([key]) => key !== "TESLIM_EDILDI" || delivery.status === "TESLIM_EDILDI")
+        ? `<div class="delivery-controls" data-delivery-row="${delivery.id}" data-current-status="${escapeHtml(delivery.status)}"><select data-field="status" aria-label="Teslimat durumu" ${deliveryInputsDisabled ? "disabled" : ""}>${allowedDeliveryStatuses
             .map(
-              ([key, label]) =>
-                `<option value="${key}" ${delivery.status === key ? "selected" : ""}>${escapeHtml(label)}</option>`
+              (status) =>
+                `<option value="${escapeHtml(status)}" ${delivery.status === status ? "selected" : ""}>${escapeHtml(STATUS_LABELS[status] || status)}</option>`
             )
             .join(
               ""
-            )}</select><input data-field="dueDate" type="date" aria-label="Teslim tarihi" value="${String(delivery.dueDate).slice(0, 10)}" ${delivery.status === "TESLIM_EDILDI" ? "disabled" : ""} /><input data-field="driveUrl" type="url" aria-label="Google Drive bağlantısı" placeholder="Google Drive bağlantısı" value="${escapeHtml(delivery.driveUrl || "")}" ${delivery.status === "TESLIM_EDILDI" ? "disabled" : ""} /><button class="mini-button" type="button" data-save-delivery="${delivery.id}" ${delivery.status === "TESLIM_EDILDI" ? "disabled" : ""}>Kaydet</button><button class="mini-button mini-button--primary" type="button" data-deliver="${delivery.id}" ${delivery.status !== "TESLIME_HAZIR" || !delivery.hasDriveUrl ? "disabled" : ""}>Teslim Et</button>${delivery.status === "TESLIM_EDILDI" && !delivery.revokedAt ? `<button class="mini-button mini-button--danger" type="button" data-revoke-delivery="${delivery.id}">Erişimi geri çek</button>` : ""}${delivery.revokedAt ? `<span class="status-dot">Erişim geri çekildi</span>` : ""}</div>`
+            )}</select><input data-field="dueDate" type="date" aria-label="Teslim tarihi" value="${String(delivery.dueDate).slice(0, 10)}" ${deliveryInputsDisabled ? "disabled" : ""} /><input data-field="driveUrl" type="url" aria-label="Google Drive bağlantısı" placeholder="Google Drive bağlantısı" value="${escapeHtml(delivery.driveUrl || "")}" ${deliveryInputsDisabled ? "disabled" : ""} /><button class="mini-button" type="button" data-save-delivery="${delivery.id}" ${deliveryInputsDisabled ? "disabled" : ""}>Kaydet</button><button class="mini-button mini-button--primary" type="button" data-deliver="${delivery.id}" ${deliveryLocked || delivery.status !== "TESLIME_HAZIR" || !delivery.hasDriveUrl ? "disabled" : ""}>Teslim Et</button>${delivery.status === "TESLIM_EDILDI" && !delivery.revokedAt && !deliveryLocked ? `<button class="mini-button mini-button--danger" type="button" data-revoke-delivery="${delivery.id}">Erişimi geri çek</button>` : ""}${delivery.revokedAt ? `<span class="status-dot">Erişim geri çekildi</span>` : ""}</div>`
         : empty("Teslimat kaydı yok.")
     }</section>
     <section class="detail-block wide"><h3>Personel dağılımı</h3><div class="assignment-list">${
@@ -929,18 +1039,22 @@ function renderWeddingDetail(wedding) {
         ? wedding.assignments
             .map(
               (assignment) =>
-                `<div class="assignment-item"><span><strong>${escapeHtml(assignment.staff.firstName)} ${escapeHtml(assignment.staff.lastName)}</strong><small>${escapeHtml(SPECIALTIES[assignment.specialty])}</small></span><button class="mini-button mini-button--danger" type="button" data-remove-assignment="${escapeHtml(assignment.id)}">Kaldır</button></div>`
+                `<div class="assignment-item"><span><strong>${escapeHtml(assignment.staff.firstName)} ${escapeHtml(assignment.staff.lastName)}</strong><small>${escapeHtml(SPECIALTIES[assignment.specialty])}</small></span><button class="mini-button mini-button--danger" type="button" data-remove-assignment="${escapeHtml(assignment.id)}" ${deliveryLocked ? "disabled" : ""}>Kaldır</button></div>`
             )
             .join("")
         : empty("Henüz personel atanmadı.")
-    }</div><form class="assignment-form js-assignment-form"><select name="staffId" aria-label="Müsait personel" required><option value="">Müsait personel seçin</option>${available
-      .map(
-        (staff) =>
-          `<option value="${staff.id}">${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)} · ${staff.specialties.map((key) => SPECIALTIES[key]).join(", ")}</option>`
-      )
-      .join(
-        ""
-      )}</select><select name="specialty" aria-label="Görev" required><option value="">Görev seçin</option></select><button class="mini-button mini-button--primary" type="submit">Ata</button></form></section>
+    }</div>${
+      deliveryLocked
+        ? `<small>İptal edilmiş veya arşivlenmiş düğünde personel ataması değiştirilemez.</small>`
+        : `<form class="assignment-form js-assignment-form"><select name="staffId" aria-label="Müsait personel" required><option value="">Müsait personel seçin</option>${available
+            .map(
+              (staff) =>
+                `<option value="${staff.id}">${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)} · ${staff.specialties.map((key) => SPECIALTIES[key]).join(", ")}</option>`
+            )
+            .join(
+              ""
+            )}</select><select name="specialty" aria-label="Görev" required><option value="">Görev seçin</option></select><button class="mini-button mini-button--primary" type="submit">Ata</button></form>`
+    }</section>
     <section class="detail-block wide danger-zone"><h3>Tehlikeli işlemler</h3><p>Kalıcı silme; atamaları, mesaj görevlerini ve teslimat operasyon kayıtlarını geri alınamaz şekilde siler. Denetim kayıtları korunur.</p><button class="mini-button mini-button--danger" type="button" data-delete-wedding="${wedding.id}" data-confirm="${escapeHtml(coupleName(wedding))}">Kalıcı Sil</button></section>
     <section class="detail-block wide"><h3>Mesaj geçmişi</h3><div class="message-timeline">${
       wedding.messageTasks.length
@@ -1035,7 +1149,11 @@ async function openStaffForm(staff = null) {
   document.querySelector(".js-staff-form-title").textContent = staff
     ? "Personeli düzenle"
     : "Personel ekle";
-  staffForm.querySelector(".dialog-message").textContent = "";
+  staffForm.querySelector(".js-staff-form-message").textContent = "";
+  staffForm.querySelector(".js-staff-specialties-error").hidden = true;
+  const submitButton = staffForm.querySelector(".js-staff-submit");
+  submitButton.disabled = false;
+  submitButton.textContent = "Kaydet";
   staffForm.querySelectorAll('input[name="specialties"]').forEach((input) => {
     input.checked = staff?.specialties.includes(input.value) || false;
   });
@@ -1104,11 +1222,19 @@ function renderMessageActions(task) {
 
 async function loadMessages() {
   const container = document.querySelector(".js-messages");
+  const pager = state.pagination.messages;
   container.innerHTML = empty("Mesaj kayıtları yükleniyor…");
   try {
-    const response = await apiRequest("/admin/message-tasks");
-    container.innerHTML = response.data.length
-      ? response.data
+    const query = new window.URLSearchParams({ pageSize: String(pager.pageSize) });
+    const kind = document.querySelector(".js-message-kind-filter").value;
+    const status = document.querySelector(".js-message-status-filter").value;
+    if (kind) query.set("kind", kind);
+    if (status) query.set("status", status);
+    if (pager.cursor) query.set("cursor", pager.cursor);
+    const response = await apiRequest(`/admin/message-tasks?${query}`);
+    const tasks = unpackPaginatedList("messages", response.data);
+    container.innerHTML = tasks.length
+      ? tasks
           .map(
             (task) =>
               `<article class="data-row"><div><strong>${escapeHtml(task.wedding.brideFirstName)} &amp; ${escapeHtml(task.wedding.groomFirstName)}</strong><small>${escapeHtml(MESSAGE_LABELS[task.kind] || task.kind)}</small></div><div><small>Alıcı</small><strong>${escapeHtml(task.recipientPhone)}</strong></div><div><small>${task.status === "SENT" ? "Gönderilen" : "Planlanan"}</small><strong>${formatDate(task.sentAt || task.dueAt, true)}</strong></div><div class="data-row__actions">${renderMessageActions(task)}</div></article>`
@@ -1253,6 +1379,28 @@ const panelLoaders = {
   catalog: loadCatalogAdmin
 };
 
+async function movePagination(key, direction) {
+  const pager = state.pagination[key];
+  const loader = panelLoaders[key];
+  if (!pager || !loader || pager.loading) return;
+  if (direction === "next") {
+    if (!pager.nextCursor) return;
+    pager.history.push(pager.cursor);
+    pager.cursor = pager.nextCursor;
+  } else {
+    if (pager.history.length === 0) return;
+    pager.cursor = pager.history.pop() || null;
+  }
+  pager.loading = true;
+  renderPagination(key);
+  try {
+    await loader();
+  } finally {
+    pager.loading = false;
+    renderPagination(key);
+  }
+}
+
 function activatePanel(name) {
   document.querySelectorAll("[data-panel]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.panel === name);
@@ -1339,11 +1487,13 @@ document.querySelector("[data-month-today]").addEventListener("click", () => {
 
 document.querySelector(".js-application-search").addEventListener("submit", (event) => {
   event.preventDefault();
+  resetPagination("applications");
   void loadApplications();
 });
-document
-  .querySelector(".js-application-filter")
-  .addEventListener("change", () => void loadApplications());
+document.querySelector(".js-application-filter").addEventListener("change", () => {
+  resetPagination("applications");
+  void loadApplications();
+});
 document.querySelector(".js-applications").addEventListener("click", handleApplicationAction);
 if (appDetailContent) appDetailContent.addEventListener("click", handleApplicationAction);
 
@@ -1388,7 +1538,7 @@ async function handleApplicationAction(event) {
       const accepted = await requestDangerConfirmation(
         {
           title: "Başvuruyu arşivle",
-          copy: "Başvuru normal listelerden kaldırılır; istediğiniz zaman geri yükleyebilirsiniz.",
+          copy: "Başvuru normal listelerden kaldırılır. Henüz WhatsApp'a aktarılmamış etkin ödeme bağlantısı son süresine kadar korunur; aktarılmış veya süresi dolmuş bağlantı güvenlik için iptal edilir ve geri yüklemeyle yeniden açılmaz.",
           button: "Arşivle"
         },
         archiveButton
@@ -1405,7 +1555,10 @@ async function handleApplicationAction(event) {
         `/admin/booking-applications/${restoreButton.dataset.restoreApplication}/restore`,
         { method: "POST" }
       );
-      setMessage("Başvuru geri yüklendi.", true);
+      setMessage(
+        "Başvuru geri yüklendi; yalnız korunmuş ve süresi dolmamış ödeme akışı devam eder.",
+        true
+      );
       if (appDetailDialog?.open) appDetailDialog.close();
     } else if (deleteButton) {
       const confirmation = await requestDangerConfirmation(
@@ -1442,8 +1595,36 @@ async function handleApplicationAction(event) {
   }
 }
 
-document.querySelector(".js-wedding-search").addEventListener("input", renderWeddings);
-document.querySelector(".js-wedding-status").addEventListener("change", () => void loadWeddings());
+let weddingSearchTimer = null;
+document.querySelector(".js-wedding-search").addEventListener("input", () => {
+  renderWeddings();
+  window.clearTimeout(weddingSearchTimer);
+  weddingSearchTimer = window.setTimeout(() => {
+    resetPagination("weddings");
+    void loadWeddings();
+  }, 250);
+});
+document.querySelector(".js-wedding-status").addEventListener("change", () => {
+  resetPagination("weddings");
+  void loadWeddings();
+});
+
+document
+  .querySelectorAll(".js-message-kind-filter, .js-message-status-filter")
+  .forEach((select) => {
+    select.addEventListener("change", () => {
+      resetPagination("messages");
+      void loadMessages();
+    });
+  });
+
+document.querySelectorAll("[data-pagination-prev], [data-pagination-next]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const key = button.dataset.paginationNext || button.dataset.paginationPrev;
+    const direction = button.dataset.paginationNext ? "next" : "previous";
+    void movePagination(key, direction);
+  });
+});
 
 detailContent.addEventListener("change", (event) => {
   if (event.target.name !== "staffId") return;
@@ -1494,10 +1675,24 @@ detailContent.addEventListener("submit", async (event) => {
       isWarning: true
     });
     if (!confirmed) return;
-    await apiRequest(`/admin/weddings/${state.currentWedding.id}/assignments`, {
-      method: "POST",
-      body: { ...body, allowConflict: true }
+    const overrideReason = await requestRequiredReason({
+      title: "Çakışan atama gerekçesi",
+      message: "Bu istisnanın neden gerekli olduğunu denetim kaydı için yazın.",
+      placeholder: "En az 10 karakterlik operasyon gerekçesi",
+      confirmText: "Gerekçeyi kaydet",
+      cancelText: "Vazgeç",
+      isWarning: true
     });
+    if (!overrideReason) return;
+    const response = await apiRequestWithAdminStepUp(
+      `/admin/weddings/${state.currentWedding.id}/assignments`,
+      {
+        method: "POST",
+        body: { ...body, allowConflict: true, overrideReason }
+      },
+      { actionLabel: "Çakışan personel ataması" }
+    );
+    if (!response) return;
   }
   setMessage("Personel düğüne atandı.", true);
   await Promise.all([openWeddingDetail(state.currentWedding.id), loadDashboard(), loadWeddings()]);
@@ -1510,6 +1705,8 @@ detailContent.addEventListener("click", async (event) => {
   const revokeDeliveryButton = event.target.closest("[data-revoke-delivery]");
   const resetButton = event.target.closest("[data-reset-user]");
   const removeButton = event.target.closest("[data-remove-assignment]");
+  const cancelWeddingButton = event.target.closest("[data-cancel-wedding]");
+  const reinstateWeddingButton = event.target.closest("[data-reinstate-wedding]");
   const archiveWeddingButton = event.target.closest("[data-archive-wedding]");
   const restoreWeddingButton = event.target.closest("[data-restore-wedding]");
   const deleteWeddingButton = event.target.closest("[data-delete-wedding]");
@@ -1521,14 +1718,35 @@ detailContent.addEventListener("click", async (event) => {
     if (saveButton) {
       const row = saveButton.closest("[data-delivery-row]");
       const driveUrl = row.querySelector('[data-field="driveUrl"]').value.trim();
-      await apiRequest(`/admin/deliveries/${saveButton.dataset.saveDelivery}`, {
-        method: "PATCH",
-        body: {
-          status: row.querySelector('[data-field="status"]').value,
-          dueDate: row.querySelector('[data-field="dueDate"]').value,
-          driveUrl: driveUrl || null
-        }
-      });
+      const currentStatus = row.dataset.currentStatus;
+      const nextStatus = row.querySelector('[data-field="status"]').value;
+      const body = {
+        status: nextStatus,
+        dueDate: row.querySelector('[data-field="dueDate"]').value,
+        driveUrl: driveUrl || null
+      };
+      if (isBackwardDeliveryTransition(currentStatus, nextStatus)) {
+        const reason = await requestRequiredReason({
+          title: "Teslimat aşamasını geri al",
+          message: "Geri geçiş nedenini denetim kaydı için yazın.",
+          placeholder: "En az 10 karakterlik geri geçiş nedeni",
+          confirmText: "Geri al",
+          cancelText: "Vazgeç",
+          isWarning: true
+        });
+        if (!reason) return;
+        const response = await apiRequestWithAdminStepUp(
+          `/admin/deliveries/${saveButton.dataset.saveDelivery}`,
+          { method: "PATCH", body: { ...body, reason } },
+          { actionLabel: "Teslimat durumunu geri alma" }
+        );
+        if (!response) return;
+      } else {
+        await apiRequest(`/admin/deliveries/${saveButton.dataset.saveDelivery}`, {
+          method: "PATCH",
+          body
+        });
+      }
       setMessage("Teslimat bilgileri kaydedildi.", true);
     } else if (deliverButton) {
       const sharingConfirmation = await showCustomPrompt({
@@ -1583,11 +1801,47 @@ detailContent.addEventListener("click", async (event) => {
       if (!response) return;
       setMessage("Parola sıfırlama görevi oluşturuldu; Mesajlar bölümünden hazırlayın.", true);
       await Promise.all([loadMessages(), loadDashboard()]);
+    } else if (cancelWeddingButton) {
+      const reason = await requestRequiredReason({
+        title: "Düğünü iptal et",
+        message:
+          "Müşteri erişimi ve bekleyen mesaj görevleri durdurulur. Personel atamaları kayıt amacıyla korunur.",
+        placeholder: "En az 10 karakterlik iptal nedeni",
+        confirmText: "Düğünü iptal et",
+        cancelText: "Vazgeç",
+        isDanger: true
+      });
+      if (!reason) return;
+      const response = await apiRequestWithAdminStepUp(
+        `/admin/weddings/${cancelWeddingButton.dataset.cancelWedding}/cancel`,
+        { method: "POST", body: { reason } },
+        { actionLabel: "Düğünü iptal etme" }
+      );
+      if (!response) return;
+      setMessage("Düğün iptal edildi; müşteri ve mesaj erişimleri durduruldu.", true);
+    } else if (reinstateWeddingButton) {
+      const reason = await requestRequiredReason({
+        title: "Düğün iptalini geri al",
+        message:
+          "Takvim uygunluğu yeniden denetlenir. İptalde geri çekilen teslimat erişimi kendiliğinden açılmaz.",
+        placeholder: "En az 10 karakterlik geri alma nedeni",
+        confirmText: "İptali geri al",
+        cancelText: "Vazgeç",
+        isWarning: true
+      });
+      if (!reason) return;
+      const response = await apiRequestWithAdminStepUp(
+        `/admin/weddings/${reinstateWeddingButton.dataset.reinstateWedding}/reinstate`,
+        { method: "POST", body: { reason } },
+        { actionLabel: "Düğün iptalini geri alma" }
+      );
+      if (!response) return;
+      setMessage("Düğün iptali geri alındı; teslimat erişimi kendiliğinden açılmadı.", true);
     } else if (archiveWeddingButton) {
       const accepted = await requestDangerConfirmation(
         {
           title: "Düğünü arşivle",
-          copy: "Düğün; plan, takvim, bugün/yarın ve yaklaşan teslimatlardan kaldırılır. Geri yüklenebilir.",
+          copy: "İptal edilmiş veya zamanı geçmiş düğün; plan, takvim ve teslimat listelerinden kaldırılır. Gelecekteki aktif düğün önce iptal edilmelidir.",
           button: "Arşivle"
         },
         archiveWeddingButton
@@ -1738,9 +1992,15 @@ document.querySelector(".js-staff").addEventListener("click", (event) => {
 staffForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
   button.addEventListener("click", () => staffDialog.close());
 });
+staffForm.querySelector(".js-staff-specialties").addEventListener("change", () => {
+  staffForm.querySelector(".js-staff-specialties-error").hidden = true;
+});
 staffForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (event.submitter?.value === "cancel") return;
+  const submitButton = staffForm.querySelector(".js-staff-submit");
+  const specialtyError = staffForm.querySelector(".js-staff-specialties-error");
+  const formMessage = staffForm.querySelector(".js-staff-form-message");
   const data = new FormData(staffForm);
   const staffId = data.get("staffId");
   const body = {
@@ -1751,6 +2011,14 @@ staffForm.addEventListener("submit", async (event) => {
     isActive: data.has("isActive"),
     venueId: data.get("venueId")
   };
+  specialtyError.hidden = body.specialties.length > 0;
+  if (!body.specialties.length) {
+    staffForm.querySelector('input[name="specialties"]')?.focus();
+    return;
+  }
+  formMessage.textContent = "";
+  submitButton.disabled = true;
+  submitButton.textContent = "Kaydediliyor…";
   try {
     await apiRequest(staffId ? `/admin/staff/${staffId}` : "/admin/staff", {
       method: staffId ? "PATCH" : "POST",
@@ -1760,7 +2028,10 @@ staffForm.addEventListener("submit", async (event) => {
     setMessage(staffId ? "Personel güncellendi." : "Personel eklendi.", true);
     await Promise.all([loadStaff(), loadDashboard()]);
   } catch (error) {
-    staffForm.querySelector(".dialog-message").textContent = error.message;
+    formMessage.textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Kaydet";
   }
 });
 

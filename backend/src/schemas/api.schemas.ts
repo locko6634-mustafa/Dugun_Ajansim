@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { isStrictGregorianDate } from "../utils/domain.js";
+import { bookingSchedulePolicy, isStrictGregorianDate } from "../utils/domain.js";
+
+export { bookingSchedulePolicy } from "../utils/domain.js";
 
 export const bookingFormConstraints = Object.freeze({
   personName: {
@@ -17,13 +19,6 @@ export const bookingFormConstraints = Object.freeze({
   email: { maxLength: 254 },
   customVenueName: { minLength: 2, maxLength: 140 },
   note: { maxLength: 2_000 }
-});
-
-export const bookingSchedulePolicy = Object.freeze({
-  earliestTime: "00:00",
-  latestTime: "23:30",
-  stepMinutes: 30,
-  allowNextDay: true
 });
 
 export const adminCatalogFormConstraints = Object.freeze({
@@ -71,7 +66,17 @@ const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine(isStrictGregorianDate, "Geçerli bir takvim tarihi girin.");
-const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const timeSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+  .refine((value) => {
+    const minutes = Number(value.slice(3));
+    return (
+      value >= bookingSchedulePolicy.earliestTime &&
+      value <= bookingSchedulePolicy.latestTime &&
+      minutes % bookingSchedulePolicy.stepMinutes === 0
+    );
+  }, "Saat 30 dakikalık adımlardan biri olmalıdır.");
 const codeSchema = z
   .string()
   .trim()
@@ -399,7 +404,8 @@ export const deliveryUpdateBodySchema = z
   .object({
     status: z.enum(["HAZIRLANIYOR", "MONTAJ", "KONTROL", "TESLIME_HAZIR"]).optional(),
     dueDate: dateSchema.optional(),
-    driveUrl: z.string().trim().url().max(2_000).nullable().optional()
+    driveUrl: z.string().trim().url().max(2_000).nullable().optional(),
+    reason: z.string().trim().min(10).max(500).optional()
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
@@ -489,9 +495,36 @@ export const assignmentBodySchema = z
   .object({
     staffId: z.string().uuid(),
     specialty: staffSpecialtySchema,
-    allowConflict: z.boolean().default(false)
+    allowConflict: z.boolean().default(false),
+    overrideReason: z.string().trim().min(10).max(500).optional()
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (value.allowConflict && !value.overrideReason) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["overrideReason"],
+        message: "Çakışma override gerekçesi zorunludur."
+      });
+    }
+    if (!value.allowConflict && value.overrideReason) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["overrideReason"],
+        message: "Override gerekçesi yalnız çakışma override işleminde gönderilebilir."
+      });
+    }
+  });
+
+export const operationalAssignmentBodySchema = assignmentBodySchema.superRefine((value, context) => {
+  if (value.allowConflict) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["allowConflict"],
+      message: "Çakışan atama yalnız yönetici override akışıyla yapılabilir."
+    });
+  }
+});
 
 export const dashboardQuerySchema = z
   .object({
@@ -517,18 +550,59 @@ export const uuidParamsSchema = z
   })
   .strict();
 
+const paginationQueryFields = {
+  cursor: z.string().trim().min(20).max(1_000).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50)
+};
+
 export const bookingQuerySchema = z
   .object({
     status: z.enum(["ONAY_BEKLIYOR", "ONAYLANDI", "REDDEDILDI", "IPTAL_EDILDI"]).optional(),
     referenceCode: z.string().trim().min(3).max(40).optional(),
-    includeArchived: z.enum(["true", "false"]).optional()
+    includeArchived: z.enum(["true", "false"]).optional(),
+    ...paginationQueryFields
   })
   .strict();
 
-export const archivedQuerySchema = z
+export const weddingListQuerySchema = z
   .object({
-    includeArchived: z.enum(["true", "false"]).optional()
+    includeArchived: z.enum(["true", "false"]).optional(),
+    search: z.string().trim().min(2).max(100).optional(),
+    deliveryStatus: z
+      .enum(["HAZIRLANIYOR", "MONTAJ", "KONTROL", "TESLIME_HAZIR", "TESLIM_EDILDI"])
+      .optional(),
+    ...paginationQueryFields
   })
+  .strict();
+
+export const operationsWeddingListQuerySchema = z
+  .object({
+    search: z.string().trim().min(2).max(100).optional(),
+    ...paginationQueryFields
+  })
+  .strict();
+
+export const messageTaskQuerySchema = z
+  .object({
+    status: z
+      .enum(["PLANNED", "PREPARED", "READY_TO_SEND", "SENT", "FAILED", "CANCELLED"])
+      .optional(),
+    kind: z
+      .enum([
+        "APPLICATION_APPROVED",
+        "APPLICATION_REJECTED",
+        "ACCOUNT_ACTIVATION",
+        "PREPARATION_UPDATE",
+        "DELIVERY_READY",
+        "PASSWORD_RESET"
+      ])
+      .optional(),
+    ...paginationQueryFields
+  })
+  .strict();
+
+export const lifecycleReasonBodySchema = z
+  .object({ reason: z.string().trim().min(10).max(500) })
   .strict();
 
 export const criticalAdminActionBodySchema = z

@@ -149,6 +149,8 @@ model User {
   auditLogs                  AuditLog[]
   deliveryHistory            DeliveryStatusHistory[]
   revokedDeliveries          Delivery[]              @relation("DeliveryRevokedBy")
+  cancelledWeddings          Wedding[]               @relation("WeddingCancelledBy")
+  reinstatedWeddings         Wedding[]               @relation("WeddingReinstatedBy")
   sentMessages               MessageTask[]           @relation("MessageSender")
   earlyOverriddenMessages    MessageTask[]           @relation("MessageEarlyOverrideBy")
   cancelledMessages          MessageTask[]           @relation("MessageCancelledBy")
@@ -211,18 +213,18 @@ model RateLimitBucket {
 }
 
 model PasswordSetupToken {
-  id           String               @id @default(uuid())
-  tokenHash    String               @unique @db.Char(64)
-  userId       String
-  user         User                 @relation("PasswordSetupTokenUser", fields: [userId], references: [id], onDelete: Cascade)
-  purpose      PasswordSetupPurpose
-  expiresAt    DateTime
-  usedAt       DateTime?
-  revokedAt    DateTime?
-  createdById  String?
-  createdBy    User?                @relation("PasswordSetupTokenIssuer", fields: [createdById], references: [id], onDelete: SetNull)
-  messageTask  MessageTask?
-  createdAt    DateTime             @default(now())
+  id          String               @id @default(uuid())
+  tokenHash   String               @unique @db.Char(64)
+  userId      String
+  user        User                 @relation("PasswordSetupTokenUser", fields: [userId], references: [id], onDelete: Cascade)
+  purpose     PasswordSetupPurpose
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  createdById String?
+  createdBy   User?                @relation("PasswordSetupTokenIssuer", fields: [createdById], references: [id], onDelete: SetNull)
+  messageTask MessageTask?
+  createdAt   DateTime             @default(now())
 
   @@index([userId, expiresAt])
   @@index([expiresAt, usedAt, revokedAt])
@@ -334,6 +336,7 @@ model BookingApplication {
   messageTasks                  MessageTask[]
 
   @@index([status, createdAt])
+  @@index([createdAt, id])
   @@index([venueId, weddingStartsAt])
   @@index([packageId])
   @@index([reviewedById])
@@ -392,6 +395,14 @@ model Wedding {
   packageSummary         Json
   note                   String?
   cancelledAt            DateTime?
+  cancellationReason     String?
+  cancelledById          String?
+  cancelledBy            User?               @relation("WeddingCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  cancelledByRole        UserRole?
+  reinstatedAt           DateTime?
+  reinstatedById         String?
+  reinstatedBy           User?               @relation("WeddingReinstatedBy", fields: [reinstatedById], references: [id], onDelete: Restrict)
+  reinstatementReason    String?
   deletedAt              DateTime?
   deletedById            String?
   deletedBy              User?               @relation("WeddingArchivedBy", fields: [deletedById], references: [id], onDelete: SetNull)
@@ -403,6 +414,11 @@ model Wedding {
 
   @@index([venueId, startsAt])
   @@index([startsAt, endsAt])
+  @@index([startsAt, id])
+  @@index([cancelledAt])
+  @@index([cancelledById])
+  @@index([reinstatedAt])
+  @@index([reinstatedById])
   @@index([deletedAt])
   @@map("weddings")
 }
@@ -485,6 +501,7 @@ model DeliveryStatusHistory {
   toStatus    DeliveryStatus
   actorUserId String?
   actor       User?           @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  reason      String?
   createdAt   DateTime        @default(now())
 
   @@index([deliveryId, createdAt])
@@ -493,55 +510,55 @@ model DeliveryStatusHistory {
 }
 
 model MessageTask {
-  id                       String              @id @default(uuid())
-  weddingId                String?
-  wedding                  Wedding?            @relation(fields: [weddingId], references: [id], onDelete: Cascade)
-  applicationId            String?
-  application              BookingApplication? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  kind                     MessageKind
-  channel                  MessageChannel      @default(WHATSAPP)
-  status                   MessageStatus       @default(PLANNED)
-  dueAt                    DateTime
-  recipientPhone           String?
-  piiCiphertext            String?
-  piiIv                    String?
-  piiAuthTag               String?
-  piiKeyId                 String?
-  piiEncryptionVersion     Int?
-  piiSchemaVersion         Int?
-  piiRevision              Int                 @default(0)
-  recipientPhoneBlindIndex String?             @db.Char(64)
-  piiBlindIndexKeyId       String?
-  piiBlindIndexVersion     Int?
-  secretCiphertext         String?
-  secretIv                 String?
-  secretAuthTag            String?
-  encryptionVersion        Int                 @default(2)
-  preparedAt               DateTime?
+  id                        String              @id @default(uuid())
+  weddingId                 String?
+  wedding                   Wedding?            @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  applicationId             String?
+  application               BookingApplication? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  kind                      MessageKind
+  channel                   MessageChannel      @default(WHATSAPP)
+  status                    MessageStatus       @default(PLANNED)
+  dueAt                     DateTime
+  recipientPhone            String?
+  piiCiphertext             String?
+  piiIv                     String?
+  piiAuthTag                String?
+  piiKeyId                  String?
+  piiEncryptionVersion      Int?
+  piiSchemaVersion          Int?
+  piiRevision               Int                 @default(0)
+  recipientPhoneBlindIndex  String?             @db.Char(64)
+  piiBlindIndexKeyId        String?
+  piiBlindIndexVersion      Int?
+  secretCiphertext          String?
+  secretIv                  String?
+  secretAuthTag             String?
+  encryptionVersion         Int                 @default(2)
+  preparedAt                DateTime?
   preparedMessageCiphertext String?
-  preparedMessageIv        String?
-  preparedMessageAuthTag   String?
-  readyAt                  DateTime?
-  failedAt                 DateTime?
-  failureReason            String?
-  nextAttemptAt            DateTime?
-  attemptCount             Int                 @default(0)
-  lastAttemptAt            DateTime?
-  earlyOverrideAt          DateTime?
-  earlyOverrideReason      String?
-  earlyOverrideById        String?
-  earlyOverrideBy          User?               @relation("MessageEarlyOverrideBy", fields: [earlyOverrideById], references: [id], onDelete: SetNull)
-  cancelledAt              DateTime?
-  cancelledReason          String?
-  cancelledById            String?
-  cancelledBy              User?               @relation("MessageCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
-  preparedTokenId          String?             @unique
-  preparedToken            PasswordSetupToken? @relation(fields: [preparedTokenId], references: [id], onDelete: SetNull)
-  sentAt                   DateTime?
-  sentById                 String?
-  sentBy                   User?               @relation("MessageSender", fields: [sentById], references: [id], onDelete: SetNull)
-  createdAt                DateTime            @default(now())
-  updatedAt                DateTime            @updatedAt
+  preparedMessageIv         String?
+  preparedMessageAuthTag    String?
+  readyAt                   DateTime?
+  failedAt                  DateTime?
+  failureReason             String?
+  nextAttemptAt             DateTime?
+  attemptCount              Int                 @default(0)
+  lastAttemptAt             DateTime?
+  earlyOverrideAt           DateTime?
+  earlyOverrideReason       String?
+  earlyOverrideById         String?
+  earlyOverrideBy           User?               @relation("MessageEarlyOverrideBy", fields: [earlyOverrideById], references: [id], onDelete: SetNull)
+  cancelledAt               DateTime?
+  cancelledReason           String?
+  cancelledById             String?
+  cancelledBy               User?               @relation("MessageCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  preparedTokenId           String?             @unique
+  preparedToken             PasswordSetupToken? @relation(fields: [preparedTokenId], references: [id], onDelete: SetNull)
+  sentAt                    DateTime?
+  sentById                  String?
+  sentBy                    User?               @relation("MessageSender", fields: [sentById], references: [id], onDelete: SetNull)
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
 
   @@unique([weddingId, kind])
   @@unique([applicationId, kind])
@@ -549,6 +566,7 @@ model MessageTask {
   @@index([earlyOverrideById])
   @@index([cancelledById])
   @@index([status, dueAt])
+  @@index([dueAt, id])
   @@index([sentById])
   @@map("message_tasks")
 }

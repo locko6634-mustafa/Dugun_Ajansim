@@ -65,6 +65,8 @@ import {
   runDataRetentionBatch,
 } from '../src/utils/dataRetention.js';
 import { findBoundedIntervalConflicts } from '../src/utils/intervalConflicts.js';
+import { verifyGoogleDriveLinkAccess } from '../src/utils/delivery-link-access.js';
+import { decodeListCursor, encodeListCursor } from '../src/utils/pagination.js';
 import {
   BOOKING_APPLICATION_PII_SCHEMA_VERSION,
   assertPiiWriteAllowed,
@@ -1493,6 +1495,37 @@ test('operasyonel AppError durum kodunu ve güvenli ayrıntıları korur', () =>
   assert.equal(mock.getBody().requestId, 'corr_validation_123');
   assert.deepEqual(mock.getBody().errors, details);
   assert.deepEqual(mock.getBody().fieldErrors, [{ field: 'email', message: 'Geçersiz e-posta' }]);
+});
+
+test('backend-unit [pagination] cursor sıralama alanlarını güvenli ve değiştirilemez taşır', () => {
+  const cursor = encodeListCursor({
+    id: '11111111-1111-4111-8111-111111111111',
+    sortValue: '2026-08-12T19:30:00.000Z',
+  });
+
+  assert.deepEqual(decodeListCursor(cursor), {
+    id: '11111111-1111-4111-8111-111111111111',
+    sortValue: '2026-08-12T19:30:00.000Z',
+  });
+  assert.throws(() => decodeListCursor(`${cursor}x`), /Geçersiz sayfalama imleci/);
+});
+
+test('backend-unit [delivery-link] yayın öncesi erişim smoke kontrolü kapalı bağlantıyı reddeder', async () => {
+  const accessible = await verifyGoogleDriveLinkAccess('https://drive.google.com/file/d/demo/view', {
+    fetchImpl: async () => new Response(null, { status: 200 }),
+  });
+  assert.equal(accessible.status, 200);
+
+  await assert.rejects(
+    verifyGoogleDriveLinkAccess('https://drive.google.com/file/d/demo/view', {
+      fetchImpl: async () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://accounts.google.com/ServiceLogin' },
+        }),
+    }),
+    /anonim erişime açık görünmüyor/,
+  );
 });
 
 authTest(

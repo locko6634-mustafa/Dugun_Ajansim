@@ -180,14 +180,32 @@
               <p class="section-index">Operasyon dosyaları</p>
               <h2>Düğün planı</h2>
             </div>
-            <input
-              class="search-input js-wedding-search"
-              type="search"
-              placeholder="Çift veya telefon ara"
-              aria-label="Düğünlerde ara"
-            />
+            <div class="heading-actions">
+              <input
+                class="search-input js-wedding-search"
+                type="search"
+                placeholder="Referans veya tam telefon ara"
+                aria-label="Referans veya tam telefonla düğün ara"
+                aria-describedby="wedding-search-help"
+              />
+              <button class="secondary-button js-wedding-search-reset" type="button" disabled>
+                Temizle
+              </button>
+            </div>
           </div>
+          <small id="wedding-search-help"
+            >Referans kodu için en az 2 karakter veya tam telefon yazın.</small
+          >
           <div class="wedding-list js-weddings"></div>
+          <nav class="dialog-actions js-wedding-pagination" aria-label="Düğün listesi sayfaları">
+            <button class="secondary-button" type="button" data-wedding-page="previous" disabled>
+              Önceki
+            </button>
+            <span class="js-wedding-page-summary" aria-live="polite">1. sayfa</span>
+            <button class="secondary-button" type="button" data-wedding-page="next" disabled>
+              Sonraki
+            </button>
+          </nav>
         </section>
 
         <section class="ops-panel" data-panel-content="staff" hidden>
@@ -239,12 +257,66 @@
         </div>
         <input name="staffId" type="hidden" />
         <div class="form-grid">
-          <label>Ad<input name="firstName" type="text" required /></label
-          ><label>Soyad<input name="lastName" type="text" required /></label
-          ><label class="wide">Telefon<input name="phone" type="tel" required /></label>
-          <fieldset class="wide specialty-choices">
+          <label
+            >Ad<input
+              name="firstName"
+              type="text"
+              minlength="2"
+              maxlength="80"
+              pattern="[\p{L}\p{M}][\p{L}\p{M} '’\x2D]*"
+              autocomplete="given-name"
+              aria-describedby="staff-first-name-help staff-first-name-error"
+              required /><small id="staff-first-name-help"
+              >2–80 karakter; yalnızca harf kullanın.</small
+            ><span
+              class="field-error"
+              id="staff-first-name-error"
+              data-staff-error="firstName"
+              aria-live="polite"
+            ></span></label
+          ><label
+            >Soyad<input
+              name="lastName"
+              type="text"
+              minlength="2"
+              maxlength="80"
+              pattern="[\p{L}\p{M}][\p{L}\p{M} '’\x2D]*"
+              autocomplete="family-name"
+              aria-describedby="staff-last-name-help staff-last-name-error"
+              required /><small id="staff-last-name-help"
+              >2–80 karakter; yalnızca harf kullanın.</small
+            ><span
+              class="field-error"
+              id="staff-last-name-error"
+              data-staff-error="lastName"
+              aria-live="polite"
+            ></span></label
+          ><label class="wide"
+            >Telefon<input
+              name="phone"
+              type="tel"
+              minlength="10"
+              maxlength="24"
+              pattern="\+?[\d\s()\x2D]+"
+              autocomplete="tel"
+              aria-describedby="staff-phone-help staff-phone-error"
+              required /><small id="staff-phone-help"
+              >10–24 karakter; rakam, boşluk, +, parantez ve kısa çizgi kullanabilirsiniz.</small
+            ><span
+              class="field-error"
+              id="staff-phone-error"
+              data-staff-error="phone"
+              aria-live="polite"
+            ></span
+          ></label>
+          <fieldset class="wide specialty-choices" aria-describedby="staff-specialties-error">
             <legend>Uzmanlıklar</legend>
             <div class="js-specialties"></div>
+            <span
+              class="field-error js-specialties-error"
+              id="staff-specialties-error"
+              aria-live="polite"
+            ></span>
           </fieldset>
           <label class="switch-row wide"
             ><input name="isActive" type="checkbox" checked /> Aktif personel</label
@@ -253,7 +325,7 @@
         <p class="dialog-message" role="status"></p>
         <div class="dialog-actions">
           <button class="secondary-button" type="button" value="cancel">Vazgeç</button
-          ><button class="primary-button" type="submit">Kaydet</button>
+          ><button class="primary-button js-staff-submit" type="submit">Kaydet</button>
         </div>
       </form>
     </dialog>

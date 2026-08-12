@@ -14,6 +14,7 @@ import { writeAuditLog } from "../utils/audit.js";
 import { createOpaqueToken, hashPassword, hashToken, tokenHashesMatch } from "../utils/crypto.js";
 import {
   addCalendarDays,
+  assertWeddingStartsInFuture,
   atIstanbulTime,
   createWeddingRange,
   formatIstanbulTime,
@@ -329,9 +330,7 @@ export const createBookingApplication = async (
     input.endTime,
     input.endsNextDay
   );
-  if (options.source === "PUBLIC_FORM" && input.weddingDate < getIstanbulDate(new Date())) {
-    throw new AppError("Geçmiş tarihli düğün başvurusu oluşturulamaz.", 400);
-  }
+  assertWeddingStartsInFuture(startsAt);
 
   const bridePhone = normalizePhone(input.bridePhone);
   const groomPhone = normalizePhone(input.groomPhone);
@@ -1024,9 +1023,7 @@ export const updatePaymentFlowApplication = async (
     input.endTime,
     input.endsNextDay
   );
-  if (input.weddingDate < getIstanbulDate(now)) {
-    throw new AppError("Geçmiş tarihli düğün başvurusu oluşturulamaz.", 400);
-  }
+  assertWeddingStartsInFuture(startsAt, now);
   const bridePhone = normalizePhone(input.bridePhone);
   const groomPhone = normalizePhone(input.groomPhone);
   const serviceCodes = [...new Set(input.serviceCodes)].sort();

@@ -3,6 +3,31 @@ import { AppError } from './appError.js';
 
 const ISTANBUL_OFFSET = '+03:00';
 
+export const bookingSchedulePolicy = Object.freeze({
+  earliestTime: '00:00',
+  latestTime: '23:30',
+  stepMinutes: 30,
+  allowNextDay: true,
+});
+
+const WEDDING_TIME_PATTERN = /^(?:[01]\d|2[0-3]):([0-5]\d)$/;
+
+const assertWeddingTimeMatchesPolicy = (value: string): void => {
+  const match = WEDDING_TIME_PATTERN.exec(value);
+  const minute = match ? Number(match[1]) : Number.NaN;
+  if (
+    !match ||
+    minute % bookingSchedulePolicy.stepMinutes !== 0 ||
+    value < bookingSchedulePolicy.earliestTime ||
+    value > bookingSchedulePolicy.latestTime
+  ) {
+    throw new AppError(
+      'Düğün saati HH:mm formatında, 00:00–23:30 aralığında ve 30 dakikalık adımlarla olmalıdır.',
+      400,
+    );
+  }
+};
+
 export const normalizeUsername = (value: string): string =>
   value
     .trim()
@@ -57,6 +82,11 @@ export const createWeddingRange = (
   if (!isStrictGregorianDate(weddingDate)) {
     throw new AppError('Düğün tarihi geçersiz.', 400);
   }
+  assertWeddingTimeMatchesPolicy(startTime);
+  assertWeddingTimeMatchesPolicy(endTime);
+  if (endsNextDay && !bookingSchedulePolicy.allowNextDay) {
+    throw new AppError('Düğünün ertesi gün bitmesine izin verilmiyor.', 400);
+  }
   const startsAt = new Date(`${weddingDate}T${startTime}:00${ISTANBUL_OFFSET}`);
   const endDate = endsNextDay ? addCalendarDays(weddingDate, 1) : weddingDate;
   const endsAt = new Date(`${endDate}T${endTime}:00${ISTANBUL_OFFSET}`);
@@ -74,6 +104,15 @@ export const createWeddingRange = (
   }
 
   return { startsAt, endsAt };
+};
+
+export const assertWeddingStartsInFuture = (startsAt: Date, now = new Date()): void => {
+  if (Number.isNaN(startsAt.valueOf()) || Number.isNaN(now.valueOf())) {
+    throw new AppError('Düğün başlangıç zamanı geçersiz.', 400);
+  }
+  if (startsAt.valueOf() <= now.valueOf()) {
+    throw new AppError('Geçmiş başlangıç saatli düğün oluşturulamaz.', 400);
+  }
 };
 
 export const addCalendarDays = (date: string, days: number): string => {
@@ -96,11 +135,86 @@ export const getIstanbulDate = (date: Date): string => {
   return `${values.year}-${values.month}-${values.day}`;
 };
 
+export const deliveryStatuses = [
+  'HAZIRLANIYOR',
+  'MONTAJ',
+  'KONTROL',
+  'TESLIME_HAZIR',
+  'TESLIM_EDILDI',
+] as const;
+
+export type DeliveryStatusValue = (typeof deliveryStatuses)[number];
+export type DeliveryTransitionDirection = 'UNCHANGED' | 'FORWARD' | 'BACKWARD';
+
+export const deliveryStatusTransitions: Readonly<
+  Record<DeliveryStatusValue, readonly DeliveryStatusValue[]>
+> = Object.freeze({
+  HAZIRLANIYOR: Object.freeze(['MONTAJ'] as const),
+  MONTAJ: Object.freeze(['HAZIRLANIYOR', 'KONTROL'] as const),
+  KONTROL: Object.freeze(['MONTAJ', 'TESLIME_HAZIR'] as const),
+  TESLIME_HAZIR: Object.freeze(['KONTROL'] as const),
+  TESLIM_EDILDI: Object.freeze([] as const),
+});
+
+export const getAllowedDeliveryTransitions = (
+  status: DeliveryStatusValue,
+): readonly DeliveryStatusValue[] => deliveryStatusTransitions[status];
+
+export const isDeliveryForwardTransition = (
+  fromStatus: DeliveryStatusValue,
+  toStatus: DeliveryStatusValue,
+): boolean =>
+  toStatus !== 'TESLIM_EDILDI' &&
+  deliveryStatuses.indexOf(toStatus) === deliveryStatuses.indexOf(fromStatus) + 1;
+
+export const isDeliveryBackwardTransition = (
+  fromStatus: DeliveryStatusValue,
+  toStatus: DeliveryStatusValue,
+): boolean =>
+  fromStatus !== 'TESLIM_EDILDI' &&
+  toStatus !== 'TESLIM_EDILDI' &&
+  deliveryStatuses.indexOf(toStatus) === deliveryStatuses.indexOf(fromStatus) - 1;
+
+export const isDeliveryReleaseTransition = (
+  fromStatus: DeliveryStatusValue,
+  toStatus: DeliveryStatusValue,
+): boolean => fromStatus === 'TESLIME_HAZIR' && toStatus === 'TESLIM_EDILDI';
+
+export const assertDeliveryStatusTransition = (
+  fromStatus: DeliveryStatusValue,
+  toStatus: DeliveryStatusValue,
+): DeliveryTransitionDirection => {
+  if (fromStatus === toStatus) return 'UNCHANGED';
+  if (isDeliveryForwardTransition(fromStatus, toStatus)) return 'FORWARD';
+  if (isDeliveryBackwardTransition(fromStatus, toStatus)) return 'BACKWARD';
+
+  throw new AppError('Teslimat için istenen durum geçişine izin verilmiyor.', 409);
+};
+
+export const deliverySlaPolicy = Object.freeze({
+  daysAfterWedding: 21,
+});
+
+export const assertDeliveryDueDateWithinSla = (
+  dueDate: string,
+  weddingStartsAt: Date,
+): void => {
+  if (!isStrictGregorianDate(dueDate) || Number.isNaN(weddingStartsAt.valueOf())) {
+    throw new AppError('Teslim tarihi geçersiz.', 400);
+  }
+
+  const weddingDate = getIstanbulDate(weddingStartsAt);
+  const expectedDueDate = addCalendarDays(weddingDate, deliverySlaPolicy.daysAfterWedding);
+  if (dueDate !== expectedDueDate) {
+    throw new AppError('Teslim tarihi düğünden 21 gün sonra olmalıdır.', 400);
+  }
+};
+
 export const atIstanbulTime = (date: string, time: string): Date =>
   new Date(`${date}T${time}:00${ISTANBUL_OFFSET}`);
 
-export const randomReferenceCode = (): string => {
-  const date = new Date().toISOString().slice(0, 10).replaceAll('-', '');
+export const randomReferenceCode = (now = new Date()): string => {
+  const date = getIstanbulDate(now).replaceAll('-', '');
   return `DA-${date}-${String(randomInt(100_000, 1_000_000))}`;
 };
 

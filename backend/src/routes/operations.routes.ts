@@ -11,10 +11,11 @@ import {
 } from "../middlewares/auth.middleware.js";
 import { validateRequest } from "../middlewares/validate.middleware.js";
 import {
-  assignmentBodySchema,
   calendarQuerySchema,
   dashboardQuerySchema,
+  operationalAssignmentBodySchema,
   operationalWeddingUpdateBodySchema,
+  operationsWeddingListQuerySchema,
   uuidParamsSchema,
   venueStaffBodySchema,
   venueStaffUpdateBodySchema
@@ -28,6 +29,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { findBoundedIntervalConflicts } from "../utils/intervalConflicts.js";
 import {
   addCalendarDays,
+  assertWeddingStartsInFuture,
   atIstanbulTime,
   createWeddingRange,
   getIstanbulDate,
@@ -39,8 +41,11 @@ import {
   buildWeddingPiiData,
   decryptBookingApplicationPii,
   decryptWeddingPii,
+  piiCryptography,
   staffWithDecryptedPii
 } from "../utils/pii-crypto.js";
+import { decodeListCursor, encodeListCursor, listPaginationMeta } from "../utils/pagination.js";
+import { assertActiveStaffPhoneAvailable } from "../utils/staff-policy.js";
 
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole("SALON_YETKILISI"));
@@ -55,6 +60,15 @@ const uuidRequest = z.object({ body: emptyBody, query: emptyQuery, params: uuidP
 const assignmentParamsSchema = z
   .object({ id: z.string().uuid(), assignmentId: z.string().uuid() })
   .strict();
+
+const staffPhoneConflictError = (error: unknown): never => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    throw new AppError("Bu salonda aynı telefonla aktif bir personel var.", 409, true, {
+      code: "ACTIVE_STAFF_PHONE_CONFLICT"
+    });
+  }
+  throw error;
+};
 
 const venueIdOf = (venueId: string | null | undefined): string => {
   if (!venueId) throw new AppError("Salon sorumlusu hesabına salon atanmamış.", 403);
@@ -156,6 +170,8 @@ const weddingSelectForVenue = (venueId: string) => ({
   ...weddingPiiRecordSelect,
   startsAt: true,
   endsAt: true,
+  cancelledAt: true,
+  deletedAt: true,
   packageSummary: true,
   assignments: {
     where: { staff: { venueId } },
@@ -178,6 +194,8 @@ const venueOperationsWeddingDto = (wedding: VenueOperationsWedding) => {
     groomPhone: pii.groomPhone,
     startsAt: wedding.startsAt,
     endsAt: wedding.endsAt,
+    cancelledAt: wedding.cancelledAt,
+    deletedAt: wedding.deletedAt,
     packageSummary: {
       name:
         wedding.packageSummary &&
@@ -406,6 +424,12 @@ router.post(
     const venueId = venueIdOf(req.auth!.venueId);
     const staff = await prisma.$transaction(async (transaction) => {
       const staffId = randomUUID();
+      const normalizedPhone = normalizePhone(req.body.phone);
+      await assertActiveStaffPhoneAvailable(transaction, {
+        venueId,
+        phone: normalizedPhone,
+        isActive: req.body.isActive
+      });
       const created = await transaction.staff.create({
         data: {
           id: staffId,
@@ -414,7 +438,7 @@ router.post(
             {
               firstName: req.body.firstName,
               lastName: req.body.lastName,
-              phone: normalizePhone(req.body.phone)
+              phone: normalizedPhone
             },
             1
           ),
@@ -432,7 +456,7 @@ router.post(
         metadata: { venueId }
       });
       return staffWithDecryptedPii(created);
-    });
+    }).catch(staffPhoneConflictError);
     res.status(201).json({ success: true, data: staff, correlationId: req.correlationId });
   })
 );
@@ -449,6 +473,13 @@ router.patch(
       const current = await transaction.staff.findFirst({ where: { id: req.params.id, venueId } });
       if (!current) throw new AppError("Personel bulunamadı.", 404);
       const currentPii = staffWithDecryptedPii(current);
+      const normalizedPhone = req.body.phone ? normalizePhone(req.body.phone) : currentPii.phone;
+      await assertActiveStaffPhoneAvailable(transaction, {
+        venueId,
+        phone: normalizedPhone,
+        isActive: req.body.isActive ?? current.isActive,
+        excludeStaffId: current.id
+      });
       const updated = await transaction.staff.update({
         where: { id: current.id, piiRevision: current.piiRevision },
         data: {
@@ -457,7 +488,7 @@ router.patch(
             {
               firstName: req.body.firstName ?? currentPii.firstName,
               lastName: req.body.lastName ?? currentPii.lastName,
-              phone: req.body.phone ? normalizePhone(req.body.phone) : currentPii.phone
+              phone: normalizedPhone
             },
             current.piiRevision + 1
           ),
@@ -476,25 +507,104 @@ router.patch(
         metadata: { venueId }
       });
       return staffWithDecryptedPii(updated);
-    });
+    }).catch(staffPhoneConflictError);
     res.json({ success: true, data: staff, correlationId: req.correlationId });
   })
 );
 
 router.get(
   "/weddings",
-  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
+  validateRequest(
+    z.object({ body: emptyBody, query: operationsWeddingListQuerySchema, params: z.object({}) })
+  ),
   asyncHandler(async (req, res) => {
     const venueId = venueIdOf(req.auth!.venueId);
-    const weddings = await prisma.wedding.findMany({
-      where: { venueId, deletedAt: null },
-      select: weddingSelectForVenue(venueId),
-      orderBy: { startsAt: "desc" },
-      take: 200
-    });
+    const search = req.query.search ? String(req.query.search) : null;
+    const pageSize = Number(req.query.pageSize);
+    const cursor = req.query.cursor ? decodeListCursor(String(req.query.cursor)) : null;
+    if (cursor && cursor.secondarySortValue !== "operations-weddings") {
+      throw new AppError("Geçersiz sayfalama imleci.", 400);
+    }
+    const cursorStartsAt = cursor ? new Date(cursor.sortValue) : null;
+    if (cursorStartsAt && Number.isNaN(cursorStartsAt.valueOf())) {
+      throw new AppError("Geçersiz sayfalama imleci.", 400);
+    }
+
+    const searchFilters: Prisma.WeddingWhereInput[] = [];
+    if (search) {
+      searchFilters.push({
+        application: { referenceCode: { contains: search, mode: "insensitive" } }
+      });
+      try {
+        const phone = normalizePhone(search);
+        searchFilters.push(
+          ...piiCryptography
+            .blindIndexCandidates("Wedding.bridePhone", phone, "phone")
+            .map((candidate) => ({
+              bridePhoneBlindIndex: candidate.value,
+              piiBlindIndexKeyId: candidate.keyId,
+              piiBlindIndexVersion: candidate.version
+            })),
+          ...piiCryptography
+            .blindIndexCandidates("Wedding.groomPhone", phone, "phone")
+            .map((candidate) => ({
+              groomPhoneBlindIndex: candidate.value,
+              piiBlindIndexKeyId: candidate.keyId,
+              piiBlindIndexVersion: candidate.version
+            }))
+        );
+      } catch {
+        // Serbest metin araması telefon biçiminde değilse referans kodu filtresi yeterlidir.
+      }
+    }
+
+    const baseWhere: Prisma.WeddingWhereInput = {
+      venueId,
+      deletedAt: null,
+      ...(searchFilters.length ? { OR: searchFilters } : {})
+    };
+    const cursorWhere: Prisma.WeddingWhereInput | null =
+      cursor && cursorStartsAt
+        ? {
+            OR: [
+              { startsAt: { lt: cursorStartsAt } },
+              { startsAt: cursorStartsAt, id: { lt: cursor.id } }
+            ]
+          }
+        : null;
+    const where: Prisma.WeddingWhereInput = cursorWhere
+      ? { AND: [baseWhere, cursorWhere] }
+      : baseWhere;
+    const [totalItems, page] = await prisma.$transaction(
+      async (transaction) =>
+        Promise.all([
+          transaction.wedding.count({ where: baseWhere }),
+          transaction.wedding.findMany({
+          where,
+          select: weddingSelectForVenue(venueId),
+          orderBy: [{ startsAt: "desc" }, { id: "desc" }],
+          take: pageSize + 1
+          })
+        ]),
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }
+    );
+    const hasNextPage = page.length > pageSize;
+    const weddings = page.slice(0, pageSize);
+    const lastWedding = weddings.at(-1);
+    const nextCursor =
+      hasNextPage && lastWedding
+        ? encodeListCursor({
+            id: lastWedding.id,
+            sortValue: lastWedding.startsAt.toISOString(),
+            secondarySortValue: "operations-weddings"
+          })
+        : null;
     res.json({
       success: true,
-      data: weddings.map(venueOperationsWeddingDto),
+      data: {
+        items: weddings.map(venueOperationsWeddingDto),
+        pagination: listPaginationMeta(totalItems, pageSize, nextCursor)
+      },
       correlationId: req.correlationId
     });
   })
@@ -558,6 +668,7 @@ router.patch(
       req.body.endTime,
       req.body.endsNextDay
     );
+    assertWeddingStartsInFuture(range.startsAt);
     const wedding = await prisma
       .$transaction(
         async (transaction) => {
@@ -709,12 +820,20 @@ router.post(
   "/weddings/:id/assignments",
   verifyCsrf,
   validateRequest(
-    z.object({ body: assignmentBodySchema, query: emptyQuery, params: uuidParamsSchema })
+    z.object({ body: operationalAssignmentBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
   asyncHandler(async (req, res) => {
     const venueId = venueIdOf(req.auth!.venueId);
     const assignment = await prisma.$transaction(
       async (transaction) => {
+        const lockedStaff = await transaction.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`SELECT "id" FROM "staff" WHERE "id" = ${req.body.staffId} AND "venueId" = ${venueId} FOR UPDATE`
+        );
+        if (lockedStaff.length !== 1) throw new AppError("Aktif personel bulunamadı.", 404);
+        const lockedWedding = await transaction.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`SELECT "id" FROM "weddings" WHERE "id" = ${req.params.id} AND "venueId" = ${venueId} FOR UPDATE`
+        );
+        if (lockedWedding.length !== 1) throw new AppError("Düğün kaydı bulunamadı.", 404);
         const [wedding, staff] = await Promise.all([
           transaction.wedding.findFirst({
             where: { id: req.params.id, venueId, deletedAt: null, cancelledAt: null }
@@ -737,7 +856,7 @@ router.post(
             }
           }
         });
-        if (conflicts && !req.body.allowConflict)
+        if (conflicts)
           throw new AppError("Personelin bu saatlerde başka bir görevi var.", 409, true, {
             code: "STAFF_CONFLICT"
           });
@@ -757,12 +876,35 @@ router.post(
           return { ...created, staff: staffWithDecryptedPii(created.staff) };
         } catch (error) {
           if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
-            throw new AppError("Bu personel düğüne zaten atanmış.", 409);
+            throw new AppError("Bu personel düğüne zaten atanmış.", 409, true, {
+              code: "ASSIGNMENT_ALREADY_EXISTS"
+            });
           throw error;
         }
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
-    );
+    ).catch((error: unknown) => {
+      const rawDatabaseCode =
+        error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2010"
+          ? String(error.meta?.code ?? "")
+          : "";
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new AppError("Bu personel düğüne zaten atanmış.", 409, true, {
+          code: "ASSIGNMENT_ALREADY_EXISTS"
+        });
+      }
+      if (
+        (error instanceof Prisma.PrismaClientKnownRequestError &&
+          (error.code === "P2025" || error.code === "P2034")) ||
+        rawDatabaseCode === "40001" ||
+        rawDatabaseCode === "40P01"
+      ) {
+        throw new AppError("Personel ataması başka bir işlemde güncellendi. Tekrar deneyin.", 409, true, {
+          code: "ASSIGNMENT_STATE_CONFLICT"
+        });
+      }
+      throw error;
+    });
     res.status(201).json({ success: true, data: assignment, correlationId: req.correlationId });
   })
 );
@@ -774,6 +916,18 @@ router.delete(
   asyncHandler(async (req, res) => {
     const venueId = venueIdOf(req.auth!.venueId);
     const assignment = await prisma.$transaction(async (transaction) => {
+      const lockedWeddings = await transaction.$queryRaw<
+        Array<{ id: string; deletedAt: Date | null; cancelledAt: Date | null }>
+      >(
+        Prisma.sql`SELECT "id", "deletedAt", "cancelledAt" FROM "weddings" WHERE "id" = ${req.params.id} AND "venueId" = ${venueId} FOR UPDATE`
+      );
+      const lockedWedding = lockedWeddings[0];
+      if (!lockedWedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
+      if (lockedWedding.deletedAt || lockedWedding.cancelledAt) {
+        throw new AppError("İptal edilmiş veya arşivlenmiş düğünün personel ataması kaldırılamaz.", 409, true, {
+          code: "ASSIGNMENT_WEDDING_INACTIVE"
+        });
+      }
       const current = await transaction.weddingAssignment.findFirst({
         where: { id: req.params.assignmentId, weddingId: req.params.id, wedding: { venueId } }
       });

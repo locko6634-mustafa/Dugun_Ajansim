@@ -255,6 +255,19 @@
             </form>
           </div>
           <div class="data-surface js-applications"></div>
+          <nav
+            class="plan-controls js-applications-pagination"
+            aria-label="Başvuru sayfaları"
+            hidden
+          >
+            <button class="mini-button" type="button" data-pagination-prev="applications">
+              ← Önceki
+            </button>
+            <small class="js-applications-pagination-summary" aria-live="polite"></small>
+            <button class="mini-button" type="button" data-pagination-next="applications">
+              Sonraki →
+            </button>
+          </nav>
         </section>
 
         <section class="admin-panel" data-panel-content="weddings" hidden>
@@ -267,8 +280,8 @@
               <input
                 class="js-wedding-search"
                 type="search"
-                placeholder="Çift, salon veya telefon ara"
-                aria-label="Düğünlerde ara"
+                placeholder="Salon, referans veya tam telefon ara"
+                aria-label="Salon, referans veya tam telefonla düğün ara"
               /><select class="js-wedding-status" aria-label="Teslimat durumuna göre filtrele">
                 <option value="">Tüm durumlar</option>
                 <option value="HAZIRLANIYOR">Hazırlanıyor</option>
@@ -281,6 +294,15 @@
             </div>
           </div>
           <div class="wedding-list js-weddings"></div>
+          <nav class="plan-controls js-weddings-pagination" aria-label="Düğün sayfaları" hidden>
+            <button class="mini-button" type="button" data-pagination-prev="weddings">
+              ← Önceki
+            </button>
+            <small class="js-weddings-pagination-summary" aria-live="polite"></small>
+            <button class="mini-button" type="button" data-pagination-next="weddings">
+              Sonraki →
+            </button>
+          </nav>
         </section>
 
         <section class="admin-panel" data-panel-content="staff" hidden>
@@ -321,9 +343,30 @@
               <p class="section-index">İletişim</p>
               <h2>Mesaj geçmişi</h2>
             </div>
-            <p>Tür, alıcı ve gönderim zamanı tutulur; hassas içerikler geçmişte saklanmaz.</p>
+            <div class="heading-actions">
+              <p>Tür, alıcı ve gönderim zamanı tutulur; hassas içerikler geçmişte saklanmaz.</p>
+              <div class="filter-bar">
+                <select
+                  class="js-message-kind-filter"
+                  aria-label="Mesaj türüne göre filtrele"
+                ></select>
+                <select
+                  class="js-message-status-filter"
+                  aria-label="Mesaj durumuna göre filtrele"
+                ></select>
+              </div>
+            </div>
           </div>
           <div class="data-surface js-messages"></div>
+          <nav class="plan-controls js-messages-pagination" aria-label="Mesaj sayfaları" hidden>
+            <button class="mini-button" type="button" data-pagination-prev="messages">
+              ← Önceki
+            </button>
+            <small class="js-messages-pagination-summary" aria-live="polite"></small>
+            <button class="mini-button" type="button" data-pagination-next="messages">
+              Sonraki →
+            </button>
+          </nav>
         </section>
 
         <section class="admin-panel" data-panel-content="managers" hidden>
@@ -439,24 +482,53 @@
         </div>
         <input name="staffId" type="hidden" />
         <div class="form-grid">
-          <label>Ad<input name="firstName" type="text" required /></label
-          ><label>Soyad<input name="lastName" type="text" required /></label
+          <label
+            >Ad<input
+              name="firstName"
+              type="text"
+              autocomplete="given-name"
+              aria-describedby="staff-name-help"
+              required /></label
+          ><label
+            >Soyad<input
+              name="lastName"
+              type="text"
+              autocomplete="family-name"
+              aria-describedby="staff-name-help"
+              required /></label
           ><label class="wide">Telefon<input name="phone" type="tel" required /></label
           ><label class="wide"
             >Salon<select class="js-staff-venue" name="venueId" required></select
           ></label>
-          <fieldset class="wide specialty-choices">
+          <small class="wide" id="staff-name-help"
+            >Ad ve soyad yalnızca harf, boşluk, kesme işareti ve kısa çizgi içerebilir.</small
+          >
+          <fieldset
+            class="wide specialty-choices"
+            aria-describedby="staff-specialties-help staff-specialties-error"
+          >
             <legend>Uzmanlıklar</legend>
             <div class="js-staff-specialties"></div>
+            <small id="staff-specialties-help"
+              >Personelin yapabildiği en az bir görevi seçin.</small
+            >
+            <p
+              class="dialog-message js-staff-specialties-error"
+              id="staff-specialties-error"
+              role="alert"
+              hidden
+            >
+              En az bir uzmanlık seçin.
+            </p>
           </fieldset>
           <label class="switch-row wide"
             ><input name="isActive" type="checkbox" checked /> Aktif personel</label
           >
         </div>
-        <p class="dialog-message" role="status"></p>
+        <p class="dialog-message js-staff-form-message" role="status"></p>
         <div class="dialog-actions">
           <button class="secondary-button" type="button" value="cancel">Vazgeç</button
-          ><button class="primary-button" type="submit">Kaydet</button>
+          ><button class="primary-button js-staff-submit" type="submit">Kaydet</button>
         </div>
       </form>
     </dialog>

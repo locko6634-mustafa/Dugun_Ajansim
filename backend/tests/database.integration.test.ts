@@ -63,8 +63,6 @@ const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
     "primaryContact",
     "primaryEmail",
     "venueId",
-    "cancelledAt",
-    "deletedAt",
     "deletedById",
     "createdAt",
     "updatedAt"
@@ -76,6 +74,8 @@ const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
   assert.equal(typeof wedding.bridePhone, "string");
   assert.equal(typeof wedding.groomFirstName, "string");
   assert.equal(typeof wedding.groomPhone, "string");
+  assert.ok(wedding.cancelledAt === null || typeof wedding.cancelledAt === "string");
+  assert.ok(wedding.deletedAt === null || typeof wedding.deletedAt === "string");
   assert.deepEqual(Object.keys(wedding.packageSummary as object), ["name"]);
   assert.equal(typeof (wedding.packageSummary as { name: unknown }).name, "string");
   assertNoPiiPersistenceMetadata(wedding);
@@ -1183,6 +1183,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     }
   });
   const app = createApp();
+  app.locals.deliveryLinkAccessVerifier = async () => ({ status: 200, redirectHost: null });
   const approvedPaymentFlowRead = await request(app)
     .get(`/api/v1/booking-applications/${firstApplication.id}/payment-flow`)
     .set("Payment-Flow-Key", paymentFlowKey);
@@ -2082,27 +2083,6 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(ownDashboard.status, 200);
   assert.equal(ownDashboard.body.data.couple.bride, "Ayşe Yılmaz");
   assertNoPiiPersistenceMetadata(ownDashboard.body.data);
-  await prisma.wedding.update({
-    where: { id: wedding.id },
-    data: { cancelledAt: new Date() }
-  });
-  const cancelledWeddingDashboard = await request(app)
-    .get("/api/v1/customer/dashboard")
-    .set("Cookie", customerCookie);
-  assert.equal(cancelledWeddingDashboard.status, 404);
-  await prisma.wedding.update({
-    where: { id: wedding.id },
-    data: { cancelledAt: null, deletedAt: new Date() }
-  });
-  const archivedWeddingDashboard = await request(app)
-    .get("/api/v1/customer/dashboard")
-    .set("Cookie", customerCookie);
-  assert.equal(archivedWeddingDashboard.status, 404);
-  await prisma.wedding.update({
-    where: { id: wedding.id },
-    data: { deletedAt: null }
-  });
-
   const adminToken = `${marker}-admin-session-token`;
   const adminCsrfToken = `${marker}-admin-csrf`;
   const adminMfaVerifiedAt = new Date(Date.now() - 1_000);
@@ -2116,8 +2096,41 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       adminStepUpVerifiedAt: new Date()
     }
   });
+  await prisma.rateLimitBucket.deleteMany();
   const adminCookie = `${env.SESSION_COOKIE_NAME}=${adminToken}`;
   const adminAuthCookie = `${adminCookie}; ${CSRF_COOKIE_NAME}=${adminCsrfToken}`;
+  const lifecycleApp = createApp();
+  const cancellationAttempts = await Promise.all(
+    Array.from({ length: 2 }, () =>
+      request(lifecycleApp)
+        .post(`/api/v1/admin/weddings/${wedding.id}/cancel`)
+        .set("X-Correlation-ID", correlationId)
+        .set("Cookie", adminAuthCookie)
+        .set("X-CSRF-Token", adminCsrfToken)
+        .send({ reason: "Entegrasyon iptal yaşam döngüsü doğrulaması." })
+    )
+  );
+  assert.deepEqual(cancellationAttempts.map((response) => response.status).sort(), [200, 409]);
+  const cancelledWeddingDashboard = await request(lifecycleApp)
+    .get("/api/v1/customer/dashboard")
+    .set("Cookie", customerCookie);
+  assert.equal(cancelledWeddingDashboard.status, 404);
+  const reinstatementAttempts = await Promise.all(
+    Array.from({ length: 2 }, () =>
+      request(lifecycleApp)
+        .post(`/api/v1/admin/weddings/${wedding.id}/reinstate`)
+        .set("X-Correlation-ID", correlationId)
+        .set("Cookie", adminAuthCookie)
+        .set("X-CSRF-Token", adminCsrfToken)
+        .send({ reason: "Entegrasyon iptalini kontrollü biçimde geri alma." })
+    )
+  );
+  assert.deepEqual(reinstatementAttempts.map((response) => response.status).sort(), [200, 409]);
+  assert.equal(
+    (await prisma.bookingApplication.findUniqueOrThrow({ where: { id: wedding.applicationId } }))
+      .status,
+    "ONAYLANDI"
+  );
   const anonymousCatalogConstraints = await request(app).get(
     "/api/v1/admin/catalog-form-constraints"
   );
@@ -2133,6 +2146,59 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
   assert.equal(catalogConstraints.body.data.description.maxLength, 2_000);
   assert.equal(catalogConstraints.body.data.venue.displayOrder.maximum, 10_000);
+  const postHandoffArchive = await request(lifecycleApp)
+    .post(`/api/v1/admin/booking-applications/${publicRouteApplicationId}/archive`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
+  assert.equal(postHandoffArchive.status, 200);
+  const postHandoffRestore = await request(lifecycleApp)
+    .post(`/api/v1/admin/booking-applications/${publicRouteApplicationId}/restore`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
+  assert.equal(postHandoffRestore.status, 200);
+  const postHandoffApproval = await request(lifecycleApp)
+    .post(`/api/v1/admin/booking-applications/${publicRouteApplicationId}/approve`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
+  assert.equal(postHandoffApproval.status, 200);
+
+  const customRestoreKey = `${marker}-custom-restore-key-1234567890`;
+  const customRestoreApplication = await createBookingApplication(
+    {
+      ...applicationInput,
+      venueId: undefined,
+      customVenueName: `Restore Özel Salon ${marker}`,
+      weddingDate: addCalendarDays(weddingDate, 12),
+      primaryEmail: `custom-restore-${marker}@example.com`
+    },
+    {
+      source: "PUBLIC_FORM",
+      idempotencyKey: `${marker}-custom-restore`,
+      paymentFlowKey: customRestoreKey,
+      correlationId
+    }
+  );
+  const customArchived = await request(lifecycleApp)
+    .post(`/api/v1/admin/booking-applications/${customRestoreApplication.id}/archive`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
+  assert.equal(customArchived.status, 200);
+  const customRestored = await request(lifecycleApp)
+    .post(`/api/v1/admin/booking-applications/${customRestoreApplication.id}/restore`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
+  assert.equal(customRestored.status, 200);
+  assert.equal(customRestored.body.data.venueId, null);
+  const customRestoredFlow = await request(lifecycleApp)
+    .get(`/api/v1/booking-applications/${customRestoreApplication.id}/payment-flow`)
+    .set("Payment-Flow-Key", customRestoreKey);
+  assert.equal(customRestoredFlow.status, 200);
+
   const archivedFlowKey = `${marker}-archived-payment-flow-key-1234567890`;
   const archivedFlowApplication = await createBookingApplication(
     {
@@ -2147,40 +2213,66 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       correlationId
     }
   );
-  const archivedFlow = await request(app)
-    .post(`/api/v1/admin/booking-applications/${archivedFlowApplication.id}/archive`)
-    .set("X-Correlation-ID", correlationId)
-    .set("Cookie", adminAuthCookie)
-    .set("X-CSRF-Token", adminCsrfToken)
-    .send({});
-  assert.equal(archivedFlow.status, 200);
+  const archivedFlowAttempts = await Promise.all(
+    Array.from({ length: 2 }, () =>
+      request(app)
+        .post(`/api/v1/admin/booking-applications/${archivedFlowApplication.id}/archive`)
+        .set("X-Correlation-ID", correlationId)
+        .set("Cookie", adminAuthCookie)
+        .set("X-CSRF-Token", adminCsrfToken)
+        .send({})
+    )
+  );
+  assert.deepEqual(archivedFlowAttempts.map((response) => response.status).sort(), [200, 409]);
+  const archivedFlow = archivedFlowAttempts.find((response) => response.status === 200)!;
   assertNoPiiPersistenceMetadata(archivedFlow.body.data);
   const archivedPaymentFlowRead = await request(app)
     .get(`/api/v1/booking-applications/${archivedFlowApplication.id}/payment-flow`)
     .set("Payment-Flow-Key", archivedFlowKey);
   assert.equal(archivedPaymentFlowRead.status, 404);
-  assert.equal(
+  assert.ok(
     (
       await prisma.bookingApplication.findUniqueOrThrow({
         where: { id: archivedFlowApplication.id },
         select: { paymentFlowTokenHash: true }
       })
-    ).paymentFlowTokenHash,
-    null
+    ).paymentFlowTokenHash
   );
+  const restoreFlowAttempts = await Promise.all(
+    Array.from({ length: 2 }, () =>
+      request(app)
+        .post(`/api/v1/admin/booking-applications/${archivedFlowApplication.id}/restore`)
+        .set("X-Correlation-ID", correlationId)
+        .set("Cookie", adminAuthCookie)
+        .set("X-CSRF-Token", adminCsrfToken)
+        .send({})
+    )
+  );
+  assert.deepEqual(restoreFlowAttempts.map((response) => response.status).sort(), [200, 409]);
+  const resumedArchivedFlow = await request(app)
+    .get(`/api/v1/booking-applications/${archivedFlowApplication.id}/payment-flow`)
+    .set("Payment-Flow-Key", archivedFlowKey);
+  assert.equal(resumedArchivedFlow.status, 200);
   const adminForbidden = await request(app)
     .get("/api/v1/customer/dashboard")
     .set("Cookie", adminCookie);
   assert.equal(adminForbidden.status, 403);
   const applicationLookup = await request(app)
-    .get(`/api/v1/admin/booking-applications?referenceCode=${firstApplication.referenceCode}`)
+    .get(
+      `/api/v1/admin/booking-applications?referenceCode=${firstApplication.referenceCode}&pageSize=1`
+    )
     .set("Cookie", adminCookie);
   assert.equal(applicationLookup.status, 200);
-  assert.equal(applicationLookup.body.data.length, 1);
-  assert.equal(applicationLookup.body.data[0].id, firstApplication.id);
-  assert.equal("idempotencyKey" in applicationLookup.body.data[0], false);
-  assert.equal("idempotencyFingerprint" in applicationLookup.body.data[0], false);
-  assertNoPiiPersistenceMetadata(applicationLookup.body.data);
+  assert.equal(applicationLookup.body.data.items.length, 1);
+  assert.equal(applicationLookup.body.data.items[0].id, firstApplication.id);
+  assert.equal("idempotencyKey" in applicationLookup.body.data.items[0], false);
+  assert.equal("idempotencyFingerprint" in applicationLookup.body.data.items[0], false);
+  assert.equal(applicationLookup.body.data.pagination.pageSize, 1);
+  assertNoPiiPersistenceMetadata(applicationLookup.body.data.items);
+  const invalidApplicationCursor = await request(app)
+    .get("/api/v1/admin/booking-applications?cursor=gecersiz-imlec-degeri-123456")
+    .set("Cookie", adminCookie);
+  assert.equal(invalidApplicationCursor.status, 400);
   const applicationDetail = await request(app)
     .get(`/api/v1/admin/booking-applications/${firstApplication.id}`)
     .set("Cookie", adminCookie);
@@ -2312,6 +2404,19 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(createdStaff.status, 201);
   staffIds.push(createdStaff.body.data.id as string);
   assert.equal(createdStaff.body.data.phone, "+905551112233");
+  const duplicateActiveStaff = await request(app)
+    .post("/api/v1/admin/staff")
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({
+      firstName: "Tekrar",
+      lastName: "Telefon",
+      phone: "0 (555) 111 22 33",
+      venueId: venue.id,
+      specialties: ["VIDEO"],
+      isActive: true
+    });
+  assert.equal(duplicateActiveStaff.status, 409);
 
   const createdManager = await request(app)
     .post("/api/v1/admin/venue-managers")
@@ -2410,11 +2515,11 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", managerCookie);
   assert.equal(venueOperationsWeddings.status, 200);
   assert.ok(
-    venueOperationsWeddings.body.data.some(
+    venueOperationsWeddings.body.data.items.some(
       (operationsWedding: { id: string }) => operationsWedding.id === wedding.id
     )
   );
-  for (const operationsWedding of venueOperationsWeddings.body.data) {
+  for (const operationsWedding of venueOperationsWeddings.body.data.items) {
     assertOperationsWeddingContract(operationsWedding);
   }
   const scopedWeddingDetail = await request(app)
@@ -2510,17 +2615,18 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({ firstName: "Eksik", lastName: "Uzmanlık", phone: "05551112244", specialties: [] });
   assert.equal(invalidStaff.status, 400);
 
-  const firstAssignment = await request(app)
-    .post(`/api/v1/admin/weddings/${wedding.id}/assignments`)
-    .set("X-Correlation-ID", correlationId)
-    .set("Cookie", adminAuthCookie)
-    .set("X-CSRF-Token", adminCsrfToken)
-    .send({
-      staffId: createdStaff.body.data.id,
-      specialty: "PHOTOGRAPHY",
-      allowConflict: false
-    });
-  assert.equal(firstAssignment.status, 201);
+  const assignmentRaceApp = createApp();
+  const assignmentAttempts = await Promise.all(
+    Array.from({ length: 2 }, () =>
+      request(assignmentRaceApp)
+        .post(`/api/v1/operations/weddings/${wedding.id}/assignments`)
+        .set("X-Correlation-ID", correlationId)
+        .set("Cookie", managerAuthCookie)
+        .set("X-CSRF-Token", managerCsrfToken)
+        .send({ staffId: createdStaff.body.data.id, specialty: "PHOTOGRAPHY" })
+    )
+  );
+  assert.deepEqual(assignmentAttempts.map((response) => response.status).sort(), [201, 409]);
 
   const rejectedCrossVenueAssignment = await request(app)
     .post(`/api/v1/admin/weddings/${secondApproval.weddingId}/assignments`)
@@ -2549,7 +2655,9 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(venueCalendar.body.data.selectedVenue.id, venue.id);
   assert.equal(venueCalendar.body.data.month, weddingDate.slice(0, 7));
   const expectedVenueCalendarWeddingCount =
-    approvalExpiryRaceDate.slice(0, 7) === weddingDate.slice(0, 7) ? 3 : 2;
+    2 +
+    Number(approvalExpiryRaceDate.slice(0, 7) === weddingDate.slice(0, 7)) +
+    Number(addCalendarDays(weddingDate, 4).slice(0, 7) === weddingDate.slice(0, 7));
   assert.equal(venueCalendar.body.data.weddings.length, expectedVenueCalendarWeddingCount);
   assert.equal(
     venueCalendar.body.data.weddings.every(
@@ -2577,13 +2685,13 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .get("/api/v1/admin/message-tasks")
     .set("Cookie", adminCookie);
   assert.equal(messageTaskList.status, 200);
-  const listedActivationTask = messageTaskList.body.data.find(
+  const listedActivationTask = messageTaskList.body.data.items.find(
     (task: { id: string }) => task.id === activationTask.id
   );
   assert.ok(listedActivationTask);
   assert.equal(listedActivationTask.recipientPhone, "+905551234567");
   assert.equal("encryptionVersion" in listedActivationTask, false);
-  assertNoPiiPersistenceMetadata(messageTaskList.body.data);
+  assertNoPiiPersistenceMetadata(messageTaskList.body.data.items);
 
   const archivedStaff = await request(app)
     .patch(`/api/v1/admin/staff/${createdStaff.body.data.id}`)
@@ -2953,15 +3061,29 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     `${addCalendarDays(updatedWeddingDate, 2)}T07:00:00.000Z`
   );
 
+  const phaseFourApp = createApp();
+  phaseFourApp.locals.deliveryLinkAccessVerifier = app.locals.deliveryLinkAccessVerifier;
   const driveUrl = "https://drive.google.com/file/d/integration-test";
-  const preparedDelivery = await request(app)
+  const invalidDeliveryJump = await request(phaseFourApp)
     .patch(`/api/v1/admin/deliveries/${wedding.delivery!.id}`)
     .set("X-Correlation-ID", correlationId)
     .set("Cookie", adminAuthCookie)
     .set("X-CSRF-Token", adminCsrfToken)
     .send({ status: "TESLIME_HAZIR", driveUrl });
-  assert.equal(preparedDelivery.status, 200);
-  assert.equal(preparedDelivery.body.data.status, "TESLIME_HAZIR");
+  assert.equal(invalidDeliveryJump.status, 409);
+  for (const status of ["MONTAJ", "KONTROL", "TESLIME_HAZIR"] as const) {
+    const transition: request.Response = await request(phaseFourApp)
+      .patch(`/api/v1/admin/deliveries/${wedding.delivery!.id}`)
+      .set("X-Correlation-ID", correlationId)
+      .set("Cookie", adminAuthCookie)
+      .set("X-CSRF-Token", adminCsrfToken)
+      .send({ status, ...(status === "TESLIME_HAZIR" ? { driveUrl } : {}) });
+    assert.equal(transition.status, 200);
+  }
+  const preparedDelivery = await prisma.delivery.findUniqueOrThrow({
+    where: { id: wedding.delivery!.id }
+  });
+  assert.equal(preparedDelivery.status, "TESLIME_HAZIR");
   const encryptedDelivery = await prisma.delivery.findUniqueOrThrow({
     where: { id: wedding.delivery!.id }
   });
@@ -2982,7 +3104,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     ),
     driveUrl
   );
-  const clearedDelivery = await request(app)
+  const clearedDelivery = await request(phaseFourApp)
     .patch(`/api/v1/admin/deliveries/${wedding.delivery!.id}`)
     .set("X-Correlation-ID", correlationId)
     .set("Cookie", adminAuthCookie)
@@ -2995,24 +3117,24 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(deliveryWithoutUrl.driveUrlCiphertext, null);
   assert.equal(deliveryWithoutUrl.driveUrlIv, null);
   assert.equal(deliveryWithoutUrl.driveUrlAuthTag, null);
-  const restoredDeliveryUrl = await request(app)
+  const restoredDeliveryUrl = await request(phaseFourApp)
     .patch(`/api/v1/admin/deliveries/${wedding.delivery!.id}`)
     .set("X-Correlation-ID", correlationId)
     .set("Cookie", adminAuthCookie)
     .set("X-CSRF-Token", adminCsrfToken)
     .send({ driveUrl });
   assert.equal(restoredDeliveryUrl.status, 200);
-  const hiddenDelivery = await request(app)
+  const hiddenDelivery = await request(phaseFourApp)
     .get("/api/v1/customer/delivery")
     .set("Cookie", customerCookie);
   assert.equal(hiddenDelivery.status, 404);
   assert.equal(JSON.stringify(ownDashboard.body).includes("drive.google.com"), false);
-  const safeAdminWeddings = await request(app)
+  const safeAdminWeddings = await request(phaseFourApp)
     .get("/api/v1/admin/weddings")
     .set("Cookie", adminCookie);
   assert.equal(safeAdminWeddings.status, 200);
   assert.equal(JSON.stringify(safeAdminWeddings.body).includes("driveUrlCiphertext"), false);
-  assertNoPiiPersistenceMetadata(safeAdminWeddings.body.data);
+  assertNoPiiPersistenceMetadata(safeAdminWeddings.body.data.items);
 
   await assert.rejects(
     prisma.delivery.update({
@@ -3020,20 +3142,20 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       data: { status: "TESLIM_EDILDI", releasedAt: null }
     })
   );
-  const unconfirmedDelivery = await request(app)
+  const unconfirmedDelivery = await request(phaseFourApp)
     .post(`/api/v1/admin/deliveries/${wedding.delivery!.id}/deliver`)
     .set("Cookie", adminAuthCookie)
     .set("X-CSRF-Token", adminCsrfToken)
     .send({});
   assert.equal(unconfirmedDelivery.status, 400);
   const concurrentDeliveries = await Promise.all([
-    request(app)
+    request(phaseFourApp)
       .post(`/api/v1/admin/deliveries/${wedding.delivery!.id}/deliver`)
       .set("X-Correlation-ID", correlationId)
       .set("Cookie", adminAuthCookie)
       .set("X-CSRF-Token", adminCsrfToken)
       .send({ sharingConfirmed: true, sharingConfirmation: "ERİŞİMİ DOĞRULADIM" }),
-    request(app)
+    request(phaseFourApp)
       .post(`/api/v1/admin/deliveries/${wedding.delivery!.id}/deliver`)
       .set("X-Correlation-ID", correlationId)
       .set("Cookie", adminAuthCookie)
@@ -3062,6 +3184,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
   assert.equal(deliveryMessage.status, "PLANNED");
   const finalApp = createApp();
+  finalApp.locals.deliveryLinkAccessVerifier = app.locals.deliveryLinkAccessVerifier;
   const releasedDelivery = await request(finalApp)
     .get("/api/v1/customer/delivery")
     .set("Cookie", customerCookie);

@@ -1,12 +1,23 @@
 import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
 import { DELIVERY_STATUS_LABELS, DELIVERY_STATUS_ORDER } from "../shared/domain-labels.js";
-import { formatAppDate } from "../shared/runtime-config.js";
+import { APP_TIME_ZONE, formatAppDate } from "../shared/runtime-config.js";
 
 const statusOrder = DELIVERY_STATUS_ORDER;
 const statusLabels = DELIVERY_STATUS_LABELS;
 
 const formatDate = (value) => formatAppDate(value, { dateStyle: "long" });
+
+const calendarDayInIstanbul = (value) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: APP_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date(value));
+  const part = (type) => Number(parts.find((item) => item.type === type)?.value);
+  return Date.UTC(part("year"), part("month") - 1, part("day")) / 86_400_000;
+};
 
 const safeDeliveryUrl = (value) => {
   let url;
@@ -67,14 +78,14 @@ async function loadDashboard() {
   document.querySelector(".js-current-status").textContent = statusLabels[data.delivery.status];
   document.querySelector(".js-due-date").textContent = formatDate(data.delivery.dueDate);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dueDate = new Date(data.delivery.dueDate);
-  dueDate.setHours(0, 0, 0, 0);
-  const days = Math.max(0, Math.ceil((dueDate - today) / 86_400_000));
-  document.querySelector(".js-days").textContent = days;
-  document.querySelector(".js-days-label").textContent =
-    data.delivery.status === "TESLIM_EDILDI" ? "teslimat tamamlandı" : "gün kaldı";
+  const days = calendarDayInIstanbul(data.delivery.dueDate) - calendarDayInIstanbul(new Date());
+  const isDelivered = data.delivery.status === "TESLIM_EDILDI";
+  document.querySelector(".js-days").textContent = isDelivered ? Math.max(0, days) : Math.abs(days);
+  document.querySelector(".js-days-label").textContent = isDelivered
+    ? "teslimat tamamlandı"
+    : days < 0
+      ? "gün gecikti"
+      : "gün kaldı";
 
   const activeIndex = statusOrder.indexOf(data.delivery.status);
   const journeySection = document.querySelector(".journey-section");

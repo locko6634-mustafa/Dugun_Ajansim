@@ -21,6 +21,16 @@ const state = {
   weekStart: "",
   calendarMonth: "",
   weddings: [],
+  weddingPagination: {
+    cursor: null,
+    history: [],
+    nextCursor: null,
+    pageSize: 50,
+    totalItems: 0,
+    isLegacy: false,
+    loading: false
+  },
+  weddingRequestId: 0,
   staff: [],
   currentWedding: null
 };
@@ -30,6 +40,8 @@ const weddingDialog = document.querySelector(".js-wedding-dialog");
 const detailContainer = document.querySelector(".js-wedding-detail");
 const staffDialog = document.querySelector(".js-staff-dialog");
 const staffForm = document.querySelector(".js-staff-form");
+const weddingSearchInput = document.querySelector(".js-wedding-search");
+const weddingPagination = document.querySelector(".js-wedding-pagination");
 
 const empty = (copy) => `<p class="empty">${escapeHtml(copy)}</p>`;
 const couple = (wedding) => `${wedding.brideFirstName} & ${wedding.groomFirstName}`;
@@ -195,16 +207,44 @@ async function loadCalendar(month = state.calendarMonth) {
   renderCalendar(response.data);
 }
 
+function weddingSearchTerm() {
+  return weddingSearchInput.value.trim();
+}
+
+function resetWeddingPagination() {
+  state.weddingPagination.cursor = null;
+  state.weddingPagination.history = [];
+  state.weddingPagination.nextCursor = null;
+  state.weddingPagination.totalItems = 0;
+}
+
+function renderWeddingPagination() {
+  const pagination = state.weddingPagination;
+  const previous = weddingPagination.querySelector('[data-wedding-page="previous"]');
+  const next = weddingPagination.querySelector('[data-wedding-page="next"]');
+  previous.disabled = pagination.loading || pagination.history.length === 0;
+  next.disabled = pagination.loading || !pagination.nextCursor;
+  weddingPagination.querySelector(".js-wedding-page-summary").textContent =
+    `${pagination.history.length + 1}. sayfa · ${pagination.totalItems} kayıt`;
+  document.querySelector(".js-wedding-search-reset").disabled = !weddingSearchTerm();
+}
+
 function renderWeddings() {
-  const term = document
-    .querySelector(".js-wedding-search")
-    .value.trim()
-    .toLocaleLowerCase(APP_LOCALE);
-  const rows = state.weddings.filter((wedding) =>
-    `${couple(wedding)} ${wedding.bridePhone} ${wedding.groomPhone}`
-      .toLocaleLowerCase(APP_LOCALE)
-      .includes(term)
-  );
+  const term = weddingSearchTerm().toLocaleLowerCase(APP_LOCALE);
+  if (term.length === 1) {
+    document.querySelector(".js-weddings").innerHTML = empty(
+      "Arama yapmak için en az 2 karakter yazın."
+    );
+    renderWeddingPagination();
+    return;
+  }
+  const rows = state.weddingPagination.isLegacy
+    ? state.weddings.filter((wedding) =>
+        `${couple(wedding)} ${wedding.bridePhone} ${wedding.groomPhone}`
+          .toLocaleLowerCase(APP_LOCALE)
+          .includes(term)
+      )
+    : state.weddings;
   document.querySelector(".js-weddings").innerHTML = rows.length
     ? rows
         .map((wedding) => {
@@ -212,13 +252,83 @@ function renderWeddings() {
           return `<article class="wedding-card"><div class="date-tile"><strong>${new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, day: "2-digit" }).format(date)}</strong><small>${new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, month: "short" }).format(date)}</small></div><div><strong>${escapeHtml(couple(wedding))}</strong><p>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</p></div><div class="crew-line">${crew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${wedding.id}">Ayrıntılar</button></article>`;
         })
         .join("")
-    : empty("Aramanızla eşleşen düğün yok.");
+    : empty(term ? "Aramanızla eşleşen düğün yok." : "Planlanmış düğün yok.");
+  renderWeddingPagination();
 }
 
 async function loadWeddings() {
-  const response = await apiRequest("/operations/weddings");
-  state.weddings = response.data;
-  renderWeddings();
+  const term = weddingSearchTerm();
+  if (term.length === 1) {
+    state.weddingRequestId += 1;
+    state.weddings = [];
+    state.weddingPagination.nextCursor = null;
+    state.weddingPagination.totalItems = 0;
+    renderWeddings();
+    return;
+  }
+
+  const requestId = ++state.weddingRequestId;
+  const query = new window.URLSearchParams({
+    pageSize: String(state.weddingPagination.pageSize)
+  });
+  if (state.weddingPagination.cursor) query.set("cursor", state.weddingPagination.cursor);
+  if (term.length >= 2) query.set("search", term);
+  state.weddingPagination.loading = true;
+  renderWeddingPagination();
+
+  try {
+    const response = await apiRequest(`/operations/weddings?${query.toString()}`);
+    if (requestId !== state.weddingRequestId) return;
+    const isLegacy = Array.isArray(response.data);
+    const items = isLegacy ? response.data : response.data?.items;
+    if (!Array.isArray(items)) throw new Error("Düğün listesi geçersiz yanıt verdi.");
+    const pagination = isLegacy ? null : response.data?.pagination;
+    state.weddings = items;
+    state.weddingPagination.isLegacy = isLegacy;
+    state.weddingPagination.nextCursor =
+      typeof pagination?.nextCursor === "string" ? pagination.nextCursor : null;
+    state.weddingPagination.pageSize = Number.isInteger(pagination?.pageSize)
+      ? pagination.pageSize
+      : state.weddingPagination.pageSize;
+    state.weddingPagination.totalItems = Number.isInteger(pagination?.totalItems)
+      ? pagination.totalItems
+      : items.length;
+    renderWeddings();
+  } finally {
+    if (requestId === state.weddingRequestId) {
+      state.weddingPagination.loading = false;
+      renderWeddingPagination();
+    }
+  }
+}
+
+async function moveWeddingPage(direction) {
+  const pagination = state.weddingPagination;
+  if (pagination.loading) return;
+  const snapshot = {
+    cursor: pagination.cursor,
+    history: [...pagination.history],
+    nextCursor: pagination.nextCursor
+  };
+  if (direction === "next" && pagination.nextCursor) {
+    pagination.history.push(pagination.cursor);
+    pagination.cursor = pagination.nextCursor;
+  } else if (direction === "previous" && pagination.history.length > 0) {
+    pagination.cursor = pagination.history.at(-1) || null;
+    pagination.history.pop();
+  } else {
+    return;
+  }
+
+  try {
+    await loadWeddings();
+  } catch (error) {
+    pagination.cursor = snapshot.cursor;
+    pagination.history = snapshot.history;
+    pagination.nextCursor = snapshot.nextCursor;
+    renderWeddingPagination();
+    throw error;
+  }
 }
 
 function populateVenueFilter() {
@@ -272,8 +382,84 @@ async function loadStaff() {
   renderStaff();
 }
 
+const staffNamePattern = /^[\p{L}\p{M}][\p{L}\p{M} '’\-]*$/u;
+const staffPhonePattern = /^\+?[\d\s()\-]+$/;
+
+function setStaffFieldError(fieldName, copy = "") {
+  const input = staffForm.elements[fieldName];
+  const error = staffForm.querySelector(`[data-staff-error="${fieldName}"]`);
+  input?.setCustomValidity(copy);
+  if (error) error.textContent = copy;
+}
+
+function validateStaffTextField(fieldName) {
+  const input = staffForm.elements[fieldName];
+  const value = input.value.trim();
+  let error = "";
+  if (!value) error = "Bu alan zorunludur.";
+  else if (value.length < 2 || value.length > 80) error = "2–80 karakter arasında bir değer yazın.";
+  else if (!staffNamePattern.test(value))
+    error = "Yalnızca harf, boşluk, kesme işareti ve kısa çizgi kullanın.";
+  setStaffFieldError(fieldName, error);
+  return !error;
+}
+
+function validateStaffPhone() {
+  const input = staffForm.elements.phone;
+  const value = input.value.trim();
+  let error = "";
+  if (!value) error = "Telefon zorunludur.";
+  else if (value.length < 10 || value.length > 24)
+    error = "Telefon 10–24 karakter arasında olmalıdır.";
+  else if (!staffPhonePattern.test(value))
+    error = "Yalnızca rakam, boşluk, +, parantez ve kısa çizgi kullanın.";
+  setStaffFieldError("phone", error);
+  return !error;
+}
+
+function validateStaffSpecialties() {
+  const inputs = [...staffForm.querySelectorAll('[name="specialties"]')];
+  const valid = inputs.some((input) => input.checked);
+  const copy = valid ? "" : "En az bir uzmanlık seçin.";
+  inputs[0]?.setCustomValidity(copy);
+  staffForm.querySelector(".js-specialties-error").textContent = copy;
+  return valid;
+}
+
+function clearStaffFormErrors() {
+  ["firstName", "lastName", "phone"].forEach((fieldName) => setStaffFieldError(fieldName));
+  staffForm
+    .querySelectorAll('[name="specialties"]')
+    .forEach((input) => input.setCustomValidity(""));
+  staffForm.querySelector(".js-specialties-error").textContent = "";
+}
+
+function validateStaffForm() {
+  const valid = [
+    validateStaffTextField("firstName"),
+    validateStaffTextField("lastName"),
+    validateStaffPhone(),
+    validateStaffSpecialties()
+  ].every(Boolean);
+  if (!valid) staffForm.reportValidity();
+  return valid;
+}
+
+function applyStaffApiFieldErrors(error) {
+  const fieldErrors = error?.payload?.fieldErrors;
+  if (!Array.isArray(fieldErrors)) return;
+  fieldErrors.forEach((item) => {
+    if (["firstName", "lastName", "phone"].includes(item?.field)) {
+      setStaffFieldError(item.field, item.message);
+    } else if (item?.field === "specialties") {
+      staffForm.querySelector(".js-specialties-error").textContent = item.message;
+    }
+  });
+}
+
 function openStaffForm(staff = null) {
   staffForm.reset();
+  clearStaffFormErrors();
   staffForm.elements.staffId.value = staff?.id || "";
   staffForm.elements.firstName.value = staff?.firstName || "";
   staffForm.elements.lastName.value = staff?.lastName || "";
@@ -289,18 +475,30 @@ function openStaffForm(staff = null) {
   staffDialog.showModal();
 }
 
+function isWeddingReadOnly(wedding) {
+  return Boolean(wedding?.deletedAt || wedding?.cancelledAt);
+}
+
 function renderWeddingDetail(wedding) {
   state.currentWedding = wedding;
   document.querySelector(".js-detail-title").textContent = couple(wedding);
   const startDate = dateKey(wedding.startsAt);
   const endDate = dateKey(wedding.endsAt);
-  const availableOptions = wedding.availableStaff
+  const locked = isWeddingReadOnly(wedding);
+  const disabled = locked ? ' disabled aria-disabled="true"' : "";
+  const lockedMessage = wedding.deletedAt
+    ? "Bu düğün arşivli olduğu için operasyon kontrolleri kapalıdır."
+    : wedding.cancelledAt
+      ? "Bu düğün iptal edildiği için operasyon kontrolleri kapalıdır."
+      : "";
+  const availableOptions = (wedding.availableStaff || [])
     .map(
       (staff) =>
         `<option value="${staff.id}">${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</option>`
     )
     .join("");
-  detailContainer.innerHTML = `<div class="detail-grid"><section class="detail-card"><p class="section-index">İletişim</p><strong>${escapeHtml(wedding.brideFirstName)}: ${escapeHtml(wedding.bridePhone)}</strong><br><strong>${escapeHtml(wedding.groomFirstName)}: ${escapeHtml(wedding.groomPhone)}</strong></section><section class="detail-card"><p class="section-index">Paket</p><strong>${escapeHtml(wedding.packageSummary?.name || "Paket belirtilmedi")}</strong><p>${escapeHtml(wedding.note || "Operasyon notu yok.")}</p></section><section class="detail-card wide"><p class="section-index">Takvim düzenle</p><form class="form-grid js-schedule-form"><label>Tarih<input name="weddingDate" type="date" value="${startDate}" required></label><label>Başlangıç<input name="startTime" type="time" value="${inputTime(wedding.startsAt)}" required></label><label>Bitiş<input name="endTime" type="time" value="${inputTime(wedding.endsAt)}" required></label><label class="switch-row"><input name="endsNextDay" type="checkbox" ${startDate !== endDate ? "checked" : ""}> Bitiş ertesi gün</label><label class="wide">Operasyon notu<textarea name="note">${escapeHtml(wedding.note || "")}</textarea></label><button class="primary-button wide" type="submit">Takvimi güncelle</button></form></section><section class="detail-card wide"><p class="section-index">Görevli ekip</p><div>${wedding.assignments.length ? wedding.assignments.map((assignment) => `<div class="assignment-row"><span><strong>${escapeHtml(assignment.staff.firstName)} ${escapeHtml(assignment.staff.lastName)}</strong><small>${escapeHtml(SPECIALTIES[assignment.specialty])}</small></span><button class="mini-button" type="button" data-remove-assignment="${assignment.id}">Kaldır</button></div>`).join("") : empty("Henüz personel atanmadı.")}</div><form class="assignment-form js-assignment-form"><select name="staffId" required><option value="">Müsait personel seçin</option>${availableOptions}</select><select name="specialty" required><option value="">Önce personel seçin</option></select><button class="primary-button" type="submit">Ata</button></form><p class="dialog-message" role="status"></p></section></div>`;
+  const assignments = wedding.assignments || [];
+  detailContainer.innerHTML = `<div class="detail-grid">${locked ? `<section class="detail-card wide"><p class="dialog-message">${escapeHtml(lockedMessage)}</p></section>` : ""}<section class="detail-card"><p class="section-index">İletişim</p><strong>${escapeHtml(wedding.brideFirstName)}: ${escapeHtml(wedding.bridePhone)}</strong><br><strong>${escapeHtml(wedding.groomFirstName)}: ${escapeHtml(wedding.groomPhone)}</strong></section><section class="detail-card"><p class="section-index">Paket</p><strong>${escapeHtml(wedding.packageSummary?.name || "Paket belirtilmedi")}</strong><p>${escapeHtml(wedding.note || "Operasyon notu yok.")}</p></section><section class="detail-card wide"><p class="section-index">Takvim düzenle</p><form class="form-grid js-schedule-form"><label>Tarih<input name="weddingDate" type="date" value="${startDate}" required${disabled}></label><label>Başlangıç<input name="startTime" type="time" value="${inputTime(wedding.startsAt)}" required${disabled}></label><label>Bitiş<input name="endTime" type="time" value="${inputTime(wedding.endsAt)}" required${disabled}></label><label class="switch-row"><input name="endsNextDay" type="checkbox" ${startDate !== endDate ? "checked" : ""}${disabled}> Bitiş ertesi gün</label><label class="wide">Operasyon notu<textarea name="note"${disabled}>${escapeHtml(wedding.note || "")}</textarea></label><button class="primary-button wide" type="submit"${disabled}>Takvimi güncelle</button></form></section><section class="detail-card wide"><p class="section-index">Görevli ekip</p><div>${assignments.length ? assignments.map((assignment) => `<div class="assignment-row"><span><strong>${escapeHtml(assignment.staff.firstName)} ${escapeHtml(assignment.staff.lastName)}</strong><small>${escapeHtml(SPECIALTIES[assignment.specialty])}</small></span>${locked ? "" : `<button class="mini-button" type="button" data-remove-assignment="${assignment.id}">Kaldır</button>`}</div>`).join("") : empty("Henüz personel atanmadı.")}</div>${locked ? "" : `<form class="assignment-form js-assignment-form"><select name="staffId" required><option value="">Müsait personel seçin</option>${availableOptions}</select><select name="specialty" required><option value="">Önce personel seçin</option></select><button class="primary-button" type="submit">Ata</button></form>`}<p class="dialog-message" role="status"></p></section></div>`;
 }
 
 async function openWedding(weddingId) {
@@ -342,7 +540,33 @@ document.addEventListener("click", (event) => {
 document
   .querySelector("[data-close-dialog]")
   .addEventListener("click", () => weddingDialog.close());
-document.querySelector(".js-wedding-search").addEventListener("input", renderWeddings);
+let weddingSearchTimer = null;
+weddingSearchInput.addEventListener("input", () => {
+  window.clearTimeout(weddingSearchTimer);
+  state.weddingRequestId += 1;
+  resetWeddingPagination();
+  renderWeddingPagination();
+  if (weddingSearchTerm().length === 1) {
+    void loadWeddings();
+    return;
+  }
+  weddingSearchTimer = window.setTimeout(
+    () => void loadWeddings().catch((error) => setMessage(error.message)),
+    250
+  );
+});
+document.querySelector(".js-wedding-search-reset").addEventListener("click", () => {
+  window.clearTimeout(weddingSearchTimer);
+  state.weddingRequestId += 1;
+  weddingSearchInput.value = "";
+  resetWeddingPagination();
+  void loadWeddings().catch((error) => setMessage(error.message));
+});
+weddingPagination.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-wedding-page]");
+  if (!button) return;
+  void moveWeddingPage(button.dataset.weddingPage).catch((error) => setMessage(error.message));
+});
 document.querySelector(".js-staff-search").addEventListener("input", renderStaff);
 document.querySelector(".js-staff-venue-filter")?.addEventListener("change", renderStaff);
 document.querySelector(".js-add-staff").addEventListener("click", () => openStaffForm());
@@ -362,11 +586,23 @@ document.querySelector(".js-staff").addEventListener("click", (event) => {
 staffForm
   .querySelectorAll('[value="cancel"]')
   .forEach((button) => button.addEventListener("click", () => staffDialog.close()));
+staffForm.addEventListener("input", (event) => {
+  if (["firstName", "lastName"].includes(event.target.name))
+    validateStaffTextField(event.target.name);
+  else if (event.target.name === "phone") validateStaffPhone();
+  else if (event.target.name === "specialties") validateStaffSpecialties();
+});
 staffForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (event.submitter?.value === "cancel") return;
+  if (!validateStaffForm()) return;
   const data = new FormData(staffForm);
   const staffId = data.get("staffId");
+  const submitButton = staffForm.querySelector(".js-staff-submit");
+  const submitLabel = submitButton.textContent;
+  submitButton.disabled = true;
+  submitButton.textContent = "Kaydediliyor…";
+  staffForm.setAttribute("aria-busy", "true");
   try {
     await apiRequest(staffId ? `/operations/staff/${staffId}` : "/operations/staff", {
       method: staffId ? "PATCH" : "POST",
@@ -382,7 +618,12 @@ staffForm.addEventListener("submit", async (event) => {
     await Promise.all([loadStaff(), loadDashboard()]);
     setMessage(staffId ? "Personel güncellendi." : "Personel eklendi.", true);
   } catch (error) {
+    applyStaffApiFieldErrors(error);
     staffForm.querySelector(".dialog-message").textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = submitLabel;
+    staffForm.removeAttribute("aria-busy");
   }
 });
 
@@ -401,6 +642,10 @@ detailContainer.addEventListener("change", (event) => {
 });
 detailContainer.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (isWeddingReadOnly(state.currentWedding)) {
+    setMessage("İptal veya arşiv durumundaki düğünlerde operasyon değişikliği yapılamaz.");
+    return;
+  }
   const data = new FormData(event.target);
   try {
     if (event.target.matches(".js-schedule-form")) {
@@ -420,8 +665,7 @@ detailContainer.addEventListener("submit", async (event) => {
         method: "POST",
         body: {
           staffId: data.get("staffId"),
-          specialty: data.get("specialty"),
-          allowConflict: false
+          specialty: data.get("specialty")
         }
       });
       setMessage("Personel göreve atandı.", true);
@@ -443,6 +687,10 @@ detailContainer.addEventListener("submit", async (event) => {
 detailContainer.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-remove-assignment]");
   if (!button) return;
+  if (isWeddingReadOnly(state.currentWedding)) {
+    setMessage("İptal veya arşiv durumundaki düğünlerde atama kaldırılamaz.");
+    return;
+  }
   try {
     await apiRequest(
       `/operations/weddings/${state.currentWedding.id}/assignments/${button.dataset.removeAssignment}`,

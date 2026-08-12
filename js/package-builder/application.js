@@ -9,7 +9,7 @@ import {
   getBookingTimeValues,
   parseBookingSchedulePolicy
 } from "../shared/booking-schedule-policy.js";
-import { APP_LOCALE } from "../shared/runtime-config.js";
+import { APP_LOCALE, APP_TIME_ZONE } from "../shared/runtime-config.js";
 import { isSafeImageAssetPath, safeImageAssetPath } from "../shared/asset-url.js";
 import { renderServiceDetail } from "../shared/service-detail.js";
 const moneyFormatter = new Intl.NumberFormat(APP_LOCALE, { maximumFractionDigits: 2 });
@@ -1126,7 +1126,16 @@ const dateValue = document.querySelector(".js-date-value");
 const calendarTitle = document.querySelector(".js-calendar-title");
 const calendarDays = document.querySelector(".js-calendar-days");
 const timePickers = [...document.querySelectorAll(".js-time-picker")];
-let calendarView = new Date();
+const dateValueInIstanbul = (value = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: APP_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(value);
+  const part = (type) => parts.find((item) => item.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+};
 
 let hasVenueOccupancy = false;
 
@@ -1146,6 +1155,7 @@ const valueToDate = (value) => {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(year, month - 1, day);
 };
+let calendarView = valueToDate(dateValueInIstanbul());
 
 function positionMobilePicker(picker) {
   const popover = picker.querySelector(".picker-popover");
@@ -1206,7 +1216,7 @@ function renderCalendar() {
   const month = calendarView.getMonth();
   const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const todayValue = dateToValue(new Date());
+  const todayValue = dateValueInIstanbul();
   for (let index = 0; index < firstWeekday + daysInMonth; index += 1) {
     if (index < firstWeekday) {
       calendarDays.append(document.createElement("span"));
@@ -1263,7 +1273,9 @@ function setTimeValue(picker, value) {
 
 dateTrigger?.addEventListener("click", () => {
   closePickers(datePicker);
-  calendarView = weddingDateInput?.value ? valueToDate(weddingDateInput.value) : new Date();
+  calendarView = weddingDateInput?.value
+    ? valueToDate(weddingDateInput.value)
+    : valueToDate(dateValueInIstanbul());
   renderCalendar();
   setPickerOpen(datePicker, datePopover.hidden);
 });
@@ -1276,7 +1288,7 @@ document.querySelector(".js-calendar-next")?.addEventListener("click", () => {
   renderCalendar();
 });
 document.querySelector(".js-calendar-today")?.addEventListener("click", () => {
-  calendarView = new Date();
+  calendarView = valueToDate(dateValueInIstanbul());
   renderCalendar();
 });
 calendarDays?.addEventListener("click", (event) => {
@@ -2011,14 +2023,9 @@ void Promise.all([hydrateRemoteData(), hydratePaymentInstructions()]).then(() =>
   restorePaymentFlowSession()
 );
 
-const today = new Date();
-const localToday = [
-  today.getFullYear(),
-  String(today.getMonth() + 1).padStart(2, "0"),
-  String(today.getDate()).padStart(2, "0")
-].join("-");
-if (weddingDateInput) weddingDateInput.min = localToday;
-if (transferDateInput) transferDateInput.max = localToday;
+const todayInIstanbul = dateValueInIstanbul();
+if (weddingDateInput) weddingDateInput.min = todayInIstanbul;
+if (transferDateInput) transferDateInput.max = todayInIstanbul;
 
 function renderOrderReview() {
   const base = basePackages[state.base];

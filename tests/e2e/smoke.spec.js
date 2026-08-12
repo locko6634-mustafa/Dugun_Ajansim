@@ -1015,6 +1015,51 @@ test("@frontend-smoke müşteri teslimat paneli linki teslim öncesinde gösterm
   await expect(page.getByText("Montaj Aşamasında").first()).toBeVisible();
 });
 
+test.describe("İstanbul takvim sözleşmesi", () => {
+  test.use({ timezoneId: "America/Los_Angeles" });
+
+  test("@frontend-smoke tarayıcı saat diliminden bağımsız bugün ve gecikme gösterir", async ({
+    page
+  }) => {
+    await page.clock.setFixedTime(new Date("2026-08-12T21:30:00.000Z"));
+    await page.goto("/paketini-olustur.html");
+    await expect(page.locator(".js-wedding-date")).toHaveAttribute("min", "2026-08-13");
+
+    await page.route("**/api/v1/auth/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: { role: "MUSTERI", mustChangePassword: false, username: "musteri" }
+        })
+      })
+    );
+    await page.route("**/api/v1/customer/dashboard", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            couple: { bride: "Ayşe", groom: "Mehmet" },
+            venue: "Cess Wedding",
+            startsAt: "2026-08-10T17:00:00.000Z",
+            delivery: {
+              status: "MONTAJ",
+              dueDate: "2026-08-12T00:00:00.000Z",
+              releasedAt: null,
+              available: false,
+              history: []
+            }
+          }
+        })
+      })
+    );
+    await page.goto("/musteri-paneli.html");
+    await expect(page.locator(".js-days")).toHaveText("1");
+    await expect(page.locator(".js-days-label")).toHaveText("gün gecikti");
+  });
+});
+
 test("@frontend-smoke müşteri paneli MFA yönetimi göstermez", async ({ page }) => {
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({

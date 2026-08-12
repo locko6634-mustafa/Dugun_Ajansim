@@ -448,6 +448,8 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Kapanış ölçütü:** hazır ödeme akışı, handoff ve özel salon varyantlarında arşiv → restore → onay zinciri gerçek DB entegrasyon testinde geçmeli.
 
+**Güncel durum:** KAPALI — Faz 04. Handoff öncesi/sonrası, süresi dolmuş anahtar ve `venueId=null` varyantları transaction korumalı restore sözleşmesiyle uygulanıp gerçek sentetik PostgreSQL entegrasyonunda doğrulandı. Kanıt: `kanit/faz-04-yasam-dongusu-veri-butunlugu.md`.
+
 ### P1-02 — Onaylı düğün için gerçek iptal akışı yok
 
 - Prisma’da `IPTAL_EDILDI` ve `cancelledAt` var; bunlara yazan tamamlanmış runtime akışı yok.
@@ -457,10 +459,12 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Yapılacaklar**
 
-- [ ] İptal nedeni, iptal eden rol, tarih ve audit kaydı tanımla.
-- [ ] Uygunluk takvimini serbest bırakma kuralını açıkla.
-- [ ] Atama, mesaj, teslimat ve müşteri erişiminin iptal sonrası durumunu tanımla.
-- [ ] Yanlış iptal için kontrollü geri alma prosedürü yaz.
+- [x] İptal nedeni, iptal eden rol, tarih ve audit kaydı tanımla.
+- [x] Uygunluk takvimini serbest bırakma kuralını açıkla.
+- [x] Atama, mesaj, teslimat ve müşteri erişiminin iptal sonrası durumunu tanımla.
+- [x] Yanlış iptal için kontrollü geri alma prosedürü yaz.
+
+**Güncel durum:** KAPALI — Faz 04. İptal ve geri alma; MFA step-up, neden, audit, takvim/mesaj/teslimat/müşteri erişimi kuralları ve yarış korumasıyla uygulandı. Kanıt: `kanit/faz-04-yasam-dongusu-veri-butunlugu.md`.
 
 ### P1-03 — Onay/red sonrası tanımlı müşteri bildirimi yok
 
@@ -481,10 +485,12 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Yapılacaklar**
 
-- [ ] İzinli state machine tanımla.
-- [ ] Geri dönüşleri yetki + neden + audit ile sınırla.
-- [ ] URL açılmadan “teslim edildi” durumuna izin verme.
-- [ ] Teslim tarihini düğün tarihi ve hizmet SLA’sıyla doğrula.
+- [x] İzinli state machine tanımla.
+- [x] Geri dönüşleri yetki + neden + audit ile sınırla.
+- [x] URL açılmadan “teslim edildi” durumuna izin verme.
+- [x] Teslim tarihini düğün tarihi ve hizmet SLA’sıyla doğrula.
+
+**Güncel durum:** KAPALI — Faz 04. Backend allowlist'i, geri dönüş yetkisi/auditi, Google Drive URL + erişim smoke kontrolü ve düğün + 21 gün SLA doğrulaması uygulandı. Kanıt: `kanit/faz-04-yasam-dongusu-veri-butunlugu.md`.
 
 ### P1-05 — Gelecekteki mesaj görevleri erkenden eyleme açık
 
@@ -518,6 +524,8 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Standart:** hata, hatalı alanın yanında; anlaşılır neden, korunmuş veri ve güvenli tekrar deneme ile görünmeli.
 
+**Güncel durum:** KISMEN KAPALI — Faz 04 personel uzmanlığı ile admin teslimat/atama hata bağlamlarını ve mutasyon kilitlerini düzeltti. Public başvuru ve operasyon formunun kalan genel hata davranışları Faz 05 kapsamındadır.
+
 ### P1-09 — Mutasyonlarda in-flight kilidi ve güvenilir çift tıklama koruması eksik
 
 - Bazı admin ve salon formları gönderim sırasında butonu kilitlemiyor.
@@ -526,11 +534,15 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Kapanış ölçütü:** buton loading/disabled, idempotency key ve backend unique/transaction koruması birlikte doğrulanmalı.
 
+**Güncel durum:** KISMEN KAPALI — Faz 04 personel ve atama mutasyonlarında loading/disabled, unique constraint ve transaction/yarış korumasını doğruladı. Diğer frontend mutasyonları Faz 05'te tamamlanacaktır.
+
 ### P1-10 — Salon personeli formu ile backend sözleşmesi uyuşmuyor
 
 - UI uzmanlığı zorunlu göstermiyor; backend en az bir uzmanlık bekliyor.
 - Ad regex’i nedeniyle rakam reddediliyor fakat kullanıcı nedenini göremiyor.
 - Kanıt: `backend/src/schemas/api.schemas.ts:55-69`, `backend/src/schemas/api.schemas.ts:427-434`.
+
+**Güncel durum:** KAPALI — Faz 04. Uzmanlık UI'da zorunlu ve alan bazlı; ad/telefon kuralları görünür, aktif telefon salon bazında backend + DB seviyesinde korunuyor. Kanıt: `kanit/faz-04-yasam-dongusu-veri-butunlugu.md`.
 
 ### P1-11 — Doluluk sorgusunda yarış koşulu var
 
@@ -552,12 +564,16 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Kapanış ölçütü:** cursor/page pagination, toplam kayıt, filtre/sıralama ve boş sayfa geri dönüş testleri eklenmeli.
 
+**Güncel durum:** KAPALI — Faz 04. Başvuru, düğün ve mesaj listeleri imzalı keyset cursor, toplam kayıt, kararlı sıralama ve filtre kapsamına geçirildi; boş/son/geçersiz cursor davranışları doğrulandı. Kanıt: `kanit/faz-04-yasam-dongusu-veri-butunlugu.md`.
+
 ### P1-14 — Tarih/saat sözleşmesi UI ve backend arasında farklı
 
 - Yayınlanan akış 30 dakikalık adım ve en geç 23:30 kullanıyor.
 - Backend her dakikayı 23:59’a kadar kabul edebiliyor.
 - Bugünün geçmiş saatine başvuru riski var.
 - Kanıt: `backend/src/schemas/api.schemas.ts:22`, `backend/src/services/booking.service.ts:318`, `js/package-builder/application.js:1043`.
+
+**Güncel durum:** KAPALI — Faz 04. UI/backend İstanbul zamanlı tek sözleşmede 30 dakika, en geç 23:30 ve gelecekte başlangıç kuralına getirildi; referans günü ve farklı tarayıcı timezone'u test edildi. Kanıt: `kanit/faz-04-yasam-dongusu-veri-butunlugu.md`.
 
 ### P1-15 — Takvim navigasyonu veri yüklenmeden tetiklenirse hata riski var
 

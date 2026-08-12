@@ -361,76 +361,76 @@ Aşağıdaki erişimler yoksa agent kod tarafındaki hazırlığı bitirir, faka
 
 ### 04.1 Başvuru arşivleme ve geri yükleme
 
-- [ ] Handoff öncesi arşiv → restore → akışı sürdürme davranışını tanımla.
-- [ ] Handoff sonrası arşiv → restore → admin onay davranışını tanımla.
-- [ ] Özel salonlu `venueId=null` başvurunun restore sözleşmesini düzelt.
-- [ ] Arşivlemede payment-flow anahtarının silinip silinmeyeceğine açık karar ver.
-- [ ] Restore gerekiyorsa güvenli payment-flow anahtarını yeniden üret veya akışı kapalı admin durumuna getir.
-- [ ] UI metnini gerçekten geri döndürülebilir davranışla uyumlu yap.
-- [ ] Handoff öncesi, handoff sonrası ve özel salon varyantlarını gerçek DB entegrasyon testine ekle.
-- [ ] İki admin eşzamanlı arşiv/restore/onay yaparsa transaction/409 davranışını test et.
+- [x] Handoff öncesi arşiv → restore → akışı sürdürme davranışını tanımla.
+- [x] Handoff sonrası arşiv → restore → admin onay davranışını tanımla.
+- [x] Özel salonlu `venueId=null` başvurunun restore sözleşmesini düzelt.
+- [x] Arşivlemede payment-flow anahtarının silinip silinmeyeceğine açık karar ver.
+- [x] Restore gerekiyorsa güvenli payment-flow anahtarını yeniden üret veya akışı kapalı admin durumuna getir.
+- [x] UI metnini gerçekten geri döndürülebilir davranışla uyumlu yap.
+- [x] Handoff öncesi, handoff sonrası ve özel salon varyantlarını gerçek DB entegrasyon testine ekle.
+- [x] İki admin eşzamanlı arşiv/restore/onay yaparsa transaction/409 davranışını test et.
 
 ### 04.2 Gerçek düğün iptal akışı
 
-- [ ] İptal nedeni, iptal eden rol, zaman ve audit alanlarını tanımla.
-- [ ] `IPTAL_EDILDI`/`cancelledAt` geçişini gerçek endpoint ve servis akışına bağla.
-- [ ] İptal sonrası salon uygunluk slotunun serbest kalma kuralını uygula.
-- [ ] İptal sonrası personel atamalarının durumunu tanımla.
-- [ ] İptal sonrası mesaj görevlerini iptal et veya dönüştür.
-- [ ] İptal sonrası teslimat ve müşteri erişimini tanımla.
-- [ ] Yanlış iptal için yetkili, nedenli ve auditli geri alma prosedürü tanımla.
-- [ ] İptal/arşiv/sil eylemlerini UI’da açıkça ayır.
-- [ ] İptal ve geri alma yarış koşullarını test et.
+- [x] İptal nedeni, iptal eden rol, zaman ve audit alanlarını tanımla.
+- [x] `IPTAL_EDILDI`/`cancelledAt` geçişini gerçek endpoint ve servis akışına bağla.
+- [x] İptal sonrası salon uygunluk slotunun serbest kalma kuralını uygula.
+- [x] İptal sonrası personel atamalarının durumunu tanımla.
+- [x] İptal sonrası mesaj görevlerini iptal et veya dönüştür.
+- [x] İptal sonrası teslimat ve müşteri erişimini tanımla.
+- [x] Yanlış iptal için yetkili, nedenli ve auditli geri alma prosedürü tanımla.
+- [x] İptal/arşiv/sil eylemlerini UI’da açıkça ayır.
+- [x] İptal ve geri alma yarış koşullarını test et.
 
 ### 04.3 Teslimat state machine’i
 
-- [ ] İzinli teslimat durum geçiş haritasını yaz.
-- [ ] İleri/geri geçişleri backend’de allowlist ile uygula.
-- [ ] Geri dönüşleri rol + neden + audit ile sınırla.
-- [ ] Geçersiz sıçramayı 409/422 ile reddet.
-- [ ] URL olmadan “teslim edildi/yayınlandı” durumuna izin verme.
-- [ ] URL formatı ve izin/erişim smoke kontrolü ekle.
-- [ ] Teslim tarihini düğün tarihi ve hizmet SLA’sıyla doğrula.
-- [ ] Arşivli/iptal düğünde teslimat mutasyonlarını kapat.
-- [ ] Müşterinin gösterdiği geri sayımı İstanbul timezone ve overdue durumu için düzelt.
-- [ ] Teslimat geri çekme ve müşteri linkini kapatma auditini test et.
+- [x] İzinli teslimat durum geçiş haritasını yaz.
+- [x] İleri/geri geçişleri backend’de allowlist ile uygula.
+- [x] Geri dönüşleri rol + neden + audit ile sınırla.
+- [x] Geçersiz sıçramayı 409/422 ile reddet.
+- [x] URL olmadan “teslim edildi/yayınlandı” durumuna izin verme.
+- [x] URL formatı ve izin/erişim smoke kontrolü ekle.
+- [x] Teslim tarihini düğün tarihi ve hizmet SLA’sıyla doğrula.
+- [x] Arşivli/iptal düğünde teslimat mutasyonlarını kapat.
+- [x] Müşterinin gösterdiği geri sayımı İstanbul timezone ve overdue durumu için düzelt.
+- [x] Teslimat geri çekme ve müşteri linkini kapatma auditini test et.
 
 ### 04.4 Tarih, saat ve referans sözleşmesi
 
-- [ ] 30 dakikalık adım ve en geç bitiş politikasını tek sözleşmede tanımla.
-- [ ] UI ve backend doğrulamasını aynı kurala getir.
-- [ ] Bugünün geçmiş saatini backend’de reddet.
-- [ ] Başlangıç=bitiriş, ters aralık ve gece yarısı sınırını test et.
-- [ ] İstanbul timezone’u ve DST olmayan yerel saat davranışını açıkça uygula.
-- [ ] Referans tarihinin UTC/İstanbul gün farkı üretmesini engelle.
-- [ ] Tarayıcı timezone’u İstanbul dışında olduğunda doğru tarih gösterimini test et.
+- [x] 30 dakikalık adım ve en geç bitiş politikasını tek sözleşmede tanımla.
+- [x] UI ve backend doğrulamasını aynı kurala getir.
+- [x] Bugünün geçmiş saatini backend’de reddet.
+- [x] Başlangıç=bitiriş, ters aralık ve gece yarısı sınırını test et.
+- [x] İstanbul timezone’u ve DST olmayan yerel saat davranışını açıkça uygula.
+- [x] Referans tarihinin UTC/İstanbul gün farkı üretmesini engelle.
+- [x] Tarayıcı timezone’u İstanbul dışında olduğunda doğru tarih gösterimini test et.
 
 ### 04.5 Listeleme, pagination ve tutarlılık
 
-- [ ] Başvuru listesindeki sessiz 200 limitini pagination/cursor ile değiştir.
-- [ ] Düğün listesindeki sessiz 200 limitini pagination/cursor ile değiştir.
-- [ ] Mesaj listesindeki sessiz 300 limitini pagination/cursor ile değiştir.
-- [ ] Toplam kayıt, sayfa/cursor, filtre ve sıralama sözleşmesini tanımla.
-- [ ] Arşivli/silinmiş filtrelerinin pagination ile doğru çalıştığını test et.
-- [ ] Boş, son ve geçersiz sayfa davranışlarını test et.
-- [ ] Admin sayaçları ile detay listelerinin aynı filtre/zaman dilimini kullandığını doğrula.
+- [x] Başvuru listesindeki sessiz 200 limitini pagination/cursor ile değiştir.
+- [x] Düğün listesindeki sessiz 200 limitini pagination/cursor ile değiştir.
+- [x] Mesaj listesindeki sessiz 300 limitini pagination/cursor ile değiştir.
+- [x] Toplam kayıt, sayfa/cursor, filtre ve sıralama sözleşmesini tanımla.
+- [x] Arşivli/silinmiş filtrelerinin pagination ile doğru çalıştığını test et.
+- [x] Boş, son ve geçersiz sayfa davranışlarını test et.
+- [x] Admin sayaçları ile detay listelerinin aynı filtre/zaman dilimini kullandığını doğrula.
 
 ### 04.6 Personel, atama ve salon izolasyonu
 
-- [ ] Salon personeli uzmanlığını UI’da zorunlu ve alan bazlı hata ile göster.
-- [ ] Ad doğrulama kuralını kullanıcıya anlaşılır biçimde açıkla.
-- [ ] Telefon tekrarının unique/iş kuralını tanımla ve backend’de koru.
-- [ ] Mutasyonlarda loading/disabled ve duplicate submit koruması ekle.
-- [ ] Pasif personeli yeni atamada seçilemez yap.
-- [ ] Aynı personelin çakışan düğüne atanmasını transaction ile engelle.
-- [ ] Yetkili override varsa neden ve audit zorunlu yap.
-- [ ] Başka salon ID’sine salon yetkilisi erişimini 403/404 negatif testiyle doğrula.
-- [ ] İki salon yetkilisinin eşzamanlı atama yarışını test et.
-- [ ] Arşivli/iptal düğünde atama kontrollerini kapat.
+- [x] Salon personeli uzmanlığını UI’da zorunlu ve alan bazlı hata ile göster.
+- [x] Ad doğrulama kuralını kullanıcıya anlaşılır biçimde açıkla.
+- [x] Telefon tekrarının unique/iş kuralını tanımla ve backend’de koru.
+- [x] Mutasyonlarda loading/disabled ve duplicate submit koruması ekle.
+- [x] Pasif personeli yeni atamada seçilemez yap.
+- [x] Aynı personelin çakışan düğüne atanmasını transaction ile engelle.
+- [x] Yetkili override varsa neden ve audit zorunlu yap.
+- [x] Başka salon ID’sine salon yetkilisi erişimini 403/404 negatif testiyle doğrula.
+- [x] İki salon yetkilisinin eşzamanlı atama yarışını test et.
+- [x] Arşivli/iptal düğünde atama kontrollerini kapat.
 
 **Faz 04 çıkış kapısı**
 
-- [ ] Başvuru restore, düğün iptal, teslimat state machine, tarih/saat, pagination ve atama kuralları backend otoritesiyle uygulanmış ve yarış/negatif testleri geçmiştir.
+- [x] Başvuru restore, düğün iptal, teslimat state machine, tarih/saat, pagination ve atama kuralları backend otoritesiyle uygulanmış ve yarış/negatif testleri geçmiştir. Kanıt: `kanit/faz-04-yasam-dongusu-veri-butunlugu.md`.
 
 ---
 
