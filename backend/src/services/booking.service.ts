@@ -185,7 +185,11 @@ const activeScheduleApplicationWhere = (now: Date): Prisma.BookingApplicationWhe
     {
       status: "ONAY_BEKLIYOR",
       source: "PUBLIC_FORM",
-      paymentFlowExpiresAt: { gt: now }
+      OR: [
+        { paymentFlowExpiresAt: { gt: now } },
+        { whatsappHandoffAt: { not: null } },
+        { paymentNotificationChannel: { not: null } }
+      ]
     }
   ]
 });
@@ -678,6 +682,35 @@ const assertPaymentFlowNotExpired = (
   }
 };
 
+const assertApplicationNotAbandoned = (
+  application: Pick<
+    PaymentFlowApplication,
+    | "source"
+    | "status"
+    | "paymentFlowExpiresAt"
+    | "paymentFlowExpiredAt"
+    | "whatsappHandoffAt"
+    | "paymentNotificationChannel"
+  >,
+  now: Date
+): void => {
+  const hasHandoffOrEvidence = Boolean(
+    application.whatsappHandoffAt || application.paymentNotificationChannel
+  );
+  const wasArchivedAsAbandoned =
+    application.status === "IPTAL_EDILDI" && application.paymentFlowExpiredAt;
+  const isAbandonedPastDeadline =
+    application.source === "PUBLIC_FORM" &&
+    application.status === "ONAY_BEKLIYOR" &&
+    !hasHandoffOrEvidence &&
+    (!application.paymentFlowExpiresAt || application.paymentFlowExpiresAt <= now);
+  if (wasArchivedAsAbandoned || isAbandonedPastDeadline) {
+    throw new AppError("WhatsApp ödeme bildirimi süresi doldu.", 410, true, {
+      code: "PAYMENT_FLOW_EXPIRED"
+    });
+  }
+};
+
 const toPaymentFlowResponse = (application: PaymentFlowApplication) => {
   const weddingDate = getIstanbulDate(application.weddingStartsAt);
   const pii = decryptBookingApplicationPii(application.id, application);
@@ -722,44 +755,118 @@ const toPaymentFlowResponse = (application: PaymentFlowApplication) => {
 export const PAYMENT_FLOW_SWEEP_BATCH_SIZE = 100;
 export const PAYMENT_FLOW_SWEEP_ADVISORY_LOCK_KEY = 1_940_667_981;
 
-type ExpiredPaymentFlowCandidate = {
-  id: string;
-  venueId: string | null;
+export type PaymentFlowSweepMetrics = {
+  selectedCount: number;
+  retainedCount: number;
+  archivedAbandonedCount: number;
+  preservedEvidenceCount: number;
+  publicAccessClosedCount: number;
+  failedCount: number;
+  physicalDeletedCount: number;
 };
 
-const purgeExpiredPaymentFlowCandidates = async (
+export const shouldAlarmPaymentFlowSweep = (metrics: PaymentFlowSweepMetrics): boolean =>
+  metrics.failedCount > 0 || metrics.physicalDeletedCount > 0;
+
+type ExpiredPaymentFlowCandidate = {
+  id: string;
+};
+
+const retainExpiredPaymentFlowCandidates = async (
   transaction: Prisma.TransactionClient,
-  candidates: readonly ExpiredPaymentFlowCandidate[],
+  abandonedCandidates: readonly ExpiredPaymentFlowCandidate[],
+  protectedCandidates: readonly ExpiredPaymentFlowCandidate[],
   now: Date,
   correlationId: string
-): Promise<number> => {
-  let expiredCount = 0;
-  for (const candidate of candidates) {
-    const purged = await transaction.bookingApplication.deleteMany({
+): Promise<PaymentFlowSweepMetrics> => {
+  let archivedAbandonedCount = 0;
+  let publicAccessClosedCount = 0;
+  for (const candidate of abandonedCandidates) {
+    const archived = await transaction.bookingApplication.updateMany({
       where: {
         id: candidate.id,
         source: "PUBLIC_FORM",
         status: "ONAY_BEKLIYOR",
         deletedAt: null,
         paymentFlowExpiredAt: null,
-        paymentFlowExpiresAt: { lte: now }
+        paymentFlowExpiresAt: { lte: now },
+        whatsappHandoffAt: null,
+        paymentNotificationChannel: null
+      },
+      data: {
+        status: "IPTAL_EDILDI",
+        deletedAt: now,
+        paymentFlowExpiredAt: now,
+        paymentFlowTokenHash: null
       }
     });
-    if (purged.count !== 1) continue;
+    if (archived.count !== 1) continue;
 
     await createAudit(transaction, {
       action: "booking.payment_flow_expired",
       targetType: "BookingApplication",
       targetId: candidate.id,
       correlationId,
-      metadata: { expiredAt: now.toISOString(), lifecycle: "stale_pii_purged" }
+      metadata: {
+        expiredAt: now.toISOString(),
+        reason: "no_handoff_or_payment_evidence_before_deadline",
+        lifecycle: "cancelled_and_archived",
+        physicalDelete: false
+      }
     });
-    if (candidate.venueId) {
-      await deleteOrphanedCustomerVenue(transaction, candidate.venueId);
-    }
-    expiredCount += 1;
+    archivedAbandonedCount += 1;
   }
-  return expiredCount;
+
+  for (const candidate of protectedCandidates) {
+    const closed = await transaction.bookingApplication.updateMany({
+      where: {
+        id: candidate.id,
+        source: "PUBLIC_FORM",
+        status: "ONAY_BEKLIYOR",
+        deletedAt: null,
+        paymentFlowExpiresAt: { lte: now },
+        OR: [{ whatsappHandoffAt: { not: null } }, { paymentNotificationChannel: { not: null } }],
+        paymentFlowTokenHash: { not: null }
+      },
+      data: { paymentFlowTokenHash: null }
+    });
+    if (closed.count !== 1) continue;
+    await createAudit(transaction, {
+      action: "booking.payment_flow_access_closed",
+      targetType: "BookingApplication",
+      targetId: candidate.id,
+      correlationId,
+      metadata: {
+        closedAt: now.toISOString(),
+        reason: "handoff_or_payment_evidence_retained",
+        physicalDelete: false
+      }
+    });
+    publicAccessClosedCount += 1;
+  }
+
+  const selectedIds = [...abandonedCandidates, ...protectedCandidates].map(({ id }) => id);
+  const retainedCount = selectedIds.length
+    ? await transaction.bookingApplication.count({ where: { id: { in: selectedIds } } })
+    : 0;
+  const selectedCount = selectedIds.length;
+  const physicalDeletedCount = selectedCount - retainedCount;
+  const failedCount = 0;
+  const metrics = {
+    selectedCount,
+    retainedCount,
+    archivedAbandonedCount,
+    preservedEvidenceCount: protectedCandidates.length,
+    publicAccessClosedCount,
+    failedCount,
+    physicalDeletedCount
+  };
+  if (shouldAlarmPaymentFlowSweep(metrics)) {
+    throw new AppError("Ödeme akışı saklama bütünlüğü doğrulanamadı.", 500, false, {
+      code: "PAYMENT_FLOW_RETENTION_INTEGRITY_ERROR"
+    });
+  }
+  return metrics;
 };
 
 const expireStalePaymentFlow = async (
@@ -776,12 +883,21 @@ const expireStalePaymentFlow = async (
           status: "ONAY_BEKLIYOR",
           deletedAt: null,
           paymentFlowExpiredAt: null,
-          paymentFlowExpiresAt: { lte: now }
+          paymentFlowExpiresAt: { lte: now },
+          whatsappHandoffAt: null,
+          paymentNotificationChannel: null
         },
-        select: { id: true, venueId: true },
+        select: { id: true },
         take: 1
       });
-      return purgeExpiredPaymentFlowCandidates(transaction, expiredCandidates, now, correlationId);
+      const metrics = await retainExpiredPaymentFlowCandidates(
+        transaction,
+        expiredCandidates,
+        [],
+        now,
+        correlationId
+      );
+      return metrics.archivedAbandonedCount;
     },
     { maxWait: 2_000, timeout: 10_000 }
   );
@@ -789,7 +905,7 @@ const expireStalePaymentFlow = async (
 export const expireStalePaymentFlows = async (
   now = new Date(),
   correlationId = `payment-expiry-${now.toISOString()}`
-): Promise<number> =>
+): Promise<PaymentFlowSweepMetrics> =>
   prisma.$transaction(
     async (transaction) => {
       const [lock] = await transaction.$queryRaw<Array<{ acquired: boolean }>>`
@@ -797,21 +913,52 @@ export const expireStalePaymentFlows = async (
           ${PAYMENT_FLOW_SWEEP_ADVISORY_LOCK_KEY}::bigint
         ) AS "acquired"
       `;
-      if (!lock?.acquired) return 0;
+      if (!lock?.acquired) {
+        return {
+          selectedCount: 0,
+          retainedCount: 0,
+          archivedAbandonedCount: 0,
+          preservedEvidenceCount: 0,
+          publicAccessClosedCount: 0,
+          failedCount: 0,
+          physicalDeletedCount: 0
+        };
+      }
 
-      const expiredCandidates = await transaction.bookingApplication.findMany({
+      const abandonedCandidates = await transaction.bookingApplication.findMany({
         where: {
           source: "PUBLIC_FORM",
           status: "ONAY_BEKLIYOR",
           deletedAt: null,
           paymentFlowExpiredAt: null,
-          paymentFlowExpiresAt: { lte: now }
+          paymentFlowExpiresAt: { lte: now },
+          whatsappHandoffAt: null,
+          paymentNotificationChannel: null
         },
-        select: { id: true, venueId: true },
+        select: { id: true },
         orderBy: [{ paymentFlowExpiresAt: "asc" }, { id: "asc" }],
         take: PAYMENT_FLOW_SWEEP_BATCH_SIZE
       });
-      return purgeExpiredPaymentFlowCandidates(transaction, expiredCandidates, now, correlationId);
+      const protectedCandidates = await transaction.bookingApplication.findMany({
+        where: {
+          source: "PUBLIC_FORM",
+          status: "ONAY_BEKLIYOR",
+          deletedAt: null,
+          paymentFlowExpiresAt: { lte: now },
+          paymentFlowTokenHash: { not: null },
+          OR: [{ whatsappHandoffAt: { not: null } }, { paymentNotificationChannel: { not: null } }]
+        },
+        select: { id: true },
+        orderBy: [{ paymentFlowExpiresAt: "asc" }, { id: "asc" }],
+        take: PAYMENT_FLOW_SWEEP_BATCH_SIZE
+      });
+      return retainExpiredPaymentFlowCandidates(
+        transaction,
+        abandonedCandidates,
+        protectedCandidates,
+        now,
+        correlationId
+      );
     },
     { maxWait: 2_000, timeout: 30_000 }
   );
@@ -1116,19 +1263,21 @@ export const approveBookingApplication = async (
       status: true,
       source: true,
       whatsappHandoffAt: true,
+      paymentNotificationChannel: true,
       paymentFlowExpiresAt: true,
       paymentFlowExpiredAt: true
     }
   });
   if (!applicationIdentity) throw new AppError("Başvuru bulunamadı.", 404);
-  assertPaymentFlowNotExpired(applicationIdentity, approvalStartedAt);
+  assertApplicationNotAbandoned(applicationIdentity, approvalStartedAt);
   if (applicationIdentity.status !== "ONAY_BEKLIYOR") {
     throw new AppError("Yalnızca onay bekleyen başvurular onaylanabilir.", 409);
   }
   if (
     applicationIdentity.source === "PUBLIC_FORM" &&
     applicationIdentity.paymentFlowExpiresAt &&
-    !applicationIdentity.whatsappHandoffAt
+    !applicationIdentity.whatsappHandoffAt &&
+    !applicationIdentity.paymentNotificationChannel
   ) {
     throw new AppError("WhatsApp dekont bildirimi başlatılmamış başvuru onaylanamaz.", 409);
   }
@@ -1147,14 +1296,15 @@ export const approveBookingApplication = async (
           if (!application) throw new AppError("Başvuru bulunamadı.", 404);
           const applicationPii = decryptBookingApplicationPii(application.id, application);
           const approvalClaimedAt = new Date();
-          assertPaymentFlowNotExpired(application, approvalClaimedAt);
+          assertApplicationNotAbandoned(application, approvalClaimedAt);
           if (application.status !== "ONAY_BEKLIYOR") {
             throw new AppError("Yalnızca onay bekleyen başvurular onaylanabilir.", 409);
           }
           if (
             application.source === "PUBLIC_FORM" &&
             application.paymentFlowExpiresAt &&
-            !application.whatsappHandoffAt
+            !application.whatsappHandoffAt &&
+            !application.paymentNotificationChannel
           ) {
             throw new AppError("WhatsApp dekont bildirimi başlatılmamış başvuru onaylanamaz.", 409);
           }
@@ -1195,8 +1345,10 @@ export const approveBookingApplication = async (
               updatedAt: application.updatedAt,
               ...(application.source === "PUBLIC_FORM"
                 ? {
-                    whatsappHandoffAt: { not: null },
-                    paymentFlowExpiresAt: { gt: approvalClaimedAt }
+                    OR: [
+                      { whatsappHandoffAt: { not: null } },
+                      { paymentNotificationChannel: { not: null } }
+                    ]
                   }
                 : {})
             },

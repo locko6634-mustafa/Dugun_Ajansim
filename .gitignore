@@ -93,3 +93,5 @@ backups/
 /backend/docs
 *.md
 !guvenlik-duzeltmeleri-2026-08-09.md
+!canliya-gecis-kapsamli-hazirlik-raporu.md
+!canliya-gecis-go-uygulama-yol-haritasi.md

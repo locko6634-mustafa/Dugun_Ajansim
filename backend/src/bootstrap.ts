@@ -19,12 +19,19 @@ export const startServer = (): GracefulShutdown => {
     if (paymentFlowSweepRunning) return;
     paymentFlowSweepRunning = true;
     try {
-      await runWithRlsContext(
+      const metrics = await runWithRlsContext(
         { actorRole: "maintenance", purpose: "maintenance.payment-sweep" },
         () => expireStalePaymentFlows()
       );
+      console.log(JSON.stringify({ event: "payment_flow_retention_sweep", ...metrics }));
     } catch (error) {
-      console.error("❌ Süresi dolan ödeme akışları temizlenemedi.");
+      console.error(
+        JSON.stringify({
+          event: "payment_flow_retention_alarm",
+          failedCount: 1,
+          physicalDeletedCount: 0
+        })
+      );
       if (env.NODE_ENV === "development") console.error(error);
     } finally {
       paymentFlowSweepRunning = false;

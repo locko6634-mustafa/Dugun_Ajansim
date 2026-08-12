@@ -104,7 +104,11 @@ export const runDataRetentionBatch = async (
           updatedAt: { lt: cutoffs.publicApplication },
           OR: [
             { status: 'REDDEDILDI' },
-            { paymentFlowExpiredAt: { lt: cutoffs.publicApplication } },
+            {
+              paymentFlowExpiredAt: { lt: cutoffs.publicApplication },
+              whatsappHandoffAt: null,
+              paymentNotificationChannel: null,
+            },
           ],
         },
         select: { id: true },

@@ -16,13 +16,13 @@ Bu dosya başka bir agentın ana yürütme ve devir defteri olarak kullanılacak
 
 ### 1.1 Durum işaretleri
 
-| İşaret | Anlamı |
-|---|---|
-| `[ ]` | Başlanmadı veya kanıtlanmadı |
-| `[~]` | Devam ediyor; henüz çıkış ölçütü geçmedi |
-| `[x]` | Uygulandı, doğrulandı ve kanıtı kaydedildi |
-| `[!]` | Kullanıcı onayı, dış hesap, dış sistem veya yetki bekliyor |
-| `[B]` | Somut hata/engel nedeniyle bloke; hata ve gerekli karar yazıldı |
+| İşaret | Anlamı                                                          |
+| ------ | --------------------------------------------------------------- |
+| `[ ]`  | Başlanmadı veya kanıtlanmadı                                    |
+| `[~]`  | Devam ediyor; henüz çıkış ölçütü geçmedi                        |
+| `[x]`  | Uygulandı, doğrulandı ve kanıtı kaydedildi                      |
+| `[!]`  | Kullanıcı onayı, dış hesap, dış sistem veya yetki bekliyor      |
+| `[B]`  | Somut hata/engel nedeniyle bloke; hata ve gerekli karar yazıldı |
 
 Markdown standart checkbox yalnız `[ ]` ve `[x]` biçimini tanıdığı için `[~]`, `[!]` ve `[B]` durumları metinsel takip işaretidir.
 
@@ -79,24 +79,24 @@ Aşağıdaki erişimler yoksa agent kod tarafındaki hazırlığı bitirir, faka
 
 ## 2. Ana fazlar ve zorunlu sıra
 
-| Sıra | Faz | Ana amaç | Bağımlılık | Çıkış kapısı |
-|---:|---|---|---|---|
-| 00 | Yönetişim ve taban kanıtı | Ortamı, sahipleri ve başlangıç durumunu sabitlemek | Yok | Baseline kaydı tamam |
-| 01 | Public başvuru P0 | Canlı ana dönüşümü ve görünür hata UX’ini düzeltmek | 00 | Nakit/kapora gerçek staging akışı geçiyor |
-| 02 | TTL ve veri saklama P0 | Ödeme/dekont aşamasındaki başvuru kaybını engellemek | 00 | Handoff kayıtları korunuyor |
-| 03 | Aktivasyon, mesaj ve müşteri P0 | Müşteri hesabını güvenilir biçimde kullanılabilir yapmak | 01–02 | Müşteri altın yolu geçiyor |
-| 04 | İş yaşam döngüsü ve veri bütünlüğü | Arşiv, iptal, teslimat, tarih ve yarış koşullarını düzeltmek | 01–03 | Kritik iş kuralları testli |
-| 05 | Admin/salon/public UI kalitesi | Görünür bozuklukları ve form sözleşmelerini düzeltmek | 01–04 | Rol panelleri kullanılabilir |
-| 06 | Full-stack test ve CI | Mock dışı release kapısı kurmak | 01–05 | Altın yol CI’da geçiyor |
-| 07 | Teknik SEO ve indekslenebilir içerik | Crawl, canonical, schema ve arama içeriğini tamamlamak | 05–06 | SEO staging matrisi geçiyor |
-| 08 | Gerçek içerik ve veri hazırlığı | Katalog, metin ve test veri cutover’ını hazırlamak | 04–07 | İmzalı temiz veri planı hazır |
-| 09 | Deploy ve kurtarma | Temiz host, migration ve rollback güvenilirliği | 06 | Failure drill geçiyor |
-| 10 | Yedek, izleme ve kapasite | Felaket kurtarma ve dış gözlemlenebilirlik | 09 | Restore + alarm + kapasite kanıtı |
-| 11 | Kapsamlı doğrulama | İşlev, ağ, cihaz, erişilebilirlik ve kenar senaryoları | 01–10 | Bütün P0/P1 doğrulamaları geçiyor |
-| 12 | Üretim öncesi cutover | Release’i, veriyi ve dış sistemleri son kez hazırlamak | 11 | T-1 sign-off tamam |
-| 13 | T0 canlıya geçiş | Kontrollü dağıtım ve gerçek altın yol smoke | 12 | T0 kapıları geçiyor |
-| 14 | Canlı sonrası takip | T+1 saat, T+24 saat ve T+7 gün doğrulaması | 13 | Stabilizasyon tamam |
-| 15 | Nihai yeniden analiz | Kaynak raporu tekrar çalıştırıp ortak karar vermek | 14 | Mustafa ile nihai GO/NO-GO |
+| Sıra | Faz                                  | Ana amaç                                                     | Bağımlılık | Çıkış kapısı                              |
+| ---: | ------------------------------------ | ------------------------------------------------------------ | ---------- | ----------------------------------------- |
+|   00 | Yönetişim ve taban kanıtı            | Ortamı, sahipleri ve başlangıç durumunu sabitlemek           | Yok        | Baseline kaydı tamam                      |
+|   01 | Public başvuru P0                    | Canlı ana dönüşümü ve görünür hata UX’ini düzeltmek          | 00         | Nakit/kapora gerçek staging akışı geçiyor |
+|   02 | TTL ve veri saklama P0               | Ödeme/dekont aşamasındaki başvuru kaybını engellemek         | 00         | Handoff kayıtları korunuyor               |
+|   03 | Aktivasyon, mesaj ve müşteri P0      | Müşteri hesabını güvenilir biçimde kullanılabilir yapmak     | 01–02      | Müşteri altın yolu geçiyor                |
+|   04 | İş yaşam döngüsü ve veri bütünlüğü   | Arşiv, iptal, teslimat, tarih ve yarış koşullarını düzeltmek | 01–03      | Kritik iş kuralları testli                |
+|   05 | Admin/salon/public UI kalitesi       | Görünür bozuklukları ve form sözleşmelerini düzeltmek        | 01–04      | Rol panelleri kullanılabilir              |
+|   06 | Full-stack test ve CI                | Mock dışı release kapısı kurmak                              | 01–05      | Altın yol CI’da geçiyor                   |
+|   07 | Teknik SEO ve indekslenebilir içerik | Crawl, canonical, schema ve arama içeriğini tamamlamak       | 05–06      | SEO staging matrisi geçiyor               |
+|   08 | Gerçek içerik ve veri hazırlığı      | Katalog, metin ve test veri cutover’ını hazırlamak           | 04–07      | İmzalı temiz veri planı hazır             |
+|   09 | Deploy ve kurtarma                   | Temiz host, migration ve rollback güvenilirliği              | 06         | Failure drill geçiyor                     |
+|   10 | Yedek, izleme ve kapasite            | Felaket kurtarma ve dış gözlemlenebilirlik                   | 09         | Restore + alarm + kapasite kanıtı         |
+|   11 | Kapsamlı doğrulama                   | İşlev, ağ, cihaz, erişilebilirlik ve kenar senaryoları       | 01–10      | Bütün P0/P1 doğrulamaları geçiyor         |
+|   12 | Üretim öncesi cutover                | Release’i, veriyi ve dış sistemleri son kez hazırlamak       | 11         | T-1 sign-off tamam                        |
+|   13 | T0 canlıya geçiş                     | Kontrollü dağıtım ve gerçek altın yol smoke                  | 12         | T0 kapıları geçiyor                       |
+|   14 | Canlı sonrası takip                  | T+1 saat, T+24 saat ve T+7 gün doğrulaması                   | 13         | Stabilizasyon tamam                       |
+|   15 | Nihai yeniden analiz                 | Kaynak raporu tekrar çalıştırıp ortak karar vermek           | 14         | Mustafa ile nihai GO/NO-GO                |
 
 ---
 
@@ -237,35 +237,35 @@ Aşağıdaki erişimler yoksa agent kod tarafındaki hazırlığı bitirir, faka
 
 ### 02.1 İş kuralını kesinleştir
 
-- [ ] Public başvuru durumlarını ve ödeme/handoff adımlarını açık state tablosuna çıkar.
-- [ ] “Gerçek terk”, “handoff açıldı”, “dekont gönderildi”, “admin bekliyor”, “onay/red” ayrımını tanımla.
-- [ ] Handoff/dekont aşamasındaki kayıtların otomatik fiziksel silinmeyeceği iş kararı olarak onaylansın.
-- [ ] Gerçek terk kayıtlarının saklama süresi ve arşiv/silme biçimi iş sahibi tarafından onaylansın.
-- [ ] Silme yerine durum değişimi veya ayrı arşiv seçeneğini değerlendir ve karar kaydına yaz.
+- [x] Public başvuru durumlarını ve ödeme/handoff adımlarını açık state tablosuna çıkar.
+- [x] “Gerçek terk”, “handoff açıldı”, “dekont gönderildi”, “admin bekliyor”, “onay/red” ayrımını tanımla.
+- [x] Handoff/dekont aşamasındaki kayıtların otomatik fiziksel silinmeyeceği iş kararı olarak onaylansın.
+- [x] Gerçek terk kayıtlarının saklama süresi ve arşiv/silme biçimi iş sahibi tarafından onaylansın.
+- [x] Silme yerine durum değişimi veya ayrı arşiv seçeneğini değerlendir ve karar kaydına yaz.
 
 ### 02.2 Cleanup davranışını düzelt
 
-- [ ] Cleanup sorgusunu yalnız izin verilen terk durumlarına sınırla.
-- [ ] Handoff/dekont kanıtı taşıyan kayıtları TTL kapsamından çıkar.
-- [ ] Fiziksel silme gerekiyorsa bağlı kayıtlar, audit ve transaction davranışını tanımla.
-- [ ] Cleanup işlemi için kaç kayıt seçildi/saklandı/hata aldı metrikleri ekle.
-- [ ] Beklenmeyen silme sayısı için alarm üret.
-- [ ] Cleanup tekrar çalıştığında idempotent olduğunu doğrula.
-- [ ] Saat dilimi ve sınır anı davranışını fake clock ile test et.
+- [x] Cleanup sorgusunu yalnız izin verilen terk durumlarına sınırla.
+- [x] Handoff/dekont kanıtı taşıyan kayıtları TTL kapsamından çıkar.
+- [x] Fiziksel silme gerekiyorsa bağlı kayıtlar, audit ve transaction davranışını tanımla.
+- [x] Cleanup işlemi için kaç kayıt seçildi/saklandı/hata aldı metrikleri ekle.
+- [x] Beklenmeyen silme sayısı için alarm üret.
+- [x] Cleanup tekrar çalıştığında idempotent olduğunu doğrula.
+- [x] Saat dilimi ve sınır anı davranışını fake clock ile test et.
 
 ### 02.3 Regresyon ve uzun süre testi
 
-- [ ] Mevcut “handoff sonrası silinir” entegrasyon testini yeni kurala göre değiştir.
-- [ ] Handoff yapılmış kayıt 60 dakika ve 24+ saat simülasyonunda korunuyor.
-- [ ] Dekont/ödeme kanıtlı kayıt korunuyor.
-- [ ] Gerçek terk kayıt tanımlı sürede durum değiştiriyor/arşivleniyor.
-- [ ] Cleanup audit izi kayıt ID’si, karar nedeni ve zamanı taşıyor.
-- [ ] Cleanup hatası kayıtları yarım silmiyor.
-- [ ] Canlı/staging smoke sonrası test başvurusunun beklenmedik cleanup’a uğramadığı izleniyor.
+- [x] Mevcut “handoff sonrası silinir” entegrasyon testini yeni kurala göre değiştir.
+- [x] Handoff yapılmış kayıt 60 dakika ve 24+ saat simülasyonunda korunuyor.
+- [x] Dekont/ödeme kanıtlı kayıt korunuyor.
+- [x] Gerçek terk kayıt tanımlı sürede durum değiştiriyor/arşivleniyor.
+- [x] Cleanup audit izi kayıt ID’si, karar nedeni ve zamanı taşıyor.
+- [x] Cleanup hatası kayıtları yarım silmiyor.
+- [x] İzole production-benzeri staging smoke sonrasında sentetik handoff başvurusunun cleanup’a uğramadığı doğrulandı.
 
 **Faz 02 çıkış kapısı**
 
-- [ ] Handoff/dekont aşamasındaki hiçbir başvuru TTL ile kaybolmuyor; gerçek terk temizliği kontrollü, auditli ve alarmlı çalışıyor.
+- [x] Handoff/dekont aşamasındaki hiçbir başvuru TTL ile kaybolmuyor; gerçek terk temizliği kontrollü, auditli ve alarmlı çalışıyor. Kanıt: `kanit/faz-02-ttl-handoff-saklama.md`.
 
 ---
 
@@ -1204,7 +1204,7 @@ Bu faz yeni özellik geliştirme fazı değildir. Önceki bütün düzeltmeler a
 ### 12.1 T-14 ile T-7 kapanışı
 
 - [ ] Public başvuru kök nedeni ve düzeltmesi tamam.
-- [ ] Handoff TTL/veri kaybı kuralı tamam.
+- [x] Handoff TTL/veri kaybı kuralı tamam.
 - [ ] Full-stack altın yol staging’de tamam.
 - [ ] Müşteri rolü uçtan uca tamam.
 - [ ] Veri cutover stratejisi ve cleanup dry-run onaylı.
@@ -1432,68 +1432,68 @@ Canlıya yazma, veri temizliği, migration, DNS/TLS veya harici sistem değişik
 
 Bu 12 satırın hiçbiri birleştirilerek veya atlanarak kapatılamaz.
 
-| No | Kapı | Zorunlu kanıt | Sorumlu | Durum |
-|---:|---|---|---|---|
-| 1 | Public başvuru gerçek API/DB | HAR + request ID + admin referansı + nakit/kapora testleri | Frontend + Backend | AÇIK |
-| 2 | TTL ve handoff veri saklama | Entegrasyon testi + 24 saat simülasyonu/canlı gözlem | Backend | AÇIK |
-| 3 | Müşteri aktivasyon/login/teslimat | Gerçek token, session ve teslimat altın yolu | Backend + QA | AÇIK |
-| 4 | Production veri cutover | İmzalı envanter + yedek/restore + before/after sayaçları | Backend + Operasyon | AÇIK |
-| 5 | Payment live ve iş fiyatları | Fail-fast config smoke + çift kişi fiyat/metin onayı | Backend + İş sahibi | AÇIK |
-| 6 | Deploy/recovery drill | Temiz-host prova + forward-only failure/resume kaydı | DevOps | AÇIK |
-| 7 | Offsite yedek/restore | Ayrı ortam restore, süre ve veri/altın yol kanıtı | DevOps | AÇIK |
-| 8 | External monitoring | Uptime/5xx/DB/TLS/yedek alarmı ve gerçek alıcı testi | DevOps | AÇIK |
-| 9 | Teknik SEO ve Search Console | Status/redirect matrisi + sitemap kabulü + URL Inspection | SEO + DevOps | AÇIK |
-| 10 | Full-stack CI release kapısı | Mock dışı altın yol CI run ve artifact | QA + Backend | AÇIK |
-| 11 | Cihaz/erişilebilirlik matrisi | Tarayıcı/gerçek cihaz ve klavye/EK sonuçları | QA | AÇIK |
-| 12 | İş içeriği/katalog | Onaylı fiyat, paket, hizmet, salon, marka ve iletişim | İş sahibi | AÇIK |
+|  No | Kapı                              | Zorunlu kanıt                                              | Sorumlu             | Durum           |
+| --: | --------------------------------- | ---------------------------------------------------------- | ------------------- | --------------- |
+|   1 | Public başvuru gerçek API/DB      | HAR + request ID + admin referansı + nakit/kapora testleri | Frontend + Backend  | AÇIK            |
+|   2 | TTL ve handoff veri saklama       | Entegrasyon testi + 24 saat simülasyonu/canlı gözlem       | Backend             | KAPALI — Faz 02 |
+|   3 | Müşteri aktivasyon/login/teslimat | Gerçek token, session ve teslimat altın yolu               | Backend + QA        | AÇIK            |
+|   4 | Production veri cutover           | İmzalı envanter + yedek/restore + before/after sayaçları   | Backend + Operasyon | AÇIK            |
+|   5 | Payment live ve iş fiyatları      | Fail-fast config smoke + çift kişi fiyat/metin onayı       | Backend + İş sahibi | AÇIK            |
+|   6 | Deploy/recovery drill             | Temiz-host prova + forward-only failure/resume kaydı       | DevOps              | AÇIK            |
+|   7 | Offsite yedek/restore             | Ayrı ortam restore, süre ve veri/altın yol kanıtı          | DevOps              | AÇIK            |
+|   8 | External monitoring               | Uptime/5xx/DB/TLS/yedek alarmı ve gerçek alıcı testi       | DevOps              | AÇIK            |
+|   9 | Teknik SEO ve Search Console      | Status/redirect matrisi + sitemap kabulü + URL Inspection  | SEO + DevOps        | AÇIK            |
+|  10 | Full-stack CI release kapısı      | Mock dışı altın yol CI run ve artifact                     | QA + Backend        | AÇIK            |
+|  11 | Cihaz/erişilebilirlik matrisi     | Tarayıcı/gerçek cihaz ve klavye/EK sonuçları               | QA                  | AÇIK            |
+|  12 | İş içeriği/katalog                | Onaylı fiyat, paket, hizmet, salon, marka ve iletişim      | İş sahibi           | AÇIK            |
 
 ---
 
 ## 20. Kaynak rapor → uygulama fazı izlenebilirlik matrisi
 
-| Kaynak rapor bölümü | Bu rapordaki yürütme fazı | Birleşim notu |
-|---|---|---|
-| Yönetici özeti / ana çıkış kapıları | 00–15, Bölüm 19 | 12 sign-off ile korunur |
-| P0-01 public başvuru | Faz 01, 06, 11, 13 | Public matris ve DevTools aynı çalışma altında |
-| P0-02 TTL veri kaybı | Faz 02, 10, 14 | Retention + metrik/alarm + canlı takip |
-| P0-03 müşteri altın yolu | Faz 03, 06, 11, 13 | Aktivasyon/login/teslimat tek zincir |
-| P0-04 erken `Gönderildi` | Faz 03, 04, 11 | Mesaj state machine içinde |
-| P0-05 veri cutover/test verisi | Faz 08, 12, 13 | Envanter → onay → T0 cleanup |
-| P0-06 payment live | Faz 01, 08, 09, 12 | Backend hesap + iş onayı + fail-fast |
-| P0-07 temiz-host runbook | Faz 09, 12 | Boş host prova zorunlu |
-| P0-08 forward-only/watchdog | Faz 09, 10, 12–13 | Marker + failure drill + T0 uygulama |
-| P0-09 offsite yedek/RPO/RTO | Faz 10, 12–14 | Restore ve canlı yedek takibi |
-| P0-10 dış izleme | Faz 10, 12–14 | Alarm kurulumu ve hypercare |
-| P0-11 robots/sitemap/www/index | Faz 07, 11–13 | Teknik SEO + canlı status matrisi |
-| P0-12 full-stack/abuse CI | Faz 06, 11–13 | Release kalite kapısı |
-| P1-01 archive/restore | Faz 04, 11 | Başvuru yaşam döngüsü |
-| P1-02 gerçek iptal | Faz 04, 11 | Düğün yaşam döngüsü |
-| P1-03 karar bildirimi | Faz 03, 11 | Mesaj state machine |
-| P1-04 teslimat geçişleri | Faz 04, 11 | Teslimat state machine |
-| P1-05 gelecekteki görev | Faz 03, 11 | `dueAt` ve override |
-| P1-06 bugünkü düğün render | Faz 05, 11 | Admin UI |
-| P1-07 dinamik panel başlığı | Faz 05, 11 | Admin UI/a11y |
-| P1-08 hata bağlamı | Faz 01, 05, 11 | Ortak form hata sözleşmesi |
-| P1-09 in-flight/idempotency | Faz 01, 04, 05, 11 | UI + backend birlikte |
-| P1-10 personel sözleşmesi | Faz 04, 05, 11 | Backend/UI doğrulama |
-| P1-11 availability yarışı | Faz 01, 11 | Yalnız son response |
-| P1-12 Turnstile kilidi | Faz 01, 11 | Retry/reset akışı |
-| P1-13 liste limitleri | Faz 04, 11 | Pagination/toplam kayıt |
-| P1-14 tarih/saat farkı | Faz 04, 11 | Tek backend sözleşmesi |
-| P1-15 takvim navigasyonu | Faz 05, 11 | Loading/error güvenliği |
-| P1-16 statik sistem durumu | Faz 05, 08, 11 | Gerçek health/son veri |
-| SEO 7.1–7.3 | Faz 07, 11–14 | Teknik, dış kurulum ve takip |
-| Veri/metin kalıntıları 8.1–8.3 | Faz 08, 12–13 | Salt-okunur envanter + onaylı cleanup |
-| İşlev matrisi 9.1–9.8 | Faz 06 ve Faz 11 | Otomatik + manuel tam matris |
-| DevTools 10 | Faz 01 ve Faz 11 | Kök neden + release aday turu |
-| Erişilebilirlik/cihaz 11 | Faz 05, 06, 11 | Düzeltme + CI + gerçek cihaz |
-| Test altyapısı 12 | Faz 06 | Tek release quality gate |
-| Deploy/altyapı 13 | Faz 09–10, 12–14 | Runbook, recovery, kapasite, gözlem |
-| Olası durumlar 14 | Faz 11 | Negatif ve failure senaryoları |
-| Zaman çizelgesi 15 | Faz 12–14 | T-14/T-1/T0/T+1/T+24/T+7 |
-| Rollback matrisi 16 | Faz 09, 12–13 | Immutable digest ve forward-only kararları |
-| Sign-off 17 | Bölüm 19 ve Faz 15 | Nihai 12 kapı |
-| Son karar 19 | Faz 15 | Birlikte yeniden analiz |
+| Kaynak rapor bölümü                 | Bu rapordaki yürütme fazı | Birleşim notu                                  |
+| ----------------------------------- | ------------------------- | ---------------------------------------------- |
+| Yönetici özeti / ana çıkış kapıları | 00–15, Bölüm 19           | 12 sign-off ile korunur                        |
+| P0-01 public başvuru                | Faz 01, 06, 11, 13        | Public matris ve DevTools aynı çalışma altında |
+| P0-02 TTL veri kaybı                | Faz 02, 10, 14            | Retention + metrik/alarm + canlı takip         |
+| P0-03 müşteri altın yolu            | Faz 03, 06, 11, 13        | Aktivasyon/login/teslimat tek zincir           |
+| P0-04 erken `Gönderildi`            | Faz 03, 04, 11            | Mesaj state machine içinde                     |
+| P0-05 veri cutover/test verisi      | Faz 08, 12, 13            | Envanter → onay → T0 cleanup                   |
+| P0-06 payment live                  | Faz 01, 08, 09, 12        | Backend hesap + iş onayı + fail-fast           |
+| P0-07 temiz-host runbook            | Faz 09, 12                | Boş host prova zorunlu                         |
+| P0-08 forward-only/watchdog         | Faz 09, 10, 12–13         | Marker + failure drill + T0 uygulama           |
+| P0-09 offsite yedek/RPO/RTO         | Faz 10, 12–14             | Restore ve canlı yedek takibi                  |
+| P0-10 dış izleme                    | Faz 10, 12–14             | Alarm kurulumu ve hypercare                    |
+| P0-11 robots/sitemap/www/index      | Faz 07, 11–13             | Teknik SEO + canlı status matrisi              |
+| P0-12 full-stack/abuse CI           | Faz 06, 11–13             | Release kalite kapısı                          |
+| P1-01 archive/restore               | Faz 04, 11                | Başvuru yaşam döngüsü                          |
+| P1-02 gerçek iptal                  | Faz 04, 11                | Düğün yaşam döngüsü                            |
+| P1-03 karar bildirimi               | Faz 03, 11                | Mesaj state machine                            |
+| P1-04 teslimat geçişleri            | Faz 04, 11                | Teslimat state machine                         |
+| P1-05 gelecekteki görev             | Faz 03, 11                | `dueAt` ve override                            |
+| P1-06 bugünkü düğün render          | Faz 05, 11                | Admin UI                                       |
+| P1-07 dinamik panel başlığı         | Faz 05, 11                | Admin UI/a11y                                  |
+| P1-08 hata bağlamı                  | Faz 01, 05, 11            | Ortak form hata sözleşmesi                     |
+| P1-09 in-flight/idempotency         | Faz 01, 04, 05, 11        | UI + backend birlikte                          |
+| P1-10 personel sözleşmesi           | Faz 04, 05, 11            | Backend/UI doğrulama                           |
+| P1-11 availability yarışı           | Faz 01, 11                | Yalnız son response                            |
+| P1-12 Turnstile kilidi              | Faz 01, 11                | Retry/reset akışı                              |
+| P1-13 liste limitleri               | Faz 04, 11                | Pagination/toplam kayıt                        |
+| P1-14 tarih/saat farkı              | Faz 04, 11                | Tek backend sözleşmesi                         |
+| P1-15 takvim navigasyonu            | Faz 05, 11                | Loading/error güvenliği                        |
+| P1-16 statik sistem durumu          | Faz 05, 08, 11            | Gerçek health/son veri                         |
+| SEO 7.1–7.3                         | Faz 07, 11–14             | Teknik, dış kurulum ve takip                   |
+| Veri/metin kalıntıları 8.1–8.3      | Faz 08, 12–13             | Salt-okunur envanter + onaylı cleanup          |
+| İşlev matrisi 9.1–9.8               | Faz 06 ve Faz 11          | Otomatik + manuel tam matris                   |
+| DevTools 10                         | Faz 01 ve Faz 11          | Kök neden + release aday turu                  |
+| Erişilebilirlik/cihaz 11            | Faz 05, 06, 11            | Düzeltme + CI + gerçek cihaz                   |
+| Test altyapısı 12                   | Faz 06                    | Tek release quality gate                       |
+| Deploy/altyapı 13                   | Faz 09–10, 12–14          | Runbook, recovery, kapasite, gözlem            |
+| Olası durumlar 14                   | Faz 11                    | Negatif ve failure senaryoları                 |
+| Zaman çizelgesi 15                  | Faz 12–14                 | T-14/T-1/T0/T+1/T+24/T+7                       |
+| Rollback matrisi 16                 | Faz 09, 12–13             | Immutable digest ve forward-only kararları     |
+| Sign-off 17                         | Bölüm 19 ve Faz 15        | Nihai 12 kapı                                  |
+| Son karar 19                        | Faz 15                    | Birlikte yeniden analiz                        |
 
 ---
 
