@@ -443,14 +443,23 @@ test("@frontend-smoke paket formu çift, saat ve salon alanlarını backend kata
     await dateTrigger.click();
     const pickerPosition = await page.locator(".js-date-popover").evaluate((popover) => {
       const trigger = document.querySelector(".js-date-trigger");
+      const stickyBottom = [
+        ...document.querySelectorAll(".builder-header, .builder-progress")
+      ].reduce((bottom, element) => Math.max(bottom, element.getBoundingClientRect().bottom), 0);
       return {
         popover: popover.getBoundingClientRect().toJSON(),
         trigger: trigger.getBoundingClientRect().toJSON(),
+        stickyBottom,
         viewportHeight: window.innerHeight
       };
     });
-    expect(pickerPosition.popover.top - pickerPosition.trigger.bottom).toBeLessThanOrEqual(12);
-    expect(pickerPosition.popover.top).toBeGreaterThanOrEqual(pickerPosition.trigger.bottom);
+    const triggerDistance = Math.max(
+      pickerPosition.popover.top - pickerPosition.trigger.bottom,
+      pickerPosition.trigger.top - pickerPosition.popover.bottom,
+      0
+    );
+    expect(triggerDistance).toBeLessThanOrEqual(12);
+    expect(pickerPosition.popover.top).toBeGreaterThanOrEqual(pickerPosition.stickyBottom + 7);
     expect(pickerPosition.popover.bottom).toBeLessThanOrEqual(pickerPosition.viewportHeight - 15);
     await page.keyboard.press("Escape");
   }
