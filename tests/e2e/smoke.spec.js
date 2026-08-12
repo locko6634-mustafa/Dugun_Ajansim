@@ -21,7 +21,7 @@ const defaultBookingFormConstraints = Object.freeze({
   phone: {
     minLength: 10,
     maxLength: 24,
-    pattern: "^\\+?[\\d\\s()\\-]+$",
+    pattern: "^\\+?[\\d\\s\\(\\)\\x2D]+$",
     message: "Telefon yalnızca rakam ve telefon ayraçları içerebilir."
   },
   email: { maxLength: 254 },
@@ -1238,6 +1238,8 @@ test("@frontend-smoke hızlı çift gönderim yalnız tek public POST üretir", 
     button.click();
     button.click();
   });
+  await expect(page.locator('.builder-step[data-step="5"]')).toBeVisible();
+  await expect(page.locator('.builder-step[data-step="4"]')).toBeHidden();
   await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-500002");
   expect(requestCount).toBe(1);
 });

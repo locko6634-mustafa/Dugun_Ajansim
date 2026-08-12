@@ -977,12 +977,13 @@ async function openPaymentSummary() {
     type: "pending"
   });
   setPaymentNotificationStatus("Başvurunuz güvenli şekilde hazırlanıyor...", "pending");
+  goToStep(5);
   try {
     const previewBeforeSave = calculatePaymentPreview(state.payment);
     const responseData = await savePaymentFlow();
     document.querySelector(".js-payment-flow-expired").hidden = true;
     document.querySelector(".js-transfer-layout").hidden = false;
-    goToStep(5);
+    renderOrderReview();
     const priceChanged =
       Boolean(responseData.packageCodeSnapshot) &&
       (toCents(previewBeforeSave.subtotal) !== responseData.totalPriceCents ||

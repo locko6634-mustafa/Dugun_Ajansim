@@ -33,7 +33,7 @@ test("@frontend-smoke paket oluşturucu eksik API alanlarını yerel katalogdan 
             phone: {
               minLength: 10,
               maxLength: 24,
-              pattern: "^\\+?[\\d\\s()\\-]+$",
+              pattern: "^\\+?[\\d\\s\\(\\)\\x2D]+$",
               message: "Telefon biçimi geçersiz."
             },
             email: { maxLength: 254 },
