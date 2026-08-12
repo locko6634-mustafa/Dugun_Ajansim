@@ -64,9 +64,6 @@ export const runWithRlsContext = <Result>(
   operation: () => Promise<Result>
 ): Promise<Result> => securityContextStorage.run(context, operation);
 
-export const getRlsSecurityContext = (): RlsSecurityContext | undefined =>
-  securityContextStorage.getStore();
-
 const requireSecurityContext = (): RlsSecurityContext => {
   const context = securityContextStorage.getStore();
   if (!context) {

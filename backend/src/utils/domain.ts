@@ -99,8 +99,6 @@ export const getIstanbulDate = (date: Date): string => {
 export const atIstanbulTime = (date: string, time: string): Date =>
   new Date(`${date}T${time}:00${ISTANBUL_OFFSET}`);
 
-export const randomFourDigitCode = (): string => String(randomInt(1000, 10_000));
-
 export const randomReferenceCode = (): string => {
   const date = new Date().toISOString().slice(0, 10).replaceAll('-', '');
   return `DA-${date}-${String(randomInt(100_000, 1_000_000))}`;
@@ -120,9 +118,6 @@ export const createTemporaryPasswordExpiry = (ttlHours: number, now = new Date()
   new Date(now.valueOf() + ttlHours * 60 * 60 * 1000);
 
 export const deliveryEncryptionAad = (deliveryId: string): string => `delivery-url:${deliveryId}`;
-
-export const messageSecretEncryptionAad = (weddingId: string, kind: string): string =>
-  `message-secret:${weddingId}:${kind}`;
 
 export const assertGoogleDriveUrl = (value: string): string => {
   let url: URL;

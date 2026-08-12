@@ -12,6 +12,10 @@ export function formatAppDate(value, options = {}) {
   }).format(new Date(value));
 }
 
+export function formatAppTime(value) {
+  return formatAppDate(value, { hour: "2-digit", minute: "2-digit" });
+}
+
 export function formatDateOnly(value, options = {}) {
   if (!DATE_ONLY_PATTERN.test(value)) throw new TypeError("Tarih YYYY-AA-GG biçiminde olmalıdır.");
   return new Intl.DateTimeFormat(APP_LOCALE, {

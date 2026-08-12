@@ -1,3 +1,5 @@
+import { escapeHtml } from "./html.js";
+
 /**
  * Custom Modal & Dialog Utility
  * Replaces browser default alert(), confirm(), prompt() dialogs
@@ -723,11 +725,3 @@ export function showVenueFormModal({ title = "", initialData = null, constraints
     };
   });
 }
-
-const escapeHtml = (value) =>
-  String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");

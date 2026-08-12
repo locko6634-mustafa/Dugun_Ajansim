@@ -1,7 +1,13 @@
 import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
 import { STAFF_SPECIALTY_LABELS } from "../shared/domain-labels.js";
-import { APP_LOCALE, APP_TIME_ZONE, OPERATIONS_CITY } from "../shared/runtime-config.js";
+import {
+  APP_LOCALE,
+  APP_TIME_ZONE,
+  OPERATIONS_CITY,
+  formatAppTime
+} from "../shared/runtime-config.js";
+import { escapeHtml } from "../shared/html.js";
 
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
 const PANEL_TITLES = {
@@ -25,13 +31,6 @@ const detailContainer = document.querySelector(".js-wedding-detail");
 const staffDialog = document.querySelector(".js-staff-dialog");
 const staffForm = document.querySelector(".js-staff-form");
 
-const escapeHtml = (value) =>
-  String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 const empty = (copy) => `<p class="empty">${escapeHtml(copy)}</p>`;
 const couple = (wedding) => `${wedding.brideFirstName} & ${wedding.groomFirstName}`;
 const formatDate = (value, withTime = false) =>
@@ -42,12 +41,6 @@ const formatDate = (value, withTime = false) =>
         ...(withTime ? { timeStyle: "short" } : {})
       }).format(new Date(value))
     : "—";
-const formatTime = (value) =>
-  new Intl.DateTimeFormat(APP_LOCALE, {
-    timeZone: APP_TIME_ZONE,
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
 const dateKey = (value) => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIME_ZONE,
@@ -120,7 +113,7 @@ function renderDashboard(data) {
     ? data.todayWeddings
         .map(
           (wedding) =>
-            `<article class="event-card"><time>${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)}</time><div><strong>${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length} personel atandı</small><div class="crew-line">${crew(wedding.assignments)}</div></div><button type="button" data-open-wedding="${wedding.id}">Planla</button></article>`
+            `<article class="event-card"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><div><strong>${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length} personel atandı</small><div class="crew-line">${crew(wedding.assignments)}</div></div><button type="button" data-open-wedding="${wedding.id}">Planla</button></article>`
         )
         .join("")
     : empty("Bugün salonunuzda planlı düğün yok.");
@@ -148,7 +141,7 @@ function renderDashboard(data) {
       return `<article class="week-day ${day === data.today ? "is-today" : ""}"><header><span>${new Intl.DateTimeFormat(APP_LOCALE, { weekday: "short" }).format(date)}</span><b>${date.getUTCDate()}</b></header>${dayWeddings
         .map(
           (wedding) =>
-            `<button class="week-item" type="button" data-open-wedding="${wedding.id}"><strong>${formatTime(wedding.startsAt)} · ${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length} kişilik ekip</small></button>`
+            `<button class="week-item" type="button" data-open-wedding="${wedding.id}"><strong>${formatAppTime(wedding.startsAt)} · ${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length} kişilik ekip</small></button>`
         )
         .join("")}</article>`;
     })
@@ -188,7 +181,7 @@ function renderCalendar(data) {
       return `<article class="calendar-day ${outside ? "is-outside" : ""} ${events.length ? "" : "is-empty"} ${day === data.today ? "is-today" : ""}"><div class="calendar-day__head"><span class="calendar-day__number">${date.getUTCDate()}</span><span class="calendar-day__weekday">${escapeHtml(weekday)}</span></div><div class="calendar-events">${events
         .map(
           (wedding) =>
-            `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${wedding.id}"><time>${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)}</time><strong>${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
+            `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${wedding.id}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
         )
         .join("")}</div></article>`;
     })
@@ -216,7 +209,7 @@ function renderWeddings() {
     ? rows
         .map((wedding) => {
           const date = new Date(wedding.startsAt);
-          return `<article class="wedding-card"><div class="date-tile"><strong>${new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, day: "2-digit" }).format(date)}</strong><small>${new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, month: "short" }).format(date)}</small></div><div><strong>${escapeHtml(couple(wedding))}</strong><p>${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)}</p></div><div class="crew-line">${crew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${wedding.id}">Ayrıntılar</button></article>`;
+          return `<article class="wedding-card"><div class="date-tile"><strong>${new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, day: "2-digit" }).format(date)}</strong><small>${new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, month: "short" }).format(date)}</small></div><div><strong>${escapeHtml(couple(wedding))}</strong><p>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</p></div><div class="crew-line">${crew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${wedding.id}">Ayrıntılar</button></article>`;
         })
         .join("")
     : empty("Aramanızla eşleşen düğün yok.");

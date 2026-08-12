@@ -296,17 +296,6 @@ button:disabled {
   grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.72fr);
   gap: 24px;
 }
-.today-stage {
-  min-height: 460px;
-  padding: clamp(22px, 3vw, 36px);
-  border-radius: var(--radius-lg);
-  background: var(--ink);
-  color: var(--paper);
-  box-shadow: var(--shadow);
-}
-.today-stage .section-index {
-  color: hsl(78 30% 68%);
-}
 .section-heading {
   display: flex;
   align-items: flex-end;
@@ -549,8 +538,7 @@ button:disabled {
   background: var(--clay-pale);
   color: var(--clay);
 }
-.delivery-strip,
-.distribution-panel {
+.delivery-strip {
   margin-top: 24px;
   padding: 26px;
   border: 1px solid var(--line);
@@ -646,27 +634,6 @@ button:disabled {
 .day-event.is-unassigned {
   border-left: 3px solid var(--clay);
 }
-.distribution-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-}
-.distribution-item {
-  padding: 12px;
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-}
-.distribution-item strong {
-  display: block;
-  font-family: Inter, Manrope, sans-serif;
-  font-size: 28px;
-  font-weight: 400;
-}
-.distribution-item span {
-  color: var(--ink-soft);
-  font-size: 9px;
-}
-
 .calendar-heading {
   margin-top: 12px;
 }
@@ -1067,8 +1034,7 @@ button:disabled {
   border-color: hsl(72 12% 12% / 16%);
   background: hsl(42 28% 99% / 68%);
 }
-.catalog-card__add span,
-.catalog-save span {
+.catalog-card__add span {
   font-size: 16px;
   line-height: 0;
 }
@@ -1171,18 +1137,8 @@ button:disabled {
 .catalog-row:first-child {
   border-top: 0;
 }
-.catalog-name input,
 .catalog-price input {
   width: 100%;
-}
-.catalog-name small {
-  display: block;
-  margin-top: 5px;
-  color: var(--olive);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 .catalog-price span {
   display: flex;
@@ -1208,39 +1164,6 @@ button:disabled {
   padding-left: 10px;
   border: 0;
   outline: 0;
-}
-.catalog-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-top: 14px;
-  cursor: pointer;
-}
-.catalog-status input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--olive);
-}
-.catalog-status span {
-  display: grid;
-  gap: 1px;
-}
-.catalog-status strong {
-  color: var(--ink);
-  font-size: 11px;
-}
-.catalog-status small {
-  color: var(--ink-soft);
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0;
-}
-.catalog-save {
-  align-self: end;
-  min-width: 94px;
-  border-color: var(--olive);
-  background: var(--olive);
-  color: white;
 }
 .empty-state {
   margin: 0;
@@ -1482,7 +1405,6 @@ dialog {
   justify-content: flex-end;
   gap: 8px;
 }
-.mobile-nav,
 .mobile-more {
   display: none !important;
 }
@@ -1548,9 +1470,6 @@ body.sidebar-open {
   .wedding-card > div:nth-child(3) {
     display: none;
   }
-  .distribution-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
 }
 
 /* Sidebar switches to the mobile drawer at 900px; keep the content layout in
@@ -1581,9 +1500,6 @@ body.sidebar-open {
   }
   .overview-layout {
     grid-template-columns: 1fr;
-  }
-  .today-stage {
-    min-height: 0;
   }
   .attention-rail {
     grid-template-columns: 1fr 1fr;
@@ -1728,11 +1644,6 @@ body.sidebar-open {
   .metric-ribbon strong {
     font-size: 30px;
   }
-  .today-stage {
-    margin-inline: -6px;
-    padding: 22px;
-    border-radius: 22px;
-  }
   .event-card {
     grid-template-columns: 60px 1fr;
     gap: 10px;
@@ -1750,12 +1661,8 @@ body.sidebar-open {
   .alert-block {
     grid-column: auto;
   }
-  .delivery-strip,
-  .distribution-panel {
+  .delivery-strip {
     padding: 18px;
-  }
-  .distribution-grid {
-    grid-template-columns: repeat(2, 1fr);
   }
   .plan-heading {
     flex-direction: row !important;
@@ -2063,21 +1970,6 @@ h6,
   display: block;
   margin-bottom: 10px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-soft);
-}
-
-.wedding-card .status-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
-  justify-content: center;
-}
-.wedding-card .delivery-date {
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
   font-weight: 600;
   color: var(--ink-soft);
 }
@@ -2598,13 +2490,6 @@ h6,
     line-height: 1;
   }
 
-  .admin-main .today-stage {
-    min-height: 0;
-    margin-inline: 0;
-    padding: 18px 16px;
-    border-radius: var(--radius-md);
-  }
-
   .admin-main .section-heading {
     gap: 10px;
     margin-bottom: 16px;
@@ -2661,13 +2546,11 @@ h6,
   }
 
   .admin-main .rail-block,
-  .admin-main .delivery-strip,
-  .admin-main .distribution-panel {
+  .admin-main .delivery-strip {
     padding: 16px;
   }
 
-  .admin-main .delivery-strip,
-  .admin-main .distribution-panel {
+  .admin-main .delivery-strip {
     margin-top: 16px;
   }
 
@@ -2694,8 +2577,7 @@ h6,
 
   .admin-main .day-head span,
   .admin-main .day-event time,
-  .admin-main .day-event small,
-  .admin-main .distribution-item span {
+  .admin-main .day-event small {
     font-size: 10px;
   }
 
@@ -2706,14 +2588,6 @@ h6,
   .admin-main .day-event strong {
     margin: 4px 0;
     font-size: 12px;
-  }
-
-  .admin-main .distribution-item {
-    padding: 10px;
-  }
-
-  .admin-main .distribution-item strong {
-    font-size: 24px;
   }
 
   .admin-main .venue-switcher {

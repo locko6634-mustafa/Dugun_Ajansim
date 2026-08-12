@@ -1,5 +1,5 @@
 // Paket olusturucu sayfasinin uygulama mantigi.
-import { basePackages, services } from "./catalog.js";
+import { basePackages, services } from "../shared/service-catalog.js";
 import { apiRequest, createIdempotencyKey, hasApiEndpoint } from "../shared/api-client.js";
 import {
   applyBookingFormConstraints,
@@ -11,6 +11,7 @@ import {
 } from "../shared/booking-schedule-policy.js";
 import { APP_LOCALE } from "../shared/runtime-config.js";
 import { isSafeImageAssetPath, safeImageAssetPath } from "../shared/asset-url.js";
+import { renderServiceDetail } from "../shared/service-detail.js";
 const moneyFormatter = new Intl.NumberFormat(APP_LOCALE, { maximumFractionDigits: 2 });
 const formatPrice = (value) =>
   Number.isFinite(value) ? `${moneyFormatter.format(value)} TL` : "—";
@@ -750,15 +751,6 @@ function updateDetailButton(serviceId) {
   detailAddButton.classList.toggle("is-added", isAdded);
   detailAddButton.querySelector("span").textContent = isAdded ? "Paketten Çıkar" : "Pakete Ekle";
   detailAddButton.setAttribute("aria-pressed", String(isAdded));
-}
-
-function setDetailImage(service, image, index) {
-  detailMainImage.src = image;
-  detailMainImage.alt = `${service.name} çekim örneği ${index + 1}`;
-  detailNumber.textContent = `0${index + 1}`;
-  [...detailThumbs.querySelectorAll("button")].forEach((button, buttonIndex) => {
-    button.classList.toggle("is-active", buttonIndex === index);
-  });
 }
 
 function closeServiceDetail() {
@@ -1956,30 +1948,21 @@ function openServiceDetail(serviceId) {
   if (!service) return;
 
   state.activeService = serviceId;
-  detailEyebrow.textContent = service.eyebrow;
-  detailTitle.textContent = service.name;
-  detailDescription.textContent = service.description;
-  detailFeatures.replaceChildren(
-    ...service.features.map((feature) => {
-      const item = document.createElement("li");
-      item.textContent = feature;
-      return item;
-    })
-  );
-  detailDelivery.textContent = service.delivery;
-  detailPrice.textContent = formatPrice(service.price);
-  detailThumbs.replaceChildren(
-    ...service.gallery.map((image, index) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.setAttribute("aria-label", `${index + 1}. çekim örneğini göster`);
-      button.append(createImage(image, ""));
-      button.addEventListener("click", () => setDetailImage(service, image, index));
-      return button;
-    })
-  );
-
-  setDetailImage(service, service.gallery[0], 0);
+  renderServiceDetail({
+    service,
+    formatPrice,
+    elements: {
+      eyebrow: detailEyebrow,
+      title: detailTitle,
+      description: detailDescription,
+      features: detailFeatures,
+      delivery: detailDelivery,
+      price: detailPrice,
+      thumbs: detailThumbs,
+      mainImage: detailMainImage,
+      number: detailNumber
+    }
+  });
   updateDetailButton(serviceId);
   detailDialog.showModal();
 }

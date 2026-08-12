@@ -1,6 +1,7 @@
 import { apiRequest, hasApiEndpoint } from "../shared/api-client.js";
 import { isSafeImageAssetPath, safeImageAssetPath } from "../shared/asset-url.js";
 import { formatAppCurrency } from "../shared/runtime-config.js";
+import { renderServiceDetail } from "../shared/service-detail.js";
 
 const fallbackImage = "assets/images/hero-couple.webp";
 
@@ -188,54 +189,31 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function setDetailImage(service, imagePath, index) {
-    detailMainImage.src = imagePath;
-    detailMainImage.alt = `${service.name} çekim örneği ${index + 1}`;
-    detailNumber.textContent = `0${index + 1}`;
-    detailThumbs.querySelectorAll("button").forEach((button, buttonIndex) => {
-      button.classList.toggle("is-active", buttonIndex === index);
-    });
-  }
-
   function openHomeServiceDetail(serviceId) {
     const service = catalogServices.find((item) => item.id === serviceId);
     if (!service) return;
 
     activeServiceId = serviceId;
-    detailEyebrow.textContent = service.eyebrow;
-    detailTitle.textContent = service.name;
-    detailDescription.textContent = service.description;
-    detailFeatures.replaceChildren(
-      ...service.features.map((feature) => {
-        const item = document.createElement("li");
-        item.textContent = feature;
-        return item;
-      })
-    );
-    detailDelivery.textContent = service.delivery;
-    detailPrice.textContent = formatPrice(service.price);
+    renderServiceDetail({
+      service,
+      formatPrice,
+      elements: {
+        eyebrow: detailEyebrow,
+        title: detailTitle,
+        description: detailDescription,
+        features: detailFeatures,
+        delivery: detailDelivery,
+        price: detailPrice,
+        thumbs: detailThumbs,
+        mainImage: detailMainImage,
+        number: detailNumber
+      }
+    });
 
     if (detailAction) {
       detailAction.href = `paketini-olustur.html?hizmet=${service.id}`;
     }
 
-    detailThumbs.replaceChildren(
-      ...service.gallery.map((image, index) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.setAttribute("aria-label", `${index + 1}. çekim örneğini göster`);
-
-        const img = document.createElement("img");
-        img.src = image;
-        img.alt = "";
-
-        button.append(img);
-        button.addEventListener("click", () => setDetailImage(service, image, index));
-        return button;
-      })
-    );
-
-    setDetailImage(service, service.gallery[0], 0);
     if (!detailDialog.open) detailDialog.showModal();
   }
 

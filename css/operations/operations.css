@@ -743,10 +743,6 @@ textarea {
   justify-content: flex-end;
   gap: 8px;
 }
-.mobile-nav {
-  display: none !important;
-}
-
 .sidebar-overlay {
   position: fixed;
   inset: 0;

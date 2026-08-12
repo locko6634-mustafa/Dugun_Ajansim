@@ -429,21 +429,6 @@ button {
   stroke-width: 2.2;
 }
 
-.base-package__badge {
-  position: absolute;
-  bottom: 15px;
-  left: 15px;
-  z-index: 2;
-  padding: 8px 11px;
-  color: white;
-  background: hsl(28 16% 17% / 0.7);
-  backdrop-filter: blur(8px);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
 .base-package__body {
   display: flex;
   padding: 25px 24px 27px;
@@ -1391,68 +1376,9 @@ button {
   line-height: 1.45;
 }
 
-.terms-check {
-  display: flex;
-  align-items: flex-start;
-  margin-top: 20px;
-  cursor: pointer;
-  gap: 11px;
-}
-
-.terms-check > input {
-  position: absolute;
-  opacity: 0;
-}
-
-.terms-check > span {
-  display: grid;
-  width: 21px;
-  height: 21px;
-  border: 1px solid var(--line);
-  color: transparent;
-  background: var(--surface);
-  flex: 0 0 auto;
-  place-items: center;
-}
-
-.terms-check > span svg {
-  width: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2.2;
-}
-
-.terms-check > input:checked + span {
-  border-color: var(--gold-dark);
-  color: white;
-  background: var(--gold-dark);
-}
-
-.terms-check > input:focus-visible + span {
-  outline: 2px solid var(--gold-dark);
-  outline-offset: 3px;
-}
-
-.terms-check small {
-  max-width: 650px;
-  color: var(--ink-soft);
-  font-size: 9px;
-  line-height: 1.6;
-}
-
-.terms-error {
-  margin: 8px 0 0 32px;
-  color: hsl(2 51% 43%);
-  font-size: 9px;
-}
-
 .js-order-review[hidden],
 .order-review__totals > div[hidden],
-.terms-check[hidden],
-.builder-step__actions[hidden],
-.terms-error[hidden] {
+.builder-step__actions[hidden] {
   display: none !important;
 }
 
@@ -2321,13 +2247,6 @@ body.is-summary-open .package-summary__close svg {
     gap: 8px;
   }
 
-  .base-package__badge {
-    bottom: 11px;
-    left: 10px;
-    padding: 7px 8px;
-    font-size: 6px;
-  }
-
   .base-package__check {
     top: 11px;
     right: 11px;
@@ -2418,10 +2337,6 @@ body.is-summary-open .package-summary__close svg {
 
   .customer-review {
     padding: 23px 18px;
-  }
-
-  .terms-check {
-    padding-inline: 4px;
   }
 
   .service-filter {
@@ -2658,11 +2573,6 @@ body.is-summary-open .package-summary__close svg {
     width: calc(100% - 18px);
     padding: 48px 24px 28px;
   }
-}
-
-/* Ödeme bildirimi sonrası durum ekranı */
-body.is-completion-open {
-  overflow: hidden;
 }
 
 .booking-completion {
@@ -3856,41 +3766,6 @@ body.is-completion-open {
   line-height: 1.5;
 }
 
-.transfer-details__copy dd {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.transfer-details__copy strong {
-  color: var(--gold-dark);
-  font-size: 10px;
-  letter-spacing: 0.035em;
-}
-
-.transfer-copy {
-  padding: 7px 8px;
-  border: 1px solid hsl(35 31% 78%);
-  color: var(--gold-dark);
-  background: hsl(40 42% 97%);
-  cursor: pointer;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  transition:
-    background 180ms ease,
-    color 180ms ease;
-}
-
-.transfer-copy:hover,
-.transfer-copy:focus-visible {
-  color: white;
-  background: var(--gold-dark);
-  outline: none;
-}
-
 .transfer-copy-feedback {
   min-height: 18px;
   margin: 0;
@@ -4077,16 +3952,9 @@ body.is-completion-open {
   font-weight: 400;
 }
 
-.payment-notification-form__heading small,
-.js-receipt-name {
+.payment-notification-form__heading small {
   color: var(--ink-soft);
   font-size: 9px;
-}
-
-.payment-notification-form__grid {
-  display: grid;
-  gap: 17px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .form-field select {
@@ -4146,24 +4014,6 @@ body.is-completion-open {
   background: var(--gold-pale);
 }
 
-.form-field--file input {
-  padding: 13px;
-  font-size: 10px;
-}
-
-.form-field--file input::file-selector-button {
-  margin-right: 12px;
-  padding: 7px 9px;
-  border: 0;
-  color: white;
-  background: var(--gold-dark);
-  cursor: pointer;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 @media (max-width: 1080px) {
   .transfer-layout {
     grid-template-columns: 1fr;
@@ -4175,8 +4025,7 @@ body.is-completion-open {
 }
 
 @media (max-width: 640px) {
-  .transfer-layout .order-review,
-  .payment-notification-form__grid {
+  .transfer-layout .order-review {
     grid-template-columns: 1fr;
   }
 
@@ -4184,11 +4033,6 @@ body.is-completion-open {
     align-items: start;
     grid-template-columns: 1fr;
     gap: 6px;
-  }
-
-  .transfer-details__copy dd {
-    align-items: flex-start;
-    flex-direction: column;
   }
 }
 

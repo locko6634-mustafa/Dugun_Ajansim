@@ -27,7 +27,6 @@ import {
 import { DatabaseRateLimitStore } from '../middlewares/databaseRateLimitStore.js';
 import { validateRequest } from '../middlewares/validate.middleware.js';
 import {
-  adminStepUpBodySchema,
   isPasswordSimilarToUsername,
   loginBodySchema,
   mfaEnrollmentBodySchema,
@@ -75,6 +74,11 @@ const DUMMY_LOGIN_PASSWORD_HASH =
 const dataEncryptionKeyring = parseDataEncryptionKeyring(env.DATA_ENCRYPTION_KEYRING_JSON);
 const emptyRequestSchema = z.object({
   body: z.object({}).strict().optional().default({}),
+  query: z.object({}).strict(),
+  params: z.object({}).strict(),
+});
+const mfaProtectedRequestSchema = z.object({
+  body: mfaProtectedActionBodySchema,
   query: z.object({}).strict(),
   params: z.object({}).strict(),
 });
@@ -388,13 +392,7 @@ router.post(
   adminStepUpLimiter,
   adminStepUpAccountLimiter,
   verifyCsrf,
-  validateRequest(
-    z.object({
-      body: adminStepUpBodySchema,
-      query: z.object({}).strict(),
-      params: z.object({}).strict(),
-    }),
-  ),
+  validateRequest(mfaProtectedRequestSchema),
   asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { id: req.auth!.userId },
@@ -931,13 +929,7 @@ router.post(
   authenticate,
   requireRole('ADMIN'),
   verifyCsrf,
-  validateRequest(
-    z.object({
-      body: mfaProtectedActionBodySchema,
-      query: z.object({}).strict(),
-      params: z.object({}).strict(),
-    }),
-  ),
+  validateRequest(mfaProtectedRequestSchema),
   asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { id: req.auth!.userId },
@@ -1065,13 +1057,7 @@ router.post(
   authenticate,
   requireRole('ADMIN'),
   verifyCsrf,
-  validateRequest(
-    z.object({
-      body: mfaProtectedActionBodySchema,
-      query: z.object({}).strict(),
-      params: z.object({}).strict(),
-    }),
-  ),
+  validateRequest(mfaProtectedRequestSchema),
   asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { id: req.auth!.userId },

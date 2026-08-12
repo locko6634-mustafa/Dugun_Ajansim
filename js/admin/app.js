@@ -26,9 +26,11 @@ import {
   APP_LOCALE,
   APP_TIME_ZONE,
   OPERATIONS_CITY,
-  formatAppCurrency
+  formatAppCurrency,
+  formatAppTime
 } from "../shared/runtime-config.js";
 import { safeImageAssetPath } from "../shared/asset-url.js";
+import { escapeHtml } from "../shared/html.js";
 
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
 const STATUS_LABELS = DELIVERY_STATUS_LABELS;
@@ -187,14 +189,6 @@ async function apiRequestWithAdminStepUp(path, options, { actionLabel = "Bu işl
   return apiRequest(path, options);
 }
 
-const escapeHtml = (value) =>
-  String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-
 const formatDate = (value, includeTime = false) =>
   value
     ? new Intl.DateTimeFormat(APP_LOCALE, {
@@ -203,13 +197,6 @@ const formatDate = (value, includeTime = false) =>
         ...(includeTime ? { timeStyle: "short" } : {})
       }).format(new Date(value))
     : "—";
-
-const formatTime = (value) =>
-  new Intl.DateTimeFormat(APP_LOCALE, {
-    timeZone: APP_TIME_ZONE,
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
 
 const formatMoney = (cents) =>
   formatAppCurrency(Number(cents || 0) / 100, { maximumFractionDigits: 0 });
@@ -364,14 +351,14 @@ function renderCrew(assignments = []) {
 
 function eventCard(wedding) {
   return `<article class="event-card">
-    <div class="event-time"><strong>${formatTime(wedding.startsAt)}</strong><small>${formatTime(wedding.endsAt)}</small></div>
+    <div class="event-time"><strong>${formatAppTime(wedding.startsAt)}</strong><small>${formatAppTime(wedding.endsAt)}</small></div>
     <div class="event-copy"><strong>${escapeHtml(coupleName(wedding))}</strong><small>${escapeHtml(wedding.venue.name)} · ${escapeHtml(wedding.packageSummary?.name || "Paket belirtilmedi")}</small><div class="crew-line">${renderCrew(wedding.assignments)}</div></div>
     <button class="mini-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}">Dosyayı aç</button>
   </article>`;
 }
 
 function compactWedding(wedding) {
-  return `<button class="compact-card text-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><span><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${escapeHtml(wedding.venue.name)}</small></span><time>${formatTime(wedding.startsAt)}</time></button>`;
+  return `<button class="compact-card text-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><span><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${escapeHtml(wedding.venue.name)}</small></span><time>${formatAppTime(wedding.startsAt)}</time></button>`;
 }
 
 function renderDashboard() {
@@ -408,7 +395,7 @@ function renderDashboard() {
             ? staff.assignments
                 .map(
                   ({ wedding }) =>
-                    `${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)} · ${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}`
+                    `${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)} · ${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}`
                 )
                 .join("<br>")
             : escapeHtml(staff.venue?.name || "Salon atanmamış");
@@ -460,21 +447,12 @@ function renderWeek() {
         ? weddings
             .map(
               (wedding) =>
-                `<button class="day-event text-button ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><time>${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)}</time><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${escapeHtml(wedding.venue.name)} · ${wedding.assignments.length} kişi</small></button>`
+                `<button class="day-event text-button ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${escapeHtml(wedding.venue.name)} · ${wedding.assignments.length} kişi</small></button>`
             )
             .join("")
         : '<p class="empty-state">Plan yok</p>'
     }</div></section>`;
   }).join("");
-  const distElem = document.querySelector(".js-distribution");
-  if (distElem) {
-    distElem.innerHTML = Object.entries(SPECIALTIES)
-      .map(
-        ([key, label]) =>
-          `<article class="distribution-item"><strong>${data.distribution[key] || 0}</strong><span>${escapeHtml(label)}</span></article>`
-      )
-      .join("");
-  }
 }
 
 async function loadDashboard(weekStart = state.weekStart) {
@@ -544,7 +522,7 @@ function renderCalendar() {
     return `<section class="calendar-day ${outside ? "is-outside" : ""} ${events.length ? "" : "is-empty"} ${date === data.today ? "is-today" : ""}" aria-label="${escapeHtml(formatDate(`${date}T00:00:00.000Z`))}"><div class="calendar-day__head"><span class="calendar-day__number">${dateValue.getUTCDate()}</span><span class="calendar-day__weekday">${escapeHtml(weekday)}</span></div><div class="calendar-events">${events
       .map(
         (wedding) =>
-          `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><time>${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)}</time><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
+          `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
       )
       .join("")}</div></section>`;
   }).join("");
@@ -596,8 +574,8 @@ function hasActivePaymentFlow(item) {
 function renderApplicationCard(item) {
   const venueName = item.venue?.name || "Salon Belirtilmedi";
   const dateStr = formatDate(item.weddingStartsAt, false);
-  const startTime = formatTime(item.weddingStartsAt);
-  const endTime = formatTime(item.weddingEndsAt);
+  const startTime = formatAppTime(item.weddingStartsAt);
+  const endTime = formatAppTime(item.weddingEndsAt);
   const timeRangeStr = `${startTime} – ${endTime}`;
 
   const brideFullName = `${item.brideFirstName} ${item.brideLastName}`.trim();
@@ -697,8 +675,8 @@ async function openApplicationDetail(applicationId) {
 function renderApplicationDetailModal(item) {
   const venueName = item.venue?.name || "Salon Belirtilmedi";
   const dateStr = formatDate(item.weddingStartsAt, false);
-  const startTime = formatTime(item.weddingStartsAt);
-  const endTime = formatTime(item.weddingEndsAt);
+  const startTime = formatAppTime(item.weddingStartsAt);
+  const endTime = formatAppTime(item.weddingEndsAt);
   const timeRangeStr = `${startTime} – ${endTime}`;
 
   const brideFullName = `${item.brideFirstName} ${item.brideLastName}`.trim();
@@ -906,7 +884,7 @@ function renderWeddings() {
             month: "short",
             timeZone: APP_TIME_ZONE
           }).format(date);
-          return `<article class="wedding-card"><div class="date-tile"><strong>${day}</strong><small>${escapeHtml(month)}</small></div><div><strong>${escapeHtml(coupleName(wedding))}</strong><p>${formatTime(wedding.startsAt)}–${formatTime(wedding.endsAt)}</p></div><div class="crew-line">${renderCrew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}">Ayrıntılar</button></article>`;
+          return `<article class="wedding-card"><div class="date-tile"><strong>${day}</strong><small>${escapeHtml(month)}</small></div><div><strong>${escapeHtml(coupleName(wedding))}</strong><p>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</p></div><div class="crew-line">${renderCrew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}">Ayrıntılar</button></article>`;
         })
         .join("")
     : empty("Filtreye uyan düğün bulunamadı.");

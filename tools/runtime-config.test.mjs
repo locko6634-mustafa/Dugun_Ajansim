@@ -7,6 +7,7 @@ import {
   OPERATIONS_CITY,
   formatAppCurrency,
   formatAppDate,
+  formatAppTime,
   formatDateOnly
 } from "../js/shared/runtime-config.js";
 
@@ -23,6 +24,7 @@ test("tarih-saat değerleri İstanbul gününe göre biçimlenir", () => {
     formatAppDate("2026-12-31T22:30:00.000Z", { day: "numeric", month: "long", year: "numeric" }),
     "1 Ocak 2027"
   );
+  assert.equal(formatAppTime("2026-12-31T22:30:00.000Z"), "01:30");
 });
 
 test("yalnız-tarih değerleri çalışma ortamının saat diliminde gün kaydırmaz", () => {
