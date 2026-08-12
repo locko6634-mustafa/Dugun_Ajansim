@@ -150,6 +150,20 @@ test("@frontend-smoke ana sayfa mobil menu acilip kapanir", async ({ page }) => 
   }
 });
 
+test("@frontend-smoke @responsive mobil paket adimlari baglanti cizgisi gostermez", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/index.html");
+
+  const connectorContent = await page
+    .locator(".package-invitation__steps li")
+    .first()
+    .evaluate((step) => getComputedStyle(step, "::after").content);
+
+  expect(connectorContent).toBe("none");
+});
+
 test("@frontend-smoke ana sayfa header navigasyon linkleri aktif durumu gunceller", async ({
   page,
   isMobile

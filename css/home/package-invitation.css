@@ -319,10 +319,7 @@
   }
 
   .package-invitation__steps li:not(:last-child)::after {
-    position: absolute;
-    top: 13px;
-    left: calc(50% + 22px);
-    width: calc(100% - 44px);
+    content: none;
   }
 
   .package-invitation__action {
