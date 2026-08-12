@@ -1245,6 +1245,9 @@ test("@frontend-smoke hızlı çift gönderim yalnız tek public POST üretir", 
   await expect(page.locator('.builder-step[data-step="5"]')).toBeVisible();
   await expect(page.locator('.builder-step[data-step="4"]')).toBeHidden();
   await expect(page.locator(".js-builder-request-status")).toBeHidden();
+  await expect(page.locator(".js-payment-notification-status")).toHaveText(
+    "Başvurunuz güvenli şekilde hazırlandı."
+  );
   await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-500002");
   expect(requestCount).toBe(1);
 });

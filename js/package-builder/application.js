@@ -985,6 +985,7 @@ async function openPaymentSummary() {
     document.querySelector(".js-payment-flow-expired").hidden = true;
     document.querySelector(".js-transfer-layout").hidden = false;
     renderOrderReview();
+    setPaymentNotificationStatus("Başvurunuz güvenli şekilde hazırlandı.", "success");
     const previewTotalCents = toCents(previewBeforeSave.subtotal + previewBeforeSave.adjustment);
     const priceChanged =
       Boolean(responseData.packageCodeSnapshot) &&
