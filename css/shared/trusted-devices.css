@@ -1,0 +1,111 @@
+.trusted-devices-trigger {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 20;
+  border: 1px solid hsl(38 30% 65%);
+  border-radius: 999px;
+  background: hsl(40 35% 97%);
+  color: hsl(30 35% 18%);
+  padding: 10px 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px hsl(25 25% 15%/0.12);
+  cursor: pointer;
+}
+.trusted-devices-dialog {
+  width: min(620px, calc(100% - 28px));
+  border: 0;
+  border-radius: 20px;
+  padding: 0;
+  background: hsl(40 30% 98%);
+  color: hsl(25 30% 16%);
+  box-shadow: 0 24px 80px hsl(20 30% 8%/0.3);
+}
+.trusted-devices-dialog::backdrop {
+  background: hsl(20 20% 8%/0.55);
+  backdrop-filter: blur(4px);
+}
+.trusted-devices-shell {
+  padding: 24px;
+}
+.trusted-devices-shell header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.trusted-devices-shell h2 {
+  margin: 4px 0 0;
+  font-size: 25px;
+}
+.trusted-devices-shell header small {
+  color: hsl(35 45% 40%);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.trusted-devices-close {
+  border: 0;
+  background: transparent;
+  font-size: 28px;
+  cursor: pointer;
+}
+.trusted-devices-message {
+  min-height: 20px;
+  color: hsl(3 55% 42%);
+}
+.trusted-devices-list {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+.trusted-devices-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid hsl(35 22% 82%);
+  border-radius: 14px;
+  padding: 14px;
+  background: white;
+}
+.trusted-devices-list article div {
+  display: grid;
+  gap: 4px;
+}
+.trusted-devices-list article span,
+.trusted-devices-list article small {
+  color: hsl(25 12% 42%);
+}
+.trusted-devices-list article button,
+.trusted-devices-revoke-all {
+  border: 1px solid hsl(3 45% 66%);
+  border-radius: 9px;
+  background: transparent;
+  color: hsl(3 55% 38%);
+  padding: 8px 11px;
+  cursor: pointer;
+}
+.trusted-devices-shell footer {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid hsl(35 20% 84%);
+  padding-top: 16px;
+}
+
+@media (max-width: 600px) {
+  .trusted-devices-trigger {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .trusted-devices-list article {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .trusted-devices-shell {
+    padding: 18px;
+  }
+}

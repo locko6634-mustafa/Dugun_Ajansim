@@ -132,7 +132,7 @@ FROM unnest(ARRAY[
   'booking_applications', 'booking_application_services',
   'weddings', 'wedding_assignments',
   'message_tasks', 'deliveries', 'delivery_status_history',
-  'rate_limit_buckets', 'password_setup_tokens'
+  'rate_limit_buckets', 'password_setup_tokens', 'trusted_devices'
 ]) AS t(tbl) WHERE to_regclass('public.' || t.tbl) IS NOT NULL \gexec
 SELECT format('REVOKE ALL PRIVILEGES ON TABLE %I.%I FROM %I', 'public', '_prisma_migrations', :'runtime_user')
 WHERE to_regclass('public."_prisma_migrations"') IS NOT NULL \gexec

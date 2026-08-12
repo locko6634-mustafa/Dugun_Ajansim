@@ -57,6 +57,13 @@ import {
   TOTP_ENROLLMENT_TTL_MINUTES,
   totpEncryptionAad,
 } from '../utils/totp.js';
+import {
+  clearTrustedDeviceCookie,
+  createOrRotateDevice,
+  findUsableDevice,
+  readTrustedDeviceToken,
+  setTrustedDeviceCookie,
+} from '../utils/trustedDevice.js';
 
 const router = Router();
 const INVALID_CREDENTIALS_MESSAGE = 'Kullanıcı adı veya parola hatalı.';
@@ -221,9 +228,12 @@ router.post(
       throw new AppError(INVALID_CREDENTIALS_MESSAGE, 401);
     }
     let matchedTotpStep: bigint | undefined;
+    const usableDevice =
+      user.totpEnabledAt === null ? null : await findUsableDevice(prisma, req, user.id, now);
+    if (!usableDevice && readTrustedDeviceToken(req)) clearTrustedDeviceCookie(res);
     let rotatedTotpSecret:
       { ciphertext: string; iv: string; authTag: string; keyId: string } | undefined;
-    if (user.totpEnabledAt !== null) {
+    if (user.totpEnabledAt !== null && !usableDevice) {
       if (!req.body.totpCode) {
         throw new AppError('İki adımlı doğrulama kodu gerekli.', 401, true, {
           code: 'MFA_REQUIRED',
@@ -259,6 +269,7 @@ router.post(
       ? Math.min(configuredMaxAgeMs, MFA_RESTRICTED_SESSION_TTL_MS)
       : configuredMaxAgeMs;
     const expiresAt = new Date(now.valueOf() + maxAgeMs);
+    let deviceCookie: { token: string; maxAge: number } | undefined;
 
     await prisma.$transaction(async (transaction) => {
       const claimedUser = await transaction.user.updateMany({
@@ -318,6 +329,21 @@ router.post(
           mfaVerifiedAt: user.totpEnabledAt === null ? null : now,
         },
       });
+      if (usableDevice) {
+        await transaction.trustedDevice.updateMany({
+          where: { id: usableDevice.id, revokedAt: null, expiresAt: { gt: now } },
+          data: { lastUsedAt: now },
+        });
+      } else if (matchedTotpStep !== undefined) {
+        const createdDevice = await createOrRotateDevice(
+          transaction,
+          req,
+          user.id,
+          now,
+          req.body.trustDevice,
+        );
+        deviceCookie = { token: createdDevice.token, maxAge: createdDevice.maxAge };
+      }
       await writeAuditLog(transaction, {
         data: {
           actorUserId: user.id,
@@ -325,6 +351,9 @@ router.post(
           targetType: 'User',
           targetId: user.id,
           correlationId: req.correlationId,
+          metadata: {
+            mfaMethod: usableDevice ? 'recognized_device' : matchedTotpStep ? 'totp' : 'none',
+          },
         },
       });
       await cleanupStaleSessions(transaction, now);
@@ -332,6 +361,7 @@ router.post(
 
     res.cookie(env.SESSION_COOKIE_NAME, token, sessionCookieOptions(maxAgeMs));
     res.cookie(CSRF_COOKIE_NAME, csrfToken, csrfCookieOptions(maxAgeMs));
+    if (deviceCookie) setTrustedDeviceCookie(res, deviceCookie.token, deviceCookie.maxAge);
     res.set('Cache-Control', 'no-store');
     res.json({
       success: true,
@@ -602,6 +632,10 @@ router.post(
         where: { userId: setupToken.user.id, revokedAt: null },
         data: { revokedAt: now },
       });
+      await transaction.trustedDevice.updateMany({
+        where: { userId: setupToken.user.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
       await transaction.messageTask.updateMany({
         where: {
           wedding: { customerUserId: setupToken.user.id },
@@ -745,6 +779,10 @@ router.post(
         },
         data: { revokedAt: now },
       });
+      await transaction.trustedDevice.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
       await transaction.messageTask.updateMany({
         where: {
           wedding: { customerUserId: user.id },
@@ -776,6 +814,7 @@ router.post(
     const remainingMaxAgeMs = Math.max(1, expiresAt.valueOf() - Date.now());
     res.cookie(env.SESSION_COOKIE_NAME, token, sessionCookieOptions(remainingMaxAgeMs));
     res.cookie(CSRF_COOKIE_NAME, csrfToken, csrfCookieOptions(remainingMaxAgeMs));
+    clearTrustedDeviceCookie(res);
 
     res.json({
       success: true,
@@ -988,6 +1027,10 @@ router.post(
         where: { userId: user.id, id: { not: req.auth!.sessionId }, revokedAt: null },
         data: { revokedAt: now },
       });
+      await transaction.trustedDevice.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
       await writeAuditLog(transaction, {
         data: {
           actorUserId: user.id,
@@ -1003,6 +1046,7 @@ router.post(
     const remainingMaxAgeMs = Math.max(1, expiresAt.valueOf() - Date.now());
     res.cookie(env.SESSION_COOKIE_NAME, token, sessionCookieOptions(remainingMaxAgeMs));
     res.cookie(CSRF_COOKIE_NAME, csrfToken, csrfCookieOptions(remainingMaxAgeMs));
+    clearTrustedDeviceCookie(res);
     res.set('Cache-Control', 'no-store');
     res.json({
       success: true,
@@ -1086,6 +1130,10 @@ router.post(
         where: { userId: user.id, revokedAt: null },
         data: { revokedAt: now },
       });
+      await transaction.trustedDevice.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
       await writeAuditLog(transaction, {
         data: {
           actorUserId: user.id,
@@ -1098,6 +1146,7 @@ router.post(
     });
 
     clearAuthCookies(res);
+    clearTrustedDeviceCookie(res);
     res.set('Cache-Control', 'no-store');
     res.json({
       success: true,
@@ -1107,6 +1156,114 @@ router.post(
       },
       correlationId: req.correlationId,
     });
+  }),
+);
+
+router.post(
+  '/devices/revoke-all',
+  authenticate,
+  requireChangedPassword,
+  verifyCsrf,
+  validateRequest(emptyRequestSchema),
+  asyncHandler(async (req, res) => {
+    const now = new Date();
+    const result = await prisma.$transaction(async (transaction) => {
+      const revoked = await transaction.trustedDevice.updateMany({
+        where: { userId: req.auth!.userId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await writeAuditLog(transaction, {
+        data: {
+          actorUserId: req.auth!.userId,
+          action: 'auth.trusted_devices_revoked',
+          targetType: 'User',
+          targetId: req.auth!.userId,
+          correlationId: req.correlationId,
+          metadata: { count: revoked.count },
+        },
+      });
+      return revoked;
+    });
+    clearTrustedDeviceCookie(res);
+    res.json({ success: true, data: { revoked: result.count }, correlationId: req.correlationId });
+  }),
+);
+
+router.get(
+  '/devices',
+  authenticate,
+  requireChangedPassword,
+  validateRequest(emptyRequestSchema),
+  asyncHandler(async (req, res) => {
+    const now = new Date();
+    const currentToken = readTrustedDeviceToken(req);
+    const currentHash = currentToken ? hashToken(currentToken) : null;
+    const devices = await prisma.trustedDevice.findMany({
+      where: { userId: req.auth!.userId, revokedAt: null, expiresAt: { gt: now } },
+      select: {
+        id: true,
+        tokenHash: true,
+        name: true,
+        trusted: true,
+        lastMfaAt: true,
+        lastUsedAt: true,
+        expiresAt: true,
+        createdAt: true,
+      },
+      orderBy: [{ lastUsedAt: 'desc' }, { id: 'asc' }],
+    });
+    res.json({
+      success: true,
+      data: devices.map(({ tokenHash, ...device }) => ({
+        ...device,
+        current: currentHash !== null && tokenHash === currentHash,
+      })),
+      correlationId: req.correlationId,
+    });
+  }),
+);
+
+router.delete(
+  '/devices/:id',
+  authenticate,
+  requireChangedPassword,
+  verifyCsrf,
+  validateRequest(
+    z.object({
+      body: z.object({}).strict().optional().default({}),
+      query: z.object({}).strict(),
+      params: z.object({ id: z.string().uuid() }).strict(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const currentToken = readTrustedDeviceToken(req);
+    const currentHash = currentToken ? hashToken(currentToken) : null;
+    const device = await prisma.trustedDevice.findFirst({
+      where: { id: req.params.id, userId: req.auth!.userId, revokedAt: null },
+      select: { id: true, tokenHash: true },
+    });
+    if (!device) throw new AppError('Güvenilen cihaz bulunamadı.', 404);
+    const now = new Date();
+    await prisma.$transaction(async (transaction) => {
+      const revoked = await transaction.trustedDevice.updateMany({
+        where: { id: device.id, userId: req.auth!.userId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      if (revoked.count !== 1) {
+        throw new AppError('Cihaz kaydı başka bir işlemde değiştirildi.', 409);
+      }
+      await writeAuditLog(transaction, {
+        data: {
+          actorUserId: req.auth!.userId,
+          action: 'auth.trusted_device_revoked',
+          targetType: 'TrustedDevice',
+          targetId: device.id,
+          correlationId: req.correlationId,
+        },
+      });
+    });
+    if (currentHash === device.tokenHash) clearTrustedDeviceCookie(res);
+    res.json({ success: true, data: { id: device.id }, correlationId: req.correlationId });
   }),
 );
 

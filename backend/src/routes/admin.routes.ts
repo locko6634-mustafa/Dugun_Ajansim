@@ -1102,8 +1102,12 @@ router.patch(
             venue: { select: { id: true, name: true } }
           }
         });
-        if (passwordHash || req.body.status === "DISABLED") {
+        if (passwordHash || req.body.status === "DISABLED" || req.body.venueId) {
           await transaction.authSession.updateMany({
+            where: { userId: current.id, revokedAt: null },
+            data: { revokedAt: new Date() }
+          });
+          await transaction.trustedDevice.updateMany({
             where: { userId: current.id, revokedAt: null },
             data: { revokedAt: new Date() }
           });
@@ -1795,6 +1799,10 @@ router.patch(
                 throw new AppError("Müşteri kimlik bilgileri başka bir işlemde güncellendi.", 409);
               }
               await transaction.authSession.updateMany({
+                where: { userId: wedding.customerUserId, revokedAt: null },
+                data: { revokedAt: now }
+              });
+              await transaction.trustedDevice.updateMany({
                 where: { userId: wedding.customerUserId, revokedAt: null },
                 data: { revokedAt: now }
               });
@@ -2721,6 +2729,10 @@ router.post(
         where: { userId: user.id, revokedAt: null },
         data: { revokedAt: now }
       });
+      await transaction.trustedDevice.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: now }
+      });
       await transaction.passwordSetupToken.updateMany({
         where: { userId: user.id, usedAt: null, revokedAt: null },
         data: { revokedAt: now }
@@ -2863,6 +2875,10 @@ router.post(
           where: { userId: user.id, revokedAt: null },
           data: { revokedAt: now }
         });
+        const revokedDevices = await transaction.trustedDevice.updateMany({
+          where: { userId: user.id, revokedAt: null },
+          data: { revokedAt: now }
+        });
         const revokedSetupTokens = await transaction.passwordSetupToken.updateMany({
           where: { userId: user.id, usedAt: null, revokedAt: null },
           data: { revokedAt: now }
@@ -2876,6 +2892,7 @@ router.post(
           metadata: {
             reason: req.body.reason,
             sessionsRevoked: revokedSessions.count,
+            trustedDevicesRevoked: revokedDevices.count,
             passwordSetupTokensRevoked: revokedSetupTokens.count
           }
         });

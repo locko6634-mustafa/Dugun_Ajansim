@@ -258,7 +258,8 @@ export const loginBodySchema = z
     username: z.string().trim().min(3).max(64),
     password: z.string().min(6).max(256),
     totpCode: totpCodeSchema.optional(),
-    remember: z.boolean().default(false)
+    remember: z.boolean().default(false),
+    trustDevice: z.boolean().default(false)
   })
   .strict();
 

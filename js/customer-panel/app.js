@@ -1,5 +1,6 @@
 import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
+import { initTrustedDevices } from "../shared/trusted-devices.js";
 import { DELIVERY_STATUS_LABELS, DELIVERY_STATUS_ORDER } from "../shared/domain-labels.js";
 import { formatAppDate } from "../shared/runtime-config.js";
 
@@ -236,6 +237,7 @@ disableForm.addEventListener("submit", async (event) => {
 
 const customerSession = await ensureCustomer();
 if (customerSession) {
+  initTrustedDevices();
   setMfaUi(Boolean(customerSession.mfaEnabled));
   await loadDashboard().catch((error) => {
     document.querySelector(".page-message").textContent = error.message;

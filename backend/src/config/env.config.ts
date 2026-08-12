@@ -305,7 +305,7 @@ const envSchema = z
       '30',
     ),
     ADMIN_SESSION_IDLE_MINUTES: boundedIntegerSchema('ADMIN_SESSION_IDLE_MINUTES', 5, 1440).default(
-      '30',
+      '240',
     ),
     SALON_SESSION_IDLE_MINUTES: boundedIntegerSchema('SALON_SESSION_IDLE_MINUTES', 5, 1440).default(
       '60',

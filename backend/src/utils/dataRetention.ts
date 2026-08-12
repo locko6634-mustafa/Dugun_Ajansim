@@ -22,6 +22,7 @@ export const buildRetentionCutoffs = (policy: DataRetentionPolicy, now = new Dat
 export type DataRetentionBatchResult = {
   rateLimitBuckets: number;
   authSessions: number;
+  trustedDevices: number;
   passwordSetupTokens: number;
   publicApplications: number;
   archivedApplications: number;
@@ -63,6 +64,21 @@ export const runDataRetentionBatch = async (
       });
       const authSessions = await transaction.authSession.deleteMany({
         where: { id: { in: staleSessions.map(({ id }) => id) } },
+      });
+
+      const staleDevices = await transaction.trustedDevice.findMany({
+        where: {
+          OR: [
+            { expiresAt: { lt: cutoffs.securityArtifact } },
+            { revokedAt: { lt: cutoffs.securityArtifact } },
+          ],
+        },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+        take: policy.batchSize,
+      });
+      const trustedDevices = await transaction.trustedDevice.deleteMany({
+        where: { id: { in: staleDevices.map(({ id }) => id) } },
       });
 
       const staleSetupTokens = await transaction.passwordSetupToken.findMany({
@@ -146,6 +162,7 @@ export const runDataRetentionBatch = async (
       const result = {
         rateLimitBuckets: rateLimitBuckets.count,
         authSessions: authSessions.count,
+        trustedDevices: trustedDevices.count,
         passwordSetupTokens: passwordSetupTokens.count,
         publicApplications: publicApplications.count,
         archivedApplications: archivedApplications.count + linkedArchivedApplications.count,

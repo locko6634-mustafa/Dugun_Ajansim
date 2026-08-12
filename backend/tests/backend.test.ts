@@ -90,6 +90,13 @@ import {
   totpEncryptionAad,
 } from '../src/utils/totp.js';
 import {
+  DAILY_MFA_TTL_MS,
+  describeDevice,
+  readTrustedDeviceToken,
+  TRUSTED_DEVICE_TTL_MS,
+  userAgentHash,
+} from '../src/utils/trustedDevice.js';
+import {
   createGracefulShutdown,
   createUncaughtExceptionHandler,
 } from '../src/utils/processLifecycle.js';
@@ -401,7 +408,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   assert.equal(parsed.BOT_PROTECTION_MODE, 'turnstile');
   assert.equal(parsed.TURNSTILE_EXPECTED_HOSTNAME, 'example.com');
   assert.equal(parsed.ADMIN_SESSION_TTL_HOURS, 8);
-  assert.equal(parsed.ADMIN_SESSION_IDLE_MINUTES, 30);
+  assert.equal(parsed.ADMIN_SESSION_IDLE_MINUTES, 240);
   assert.equal(parsed.SALON_SESSION_IDLE_MINUTES, 60);
   assert.equal(parsed.CUSTOMER_SESSION_IDLE_HOURS, 12);
   assert.equal(parsed.TEMPORARY_PASSWORD_TTL_HOURS, 24);
@@ -640,7 +647,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
 });
 
 authTest('ayrıcalıklı remember isteği yok sayılır ve MFA production ortamında zorunludur', () => {
-  assert.equal(getSessionIdleTimeoutMs('ADMIN'), 30 * 60 * 1000);
+  assert.equal(getSessionIdleTimeoutMs('ADMIN'), 240 * 60 * 1000);
   assert.equal(getSessionIdleTimeoutMs('SALON_YETKILISI'), 60 * 60 * 1000);
   assert.equal(getSessionIdleTimeoutMs('MUSTERI'), 12 * 60 * 60 * 1000);
   assert.equal(getSessionAbsoluteTtlMs('ADMIN', true), 8 * 60 * 60 * 1000);
@@ -658,6 +665,32 @@ authTest('ayrıcalıklı remember isteği yok sayılır ve MFA production ortam�
   assert.equal(isMfaEnrollmentRequired('MUSTERI', false, 'production'), false);
   assert.equal(isMfaEnrollmentRequired('ADMIN', true, 'production'), false);
   assert.equal(isMfaEnrollmentRequired('ADMIN', false, 'test'), false);
+});
+
+authTest('güvenilen cihaz tokeni tekil cookie ve tarayıcı bağlamına bağlıdır', () => {
+  const request = {
+    headers: { cookie: 'dugunajansim_trusted_device=guvenli-token' },
+    get: (name: string) =>
+      name.toLowerCase() === 'user-agent'
+        ? 'Mozilla/5.0 (Windows NT 10.0) Chrome/140.0'
+        : undefined,
+  } as never;
+  assert.equal(readTrustedDeviceToken(request), 'guvenli-token');
+  assert.match(userAgentHash(request), /^[a-f0-9]{64}$/);
+  assert.equal(describeDevice(request), 'Chrome / Windows');
+  assert.equal(DAILY_MFA_TTL_MS, 24 * 60 * 60 * 1000);
+  assert.equal(TRUSTED_DEVICE_TTL_MS, 30 * 24 * 60 * 60 * 1000);
+
+  const polluted = {
+    headers: {
+      cookie: 'dugunajansim_trusted_device=ilk; dugunajansim_trusted_device=ikinci',
+    },
+    get: (name: string) =>
+      name.toLowerCase() === 'user-agent'
+        ? 'Mozilla/5.0 (Windows NT 10.0) Chrome/140.0'
+        : undefined,
+  } as never;
+  assert.equal(readTrustedDeviceToken(polluted), undefined);
 });
 
 authTest('RFC 6238 TOTP kodu dar zaman penceresi, AAD ve tekrar adımıyla doğrulanır', () => {
@@ -769,6 +802,10 @@ test('veri saklama politikası yalnız süresi dolan ve ilişkisiz kayıtları s
       findMany: async () => [{ id: 'session' }],
       deleteMany: async () => ({ count: 1 }),
     },
+    trustedDevice: {
+      findMany: async () => [{ id: 'trusted-device' }],
+      deleteMany: async () => ({ count: 1 }),
+    },
     passwordSetupToken: {
       findMany: async () => [{ id: 'setup-token' }],
       deleteMany: async () => ({ count: 1 }),
@@ -809,7 +846,7 @@ test('veri saklama politikası yalnız süresi dolan ve ilişkisiz kayıtları s
   } as unknown as PrismaClient;
 
   const result = await runDataRetentionBatch(client, policy, now);
-  assert.equal(countRetentionDeletes(result), 8);
+  assert.equal(countRetentionDeletes(result), 9);
   assert.equal(result.archivedApplications, 2);
   assert.equal(isolationLevel, 'Serializable');
   assert.equal(bookingDeleteWhere.length, 3);

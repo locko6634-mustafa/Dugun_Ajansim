@@ -141,7 +141,7 @@ test("test veritabanı guard yalnızca açık yerel hedefi kabul eder", () => {
 });
 
 test("migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalışır", async (context) => {
-  assert.equal(env.ADMIN_SESSION_IDLE_MINUTES, 30);
+  assert.equal(env.ADMIN_SESSION_IDLE_MINUTES, 240);
   assert.equal(env.SALON_SESSION_IDLE_MINUTES, 60);
   assert.equal(env.CUSTOMER_SESSION_IDLE_HOURS, 12);
   assert.equal(env.TEMPORARY_PASSWORD_TTL_HOURS, 24);
@@ -3439,6 +3439,10 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
   assert.equal(disabledUser.totpEnabledAt, null);
   assert.equal(disabledUser.totpLastUsedStep, null);
   assert.equal(await prisma.authSession.count({ where: { userId: user.id, revokedAt: null } }), 0);
+  assert.equal(
+    await prisma.trustedDevice.count({ where: { userId: user.id, revokedAt: null } }),
+    0
+  );
 
   const auditLogs = await prisma.auditLog.findMany({
     where: { actorUserId: user.id },
@@ -3532,10 +3536,12 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
   const successfulLogin = await request(app)
     .post("/api/v1/auth/login")
     .set("X-Forwarded-For", loginIp)
+    .set("User-Agent", "Mozilla/5.0 (Windows NT 10.0) Chrome/140.0")
     .send({
       username: marker,
       password,
       remember: true,
+      trustDevice: true,
       totpCode: generateTotpCode(secret, loginStep)
     });
   assert.equal(successfulLogin.status, 200);
@@ -3549,10 +3555,90 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
     .find((cookie) => cookie.startsWith(`${CSRF_COOKIE_NAME}=`))!
     .split(";", 1)[0];
   const rotatedCsrfToken = csrfCookie.slice(`${CSRF_COOKIE_NAME}=`.length);
+  const trustedDeviceCookie = loginCookies
+    .find((cookie) => cookie.startsWith("dugunajansim_trusted_device="))!
+    .split(";", 1)[0];
+  assert.ok(trustedDeviceCookie);
+  assert.equal(await prisma.trustedDevice.count({ where: { userId: user.id, trusted: true } }), 1);
   assert.match(
     loginCookies.find((cookie) => cookie.startsWith(`${env.SESSION_COOKIE_NAME}=`))!,
     /Max-Age=2592000/i
   );
+
+  const recognizedDeviceLogin = await request(app)
+    .post("/api/v1/auth/login")
+    .set("X-Forwarded-For", "198.51.100.44")
+    .set("User-Agent", "Mozilla/5.0 (Windows NT 10.0) Chrome/140.0")
+    .set("Cookie", trustedDeviceCookie)
+    .send({ username: marker, password, remember: true });
+  assert.equal(recognizedDeviceLogin.status, 200);
+
+  const suspiciousDeviceLogin = await request(app)
+    .post("/api/v1/auth/login")
+    .set("X-Forwarded-For", loginIp)
+    .set("User-Agent", "Mozilla/5.0 (Android 16) Firefox/142.0")
+    .set("Cookie", trustedDeviceCookie)
+    .send({ username: marker, password, remember: true });
+  assert.equal(suspiciousDeviceLogin.status, 401);
+  assert.equal(suspiciousDeviceLogin.body.errors.code, "MFA_REQUIRED");
+
+  const devices = await request(app)
+    .get("/api/v1/auth/devices")
+    .set("Cookie", `${sessionCookie}; ${csrfCookie}; ${trustedDeviceCookie}`);
+  assert.equal(devices.status, 200);
+  assert.equal(devices.body.data.length, 0);
+
+  const managedDeviceToken = `${marker}-managed-device`;
+  const managedDevice = await prisma.trustedDevice.create({
+    data: {
+      tokenHash: hashToken(managedDeviceToken),
+      userId: user.id,
+      name: "Chrome / Windows",
+      userAgentHash: hashToken("Mozilla/5.0 (Windows NT 10.0) Chrome/140.0"),
+      trusted: true,
+      lastMfaAt: new Date(),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    }
+  });
+  const managedDevices = await request(app)
+    .get("/api/v1/auth/devices")
+    .set(
+      "Cookie",
+      `${sessionCookie}; ${csrfCookie}; dugunajansim_trusted_device=${managedDeviceToken}`
+    );
+  assert.equal(managedDevices.status, 200);
+  assert.equal(managedDevices.body.data[0].current, true);
+  const revokedDevice = await request(app)
+    .delete(`/api/v1/auth/devices/${managedDevice.id}`)
+    .set(
+      "Cookie",
+      `${sessionCookie}; ${csrfCookie}; dugunajansim_trusted_device=${managedDeviceToken}`
+    )
+    .set("X-CSRF-Token", rotatedCsrfToken);
+  assert.equal(revokedDevice.status, 200);
+  assert.ok(
+    (revokedDevice.headers["set-cookie"] as unknown as string[]).some((cookie) =>
+      cookie.startsWith("dugunajansim_trusted_device=")
+    )
+  );
+  await prisma.trustedDevice.create({
+    data: {
+      tokenHash: hashToken(`${managedDeviceToken}-second`),
+      userId: user.id,
+      name: "Firefox / Android",
+      userAgentHash: hashToken("Mozilla/5.0 (Android 16) Firefox/142.0"),
+      trusted: true,
+      lastMfaAt: new Date(),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    }
+  });
+  const revokedAllDevices = await request(app)
+    .post("/api/v1/auth/devices/revoke-all")
+    .set("Cookie", `${sessionCookie}; ${csrfCookie}`)
+    .set("X-CSRF-Token", rotatedCsrfToken)
+    .send({});
+  assert.equal(revokedAllDevices.status, 200);
+  assert.equal(revokedAllDevices.body.data.revoked, 1);
 
   const disableStep = loginStep + 1n;
   const disabled = await request(app)
@@ -3859,6 +3945,7 @@ test("retention gerçek PostgreSQL üzerinde süre, batch, izolasyon ve audit to
   assert.deepEqual(result, {
     rateLimitBuckets: 1,
     authSessions: 0,
+    trustedDevices: 0,
     passwordSetupTokens: 0,
     publicApplications: 2,
     archivedApplications: 2,

@@ -27,6 +27,7 @@ const protectedModels = new Set([
   "venue",
   "user",
   "authSession",
+  "trustedDevice",
   "passwordSetupToken",
   "package",
   "service",

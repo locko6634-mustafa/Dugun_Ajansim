@@ -208,7 +208,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_BURST=40");
   expect(exampleEnv).toContain("EDGE_RATE_LIMIT_IPV6_SUBNET=56");
   expect(exampleEnv).toContain("EDGE_INFLIGHT_REQUESTS=50");
-  expect(exampleEnv).toContain("ADMIN_SESSION_IDLE_MINUTES=30");
+  expect(exampleEnv).toContain("ADMIN_SESSION_IDLE_MINUTES=240");
   expect(exampleEnv).toContain("ADMIN_SESSION_TTL_HOURS=8");
   expect(exampleEnv).toContain("SALON_SESSION_IDLE_MINUTES=60");
   expect(exampleEnv).toContain("CUSTOMER_SESSION_IDLE_HOURS=12");

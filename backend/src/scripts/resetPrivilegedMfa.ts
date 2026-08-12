@@ -49,6 +49,10 @@ const main = async (): Promise<void> => {
       where: { userId: user.id, revokedAt: null },
       data: { revokedAt: now }
     });
+    await transaction.trustedDevice.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: now }
+    });
     await writeAuditLog(transaction, {
       data: {
         action: "auth.mfa_recovery_reset",

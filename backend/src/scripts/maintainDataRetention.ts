@@ -17,6 +17,7 @@ const policy = {
 const emptyResult = (): DataRetentionBatchResult => ({
   rateLimitBuckets: 0,
   authSessions: 0,
+  trustedDevices: 0,
   passwordSetupTokens: 0,
   publicApplications: 0,
   archivedApplications: 0,

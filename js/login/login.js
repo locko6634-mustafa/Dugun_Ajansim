@@ -156,7 +156,8 @@ loginForm.addEventListener("submit", async (event) => {
         username: usernameInput.value.trim(),
         password: passwordInput.value,
         ...(totpCode ? { totpCode } : {}),
-        remember: loginForm.elements.remember.checked
+        remember: loginForm.elements.remember.checked,
+        trustDevice: loginForm.elements.trustDevice.checked
       }
     });
     if (response.data.mustChangePassword) {

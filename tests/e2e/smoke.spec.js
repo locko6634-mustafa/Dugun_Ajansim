@@ -1694,12 +1694,14 @@ test("@frontend-smoke ayrıcalıklı giriş MFA kodunu yalnız challenge sonras�
   await expect(page.locator(".mfa-login-field")).toBeVisible();
   await expect(page.locator(".login-form .form-message")).toContainText("doğrulama kodu");
 
+  await page.getByLabel("Bu cihaza 30 gün güven").check();
   await page.locator("#totp-code").fill("123456");
   await page.getByRole("button", { name: "Giriş Yap" }).click();
   await expect(page).toHaveURL(/admin\.html$/);
   expect(loginBodies).toHaveLength(2);
+  expect(loginBodies[0]).toMatchObject({ trustDevice: false });
   expect(loginBodies[0]).not.toHaveProperty("totpCode");
-  expect(loginBodies[1]).toMatchObject({ totpCode: "123456" });
+  expect(loginBodies[1]).toMatchObject({ totpCode: "123456", trustDevice: true });
 });
 
 test("@frontend-smoke production enrollment sırrını yalnız kurulum adımında gösterir", async ({

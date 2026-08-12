@@ -170,6 +170,17 @@
                 />
               </div>
               <span class="field-error" id="totp-code-error" aria-live="polite"></span>
+              <label class="remember-control trusted-device-control">
+                <input type="checkbox" name="trustDevice" />
+                <span class="custom-check" aria-hidden="true">
+                  <svg viewBox="0 0 16 16"><path d="m3 8 3 3 7-7" /></svg>
+                </span>
+                <span>Bu cihaza 30 gün güven</span>
+              </label>
+              <small class="trusted-device-hint"
+                >Yalnızca size ait cihazlarda kullanın. İşaretlemezseniz bu cihazda MFA 24 saat
+                sonra yeniden istenir.</small
+              >
             </div>
 
             <label class="remember-control">

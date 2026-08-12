@@ -1,5 +1,6 @@
 import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
+import { initTrustedDevices } from "../shared/trusted-devices.js";
 import {
   showAdminStepUpDialog,
   showCustomConfirm,
@@ -2304,6 +2305,7 @@ document.querySelector(".js-current-date").textContent = `${new Intl.DateTimeFor
 }).format(new Date())} · ${OPERATIONS_CITY}`;
 
 if (await ensureAdmin()) {
+  initTrustedDevices();
   await Promise.all([
     loadDashboard(),
     apiRequest("/admin/catalog-form-constraints").then((response) => {

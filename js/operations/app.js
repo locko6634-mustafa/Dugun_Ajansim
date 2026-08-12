@@ -1,5 +1,6 @@
 import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
+import { initTrustedDevices } from "../shared/trusted-devices.js";
 import { STAFF_SPECIALTY_LABELS } from "../shared/domain-labels.js";
 import { APP_LOCALE, APP_TIME_ZONE, OPERATIONS_CITY } from "../shared/runtime-config.js";
 
@@ -509,7 +510,10 @@ document
     )
   );
 
-if (await ensureSession()) await loadDashboard().catch((error) => setMessage(error.message));
+if (await ensureSession()) {
+  initTrustedDevices();
+  await loadDashboard().catch((error) => setMessage(error.message));
+}
 
 /* UX & Klavye Kısayolları */
 const toggleOpsSidebarBtn = document.querySelector(".js-toggle-ops-sidebar");
