@@ -926,7 +926,7 @@ function renderWeddingDetail(wedding) {
   const assignedIds = new Set(wedding.assignments.map((assignment) => assignment.staffId));
   const available = wedding.availableStaff.filter((staff) => !assignedIds.has(staff.id));
   document.querySelector(".js-detail-title").textContent = coupleName(wedding);
-  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span></div><div class="detail-actions">${wedding.deletedAt ? `<button class="secondary-button" type="button" data-restore-wedding="${wedding.id}">Geri Yükle</button>` : `<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}" data-confirm="${escapeHtml(wedding.customerUser.username)}">Müşteri parolasını sıfırla</button><button class="secondary-button" type="button" data-reset-mfa="${escapeHtml(wedding.customerUser.id)}" data-confirm="${escapeHtml(wedding.customerUser.username)}">Müşteri MFA'sını sıfırla</button><button class="secondary-button" type="button" data-archive-wedding="${wedding.id}">Arşivle</button>`}</div></section>
+  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span></div><div class="detail-actions">${wedding.deletedAt ? `<button class="secondary-button" type="button" data-restore-wedding="${wedding.id}">Geri Yükle</button>` : `<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}" data-confirm="${escapeHtml(wedding.customerUser.username)}">Müşteri parolasını sıfırla</button><button class="secondary-button" type="button" data-archive-wedding="${wedding.id}">Arşivle</button>`}</div></section>
   <div class="detail-grid">
     <section class="detail-block"><h3>Çift ve iletişim</h3><div class="contact-line"><span>${escapeHtml(wedding.brideFirstName)} ${escapeHtml(wedding.brideLastName)}</span><a href="${safePhoneHref(wedding.bridePhone)}">${escapeHtml(wedding.bridePhone)}</a></div><div class="contact-line"><span>${escapeHtml(wedding.groomFirstName)} ${escapeHtml(wedding.groomLastName)}</span><a href="${safePhoneHref(wedding.groomPhone)}">${escapeHtml(wedding.groomPhone)}</a></div><div class="contact-line"><span>E-posta</span><a href="mailto:${escapeHtml(wedding.primaryEmail)}">${escapeHtml(wedding.primaryEmail)}</a></div></section>
     <section class="detail-block"><h3>Paket</h3>${packageDetail(wedding.packageSummary)}${wedding.note ? `<p>${escapeHtml(wedding.note)}</p>` : ""}</section>
@@ -1510,7 +1510,6 @@ detailContent.addEventListener("click", async (event) => {
   const saveButton = event.target.closest("[data-save-delivery]");
   const deliverButton = event.target.closest("[data-deliver]");
   const resetButton = event.target.closest("[data-reset-user]");
-  const resetMfaButton = event.target.closest("[data-reset-mfa]");
   const removeButton = event.target.closest("[data-remove-assignment]");
   const archiveWeddingButton = event.target.closest("[data-archive-wedding]");
   const restoreWeddingButton = event.target.closest("[data-restore-wedding]");
@@ -1573,25 +1572,6 @@ detailContent.addEventListener("click", async (event) => {
         popup?.close();
         throw error;
       }
-    } else if (resetMfaButton) {
-      const confirmation = await requestDangerConfirmation(
-        {
-          title: "Müşteri MFA kaydını sıfırla",
-          copy: "Müşterinin doğrulama uygulaması kaydı kaldırılır ve tüm açık oturumları kapatılır. Müşteri yeniden giriş yapmak zorundadır.",
-          confirmation: resetMfaButton.dataset.confirm,
-          button: "MFA'yı Sıfırla",
-          reasonRequired: true
-        },
-        resetMfaButton
-      );
-      if (confirmation === null) return;
-      const response = await apiRequestWithAdminStepUp(
-        `/admin/customers/${resetMfaButton.dataset.resetMfa}/reset-mfa`,
-        { method: "POST", body: confirmation },
-        { actionLabel: "Müşteri MFA kaydını sıfırlama" }
-      );
-      if (!response) return;
-      setMessage("Müşteri MFA kaydı sıfırlandı ve açık oturumları kapatıldı.", true);
     } else if (archiveWeddingButton) {
       const accepted = await requestDangerConfirmation(
         {

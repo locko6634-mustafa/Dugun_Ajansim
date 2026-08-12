@@ -12,7 +12,7 @@ import {
   getCookie,
   getSessionAbsoluteTtlMs,
   isMfaEnrollmentRequired,
-  isPrivilegedRole,
+  isMfaRequiredRole,
   isTemporaryPasswordExpired,
   requireChangedPassword,
   requireRole,
@@ -227,13 +227,14 @@ router.post(
       logFailedLoginSecurityEvent(req.correlationId);
       throw new AppError(INVALID_CREDENTIALS_MESSAGE, 401);
     }
+    const mfaApplies = isMfaRequiredRole(user.role) && user.totpEnabledAt !== null;
     let matchedTotpStep: bigint | undefined;
     const usableDevice =
-      user.totpEnabledAt === null ? null : await findUsableDevice(prisma, req, user.id, now);
-    if (!usableDevice && readTrustedDeviceToken(req)) clearTrustedDeviceCookie(res);
+      !mfaApplies ? null : await findUsableDevice(prisma, req, user.id, now);
+    if (mfaApplies && !usableDevice && readTrustedDeviceToken(req)) clearTrustedDeviceCookie(res);
     let rotatedTotpSecret:
       { ciphertext: string; iv: string; authTag: string; keyId: string } | undefined;
-    if (user.totpEnabledAt !== null && !usableDevice) {
+    if (mfaApplies && !usableDevice) {
       if (!req.body.totpCode) {
         throw new AppError('İki adımlı doğrulama kodu gerekli.', 401, true, {
           code: 'MFA_REQUIRED',
@@ -326,7 +327,7 @@ router.post(
           csrfTokenHash: hashToken(csrfToken),
           userId: user.id,
           expiresAt,
-          mfaVerifiedAt: user.totpEnabledAt === null ? null : now,
+          mfaVerifiedAt: mfaApplies ? now : null,
         },
       });
       if (usableDevice) {
@@ -369,8 +370,8 @@ router.post(
         username: user.username,
         role: user.role,
         mustChangePassword: user.mustChangePassword,
-        mfaEnabled: user.totpEnabledAt !== null,
-        mfaVerified: user.totpEnabledAt !== null,
+        mfaEnabled: mfaApplies,
+        mfaVerified: mfaApplies,
         mustEnrollMfa,
         venueId: user.venueId,
       },
@@ -834,6 +835,7 @@ router.post(
   '/mfa/enroll',
   mfaManagementLimiter,
   authenticate,
+  requireRole('ADMIN'),
   verifyCsrf,
   validateRequest(
     z.object({
@@ -927,6 +929,7 @@ router.post(
   '/mfa/confirm',
   mfaManagementLimiter,
   authenticate,
+  requireRole('ADMIN'),
   verifyCsrf,
   validateRequest(
     z.object({
@@ -1060,6 +1063,7 @@ router.post(
   '/mfa/disable',
   mfaManagementLimiter,
   authenticate,
+  requireRole('ADMIN'),
   verifyCsrf,
   validateRequest(
     z.object({
@@ -1163,6 +1167,7 @@ router.post(
   '/devices/revoke-all',
   authenticate,
   requireChangedPassword,
+  requireRole('ADMIN'),
   verifyCsrf,
   validateRequest(emptyRequestSchema),
   asyncHandler(async (req, res) => {
@@ -1193,6 +1198,7 @@ router.get(
   '/devices',
   authenticate,
   requireChangedPassword,
+  requireRole('ADMIN'),
   validateRequest(emptyRequestSchema),
   asyncHandler(async (req, res) => {
     const now = new Date();
@@ -1227,6 +1233,7 @@ router.delete(
   '/devices/:id',
   authenticate,
   requireChangedPassword,
+  requireRole('ADMIN'),
   verifyCsrf,
   validateRequest(
     z.object({

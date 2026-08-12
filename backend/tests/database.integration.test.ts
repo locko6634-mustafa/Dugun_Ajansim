@@ -2854,53 +2854,32 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     where: { id: adminSession.id },
     data: { adminStepUpVerifiedAt: new Date() }
   });
-  const mfaRecoveryReason = "Müşteri doğrulama cihazını kaybetti.";
   const resetMfa = await request(app)
     .post(`/api/v1/admin/customers/${wedding.customerUserId}/reset-mfa`)
     .set("X-Correlation-ID", correlationId)
     .set("Cookie", adminAuthCookie)
     .set("X-CSRF-Token", adminCsrfToken)
-    .send({ confirmText: wedding.customerUser.username, reason: mfaRecoveryReason });
-  assert.equal(resetMfa.status, 200);
-  assert.equal(resetMfa.body.data.mfaEnabled, false);
-  assert.equal(resetMfa.body.data.sessionsRevoked, recoverySessions.length);
-  assert.equal(resetMfa.body.data.passwordSetupTokensRevoked, 1);
-  const recoveredCustomer = await prisma.user.findUniqueOrThrow({
+    .send({
+      confirmText: wedding.customerUser.username,
+      reason: "Müşteri hesaplarında MFA desteklenmiyor."
+    });
+  assert.equal(resetMfa.status, 404);
+  const unchangedCustomer = await prisma.user.findUniqueOrThrow({
     where: { id: wedding.customerUserId }
   });
-  assert.equal(recoveredCustomer.totpSecretCiphertext, null);
-  assert.equal(recoveredCustomer.totpSecretIv, null);
-  assert.equal(recoveredCustomer.totpSecretAuthTag, null);
-  assert.equal(recoveredCustomer.totpKeyId, null);
-  assert.equal(recoveredCustomer.totpEnrollmentExpiresAt, null);
-  assert.equal(recoveredCustomer.totpEnabledAt, null);
-  assert.equal(recoveredCustomer.totpLastUsedStep, null);
+  assert.notEqual(unchangedCustomer.totpEnabledAt, null);
   assert.equal(
     await prisma.authSession.count({ where: { userId: wedding.customerUserId, revokedAt: null } }),
-    0
+    recoverySessions.length
   );
-  assert.ok(
+  assert.equal(
     (
       await prisma.passwordSetupToken.findUniqueOrThrow({
         where: { id: pendingRecoverySetupToken.id }
       })
-    ).revokedAt
+    ).revokedAt,
+    null
   );
-  const mfaRecoveryAudit = await prisma.auditLog.findFirstOrThrow({
-    where: {
-      actorUserId: admin.id,
-      action: "customer.mfa_recovery_reset",
-      targetId: wedding.customerUserId,
-      correlationId
-    }
-  });
-  assert.deepEqual(mfaRecoveryAudit.metadata, {
-    reason: mfaRecoveryReason,
-    sessionsRevoked: recoverySessions.length,
-    passwordSetupTokensRevoked: 1
-  });
-  assert.equal(JSON.stringify(mfaRecoveryAudit).includes(recoveryTotpSecret), false);
-  assert.equal(JSON.stringify(mfaRecoveryAudit).includes(recoverySetupToken), false);
 
   const passwordReset = await request(app)
     .post(`/api/v1/admin/customers/${wedding.customerUserId}/reset-password`)
@@ -3461,7 +3440,7 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
   assert.equal(JSON.stringify(auditLogs).includes(password), false);
 });
 
-test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akışını kullanır", async (context) => {
+test("müşteri hesabı eski MFA kaydı bulunsa bile MFA kullanmaz veya yönetemez", async (context) => {
   await prisma.rateLimitBucket.deleteMany();
   const marker = `customer-mfa-${randomUUID()}`;
   const password = "Musteri-Mfa!Guvenli-Parola-2026";
@@ -3500,9 +3479,20 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
     .set("Cookie", authCookies)
     .set("X-CSRF-Token", csrfToken)
     .send({ currentPassword: password });
-  assert.equal(enrollment.status, 200);
-  const secret = enrollment.body.data.secret as string;
-  assert.match(secret, /^[A-Z2-7]{32}$/);
+  assert.equal(enrollment.status, 403);
+  const secret = "ABCDEFGHIJKLMNOPQRSTUVWX234567AB";
+  const encryptedSecret = encryptValue(secret, totpEncryptionAad(user.id));
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      totpSecretCiphertext: encryptedSecret.ciphertext,
+      totpSecretIv: encryptedSecret.iv,
+      totpSecretAuthTag: encryptedSecret.authTag,
+      totpKeyId: null,
+      totpEnabledAt: new Date(),
+      totpLastUsedStep: 1n
+    }
+  });
 
   const confirmationStep = BigInt(Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS));
   const confirmationCode = generateTotpCode(secret, confirmationStep);
@@ -3511,22 +3501,21 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
     .set("Cookie", authCookies)
     .set("X-CSRF-Token", csrfToken)
     .send({ currentPassword: password, totpCode: confirmationCode });
-  assert.equal(confirmation.status, 200);
-  assert.equal(confirmation.body.data.mustEnrollMfa, false);
+  assert.equal(confirmation.status, 403);
 
   const loginIp = "203.0.113.61";
   const missingCodeLogin = await request(app)
     .post("/api/v1/auth/login")
     .set("X-Forwarded-For", loginIp)
     .send({ username: marker, password, remember: true });
-  assert.equal(missingCodeLogin.status, 401);
-  assert.equal(missingCodeLogin.body.errors.code, "MFA_REQUIRED");
+  assert.equal(missingCodeLogin.status, 200);
+  assert.equal(missingCodeLogin.body.data.mfaEnabled, false);
 
   const replayedCodeLogin = await request(app)
     .post("/api/v1/auth/login")
     .set("X-Forwarded-For", loginIp)
     .send({ username: marker, password, remember: true, totpCode: confirmationCode });
-  assert.equal(replayedCodeLogin.status, 401);
+  assert.equal(replayedCodeLogin.status, 200);
 
   const loginStep = BigInt(Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS));
   await prisma.user.update({
@@ -3546,7 +3535,7 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
     });
   assert.equal(successfulLogin.status, 200);
   assert.equal(successfulLogin.body.data.role, "MUSTERI");
-  assert.equal(successfulLogin.body.data.mfaEnabled, true);
+  assert.equal(successfulLogin.body.data.mfaEnabled, false);
   const loginCookies = successfulLogin.headers["set-cookie"] as unknown as string[];
   const sessionCookie = loginCookies
     .find((cookie) => cookie.startsWith(`${env.SESSION_COOKIE_NAME}=`))!
@@ -3555,11 +3544,12 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
     .find((cookie) => cookie.startsWith(`${CSRF_COOKIE_NAME}=`))!
     .split(";", 1)[0];
   const rotatedCsrfToken = csrfCookie.slice(`${CSRF_COOKIE_NAME}=`.length);
-  const trustedDeviceCookie = loginCookies
-    .find((cookie) => cookie.startsWith("dugunajansim_trusted_device="))!
-    .split(";", 1)[0];
-  assert.ok(trustedDeviceCookie);
-  assert.equal(await prisma.trustedDevice.count({ where: { userId: user.id, trusted: true } }), 1);
+  assert.equal(
+    loginCookies.find((cookie) => cookie.startsWith("dugunajansim_trusted_device=")),
+    undefined
+  );
+  assert.equal(await prisma.trustedDevice.count({ where: { userId: user.id } }), 0);
+  const trustedDeviceCookie = "dugunajansim_trusted_device=legacy-customer-device";
   assert.match(
     loginCookies.find((cookie) => cookie.startsWith(`${env.SESSION_COOKIE_NAME}=`))!,
     /Max-Age=2592000/i
@@ -3579,14 +3569,12 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
     .set("User-Agent", "Mozilla/5.0 (Android 16) Firefox/142.0")
     .set("Cookie", trustedDeviceCookie)
     .send({ username: marker, password, remember: true });
-  assert.equal(suspiciousDeviceLogin.status, 401);
-  assert.equal(suspiciousDeviceLogin.body.errors.code, "MFA_REQUIRED");
+  assert.equal(suspiciousDeviceLogin.status, 200);
 
   const devices = await request(app)
     .get("/api/v1/auth/devices")
     .set("Cookie", `${sessionCookie}; ${csrfCookie}; ${trustedDeviceCookie}`);
-  assert.equal(devices.status, 200);
-  assert.equal(devices.body.data.length, 0);
+  assert.equal(devices.status, 403);
 
   const managedDeviceToken = `${marker}-managed-device`;
   const managedDevice = await prisma.trustedDevice.create({
@@ -3606,8 +3594,7 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
       "Cookie",
       `${sessionCookie}; ${csrfCookie}; dugunajansim_trusted_device=${managedDeviceToken}`
     );
-  assert.equal(managedDevices.status, 200);
-  assert.equal(managedDevices.body.data[0].current, true);
+  assert.equal(managedDevices.status, 403);
   const revokedDevice = await request(app)
     .delete(`/api/v1/auth/devices/${managedDevice.id}`)
     .set(
@@ -3615,12 +3602,7 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
       `${sessionCookie}; ${csrfCookie}; dugunajansim_trusted_device=${managedDeviceToken}`
     )
     .set("X-CSRF-Token", rotatedCsrfToken);
-  assert.equal(revokedDevice.status, 200);
-  assert.ok(
-    (revokedDevice.headers["set-cookie"] as unknown as string[]).some((cookie) =>
-      cookie.startsWith("dugunajansim_trusted_device=")
-    )
-  );
+  assert.equal(revokedDevice.status, 403);
   await prisma.trustedDevice.create({
     data: {
       tokenHash: hashToken(`${managedDeviceToken}-second`),
@@ -3637,8 +3619,7 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
     .set("Cookie", `${sessionCookie}; ${csrfCookie}`)
     .set("X-CSRF-Token", rotatedCsrfToken)
     .send({});
-  assert.equal(revokedAllDevices.status, 200);
-  assert.equal(revokedAllDevices.body.data.revoked, 1);
+  assert.equal(revokedAllDevices.status, 403);
 
   const disableStep = loginStep + 1n;
   const disabled = await request(app)
@@ -3649,13 +3630,11 @@ test("müşteri isteğe bağlı TOTP enrollment, login, replay ve disable akış
       currentPassword: password,
       totpCode: generateTotpCode(secret, disableStep)
     });
-  assert.equal(disabled.status, 200);
-  assert.equal(disabled.body.data.mfaEnabled, false);
-  assert.equal(disabled.body.data.mustEnrollMfa, false);
-  assert.equal(await prisma.authSession.count({ where: { userId: user.id, revokedAt: null } }), 0);
+  assert.equal(disabled.status, 403);
+  assert.ok(await prisma.authSession.count({ where: { userId: user.id, revokedAt: null } }));
   const disabledUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
-  assert.equal(disabledUser.totpEnabledAt, null);
-  assert.equal(disabledUser.totpSecretCiphertext, null);
+  assert.notEqual(disabledUser.totpEnabledAt, null);
+  assert.notEqual(disabledUser.totpSecretCiphertext, null);
 });
 
 test("rate limit sayaçları farklı uygulama süreçleri arasında atomik paylaşılır", async () => {

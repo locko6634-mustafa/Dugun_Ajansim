@@ -55,7 +55,7 @@ export const getSessionAbsoluteTtlMs = (role: UserRole, remember: boolean): numb
       ? env.REMEMBER_SESSION_TTL_DAYS * 24 * 60 * 60 * 1000
       : env.SESSION_TTL_HOURS * 60 * 60 * 1000;
 
-export const isPrivilegedRole = (role: UserRole): boolean => role !== "MUSTERI";
+export const isMfaRequiredRole = (role: UserRole): boolean => role === "ADMIN";
 
 export const isAdminStepUpFresh = (
   verifiedAt: Date | null | undefined,
@@ -83,7 +83,7 @@ export const isMfaEnrollmentRequired = (
   role: UserRole,
   mfaEnabled: boolean,
   environment = env.NODE_ENV
-): boolean => environment === "production" && isPrivilegedRole(role) && !mfaEnabled;
+): boolean => environment === "production" && isMfaRequiredRole(role) && !mfaEnabled;
 
 export const isTemporaryPasswordExpired = (
   user: {
@@ -154,14 +154,15 @@ export const authenticate = asyncHandler(
       throw new AppError("Oturum geçersiz veya süresi dolmuş.", 401);
     }
 
+    const mfaApplies = isMfaRequiredRole(session.user.role);
     req.auth = {
       userId: session.user.id,
       username: session.user.username,
       role: session.user.role,
       sessionId: session.id,
       mustChangePassword: session.user.mustChangePassword,
-      mfaEnabled: session.user.totpEnabledAt !== null,
-      mfaVerified: session.mfaVerifiedAt !== null,
+      mfaEnabled: mfaApplies && session.user.totpEnabledAt !== null,
+      mfaVerified: mfaApplies && session.mfaVerifiedAt !== null,
       adminStepUpVerifiedAt: session.adminStepUpVerifiedAt,
       mustEnrollMfa: isMfaEnrollmentRequired(
         session.user.role,
@@ -206,7 +207,7 @@ export const requireChangedPassword = (req: Request, _res: Response, next: NextF
     );
     return;
   }
-  if (req.auth && isPrivilegedRole(req.auth.role) && req.auth.mfaEnabled && !req.auth.mfaVerified) {
+  if (req.auth && isMfaRequiredRole(req.auth.role) && req.auth.mfaEnabled && !req.auth.mfaVerified) {
     next(
       new AppError("İki adımlı doğrulama gerekli.", 401, true, {
         code: "MFA_REQUIRED"

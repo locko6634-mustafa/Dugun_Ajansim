@@ -1,6 +1,5 @@
 import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
-import { initTrustedDevices } from "../shared/trusted-devices.js";
 import { DELIVERY_STATUS_LABELS, DELIVERY_STATUS_ORDER } from "../shared/domain-labels.js";
 import { formatAppDate } from "../shared/runtime-config.js";
 
@@ -29,11 +28,9 @@ const safeDeliveryUrl = (value) => {
 };
 
 function showContent() {
-  document
-    .querySelectorAll(".customer-hero, .event-strip, .journey-section, .security-section")
-    .forEach((item) => {
-      item.hidden = false;
-    });
+  document.querySelectorAll(".customer-hero, .event-strip, .journey-section").forEach((item) => {
+    item.hidden = false;
+  });
 }
 
 async function ensureCustomer() {
@@ -48,49 +45,6 @@ async function ensureCustomer() {
     window.location.replace("login.html");
     return null;
   }
-}
-
-const mfaState = { enrollmentPassword: "" };
-const mfaMessage = document.querySelector(".js-mfa-message");
-const enrollForm = document.querySelector(".js-mfa-enroll-form");
-const enrollmentPanel = document.querySelector(".js-mfa-enrollment");
-const confirmForm = document.querySelector(".js-mfa-confirm-form");
-const disableForm = document.querySelector(".js-mfa-disable-form");
-
-function setMfaMessage(message, isError = false) {
-  mfaMessage.textContent = message;
-  mfaMessage.classList.toggle("is-error", isError);
-}
-
-function setMfaUi(enabled) {
-  document.querySelector(".js-mfa-status").textContent = enabled ? "Etkin" : "Etkin değil";
-  enrollForm.hidden = enabled;
-  disableForm.hidden = !enabled;
-  enrollmentPanel.hidden = true;
-  mfaState.enrollmentPassword = "";
-  confirmForm.reset();
-}
-
-function readSafeEnrollment(data) {
-  const secret = typeof data?.secret === "string" ? data.secret : "";
-  const otpauthUri = typeof data?.otpauthUri === "string" ? data.otpauthUri : "";
-  if (!/^[A-Z2-7]{32}$/.test(secret)) {
-    throw new Error("Güvenli MFA kurulum anahtarı alınamadı.");
-  }
-  let parsedUri;
-  try {
-    parsedUri = new URL(otpauthUri);
-  } catch {
-    throw new Error("Güvenli doğrulama uygulaması bağlantısı alınamadı.");
-  }
-  if (
-    parsedUri.protocol !== "otpauth:" ||
-    parsedUri.hostname !== "totp" ||
-    parsedUri.searchParams.get("secret") !== secret
-  ) {
-    throw new Error("Güvenli doğrulama uygulaması bağlantısı alınamadı.");
-  }
-  return { secret, otpauthUri: parsedUri.href };
 }
 
 async function loadDashboard() {
@@ -166,79 +120,8 @@ document.querySelector(".js-logout").addEventListener("click", async () => {
   });
 });
 
-enrollForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const button = enrollForm.querySelector("button[type='submit']");
-  const currentPassword = new FormData(enrollForm).get("currentPassword")?.toString() || "";
-  button.disabled = true;
-  setMfaMessage("");
-  try {
-    const response = await apiRequest("/auth/mfa/enroll", {
-      method: "POST",
-      body: { currentPassword }
-    });
-    const enrollment = readSafeEnrollment(response.data);
-    mfaState.enrollmentPassword = currentPassword;
-    document.querySelector(".js-mfa-secret").textContent = enrollment.secret;
-    document.querySelector(".js-mfa-otpauth").href = enrollment.otpauthUri;
-    enrollForm.reset();
-    enrollmentPanel.hidden = false;
-    setMfaMessage("Kurulum anahtarı oluşturuldu. Uygulamanızdaki 6 haneli kodu doğrulayın.");
-  } catch (error) {
-    mfaState.enrollmentPassword = "";
-    enrollmentPanel.hidden = true;
-    setMfaMessage(error.message, true);
-  } finally {
-    button.disabled = false;
-  }
-});
-
-confirmForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const button = confirmForm.querySelector("button[type='submit']");
-  const totpCode = new FormData(confirmForm).get("totpCode")?.toString().trim() || "";
-  button.disabled = true;
-  setMfaMessage("");
-  try {
-    if (!mfaState.enrollmentPassword) throw new Error("MFA kurulumunu yeniden başlatın.");
-    await apiRequest("/auth/mfa/confirm", {
-      method: "POST",
-      body: { currentPassword: mfaState.enrollmentPassword, totpCode }
-    });
-    setMfaUi(true);
-    setMfaMessage("İki adımlı doğrulama etkinleştirildi.");
-  } catch (error) {
-    setMfaMessage(error.message, true);
-  } finally {
-    button.disabled = false;
-  }
-});
-
-disableForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const button = disableForm.querySelector("button[type='submit']");
-  const formData = new FormData(disableForm);
-  button.disabled = true;
-  setMfaMessage("");
-  try {
-    await apiRequest("/auth/mfa/disable", {
-      method: "POST",
-      body: {
-        currentPassword: formData.get("currentPassword")?.toString() || "",
-        totpCode: formData.get("totpCode")?.toString().trim() || ""
-      }
-    });
-    window.location.replace("login.html");
-  } catch (error) {
-    setMfaMessage(error.message, true);
-    button.disabled = false;
-  }
-});
-
 const customerSession = await ensureCustomer();
 if (customerSession) {
-  initTrustedDevices();
-  setMfaUi(Boolean(customerSession.mfaEnabled));
   await loadDashboard().catch((error) => {
     document.querySelector(".page-message").textContent = error.message;
   });

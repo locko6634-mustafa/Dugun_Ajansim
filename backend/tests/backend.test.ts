@@ -646,7 +646,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   );
 });
 
-authTest('ayrıcalıklı remember isteği yok sayılır ve MFA production ortamında zorunludur', () => {
+authTest('MFA yalnız admin rolünde zorunludur ve ayrıcalıklı remember isteği yok sayılır', () => {
   assert.equal(getSessionIdleTimeoutMs('ADMIN'), 240 * 60 * 1000);
   assert.equal(getSessionIdleTimeoutMs('SALON_YETKILISI'), 60 * 60 * 1000);
   assert.equal(getSessionIdleTimeoutMs('MUSTERI'), 12 * 60 * 60 * 1000);
@@ -661,10 +661,22 @@ authTest('ayrıcalıklı remember isteği yok sayılır ve MFA production ortam�
   assert.ok(getSessionTouchIntervalMs('MUSTERI') < getSessionIdleTimeoutMs('MUSTERI'));
   assert.equal(calculateSessionTouchIntervalMs(5 * 60 * 1000), 2.5 * 60 * 1000);
   assert.equal(isMfaEnrollmentRequired('ADMIN', false, 'production'), true);
-  assert.equal(isMfaEnrollmentRequired('SALON_YETKILISI', false, 'production'), true);
+  assert.equal(isMfaEnrollmentRequired('SALON_YETKILISI', false, 'production'), false);
   assert.equal(isMfaEnrollmentRequired('MUSTERI', false, 'production'), false);
   assert.equal(isMfaEnrollmentRequired('ADMIN', true, 'production'), false);
   assert.equal(isMfaEnrollmentRequired('ADMIN', false, 'test'), false);
+});
+
+authTest('admin-only MFA migrationı diğer rollerin MFA ve cihaz kayıtlarını temizler', async () => {
+  const migration = await readFile(
+    new URL('../prisma/migrations/20260812130000_admin_only_mfa/migration.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /DELETE FROM "trusted_devices"/);
+  assert.match(migration, /UPDATE "auth_sessions"/);
+  assert.match(migration, /UPDATE "users"/);
+  assert.equal((migration.match(/account\."role" <> 'ADMIN'/g) ?? []).length, 2);
+  assert.match(migration, /WHERE "role" <> 'ADMIN'/);
 });
 
 authTest('güvenilen cihaz tokeni tekil cookie ve tarayıcı bağlamına bağlıdır', () => {

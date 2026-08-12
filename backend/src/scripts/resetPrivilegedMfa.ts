@@ -24,7 +24,7 @@ const main = async (): Promise<void> => {
   if (
     !user ||
     user.status !== "ACTIVE" ||
-    !["ADMIN", "SALON_YETKILISI"].includes(user.role) ||
+    user.role !== "ADMIN" ||
     user.totpEnabledAt === null
   ) {
     throw new Error("Sıfırlanabilir etkin ayrıcalıklı MFA kaydı bulunamadı.");
