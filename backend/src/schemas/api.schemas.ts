@@ -5,13 +5,13 @@ export const bookingFormConstraints = Object.freeze({
   personName: {
     minLength: 2,
     maxLength: 80,
-    pattern: "^[\\p{L}\\p{M}][\\p{L}\\p{M} '’\\-]*$",
+    pattern: "^[\\p{L}\\p{M}][\\p{L}\\p{M} '’\\x2D]*$",
     message: "Ad ve soyad yalnızca harf, boşluk, kesme işareti ve kısa çizgi içerebilir."
   },
   phone: {
     minLength: 10,
     maxLength: 24,
-    pattern: "^\\+?[\\d\\s()\\-]+$",
+    pattern: "^\\+?[\\d\\s\\(\\)\\x2D]+$",
     message: "Telefon yalnızca rakam ve telefon ayraçları içerebilir."
   },
   email: { maxLength: 254 },

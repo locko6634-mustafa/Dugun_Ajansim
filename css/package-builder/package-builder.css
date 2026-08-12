@@ -4014,6 +4014,41 @@ body.is-summary-open .package-summary__close svg {
   background: var(--gold-pale);
 }
 
+.builder-request-status {
+  margin: 0 0 24px;
+  padding: 16px 18px;
+  border: 1px solid hsl(8 55% 78%);
+  border-radius: 12px;
+  color: hsl(8 48% 28%);
+  background: hsl(8 72% 97%);
+}
+
+.builder-request-status[data-status="pending"] {
+  border-color: hsl(39 48% 72%);
+  color: var(--ink);
+  background: var(--gold-pale);
+}
+
+.builder-request-status[data-status="success"] {
+  border-color: hsl(145 35% 66%);
+  color: hsl(145 50% 25%);
+  background: hsl(145 45% 96%);
+}
+
+.builder-request-status strong,
+.builder-request-status p {
+  display: block;
+  margin: 0;
+}
+
+.builder-request-status p {
+  margin-top: 4px;
+}
+
+.builder-request-status button {
+  margin-top: 12px;
+}
+
 @media (max-width: 1080px) {
   .transfer-layout {
     grid-template-columns: 1fr;

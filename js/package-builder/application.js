@@ -122,6 +122,10 @@ const bookingHoneypotInput = checkoutForm?.querySelector('input[name="companyWeb
 const orderItemsContainer = document.querySelector(".js-order-items");
 const paymentNotificationForm = document.querySelector("#payment-notification-form");
 const paymentNotificationStatus = document.querySelector(".js-payment-notification-status");
+const builderRequestStatus = document.querySelector(".js-builder-request-status");
+const builderRequestTitle = document.querySelector(".js-builder-request-title");
+const builderRequestMessage = document.querySelector(".js-builder-request-message");
+const builderRequestRetry = document.querySelector(".js-builder-request-retry");
 const paymentSubmitButton = paymentNotificationForm?.querySelector('button[type="submit"]');
 const summaryPanel = document.querySelector(".package-summary");
 const summaryToggles = [...document.querySelectorAll(".js-summary-toggle")];
@@ -129,8 +133,45 @@ const summaryBackground = document.querySelector(".summary-backdrop");
 const summaryFocusSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 let summaryReturnFocus = null;
+let bookingSubmissionInFlight = false;
+let requestRetryAction = null;
+let availabilityController = null;
+let availabilityRequestSequence = 0;
 const venueNames = new Map();
 const CUSTOM_VENUE_VALUE = "__custom_venue__";
+
+function setBuilderRequestStatus(
+  message,
+  {
+    title = "İşlem tamamlanamadı",
+    type = "error",
+    retryAction = null,
+    actionLabel = "Tekrar dene",
+    focus = false
+  } = {}
+) {
+  if (!builderRequestStatus) return;
+  builderRequestTitle.textContent = message ? title : "";
+  builderRequestMessage.textContent = message || "";
+  builderRequestStatus.dataset.status = type;
+  builderRequestStatus.hidden = !message;
+  requestRetryAction = retryAction;
+  builderRequestRetry.hidden = !retryAction;
+  builderRequestRetry.textContent = actionLabel;
+  if (message && focus) builderRequestStatus.focus({ preventScroll: true });
+}
+
+builderRequestRetry?.addEventListener("click", () => {
+  const action = requestRetryAction;
+  setBuilderRequestStatus("");
+  if (!action) return;
+  Promise.resolve(action()).catch((error) => {
+    setBuilderRequestStatus(
+      error?.message || "İşlem yeniden başlatılamadı. Bağlantınızı kontrol edip tekrar deneyin.",
+      { retryAction: action, focus: true }
+    );
+  });
+});
 
 function bindBaseInputs() {
   baseInputs = [...document.querySelectorAll('input[name="base-package"]')];
@@ -257,6 +298,9 @@ function loadTurnstileScript() {
       reject(new Error("Bot doğrulama bileşeni yüklenemedi."))
     );
     document.head.append(script);
+  }).catch((error) => {
+    turnstileScriptPromise = null;
+    throw error;
   });
   return turnstileScriptPromise;
 }
@@ -269,17 +313,32 @@ async function initializeBotProtection(configuration) {
   if (!configuration.enabled) return;
 
   const turnstile = await loadTurnstileScript();
+  if (turnstileWidgetId !== null) {
+    turnstile.remove(turnstileWidgetId);
+    turnstileWidgetId = null;
+  }
   turnstileWidgetId = turnstile.render(container, {
     sitekey: configuration.siteKey,
     action: configuration.action,
     callback: (token) => {
       state.botChallengeToken = token;
+      setBuilderRequestStatus("");
     },
     "expired-callback": () => {
       state.botChallengeToken = null;
+      setBuilderRequestStatus("Bot doğrulamasının süresi doldu. Yeniden doğrulayıp devam edin.", {
+        title: "Doğrulama süresi doldu",
+        retryAction: () => initializeBotProtection(state.botProtection),
+        focus: true
+      });
     },
     "error-callback": () => {
       state.botChallengeToken = null;
+      setBuilderRequestStatus("Bot doğrulaması tamamlanamadı. Bileşeni yeniden yükleyin.", {
+        title: "Doğrulama yüklenemedi",
+        retryAction: () => initializeBotProtection(state.botProtection),
+        focus: true
+      });
     }
   });
 }
@@ -366,6 +425,8 @@ async function hydrateRemoteData() {
     }
 
     const venueSelect = document.querySelector(".js-venue-select");
+    venueNames.clear();
+    venueSelect.querySelectorAll("option:not(:first-child)").forEach((option) => option.remove());
     venuesResponse.data.forEach((venue) => {
       venueNames.set(venue.id, venue.name);
       const option = document.createElement("option");
@@ -402,6 +463,14 @@ async function hydrateRemoteData() {
     updateSummary();
     setPaymentNotificationStatus(
       "Güncel paket ve salon bilgileri alınamadı. Lütfen bağlantınızı kontrol edip sayfayı yenileyin."
+    );
+    setBuilderRequestStatus(
+      "Güncel paket, salon veya doğrulama bilgileri alınamadı. Bağlantınızı kontrol edip yeniden deneyin.",
+      {
+        title: "Başvuru bilgileri yüklenemedi",
+        retryAction: hydrateRemoteData,
+        focus: true
+      }
     );
   }
 }
@@ -787,6 +856,21 @@ function getBookingRequestBody() {
 }
 
 function applyPaymentFlowSummary(data) {
+  if (data.packageCodeSnapshot && data.packageNameSnapshot) {
+    basePackages[data.packageCodeSnapshot] = {
+      ...(basePackages[data.packageCodeSnapshot] || {}),
+      name: data.packageNameSnapshot,
+      price: fromCents(data.packagePriceCents)
+    };
+  }
+  if (Array.isArray(data.services)) {
+    data.services.forEach((snapshot) => {
+      const service = services.find((item) => item.id === snapshot.codeSnapshot);
+      if (!service) return;
+      service.name = snapshot.nameSnapshot;
+      service.price = fromCents(snapshot.priceCents);
+    });
+  }
   setConfirmedPayment(data);
   state.applicationId = data.id;
   state.transferReference = data.referenceCode;
@@ -880,25 +964,62 @@ async function savePaymentFlow() {
 }
 
 async function openPaymentSummary() {
+  if (bookingSubmissionInFlight) return;
   const button = document.querySelector(".js-summary-step");
   const label = button.querySelector("span");
   const originalLabel = label.textContent;
+  bookingSubmissionInFlight = true;
   button.disabled = true;
+  button.setAttribute("aria-busy", "true");
   label.textContent = state.applicationId ? "Başvuru güncelleniyor" : "Referans oluşturuluyor";
+  setBuilderRequestStatus("Başvurunuz güvenli şekilde hazırlanıyor.", {
+    title: "Lütfen bekleyin",
+    type: "pending"
+  });
   setPaymentNotificationStatus("Başvurunuz güvenli şekilde hazırlanıyor...", "pending");
   try {
-    await savePaymentFlow();
+    const previewBeforeSave = calculatePaymentPreview(state.payment);
+    const responseData = await savePaymentFlow();
     document.querySelector(".js-payment-flow-expired").hidden = true;
     document.querySelector(".js-transfer-layout").hidden = false;
     goToStep(5);
+    const priceChanged =
+      Boolean(responseData.packageCodeSnapshot) &&
+      (toCents(previewBeforeSave.subtotal) !== responseData.totalPriceCents ||
+        toCents(previewBeforeSave.payable) !== responseData.payableNowCents);
+    if (priceChanged) {
+      if (paymentSubmitButton) paymentSubmitButton.disabled = true;
+      setBuilderRequestStatus(
+        "Paket fiyatı siz formu doldururken güncellendi. Aşağıdaki sunucu doğrulamalı yeni toplamı inceleyip açıkça onaylayın.",
+        {
+          title: "Fiyat güncellendi",
+          type: "pending",
+          actionLabel: "Güncel fiyatı onayla",
+          retryAction: () => {
+            if (paymentSubmitButton) paymentSubmitButton.disabled = !transferAccount?.enabled;
+          },
+          focus: true
+        }
+      );
+    } else {
+      setBuilderRequestStatus("");
+    }
   } catch (error) {
     if (error.status === 410) {
       showPaymentFlowExpired();
     } else {
-      setPaymentNotificationStatus(error.message);
+      const hasFieldErrors = applyServerFieldErrors(error);
+      const message = getBookingFailureMessage(error);
+      setPaymentNotificationStatus(message);
+      setBuilderRequestStatus(message, {
+        retryAction: openPaymentSummary,
+        focus: !hasFieldErrors
+      });
     }
   } finally {
+    bookingSubmissionInFlight = false;
     button.disabled = false;
+    button.removeAttribute("aria-busy");
     label.textContent = originalLabel;
   }
 }
@@ -934,6 +1055,39 @@ function setFieldValidity(input, isValid, message) {
   input.setAttribute("aria-invalid", String(!isValid));
   const error = field.querySelector(".form-field__error");
   if (error && message) error.textContent = message;
+}
+
+function applyServerFieldErrors(error) {
+  const fieldErrors = error?.payload?.fieldErrors;
+  if (!Array.isArray(fieldErrors)) return false;
+  let firstInvalid = null;
+  fieldErrors.forEach(({ field, message }) => {
+    if (typeof field !== "string" || typeof message !== "string") return;
+    const input = checkoutForm.elements.namedItem(field);
+    if (!(input instanceof HTMLElement)) return;
+    setFieldValidity(input, false, message);
+    firstInvalid ||= input;
+  });
+  if (!firstInvalid) return false;
+  goToStep(3);
+  firstInvalid.focus();
+  return true;
+}
+
+function getBookingFailureMessage(error) {
+  if (error?.status === 409) {
+    return "Seçtiğiniz salon veya başvuru bilgileri başka bir işlemle çakıştı. Bilgileri kontrol edip tekrar deneyin.";
+  }
+  if (error?.status === 429) {
+    const wait = error.retryAfterSeconds
+      ? ` Yaklaşık ${error.retryAfterSeconds} saniye sonra`
+      : " Bir süre sonra";
+    return `Çok fazla deneme yapıldı.${wait} tekrar deneyin.`;
+  }
+  if (error?.status >= 500 || error?.status === 0 || error?.status === 408) {
+    return "Başvurunuz şu anda kaydedilemedi. Bilgileriniz korundu; bağlantınızı kontrol edip tekrar deneyin.";
+  }
+  return error?.message || "Başvuru tamamlanamadı. Bilgilerinizi kontrol edip tekrar deneyin.";
 }
 
 function validatePhone(input) {
@@ -1160,28 +1314,40 @@ const timeToMinutes = (timeStr, isNextDay = false) => {
 async function fetchVenueAvailability() {
   const venueId = venueSelect?.value;
   const date = weddingDateInput?.value;
+  availabilityController?.abort();
+  const controller = new window.AbortController();
+  availabilityController = controller;
+  const requestSequence = ++availabilityRequestSequence;
 
   if (!venueId || venueId === CUSTOM_VENUE_VALUE || !date) {
+    availabilityController = null;
     hasVenueOccupancy = false;
     if (availabilityBanner) availabilityBanner.hidden = true;
     return;
   }
 
   if (!hasApiEndpoint()) {
+    availabilityController = null;
     if (availabilityBanner) availabilityBanner.hidden = true;
     return;
   }
 
   try {
-    const res = await apiRequest(`/venues/${venueId}/availability?date=${date}`);
+    const res = await apiRequest(`/venues/${venueId}/availability?date=${date}`, {
+      signal: controller.signal
+    });
+    if (requestSequence !== availabilityRequestSequence) return;
     hasVenueOccupancy = res.data.hasOccupancy === true;
     renderAvailabilityBanner();
   } catch {
+    if (controller.signal.aborted || requestSequence !== availabilityRequestSequence) return;
     hasVenueOccupancy = false;
     if (availabilityBanner) {
       availabilityBanner.innerHTML = `<div class="availability-banner__warning">⚠️ Salon doluluk bilgisi alınamadı.</div>`;
       availabilityBanner.hidden = false;
     }
+  } finally {
+    if (availabilityController === controller) availabilityController = null;
   }
 }
 
@@ -1359,6 +1525,7 @@ if (endsNextDayCheckbox) {
 }
 
 checkoutForm.addEventListener("input", (event) => {
+  if (!builderRequestStatus?.hidden) setBuilderRequestStatus("");
   if (phoneInputs.includes(event.target)) validatePhone(event.target);
   const field = event.target.closest(".form-field");
   if (field && event.target.validity.valid) setFieldValidity(event.target, true);
@@ -1387,7 +1554,11 @@ checkoutForm.addEventListener("submit", (event) => {
   const isTimeValid = validateTimeSlots();
 
   if (state.botProtection.enabled && !state.botChallengeToken) {
-    setPaymentNotificationStatus("Devam etmek için bot doğrulamasını tamamlayın.");
+    setBuilderRequestStatus("Devam etmek için bot doğrulamasını tamamlayın.", {
+      title: "Bot doğrulaması gerekli",
+      retryAction: () => initializeBotProtection(state.botProtection),
+      focus: true
+    });
     document
       .querySelector(".js-turnstile")
       ?.scrollIntoView({ behavior: "smooth", block: "center" });

@@ -148,12 +148,16 @@ const emptyRequestSchema = z.object({
 
 export const availabilityRequestSchema = z.object({
   body: z.object({}).strict().optional().default({}),
-  query: z.object({
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD formatında olmalıdır.")
-  }).strict(),
-  params: z.object({
-    venueId: z.string().uuid("Geçerli bir salon IDsi girilmelidir.")
-  }).strict()
+  query: z
+    .object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD formatında olmalıdır.")
+    })
+    .strict(),
+  params: z
+    .object({
+      venueId: z.string().uuid("Geçerli bir salon IDsi girilmelidir.")
+    })
+    .strict()
 });
 
 const paymentFlowParamsSchema = z.object({
@@ -277,7 +281,8 @@ router.post(
       body: bookingBodySchema,
       query: z.object({}).strict(),
       params: z.object({}).strict()
-    })
+    }),
+    { statusCode: 422, code: "VALIDATION_ERROR" }
   ),
   asyncHandler(async (req, _res, next) => {
     validateBookingAbuseSignals({
@@ -303,7 +308,9 @@ router.post(
     const rawKey = req.get("Idempotency-Key");
     const idempotencyKey = z.string().uuid().parse(rawKey);
     const paymentFlowKey =
-      getCookie(req, PAYMENT_FLOW_COOKIE_NAME) ?? req.get("Payment-Flow-Key") ?? createOpaqueToken();
+      getCookie(req, PAYMENT_FLOW_COOKIE_NAME) ??
+      req.get("Payment-Flow-Key") ??
+      createOpaqueToken();
     if (!/^[A-Za-z0-9._~-]{32,128}$/.test(paymentFlowKey)) {
       throw new AppError("Ödeme akışı anahtarı geçersiz.", 400);
     }

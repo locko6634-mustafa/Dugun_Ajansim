@@ -1127,10 +1127,7 @@ test('Legacy PII redaction tutarlılık denetimi normalize eşleşmeyi kabul edi
     ),
     false,
   );
-  assert.equal(
-    weddingLegacyPiiMatches(bookingPayload, bookingPayload),
-    true,
-  );
+  assert.equal(weddingLegacyPiiMatches(bookingPayload, bookingPayload), true);
   assert.equal(
     messageTaskLegacyPiiMatches(
       { recipientPhone: '0555 123 45 67' },
@@ -1471,17 +1468,23 @@ test('operasyonel AppError durum kodunu ve güvenli ayrıntıları korur', () =>
   const mock = createMockResponse();
   const handler = createGlobalErrorHandler('production');
   const details = [{ field: 'body.email', message: 'Geçersiz e-posta' }];
+  const request = { correlationId: 'corr_validation_123' } as Request;
 
   handler(
-    new AppError('Girdi doğrulama hatası', 400, true, details),
-    {} as Request,
+    new AppError('Girdi doğrulama hatası', 422, true, details, {
+      code: 'VALIDATION_ERROR',
+    }),
+    request,
     mock.response,
     (() => undefined) as NextFunction,
   );
 
-  assert.equal(mock.getStatusCode(), 400);
+  assert.equal(mock.getStatusCode(), 422);
   assert.equal(mock.getBody().message, 'Girdi doğrulama hatası');
+  assert.equal(mock.getBody().code, 'VALIDATION_ERROR');
+  assert.equal(mock.getBody().requestId, 'corr_validation_123');
   assert.deepEqual(mock.getBody().errors, details);
+  assert.deepEqual(mock.getBody().fieldErrors, [{ field: 'email', message: 'Geçersiz e-posta' }]);
 });
 
 authTest(
@@ -1888,7 +1891,10 @@ test('public başvuru limiter IPv6 /56 ağını tek istemci sayar ve ortak 429 s
       .post('/api/v1/booking-applications')
       .set('X-Forwarded-For', `2001:db8:${uniqueNetwork}:${(0x1200 + index).toString(16)}::1`)
       .send({});
-    assert.equal(response.status, 400);
+    assert.equal(response.status, 422);
+    assert.equal(response.body.code, 'VALIDATION_ERROR');
+    assert.equal(typeof response.body.requestId, 'string');
+    assert.equal(Array.isArray(response.body.fieldErrors), true);
   }
 
   const limited = await request(app)
@@ -1898,7 +1904,10 @@ test('public başvuru limiter IPv6 /56 ağını tek istemci sayar ve ortak 429 s
   assert.equal(limited.status, 429);
   assert.equal(limited.body.success, false);
   assert.equal(limited.body.statusCode, 429);
+  assert.equal(limited.body.code, 'RATE_LIMITED');
   assert.equal(typeof limited.body.correlationId, 'string');
+  assert.equal(limited.body.requestId, limited.body.correlationId);
+  assert.equal(Number.isInteger(limited.body.retryAfterSeconds), true);
   assert.equal(limited.headers['cache-control'], 'no-store');
 });
 

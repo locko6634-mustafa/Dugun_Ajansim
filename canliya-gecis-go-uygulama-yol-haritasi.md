@@ -160,74 +160,74 @@ Aşağıdaki erişimler yoksa agent kod tarafındaki hazırlığı bitirir, faka
 
 ### 01.1 Kök nedeni kanıtla
 
-- [ ] Başarısız başvuruyu sentetik veriyle staging’de yeniden üret.
-- [ ] POST URL, method, status, response content-type ve response error code’u kaydet.
-- [ ] Response request/correlation ID’sini kaydet.
-- [ ] Aynı ID’yi backend ve proxy logunda bul.
-- [ ] Hatanın frontend, Turnstile, proxy, doğrulama, DB transaction veya backend içinden hangisinde olduğunu kesinleştir.
-- [ ] Hassas form verisini log/rapor kanıtında maskele.
-- [ ] Aynı hatayı yakalayan başarısız regresyon testi ekle veya mevcut testin neden yakalamadığını belgeleyip düzelt.
+- [x] Başarısız başvuruyu sentetik veriyle staging’de yeniden üret.
+- [x] POST URL, method, status, response content-type ve response error code’u kaydet.
+- [x] Response request/correlation ID’sini kaydet.
+- [x] Aynı ID’yi backend ve proxy logunda bul.
+- [x] Hatanın frontend, Turnstile, proxy, doğrulama, DB transaction veya backend içinden hangisinde olduğunu kesinleştir.
+- [x] Hassas form verisini log/rapor kanıtında maskele.
+- [x] Aynı hatayı yakalayan başarısız regresyon testi ekle veya mevcut testin neden yakalamadığını belgeleyip düzelt.
 
 ### 01.2 Backend sözleşmesini düzelt
 
-- [ ] Public create/handoff endpointinin gerçek input şemasını frontend payload’ıyla karşılaştır.
-- [ ] Fiyat, indirim, kapora ve hizmet snapshotının yalnız backend tarafından üretildiğini koru.
-- [ ] Transaction içindeki kısmi kayıt/yetim kayıt olasılığını test et.
-- [ ] Hata response’unu güvenli, kararlı `code/message/requestId/fieldErrors` sözleşmesine getir.
-- [ ] 400, 409, 422, 429 ve 500 durumlarının birbirinden ayrıldığını doğrula.
-- [ ] Aynı idempotency key ile tekrar isteğin tek kayıt ürettiğini doğrula.
-- [ ] Eşzamanlı slot yarışında yalnız bir başvurunun başarılı olduğunu doğrula.
-- [ ] Public başarısız denemede DB’de yarım başvuru, payment-flow veya ilişki kalmadığını doğrula.
+- [x] Public create/handoff endpointinin gerçek input şemasını frontend payload’ıyla karşılaştır.
+- [x] Fiyat, indirim, kapora ve hizmet snapshotının yalnız backend tarafından üretildiğini koru.
+- [x] Transaction içindeki kısmi kayıt/yetim kayıt olasılığını test et.
+- [x] Hata response’unu güvenli, kararlı `code/message/requestId/fieldErrors` sözleşmesine getir.
+- [x] 400, 409, 422, 429 ve 500 durumlarının birbirinden ayrıldığını doğrula.
+- [x] Aynı idempotency key ile tekrar isteğin tek kayıt ürettiğini doğrula.
+- [x] Eşzamanlı slot yarışında yalnız bir başvurunun başarılı olduğunu doğrula.
+- [x] Public başarısız denemede DB’de yarım başvuru, payment-flow veya ilişki kalmadığını doğrula.
 
 ### 01.3 Aktif adımda hata ve tekrar deneme UX’i
 
-- [ ] Başvuru hatasını gizli 5. adım yerine kullanıcının bulunduğu aktif adımda göster.
-- [ ] Alan hatalarını ilgili input yakınında göster.
-- [ ] Genel hata alanını erişilebilir live region yap.
-- [ ] Mesajı HTTP jargonundan arındır; ne olduğu ve kullanıcının ne yapacağı açık olsun.
-- [ ] 5xx, timeout ve offline durumunda doldurulmuş form verisini koru.
-- [ ] Güvenli “Tekrar dene” eylemi ekle.
-- [ ] Gönderim sırasında butonu loading/disabled yap.
-- [ ] Çift tıklama ve Enter tekrarının duplicate POST üretmesini engelle.
-- [ ] Turnstile tokenı reset olduğunda widget’ı güvenli biçimde yeniden hazırla.
-- [ ] Turnstile script yükleme hatasında kullanıcıya retry/yenileme eylemi sun.
-- [ ] Başarıda referansı görünür, kopyalanabilir ve kalıcı başarı adımında göster.
-- [ ] Yenileme/geri/ileri hareketinin başarı veya hata durumunu bozmadığını doğrula.
+- [x] Başvuru hatasını gizli 5. adım yerine kullanıcının bulunduğu aktif adımda göster.
+- [x] Alan hatalarını ilgili input yakınında göster.
+- [x] Genel hata alanını erişilebilir live region yap.
+- [x] Mesajı HTTP jargonundan arındır; ne olduğu ve kullanıcının ne yapacağı açık olsun.
+- [x] 5xx, timeout ve offline durumunda doldurulmuş form verisini koru.
+- [x] Güvenli “Tekrar dene” eylemi ekle.
+- [x] Gönderim sırasında butonu loading/disabled yap.
+- [x] Çift tıklama ve Enter tekrarının duplicate POST üretmesini engelle.
+- [x] Turnstile tokenı reset olduğunda widget’ı güvenli biçimde yeniden hazırla.
+- [x] Turnstile script yükleme hatasında kullanıcıya retry/yenileme eylemi sun.
+- [x] Başarıda referansı görünür, kopyalanabilir ve kalıcı başarı adımında göster.
+- [x] Yenileme/geri/ileri hareketinin başarı veya hata durumunu bozmadığını doğrula.
 
 ### 01.4 Public fiyat ve uygunluk sözleşmesi
 
-- [ ] Katalog başarılı yükleniyor.
-- [ ] Katalog 4xx/5xx/offline durumunda eski veya uydurma fiyat göstermiyor.
-- [ ] Her hizmet ekleme/çıkarma toplamı backend snapshotıyla eşleşiyor.
-- [ ] Nakit indirimi ve yuvarlama backend hesabıyla eşleşiyor.
-- [ ] Kapora, kalan tutar ve toplam backend hesabıyla eşleşiyor.
-- [ ] Özel salon alanı yalnız ilgili seçimde zorunlu oluyor.
-- [ ] Özel salon adı ve kişi adı doğrulama hataları ilgili alan yanında açık neden gösteriyor.
-- [ ] Geçmiş tarih ve geçmiş saat UI ile backend tarafından reddediliyor.
-- [ ] Saat adımı ve en geç bitiş kuralı UI/backend’de aynı.
-- [ ] Dolu salon/saat doğru engelleniyor.
-- [ ] Yavaş eski uygunluk yanıtı yeni seçimi ezmiyor; eski request iptal/ignore ediliyor.
-- [ ] Fiyat form açıkken değişirse kullanıcı güncel snapshotı açıkça görüyor ve onaylıyor.
+- [x] Katalog başarılı yükleniyor.
+- [x] Katalog 4xx/5xx/offline durumunda eski veya uydurma fiyat göstermiyor.
+- [x] Her hizmet ekleme/çıkarma toplamı backend snapshotıyla eşleşiyor.
+- [x] Nakit indirimi ve yuvarlama backend hesabıyla eşleşiyor.
+- [x] Kapora, kalan tutar ve toplam backend hesabıyla eşleşiyor.
+- [x] Özel salon alanı yalnız ilgili seçimde zorunlu oluyor.
+- [x] Özel salon adı ve kişi adı doğrulama hataları ilgili alan yanında açık neden gösteriyor.
+- [x] Geçmiş tarih ve geçmiş saat UI ile backend tarafından reddediliyor.
+- [x] Saat adımı ve en geç bitiş kuralı UI/backend’de aynı.
+- [x] Dolu salon/saat doğru engelleniyor.
+- [x] Yavaş eski uygunluk yanıtı yeni seçimi ezmiyor; eski request iptal/ignore ediliyor.
+- [x] Fiyat form açıkken değişirse kullanıcı güncel snapshotı açıkça görüyor ve onaylıyor.
 
 ### 01.5 P0-01 kabul testleri
 
-- [ ] Nakit seçimiyle en az üç bağımsız staging başvurusu 2xx tamamlandı.
-- [ ] Kapora seçimiyle en az üç bağımsız staging başvurusu 2xx tamamlandı.
-- [ ] Her deneme tek ve tam referans üretti.
-- [ ] Her referans admin kuyruğunda doğru kişi/salon/tarih/hizmet/fiyatla bir kez göründü.
-- [ ] 400 senaryosu aktif adımda doğru mesaj gösterdi.
-- [ ] 409 çakışma senaryosu aktif adımda doğru mesaj gösterdi.
-- [ ] 422 alan hatası ilgili alanda gösterildi.
-- [ ] 429 kalan süre/tekrar deneme mesajını gösterdi.
-- [ ] 500 ve offline durumları form verisini korudu.
-- [ ] Turnstile success/expired/error/script-load-fail senaryoları geçti.
-- [ ] Sekmeyi yenileme, geri/ileri ve gönderimde kapatma yarım/duplicate kayıt bırakmadı.
-- [ ] Console’da beklenmeyen error/pageerror yok.
-- [ ] Network’te beklenmeyen pending/cancelled/requestfailed yok.
+- [x] Nakit seçimiyle en az üç bağımsız staging başvurusu 2xx tamamlandı.
+- [x] Kapora seçimiyle en az üç bağımsız staging başvurusu 2xx tamamlandı.
+- [x] Her deneme tek ve tam referans üretti.
+- [x] Her referans admin kuyruğunda doğru kişi/salon/tarih/hizmet/fiyatla bir kez göründü.
+- [x] 400 senaryosu aktif adımda doğru mesaj gösterdi.
+- [x] 409 çakışma senaryosu aktif adımda doğru mesaj gösterdi.
+- [x] 422 alan hatası ilgili alanda gösterildi.
+- [x] 429 kalan süre/tekrar deneme mesajını gösterdi.
+- [x] 500 ve offline durumları form verisini korudu.
+- [x] Turnstile success/expired/error/script-load-fail senaryoları geçti.
+- [x] Sekmeyi yenileme, geri/ileri ve gönderimde kapatma yarım/duplicate kayıt bırakmadı.
+- [x] Console’da beklenmeyen error/pageerror yok.
+- [x] Network’te beklenmeyen pending/cancelled/requestfailed yok.
 
 **Faz 01 çıkış kapısı**
 
-- [ ] Public başvuru ana dönüşümü gerçek Nginx/API/PostgreSQL üzerinde nakit ve kapora için kanıtla geçti; görünür hata UX’i bütün negatif durumlarda çalıştı.
+- [x] Public başvuru ana dönüşümü gerçek Nginx/API/PostgreSQL üzerinde nakit ve kapora için kanıtla geçti; görünür hata UX’i bütün negatif durumlarda çalıştı. Kanıt: `kanit/faz-01-public-basvuru.md`.
 
 ---
 

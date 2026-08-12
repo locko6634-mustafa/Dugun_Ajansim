@@ -868,6 +868,40 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     }),
     1
   );
+
+  const competingDate = addCalendarDays(weddingDate, 30);
+  const competingIdempotencyKeys = [`${marker}-slot-race-a`, `${marker}-slot-race-b`];
+  const competingApplications = await Promise.allSettled(
+    competingIdempotencyKeys.map((idempotencyKey, index) =>
+      createBookingApplication(
+        {
+          ...applicationInput,
+          weddingDate: competingDate,
+          brideFirstName: `Yaris${index}`,
+          primaryEmail: `slot-race-${index}-${marker}@example.com`
+        },
+        {
+          source: "PUBLIC_FORM",
+          idempotencyKey,
+          paymentFlowKey: `${marker}-slot-race-${index}-flow-key-1234567890`,
+          correlationId
+        }
+      )
+    )
+  );
+  assert.equal(competingApplications.filter(({ status }) => status === "fulfilled").length, 1);
+  const rejectedCompetingApplication = competingApplications.find(
+    ({ status }) => status === "rejected"
+  );
+  assert.ok(rejectedCompetingApplication?.status === "rejected");
+  assert.equal((rejectedCompetingApplication.reason as { statusCode?: number }).statusCode, 409);
+  assert.equal(
+    await prisma.bookingApplication.count({
+      where: { idempotencyKey: { in: competingIdempotencyKeys } }
+    }),
+    1
+  );
+
   await assert.rejects(
     createBookingApplication(
       {
@@ -887,7 +921,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       (error as { statusCode: number }).statusCode === 409
   );
 
-  // Aynı salon ve saat aralığında çakışan başvuru reddedilmelidir (400 Bad Request)
+  // Aynı salon ve saat aralığında çakışan başvuru kararlı 409 sözleşmesiyle reddedilmelidir.
   await assert.rejects(
     createBookingApplication(
       {
@@ -904,7 +938,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     (error: unknown) =>
       error instanceof Error &&
       "statusCode" in error &&
-      (error as { statusCode: number }).statusCode === 400
+      (error as { statusCode: number }).statusCode === 409
   );
 
   const secondApplication = await createBookingApplication(

@@ -101,6 +101,10 @@ const idempotencySelect = {
   id: true,
   referenceCode: true,
   status: true,
+  packageCodeSnapshot: true,
+  packageNameSnapshot: true,
+  packagePriceCents: true,
+  services: { select: { codeSnapshot: true, nameSnapshot: true, priceCents: true } },
   totalPriceCents: true,
   payableNowCents: true,
   paymentNotificationChannel: true,
@@ -471,7 +475,10 @@ export const createBookingApplication = async (
             if (publicConflict) {
               throw new AppError(
                 "Seçilen salonda bu saat aralığı doludur. Lütfen farklı bir saat seçin.",
-                400
+                409,
+                true,
+                undefined,
+                { code: "VENUE_SCHEDULE_CONFLICT" }
               );
             }
             const conflStart = formatIstanbulTime(
@@ -538,6 +545,12 @@ export const createBookingApplication = async (
               id: true,
               referenceCode: true,
               status: true,
+              packageCodeSnapshot: true,
+              packageNameSnapshot: true,
+              packagePriceCents: true,
+              services: {
+                select: { codeSnapshot: true, nameSnapshot: true, priceCents: true }
+              },
               totalPriceCents: true,
               payableNowCents: true,
               paymentFlowExpiresAt: true,

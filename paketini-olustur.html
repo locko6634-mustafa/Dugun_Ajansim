@@ -110,6 +110,20 @@
 
     <main class="builder-layout">
       <div class="builder-content">
+        <section
+          class="builder-request-status js-builder-request-status"
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+          tabindex="-1"
+          hidden
+        >
+          <strong class="js-builder-request-title"></strong>
+          <p class="js-builder-request-message"></p>
+          <button class="builder-secondary js-builder-request-retry" type="button" hidden>
+            Tekrar dene
+          </button>
+        </section>
         <section class="builder-step is-active" data-step="1" aria-labelledby="base-package-title">
           <header class="builder-intro">
             <p class="builder-intro__index">01 / Temel paket</p>

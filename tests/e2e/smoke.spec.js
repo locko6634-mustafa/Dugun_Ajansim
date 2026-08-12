@@ -1076,6 +1076,398 @@ test("@frontend-smoke müşteri teslimat penceresini geciken API yanıtından ö
     .toBe("https://drive.google.com/file/d/e2e-test");
 });
 
+async function preparePublicBookingForm(page, bookingHandler) {
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          paymentPolicy: { cashDiscountPercent: 20, depositMaximumCents: 3_000 },
+          bookingFormConstraints: defaultBookingFormConstraints,
+          bookingSchedulePolicy: defaultBookingSchedulePolicy,
+          packages: [
+            {
+              code: "mini",
+              name: "Mini Paket",
+              priceCents: 10_500,
+              imagePath: "assets/images/hero-couple.webp"
+            }
+          ],
+          services: [],
+          botProtection: { enabled: false, provider: "turnstile", siteKey: null }
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/payment-instructions", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { enabled: false, mode: "test" } })
+    })
+  );
+  await page.route("**/api/v1/venues*", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(
+        route.request().url().includes("/availability")
+          ? { success: true, data: { date: "2027-08-10", hasOccupancy: false } }
+          : {
+              success: true,
+              data: [{ id: "de305d54-75b4-431b-adb2-eb6b9e546014", name: "Cess Wedding" }]
+            }
+      )
+    })
+  );
+  await page.route("**/api/v1/booking-applications", bookingHandler);
+  await page.goto("/paketini-olustur.html");
+  await page.locator(".js-next-step").click();
+  await page.locator(".js-details-step").click();
+  const form = page.locator("#checkout-form");
+  await form.locator('input[name="brideFirstName"]').fill("Ayşe");
+  await form.locator('input[name="brideLastName"]').fill("Yılmaz");
+  await form.locator('input[name="bridePhone"]').fill("05551234567");
+  await form.locator('input[name="groomFirstName"]').fill("Mehmet");
+  await form.locator('input[name="groomLastName"]').fill("Demir");
+  await form.locator('input[name="groomPhone"]').fill("05559876543");
+  await form.locator('input[name="primaryEmail"]').fill("ayse@example.com");
+  await form.locator('select[name="venueId"]').selectOption("de305d54-75b4-431b-adb2-eb6b9e546014");
+  await selectWeddingDate(page, "2027-08-10");
+  await selectWeddingTime(page, "start", "18:00");
+  await selectWeddingTime(page, "end", "23:00");
+  await form.locator('input[name="privacyConsent"]').check();
+  await form.getByRole("button", { name: "Ödemeye Geç" }).click();
+}
+
+test("@frontend-smoke public 500 hatası aktif adımda görünür, veriyi korur ve aynı anahtarla tekrar dener", async ({
+  page
+}) => {
+  const requests = [];
+  await preparePublicBookingForm(page, async (route) => {
+    requests.push({
+      idempotencyKey: route.request().headers()["idempotency-key"],
+      body: route.request().postDataJSON()
+    });
+    if (requests.length === 1) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          code: "INTERNAL_ERROR",
+          message: "Bir hata oluştu.",
+          requestId: "request_public_500"
+        })
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          id: "4a68ef8c-65df-4899-a560-e4c79b47b455",
+          referenceCode: "DA-2026-500001",
+          totalPriceCents: 8_400,
+          payableNowCents: 8_400,
+          paymentFlowExpiresAt: "2027-08-10T20:00:00.000Z",
+          whatsappHandoffAt: null
+        }
+      })
+    });
+  });
+
+  await page.locator(".js-summary-step").click();
+  const status = page.locator(".js-builder-request-status");
+  await expect(status).toBeVisible();
+  await expect(status).toContainText("Bilgileriniz korundu");
+  await expect(page.locator('input[name="payment-method"][value="cash"]')).toBeChecked();
+  await status.getByRole("button", { name: "Tekrar dene" }).click();
+  await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-500001");
+  expect(requests).toHaveLength(2);
+  expect(requests[1].idempotencyKey).toBe(requests[0].idempotencyKey);
+  expect(requests[1].body).toEqual(requests[0].body);
+});
+
+test("@frontend-smoke public 422 alan hatasını ilgili input yanında gösterir", async ({ page }) => {
+  await preparePublicBookingForm(page, (route) =>
+    route.fulfill({
+      status: 422,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: false,
+        code: "VALIDATION_ERROR",
+        message: "Girdi doğrulama hatası",
+        requestId: "request_public_422",
+        fieldErrors: [{ field: "brideFirstName", message: "Ad biçimi geçersiz." }]
+      })
+    })
+  );
+
+  await page.locator(".js-summary-step").click();
+  const brideName = page.locator('input[name="brideFirstName"]');
+  await expect(brideName).toBeFocused();
+  await expect(brideName).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#bride-first-name-error")).toHaveText("Ad biçimi geçersiz.");
+});
+
+test("@frontend-smoke hızlı çift gönderim yalnız tek public POST üretir", async ({ page }) => {
+  let requestCount = 0;
+  await preparePublicBookingForm(page, async (route) => {
+    requestCount += 1;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          id: "4a68ef8c-65df-4899-a560-e4c79b47b455",
+          referenceCode: "DA-2026-500002",
+          totalPriceCents: 8_400,
+          payableNowCents: 8_400,
+          paymentFlowExpiresAt: "2027-08-10T20:00:00.000Z",
+          whatsappHandoffAt: null
+        }
+      })
+    });
+  });
+
+  await page.locator(".js-summary-step").evaluate((button) => {
+    button.click();
+    button.click();
+  });
+  await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-500002");
+  expect(requestCount).toBe(1);
+});
+
+test("@frontend-smoke katalog fiyatı değişince sunucu snapshot'ını gösterir ve açık onay ister", async ({
+  page
+}) => {
+  await preparePublicBookingForm(page, (route) =>
+    route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          id: "4a68ef8c-65df-4899-a560-e4c79b47b499",
+          referenceCode: "DA-2026-PRICE1",
+          packageCodeSnapshot: "mini",
+          packageNameSnapshot: "Mini Paket Güncel",
+          packagePriceCents: 15_000,
+          services: [],
+          totalPriceCents: 12_000,
+          payableNowCents: 12_000,
+          paymentFlowExpiresAt: "2027-08-10T20:00:00.000Z",
+          whatsappHandoffAt: null
+        }
+      })
+    })
+  );
+
+  await page.locator(".js-summary-step").click();
+  const status = page.locator(".js-builder-request-status");
+  await expect(status).toContainText("Paket fiyatı siz formu doldururken güncellendi");
+  await expect(page.locator(".js-transfer-payable").first()).toContainText("120 TL");
+  await status.getByRole("button", { name: "Güncel fiyatı onayla" }).click();
+  await expect(status).toBeHidden();
+});
+
+for (const scenario of [
+  {
+    name: "400",
+    status: 400,
+    headers: {},
+    body: { code: "BAD_REQUEST", message: "Başvuru doğrulanamadı." },
+    expected: "Başvuru doğrulanamadı"
+  },
+  {
+    name: "409",
+    status: 409,
+    headers: {},
+    body: { code: "VENUE_SCHEDULE_CONFLICT", message: "Salon dolu." },
+    expected: "başka bir işlemle çakıştı"
+  },
+  {
+    name: "429",
+    status: 429,
+    headers: { "Retry-After": "60" },
+    body: { code: "RATE_LIMITED", message: "Çok fazla deneme.", retryAfterSeconds: 60 },
+    expected: "60 saniye sonra"
+  }
+]) {
+  test(`@frontend-smoke public ${scenario.name} güvenli ve tekrar denenebilir mesaj gösterir`, async ({
+    page
+  }) => {
+    await preparePublicBookingForm(page, (route) =>
+      route.fulfill({
+        status: scenario.status,
+        headers: scenario.headers,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          requestId: `request_${scenario.name}`,
+          ...scenario.body
+        })
+      })
+    );
+    await page.locator(".js-summary-step").click();
+    const status = page.locator(".js-builder-request-status");
+    await expect(status).toContainText(scenario.expected);
+    await expect(status.getByRole("button", { name: "Tekrar dene" })).toBeVisible();
+  });
+}
+
+test("@frontend-smoke offline public başvuruda form verisi ve tekrar deneme korunur", async ({
+  page
+}) => {
+  await preparePublicBookingForm(page, (route) => route.abort("internetdisconnected"));
+  await page.locator(".js-summary-step").click();
+  await expect(page.locator(".js-builder-request-status")).toContainText("Bilgileriniz korundu");
+  await expect(page.locator(".js-builder-request-retry")).toBeVisible();
+  await page.locator('.builder-step[data-step="4"] .js-step-back[data-target-step="3"]').click();
+  await expect(page.locator('input[name="primaryEmail"]')).toHaveValue("ayse@example.com");
+});
+
+test("@frontend-smoke Turnstile error ve expired durumları güvenli yeniden hazırlama sunar", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    window.__turnstileRenderCount = 0;
+    window.turnstile = {
+      render(_container, options) {
+        window.__turnstileOptions = options;
+        window.__turnstileRenderCount += 1;
+        return window.__turnstileRenderCount;
+      },
+      remove() {},
+      reset() {}
+    };
+  });
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          paymentPolicy: defaultPaymentPolicy,
+          bookingFormConstraints: defaultBookingFormConstraints,
+          bookingSchedulePolicy: defaultBookingSchedulePolicy,
+          packages: [{ code: "mini", name: "Mini", priceCents: 10_000 }],
+          services: [],
+          botProtection: {
+            enabled: true,
+            provider: "turnstile",
+            siteKey: "test-site-key",
+            action: "booking_application"
+          }
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/venues", (route) =>
+    route.fulfill({ contentType: "application/json", body: '{"success":true,"data":[]}' })
+  );
+  await page.goto("/paketini-olustur.html");
+  await page.evaluate(() => window.__turnstileOptions["error-callback"]());
+  await expect(page.locator(".js-builder-request-status")).toContainText(
+    "Bot doğrulaması tamamlanamadı"
+  );
+  await page.locator(".js-builder-request-retry").click();
+  await expect.poll(() => page.evaluate(() => window.__turnstileRenderCount)).toBe(2);
+  await page.evaluate(() => window.__turnstileOptions["expired-callback"]());
+  await expect(page.locator(".js-builder-request-status")).toContainText("süresi doldu");
+});
+
+test("@frontend-smoke Turnstile script yükleme hatası görünür retry eylemi sunar", async ({
+  page
+}) => {
+  await page.route("https://challenges.cloudflare.com/**", (route) => route.abort("failed"));
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          paymentPolicy: defaultPaymentPolicy,
+          bookingFormConstraints: defaultBookingFormConstraints,
+          bookingSchedulePolicy: defaultBookingSchedulePolicy,
+          packages: [{ code: "mini", name: "Mini", priceCents: 10_000 }],
+          services: [],
+          botProtection: {
+            enabled: true,
+            provider: "turnstile",
+            siteKey: "test-site-key",
+            action: "booking_application"
+          }
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/venues", (route) =>
+    route.fulfill({ contentType: "application/json", body: '{"success":true,"data":[]}' })
+  );
+  await page.goto("/paketini-olustur.html");
+  const status = page.locator(".js-builder-request-status");
+  await expect(status).toContainText("doğrulama bilgileri alınamadı");
+  await expect(status.getByRole("button", { name: "Tekrar dene" })).toBeVisible();
+});
+
+test("@frontend-smoke yavaş eski uygunluk yanıtı yeni salon seçimini ezmez", async ({ page }) => {
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          paymentPolicy: defaultPaymentPolicy,
+          bookingFormConstraints: defaultBookingFormConstraints,
+          bookingSchedulePolicy: defaultBookingSchedulePolicy,
+          packages: [{ code: "mini", name: "Mini", priceCents: 10_000 }],
+          services: []
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/venues", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: [
+          { id: "de305d54-75b4-431b-adb2-eb6b9e546014", name: "Yavaş Salon" },
+          { id: "de305d54-75b4-431b-adb2-eb6b9e546015", name: "Yeni Salon" }
+        ]
+      })
+    })
+  );
+  await page.route("**/api/v1/venues/*/availability?*", async (route) => {
+    const isOldVenue = route.request().url().includes("de305d54-75b4-431b-adb2-eb6b9e546014");
+    if (isOldVenue) await new Promise((resolve) => setTimeout(resolve, 350));
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { date: "2027-08-10", hasOccupancy: isOldVenue }
+      })
+    });
+  });
+  await page.goto("/paketini-olustur.html");
+  await page.locator(".js-next-step").click();
+  await page.locator(".js-details-step").click();
+  const venue = page.locator('select[name="venueId"]');
+  await venue.selectOption("de305d54-75b4-431b-adb2-eb6b9e546014");
+  await selectWeddingDate(page, "2027-08-10");
+  await venue.selectOption("de305d54-75b4-431b-adb2-eb6b9e546015");
+  await expect(page.locator(".js-availability-banner")).toContainText(
+    "Seçilen tarihte bu salon için henüz bir düğün/başvuru kaydı bulunmamaktadır."
+  );
+  await page.waitForTimeout(450);
+  await expect(page.locator(".js-availability-banner")).not.toContainText("başka kayıtlar");
+});
+
 test("@frontend-smoke referans WhatsApp'tan önce oluşturulur ve yapılandırılmamış alıcıya veri gönderilmez", async ({
   page
 }) => {

@@ -21,6 +21,8 @@ export function parseBookingFormConstraints(constraints) {
   try {
     new RegExp(constraints.personName.pattern, "u");
     new RegExp(constraints.phone.pattern);
+    new RegExp(constraints.personName.pattern, "v");
+    new RegExp(constraints.phone.pattern, "v");
   } catch {
     throw new Error("Sunucudan geçerli form doğrulama koşulları alınamadı.");
   }

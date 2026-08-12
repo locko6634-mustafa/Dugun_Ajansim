@@ -1,11 +1,13 @@
-const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const isLocalDevelopmentServer =
+  ["localhost", "127.0.0.1"].includes(window.location.hostname) && window.location.port === "8000";
 const configuredApiBaseUrl = document
   .querySelector('meta[name="api-base-url"]')
   ?.content.trim()
   .replace(/\/$/, "");
 
 export const API_BASE_URL =
-  configuredApiBaseUrl || (isLocal ? `http://${window.location.hostname}:5000/api/v1` : "/api/v1");
+  configuredApiBaseUrl ||
+  (isLocalDevelopmentServer ? `http://${window.location.hostname}:5000/api/v1` : "/api/v1");
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
@@ -77,6 +79,11 @@ export async function apiRequest(path, options = {}) {
       const error = new Error(payload.message || "İşlem tamamlanamadı.");
       error.status = response.status;
       error.payload = payload;
+      const retryAfter = Number.parseInt(
+        response.headers.get("Retry-After") || String(payload.retryAfterSeconds || ""),
+        10
+      );
+      if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfterSeconds = retryAfter;
       throw error;
     }
 
@@ -87,6 +94,15 @@ export async function apiRequest(path, options = {}) {
       timeoutError.status = 408;
       timeoutError.code = "REQUEST_TIMEOUT";
       throw timeoutError;
+    }
+    if (error?.name === "AbortError" && callerSignal?.aborted) throw error;
+    if (error instanceof TypeError) {
+      const offlineError = new Error(
+        "Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin."
+      );
+      offlineError.status = 0;
+      offlineError.code = "NETWORK_ERROR";
+      throw offlineError;
     }
     throw error;
   } finally {

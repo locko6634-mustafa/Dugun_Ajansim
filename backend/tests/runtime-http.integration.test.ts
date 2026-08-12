@@ -21,7 +21,9 @@ if (
   ownerUrl.pathname !== runtimeUrl.pathname ||
   ownerUrl.username === runtimeUrl.username
 ) {
-  throw new Error("Runtime HTTP testi ayrı bir rolle aynı güvenli test veritabanını kullanmalıdır.");
+  throw new Error(
+    "Runtime HTTP testi ayrı bir rolle aynı güvenli test veritabanını kullanmalıdır."
+  );
 }
 
 process.env.DATABASE_URL = runtimeDatabaseUrl;
@@ -36,6 +38,8 @@ const [appModule, prismaModule, cryptoModule, rateLimitModule] = await Promise.a
 const ownerPrisma = new PrismaClient({ datasourceUrl: ownerDatabaseUrl });
 const applicationPrisma = prismaModule.prisma;
 const application = appModule.createApp();
+
+await ownerPrisma.$executeRaw`SELECT public.set_rls_enforcement(TRUE)`;
 
 after(async () => {
   await applicationPrisma.$disconnect();
@@ -89,4 +93,120 @@ test("runtime rolü HTTP login ve korumalı route RLS bağlamlarını uçtan uca
   assert.equal(Array.isArray(adminResponse.body.data), true);
 
   await agent.get("/api/v1/operations/staff").expect(403);
+});
+
+test("runtime rolü public başvuruyu RLS bağlamıyla atomik oluşturur", async (context) => {
+  const marker = randomUUID();
+  const idempotencyKey = randomUUID();
+  const rejectedIdempotencyKey = randomUUID();
+  const venue = await ownerPrisma.venue.create({
+    data: {
+      slug: `runtime-public-${marker}`,
+      name: `Runtime Public ${marker}`,
+      displayName: "Runtime Public",
+      isPartner: true,
+      isActive: true
+    }
+  });
+  const packageRecord = await ownerPrisma.package.create({
+    data: {
+      code: `runtime-public-${marker}`,
+      name: `Runtime Public ${marker}`,
+      priceCents: 200_000
+    }
+  });
+  const publicReadPolicies = await ownerPrisma.$queryRaw<Array<{ policyname: string }>>`
+    SELECT policyname
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'booking_applications'
+      AND cmd = 'SELECT'
+      AND policyname = 'booking_applications_public_read'
+  `;
+  assert.equal(publicReadPolicies.length, 1);
+
+  context.after(async () => {
+    const applications = await ownerPrisma.bookingApplication.findMany({
+      where: { idempotencyKey: { in: [idempotencyKey, rejectedIdempotencyKey] } },
+      select: { id: true }
+    });
+    await ownerPrisma.auditLog.deleteMany({
+      where: { targetId: { in: applications.map(({ id }) => id) } }
+    });
+    await ownerPrisma.bookingApplication.deleteMany({
+      where: { idempotencyKey: { in: [idempotencyKey, rejectedIdempotencyKey] } }
+    });
+    await ownerPrisma.package.deleteMany({ where: { id: packageRecord.id } });
+    await ownerPrisma.venue.deleteMany({ where: { id: venue.id } });
+  });
+
+  const publicAgent = request.agent(application);
+  const bookingBody = {
+    brideFirstName: "Sentetik",
+    brideLastName: "Gelin",
+    bridePhone: "05550000001",
+    groomFirstName: "Sentetik",
+    groomLastName: "Damat",
+    groomPhone: "05550000002",
+    primaryContact: "GELIN",
+    primaryEmail: `runtime-public-${marker}@example.invalid`,
+    weddingDate: "2099-08-10",
+    startTime: "19:00",
+    endTime: "23:00",
+    endsNextDay: false,
+    venueId: venue.id,
+    packageCode: packageRecord.code,
+    serviceCodes: [],
+    paymentMethod: "CASH",
+    privacyConsent: true,
+    marketingConsent: false
+  };
+  const response = await publicAgent
+    .post("/api/v1/booking-applications")
+    .set("Idempotency-Key", idempotencyKey)
+    .set("X-Booking-Elapsed-Ms", "5000")
+    .send(bookingBody);
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.success, true);
+  assert.equal(typeof response.body.data.referenceCode, "string");
+  assert.equal(response.body.data.packageCodeSnapshot, packageRecord.code);
+  assert.equal(response.body.data.packageNameSnapshot, packageRecord.name);
+  assert.equal(response.body.data.packagePriceCents, packageRecord.priceCents);
+  assert.deepEqual(response.body.data.services, []);
+  assert.equal(await ownerPrisma.bookingApplication.count({ where: { idempotencyKey } }), 1);
+  assert.equal(
+    await ownerPrisma.auditLog.count({
+      where: { action: "booking.created", targetId: response.body.data.id }
+    }),
+    1
+  );
+  assert.equal(
+    await ownerPrisma.bookingApplicationService.count({
+      where: { applicationId: response.body.data.id }
+    }),
+    0
+  );
+
+  const duplicateResponse = await publicAgent
+    .post("/api/v1/booking-applications")
+    .set("Idempotency-Key", idempotencyKey)
+    .set("X-Booking-Elapsed-Ms", "5000")
+    .send(bookingBody);
+  assert.equal(duplicateResponse.status, 201);
+  assert.equal(duplicateResponse.body.data.id, response.body.data.id);
+  assert.equal(await ownerPrisma.bookingApplication.count({ where: { idempotencyKey } }), 1);
+
+  const rejectedResponse = await publicAgent
+    .post("/api/v1/booking-applications")
+    .set("Idempotency-Key", rejectedIdempotencyKey)
+    .set("X-Booking-Elapsed-Ms", "5000")
+    .send({ ...bookingBody, serviceCodes: [`missing-${marker}`] });
+  assert.equal(rejectedResponse.status, 400);
+  assert.equal(
+    await ownerPrisma.bookingApplication.count({
+      where: { idempotencyKey: rejectedIdempotencyKey }
+    }),
+    0
+  );
 });
