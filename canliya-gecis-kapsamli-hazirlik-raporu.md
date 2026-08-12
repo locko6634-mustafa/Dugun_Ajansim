@@ -22,7 +22,7 @@ Google görünürlüğü açısından da canlı sistem hazır değildir: `robots
 - [ ] Canlı public başvuru gönderimi düzeltilmiş ve gerçek API/DB üzerinde tekrar tekrar başarıyla doğrulanmış olmalı.
 - [ ] Başvuru hatası formun aktif adımında, anlaşılır ve tekrar denenebilir biçimde gösterilmeli.
 - [ ] WhatsApp/dekont aşamasına geçmiş başvurular otomatik süre temizliğinden çıkarılmalı; ödeme kanıtı taşıyan kayıt kaybolmamalı.
-- [ ] Gerçek müşteri aktivasyonu → parola belirleme → giriş → panel → teslimat bağlantısı zinciri uçtan uca geçmeli.
+- [x] Gerçek müşteri aktivasyonu → parola belirleme → giriş → panel → teslimat bağlantısı zinciri uçtan uca geçmeli. Yerel sentetik kabul kanıtı: `kanit/faz-03-aktivasyon-musteri-altin-yolu.md`; canlı yeniden doğrulama Faz 15’tedir.
 - [ ] Üretim veritabanı temiz başlangıç/cutover planı uygulanmalı; bütün test kayıtları ve takvimi bloke eden test düğünleri ayıklanmalı.
 - [ ] `PAYMENT_MODE=live` ve gerçek banka/ödeme metinleri dağıtım kapısı olarak doğrulanmalı.
 - [ ] Temiz sunucu kurulumu, forward-only migration hatası ve kurtarma prosedürü prova edilmeli.
@@ -250,14 +250,16 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Yapılacaklar ve kabul ölçütü**
 
-- [ ] Ayrı sentetik müşteriyle gerçek aktivasyon tokenı üretilmeli.
-- [ ] Token bir kez kullanılmalı; tekrar kullanım ve süresi dolmuş token reddedilmeli.
-- [ ] Güçlü parola belirlenmeli ve login çalışmalı.
-- [ ] Müşteri yalnız kendi düğününü görmeli.
-- [ ] Hazır olmayan teslimat bağlantısı gizli kalmalı.
-- [ ] Teslim edilen gerçek test bağlantısı açılmalı ve yetkisi doğrulanmalı.
-- [ ] Oturum sonlandırma ve idle timeout çalışmalı.
-- [ ] Başka müşteri/düğün ID’sine doğrudan erişim 403/404 vermeli.
+- [x] Ayrı sentetik müşteriyle gerçek aktivasyon tokenı üretilmeli.
+- [x] Token bir kez kullanılmalı; tekrar kullanım ve süresi dolmuş token reddedilmeli.
+- [x] Güçlü parola belirlenmeli ve login çalışmalı.
+- [x] Müşteri yalnız kendi düğününü görmeli.
+- [x] Hazır olmayan teslimat bağlantısı gizli kalmalı.
+- [x] Teslim edilen gerçek test bağlantısı açılmalı ve yetkisi doğrulanmalı.
+- [x] Oturum sonlandırma ve idle timeout çalışmalı.
+- [x] Başka müşteri/düğün ID’sine doğrudan erişim 403/404 vermeli.
+
+**Güncel çözüm kanıtı:** `kanit/faz-03-aktivasyon-musteri-altin-yolu.md`. Aktivasyon görevinin gerçek render/doğrulama endpointleriyle ürettiği amaç-bağlı tek kullanımlık token; parola, login, yalnız kendi kaydına erişim, teslimat yayınlama/süre sonu/geri çekme ve logout zincirinde geçti. Test verisi cleanup ile kaldırıldı.
 
 ### P0-04 — Aktivasyon mesajı link üretilmeden “Gönderildi” yapılabiliyor
 
@@ -271,10 +273,12 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Yapılacaklar**
 
-- [ ] Aktivasyon görevi “Gönderildi” olmadan önce render edilmiş geçerli token zorunlu olmalı.
-- [ ] Gelecek `dueAt` için eylem kilitli veya açıkça yetkili override olmalı.
-- [ ] Yanlış işaretlenmiş görev için güvenli yeniden üretim/iptal prosedürü olmalı.
-- [ ] Admin UI sıralamayı adım adım zorlamalı: `Hazırla → Linki doğrula → Gönder → Gönderildi işaretle`.
+- [x] Aktivasyon görevi “Gönderildi” olmadan önce render edilmiş geçerli token zorunlu olmalı.
+- [x] Gelecek `dueAt` için eylem kilitli veya açıkça yetkili override olmalı.
+- [x] Yanlış işaretlenmiş görev için güvenli yeniden üretim/iptal prosedürü olmalı.
+- [x] Admin UI sıralamayı adım adım zorlamalı: `Hazırla → Linki doğrula → Gönder → Gönderildi işaretle`.
+
+**Güncel çözüm kanıtı:** `kanit/faz-03-aktivasyon-musteri-altin-yolu.md`. Altı durumlu görev yaşam döngüsü, şifreli hazırlanmış mesaj kanıtı, token amaç/kullanıcı/hash/geçerlilik kontrolü, `dueAt` kilidi, MFA step-up ve gerekçeli override, retry ve tokenı da iptal eden güvenli cancel akışı eklendi.
 
 ### P0-05 — Üretim veri cutover ve test verisi temizliği planı yok
 
@@ -466,6 +470,8 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Kapanış ölçütü:** onay ve red için şablon, kanal, retry, gönderim kanıtı ve başarısız gönderim kuyruğu tanımlanmış olmalı.
 
+**Güncel durum:** KAPALI — Faz 03. Onay/red karar görevleri başvuru kararıyla aynı transaction içinde ayrı WhatsApp outbox kayıtları olarak oluşuyor; güvenli şablon, due zamanı, başarısız/retry ve yanlış referans/alıcı negatif kabulü `kanit/faz-03-aktivasyon-musteri-altin-yolu.md` içinde kanıtlandı.
+
 ### P1-04 — Teslimat durumlarında geçiş haritası yok
 
 - Admin bütün durumlar arasında ileri/geri sıçrayabilir.
@@ -487,6 +493,8 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 - Erken aktivasyon linki müşteri aktif olmadığı için 410 dönebilir.
 
 **Kapanış ölçütü:** due zamanı gelmeyen görev kilitli olmalı; override gerekiyorsa ayrı yetki, onay ve audit istemeli.
+
+**Güncel durum:** KAPALI — Faz 03. Backend doğrulama ve gönderildi geçişleri `dueAt` öncesinde kapalı; admin UI aynı kilidi gösteriyor. Erken gönderim yalnız yakın tarihli admin MFA step-up, açık neden ve audit kaydıyla açılıyor.
 
 ### P1-06 — Admin genel bakış bugünkü düğünleri render etmiyor
 
@@ -767,7 +775,7 @@ Google kaynağı: [Core Web Vitals](https://developers.google.com/search/docs/ap
 - [ ] Geri yükleme: handoff öncesi/sonrası ve özel salon varyantı.
 - [ ] Kalıcı silme step-up + MFA + audit.
 - [ ] Aynı başvuruyu iki admin eşzamanlı işlerse transaction/409 davranışı.
-- [ ] Onay sonrası düğün, teslimat ve doğru mesaj görevlerinin oluşması.
+- [x] Onay sonrası düğün, teslimat ve doğru mesaj görevlerinin oluşması. Kanıt: `kanit/faz-03-aktivasyon-musteri-altin-yolu.md`.
 
 ### 9.3 Admin düğün ve takvim
 
@@ -807,7 +815,7 @@ Google kaynağı: [Core Web Vitals](https://developers.google.com/search/docs/ap
 
 ### 9.6 Müşteri
 
-- [ ] Aktivasyon linki üretme ve doğru mesaj.
+- [x] Aktivasyon linki üretme ve doğru mesaj. Kanıt: `kanit/faz-03-aktivasyon-musteri-altin-yolu.md`.
 - [ ] Token süresi dolma/tek kullanımlık olma.
 - [ ] Parola belirleme.
 - [ ] Doğru/yanlış login ve rate limit.
@@ -833,7 +841,7 @@ Google kaynağı: [Core Web Vitals](https://developers.google.com/search/docs/ap
 
 ### 9.8 Mesaj ve teslimat
 
-- [ ] Aktivasyon mesajını render etmeden gönderildi yapılamıyor.
+- [x] Aktivasyon mesajını render etmeden gönderildi yapılamıyor. Kanıt: `kanit/faz-03-aktivasyon-musteri-altin-yolu.md`.
 - [ ] `dueAt` gelmeden normal eylem kapalı.
 - [ ] Render edilen link doğru kullanıcıya ait.
 - [ ] WhatsApp açma ve gönderildi işaretleme ayrı ve açık adımlar.
@@ -1168,7 +1176,7 @@ Her senaryo için beklenen sonuç, kullanıcı mesajı, retry/idempotency davran
 - [ ] Container health ve revision doğrulandı.
 - [ ] Ana sayfa/katalog/login salt-okunur smoke.
 - [ ] Public sentetik başvuru oluşturuldu ve adminde görüldü.
-- [ ] Admin onay → müşteri aktivasyon/login geçti.
+- [x] Admin onay → müşteri aktivasyon/login geçti. Yerel sentetik kabul kanıtı: `kanit/faz-03-aktivasyon-musteri-altin-yolu.md`; canlı tekrar Faz 15’te yapılacaktır.
 - [ ] Salon takvimi/atama geçti.
 - [ ] Teslimat test linki müşteride açıldı.
 - [ ] Test kayıtları güvenli cleanup ile kaldırıldı.
@@ -1230,7 +1238,7 @@ Her senaryo için beklenen sonuç, kullanıcı mesajı, retry/idempotency davran
 | --------------------------------------- | ------------------- | --------------------------------------- | --------------- |
 | Public başvuru gerçek API/DB’de geçiyor | Frontend + Backend  | HAR/request ID + admin referansı + test | AÇIK            |
 | TTL veri kaybı düzeltildi               | Backend             | Entegrasyon testi + 24 saat test kaydı  | KAPALI — Faz 02 |
-| Müşteri altın yolu geçiyor              | Ürün + QA           | Aktivasyon/login/teslimat kaydı         | AÇIK            |
+| Müşteri altın yolu geçiyor              | Ürün + QA           | Aktivasyon/login/teslimat kaydı         | KAPALI — Faz 03 |
 | Test verisi temiz/cutover tamam         | Backend + Operasyon | İmzalı envanter + backup + sayaçlar     | AÇIK            |
 | Payment live konfigürasyonu             | Backend + İş sahibi | Production config smoke + fiyat onayı   | AÇIK            |
 | Deploy/recovery tatbikatı               | DevOps              | Temiz-host ve failure drill kaydı       | AÇIK            |

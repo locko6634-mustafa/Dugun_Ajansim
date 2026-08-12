@@ -273,6 +273,7 @@ export const passwordChangeBodySchema = z
 export const passwordSetupBodySchema = z
   .object({
     token: z.string().regex(/^[A-Za-z0-9_-]{43}$/, "Kurulum bağlantısı geçersiz"),
+    purpose: z.enum(["ACCOUNT_ACTIVATION", "PASSWORD_RESET"]),
     newPassword: strongPasswordSchema
   })
   .strict();

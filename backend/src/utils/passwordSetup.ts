@@ -12,7 +12,7 @@ export const issuePasswordSetupToken = async (
     createdById: string;
     notBefore?: Date | null;
   },
-): Promise<{ token: string; expiresAt: Date }> => {
+): Promise<{ id: string; token: string; expiresAt: Date }> => {
   const now = new Date();
   await transaction.passwordSetupToken.updateMany({
     where: { userId: input.userId, usedAt: null, revokedAt: null },
@@ -24,7 +24,7 @@ export const issuePasswordSetupToken = async (
   const expiresAt = new Date(
     validityStartsAt.valueOf() + env.TEMPORARY_PASSWORD_TTL_HOURS * 60 * 60 * 1_000,
   );
-  await transaction.passwordSetupToken.create({
+  const setupToken = await transaction.passwordSetupToken.create({
     data: {
       tokenHash: hashToken(token),
       userId: input.userId,
@@ -33,11 +33,14 @@ export const issuePasswordSetupToken = async (
       createdById: input.createdById,
     },
   });
-  return { token, expiresAt };
+  return { id: setupToken.id, token, expiresAt };
 };
 
-export const createPasswordSetupUrl = (token: string): string => {
+export const createPasswordSetupUrl = (
+  token: string,
+  purpose: PasswordSetupPurpose,
+): string => {
   const url = new URL('/login.html', env.CORS_ORIGIN[0]);
-  url.hash = new URLSearchParams({ setup: token }).toString();
+  url.hash = new URLSearchParams({ setup: token, purpose }).toString();
   return url.toString();
 };

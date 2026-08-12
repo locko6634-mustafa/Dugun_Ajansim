@@ -1337,6 +1337,7 @@ export const approveBookingApplication = async (
             excludeApplicationId: application.id
           });
 
+          const approvedAt = new Date();
           const claimed = await transaction.bookingApplication.updateMany({
             where: {
               id: application.id,
@@ -1356,7 +1357,7 @@ export const approveBookingApplication = async (
               status: "ONAYLANDI",
               venueId: approvedVenue.id,
               paymentFlowTokenHash: null,
-              reviewedAt: new Date(),
+              reviewedAt: approvedAt,
               reviewedById: actorUserId
             }
           });
@@ -1427,10 +1428,18 @@ export const approveBookingApplication = async (
             }
           });
 
+          const decisionTaskId = randomUUID();
           const activationTaskId = randomUUID();
           const preparationTaskId = randomUUID();
           await transaction.messageTask.createMany({
             data: [
+              {
+                id: decisionTaskId,
+                applicationId: application.id,
+                kind: "APPLICATION_APPROVED",
+                dueAt: approvedAt,
+                ...buildMessageTaskPiiData(decisionTaskId, { recipientPhone }, 1)
+              },
               {
                 id: activationTaskId,
                 weddingId: wedding.id,
@@ -1498,6 +1507,7 @@ export const rejectBookingApplication = async (
       { ...currentPii, rejectionReason: reason },
       current.piiRevision + 1
     );
+    const rejectedAt = new Date();
     const updated = await transaction.bookingApplication.updateMany({
       where: {
         id: applicationId,
@@ -1510,13 +1520,25 @@ export const rejectBookingApplication = async (
         ...nextPii,
         status: "REDDEDILDI",
         paymentFlowTokenHash: null,
-        reviewedAt: new Date(),
+        reviewedAt: rejectedAt,
         reviewedById: actorUserId
       }
     });
     if (updated.count !== 1) {
       throw new AppError("Başvuru bulunamadı veya artık onay beklemiyor.", 409);
     }
+    const recipientPhone =
+      current.primaryContact === "GELIN" ? currentPii.bridePhone : currentPii.groomPhone;
+    const rejectionTaskId = randomUUID();
+    await transaction.messageTask.create({
+      data: {
+        id: rejectionTaskId,
+        applicationId: current.id,
+        kind: "APPLICATION_REJECTED",
+        dueAt: rejectedAt,
+        ...buildMessageTaskPiiData(rejectionTaskId, { recipientPhone }, 1)
+      }
+    });
     await createAudit(transaction, {
       actorUserId,
       action: "booking.rejected",

@@ -21,6 +21,7 @@ const mfaOtpauthLink = mfaEnrollmentForm.querySelector(".mfa-otpauth-link");
 let authenticatedRole = "";
 let mfaEnrollmentStarted = false;
 let passwordSetupToken = "";
+let passwordSetupPurpose = "";
 
 async function checkExistingSession() {
   const session = await fetchSession();
@@ -39,9 +40,14 @@ async function checkExistingSession() {
 }
 const setupTokenFromFragment =
   new window.URLSearchParams(window.location.hash.slice(1)).get("setup") || "";
-if (/^[A-Za-z0-9_-]{43}$/.test(setupTokenFromFragment)) {
+const setupPurposeFromFragment =
+  new window.URLSearchParams(window.location.hash.slice(1)).get("purpose") || "";
+if (
+  /^[A-Za-z0-9_-]{43}$/.test(setupTokenFromFragment) &&
+  ["ACCOUNT_ACTIVATION", "PASSWORD_RESET"].includes(setupPurposeFromFragment)
+) {
   window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-  showPasswordSetup(setupTokenFromFragment);
+  showPasswordSetup(setupTokenFromFragment, setupPurposeFromFragment);
 } else {
   void checkExistingSession();
 }
@@ -73,6 +79,7 @@ function redirectForRole(role) {
 function showPasswordChange(role, currentPassword = "") {
   authenticatedRole = role;
   passwordSetupToken = "";
+  passwordSetupPurpose = "";
   loginForm.hidden = true;
   changeForm.hidden = false;
   mfaEnrollmentForm.hidden = true;
@@ -82,9 +89,10 @@ function showPasswordChange(role, currentPassword = "") {
   changeForm.elements.currentPassword.focus();
 }
 
-function showPasswordSetup(token) {
+function showPasswordSetup(token, purpose) {
   authenticatedRole = "";
   passwordSetupToken = token;
+  passwordSetupPurpose = purpose;
   loginForm.hidden = true;
   changeForm.hidden = false;
   mfaEnrollmentForm.hidden = true;
@@ -198,9 +206,10 @@ changeForm.addEventListener("submit", async (event) => {
     if (passwordSetupToken) {
       const response = await apiRequest("/auth/password/setup", {
         method: "POST",
-        body: { token: passwordSetupToken, newPassword }
+        body: { token: passwordSetupToken, purpose: passwordSetupPurpose, newPassword }
       });
       passwordSetupToken = "";
+      passwordSetupPurpose = "";
       changeForm.reset();
       changeCurrentPasswordField.hidden = false;
       changeForm.elements.currentPassword.required = true;

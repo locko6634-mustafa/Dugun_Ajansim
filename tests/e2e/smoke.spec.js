@@ -759,22 +759,52 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     })
   );
   let messageRenderAttempts = 0;
+  let messageStatus = "PLANNED";
+  let messageUpdatedAt = "2026-08-10T10:00:00.000Z";
   await page.route("**/api/v1/admin/message-tasks**", async (route) => {
     if (route.request().url().endsWith("/render")) {
       messageRenderAttempts += 1;
       if (await requireAdminStepUp(route)) return;
       adminStepUpActive = false;
+      messageStatus = "PREPARED";
+      messageUpdatedAt = "2026-08-10T10:01:00.000Z";
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           success: true,
           data: {
-            message:
-              "Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda",
-            whatsappUrl: "https://wa.me/905551112233",
-            expectedUpdatedAt: "2026-08-10T10:00:00.000Z"
+            status: messageStatus,
+            expectedUpdatedAt: messageUpdatedAt
           }
         })
+      });
+      return;
+    }
+    if (route.request().url().endsWith("/verify")) {
+      if (await requireAdminStepUp(route)) return;
+      adminStepUpActive = false;
+      messageStatus = "READY_TO_SEND";
+      messageUpdatedAt = "2026-08-10T10:02:00.000Z";
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            status: messageStatus,
+            message:
+              "Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda&purpose=PASSWORD_RESET",
+            whatsappUrl: "https://wa.me/905551112233",
+            expectedUpdatedAt: messageUpdatedAt
+          }
+        })
+      });
+      return;
+    }
+    if (route.request().url().endsWith("/mark-sent")) {
+      messageStatus = "SENT";
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: { status: messageStatus } })
       });
       return;
     }
@@ -786,10 +816,10 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
           {
             id: "f930bd2d-222d-4d22-86dc-7487fcd3f150",
             kind: "PASSWORD_RESET",
-            status: "PENDING",
+            status: messageStatus,
             recipientPhone: "+905551112233",
             dueAt: "2026-08-10T10:00:00.000Z",
-            updatedAt: "2026-08-10T10:00:00.000Z",
+            updatedAt: messageUpdatedAt,
             wedding: { brideFirstName: "Ayşe", groomFirstName: "Mehmet" },
             sentAt: null
           }
@@ -895,11 +925,21 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await page.getByRole("button", { name: "Önceki ay" }).click();
   await expect.poll(() => lastCalendarUrl).toContain("month=2026-07");
   await clickPanel(page, "messages");
-  await page.getByRole("button", { name: "WhatsApp" }).click();
+  await page.getByRole("button", { name: "Hazırla" }).click();
+  await completeAdminStepUp(page);
+  await expect(page.getByRole("button", { name: "Linki doğrula" })).toBeVisible();
+  await page.getByRole("button", { name: "Linki doğrula" }).click();
+  await completeAdminStepUp(page);
+  const markSentButton = page.getByRole("button", { name: "Gönderildi işaretle" });
+  await expect(markSentButton).toBeDisabled();
+  await page.getByRole("button", { name: "WhatsApp'ta gönder" }).click();
   await completeAdminStepUp(page);
   await expect
     .poll(() => page.evaluate(() => window.__copiedAdminMessages[0]))
-    .toBe("Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda");
+    .toBe(
+      "Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda&purpose=PASSWORD_RESET"
+    );
+  await expect(markSentButton).toBeEnabled();
   const openedWhatsAppUrl = await page.evaluate(() => window.__adminWhatsAppUrls[0]);
   expect(new URL(openedWhatsAppUrl).search).toBe("");
   expect(openedWhatsAppUrl).not.toContain("yalnız-panoda");
@@ -929,9 +969,9 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     }
   ]);
   expect(messageRenderAttempts).toBe(2);
-  expect(adminStepUpBodies).toHaveLength(3);
+  expect(adminStepUpBodies).toHaveLength(5);
   expect(adminStepUpBodies).toEqual(
-    Array.from({ length: 3 }, () => ({
+    Array.from({ length: 5 }, () => ({
       currentPassword: "Guvenli-Admin-Step-Up-2026!",
       totpCode: "123456"
     }))
@@ -1030,13 +1070,19 @@ test("@frontend-smoke müşteri teslimat penceresini geciken API yanıtından ö
       }
     });
   });
+  let customerSessionActive = true;
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
+      status: customerSessionActive ? 200 : 401,
       contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        data: { role: "MUSTERI", mustChangePassword: false, username: "musteri" }
-      })
+      body: JSON.stringify(
+        customerSessionActive
+          ? {
+              success: true,
+              data: { role: "MUSTERI", mustChangePassword: false, username: "musteri" }
+            }
+          : { success: false, message: "Oturum geçersiz." }
+      )
     })
   );
   await page.route("**/api/v1/customer/dashboard", (route) =>
@@ -1052,6 +1098,7 @@ test("@frontend-smoke müşteri teslimat penceresini geciken API yanıtından ö
             status: "TESLIM_EDILDI",
             dueDate: "2026-08-31T00:00:00.000Z",
             releasedAt: "2026-08-31T12:00:00.000Z",
+            available: true,
             history: []
           }
         }
@@ -1074,6 +1121,12 @@ test("@frontend-smoke müşteri teslimat penceresini geciken API yanıtından ö
   await expect
     .poll(() => page.evaluate(() => window.__deliveryUrls[0]))
     .toBe("https://drive.google.com/file/d/e2e-test");
+  customerSessionActive = false;
+  await page.evaluate(() => {
+    window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
+    window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+  });
+  await expect(page).toHaveURL(/login\.html$/);
 });
 
 async function preparePublicBookingForm(page, bookingHandler) {
@@ -1959,7 +2012,7 @@ test("@frontend-smoke tek kullanımlık parola bağlantısı fragmenti temizleni
     });
   });
 
-  await page.goto(`/login.html#setup=${setupToken}`);
+  await page.goto(`/login.html#setup=${setupToken}&purpose=ACCOUNT_ACTIVATION`);
   await expect(page).toHaveURL(/\/login\.html$/);
   await expect(page.getByLabel("Geçici / mevcut parola")).toBeHidden();
   await page.getByLabel("Yeni parola (15–128 karakter)").fill("Kurulum-Icin-Guvenli-Parola-2026!");
@@ -1972,6 +2025,7 @@ test("@frontend-smoke tek kullanımlık parola bağlantısı fragmenti temizleni
     .poll(() => submittedBody)
     .toEqual({
       token: setupToken,
+      purpose: "ACCOUNT_ACTIVATION",
       newPassword: "Kurulum-Icin-Guvenli-Parola-2026!"
     });
   await expect(page.getByLabel("Kullanıcı adı")).toHaveValue("m-guvenlihesap");

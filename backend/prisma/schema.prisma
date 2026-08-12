@@ -49,6 +49,8 @@ enum DeliveryStatus {
 }
 
 enum MessageKind {
+  APPLICATION_APPROVED
+  APPLICATION_REJECTED
   ACCOUNT_ACTIVATION
   PREPARATION_UPDATE
   DELIVERY_READY
@@ -56,9 +58,16 @@ enum MessageKind {
 }
 
 enum MessageStatus {
-  PENDING
+  PLANNED
+  PREPARED
+  READY_TO_SEND
   SENT
+  FAILED
   CANCELLED
+}
+
+enum MessageChannel {
+  WHATSAPP
 }
 
 enum PasswordSetupPurpose {
@@ -139,11 +148,14 @@ model User {
   reviewedBookings           BookingApplication[]    @relation("BookingReviewer")
   auditLogs                  AuditLog[]
   deliveryHistory            DeliveryStatusHistory[]
+  revokedDeliveries          Delivery[]              @relation("DeliveryRevokedBy")
   sentMessages               MessageTask[]           @relation("MessageSender")
+  earlyOverriddenMessages    MessageTask[]           @relation("MessageEarlyOverrideBy")
+  cancelledMessages          MessageTask[]           @relation("MessageCancelledBy")
   archivedApplications       BookingApplication[]    @relation("ApplicationArchivedBy")
   archivedWeddings           Wedding[]               @relation("WeddingArchivedBy")
-  passwordSetupTokens        PasswordSetupToken[]     @relation("PasswordSetupTokenUser")
-  issuedPasswordSetupTokens  PasswordSetupToken[]     @relation("PasswordSetupTokenIssuer")
+  passwordSetupTokens        PasswordSetupToken[]    @relation("PasswordSetupTokenUser")
+  issuedPasswordSetupTokens  PasswordSetupToken[]    @relation("PasswordSetupTokenIssuer")
 
   @@index([role, status])
   @@index([venueId])
@@ -151,17 +163,17 @@ model User {
 }
 
 model AuthSession {
-  id            String    @id @default(uuid())
-  tokenHash     String    @unique
-  csrfTokenHash String
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt     DateTime
-  lastUsedAt    DateTime  @default(now())
-  mfaVerifiedAt DateTime?
+  id                    String    @id @default(uuid())
+  tokenHash             String    @unique
+  csrfTokenHash         String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt             DateTime
+  lastUsedAt            DateTime  @default(now())
+  mfaVerifiedAt         DateTime?
   adminStepUpVerifiedAt DateTime?
-  revokedAt     DateTime?
-  createdAt     DateTime  @default(now())
+  revokedAt             DateTime?
+  createdAt             DateTime  @default(now())
 
   @@index([userId, expiresAt])
   @@index([expiresAt, revokedAt])
@@ -199,17 +211,18 @@ model RateLimitBucket {
 }
 
 model PasswordSetupToken {
-  id          String               @id @default(uuid())
-  tokenHash   String               @unique @db.Char(64)
-  userId      String
-  user        User                 @relation("PasswordSetupTokenUser", fields: [userId], references: [id], onDelete: Cascade)
-  purpose     PasswordSetupPurpose
-  expiresAt   DateTime
-  usedAt      DateTime?
-  revokedAt   DateTime?
-  createdById String?
-  createdBy   User?                @relation("PasswordSetupTokenIssuer", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt   DateTime             @default(now())
+  id           String               @id @default(uuid())
+  tokenHash    String               @unique @db.Char(64)
+  userId       String
+  user         User                 @relation("PasswordSetupTokenUser", fields: [userId], references: [id], onDelete: Cascade)
+  purpose      PasswordSetupPurpose
+  expiresAt    DateTime
+  usedAt       DateTime?
+  revokedAt    DateTime?
+  createdById  String?
+  createdBy    User?                @relation("PasswordSetupTokenIssuer", fields: [createdById], references: [id], onDelete: SetNull)
+  messageTask  MessageTask?
+  createdAt    DateTime             @default(now())
 
   @@index([userId, expiresAt])
   @@index([expiresAt, usedAt, revokedAt])
@@ -258,66 +271,67 @@ model Service {
 }
 
 model BookingApplication {
-  id                     String                      @id @default(uuid())
-  referenceCode          String                      @unique
-  idempotencyKey         String?                     @unique
-  idempotencyFingerprint String?
-  idempotencyFingerprintHmac String?                 @db.Char(64)
-  idempotencyFingerprintKeyId String?
+  id                            String                      @id @default(uuid())
+  referenceCode                 String                      @unique
+  idempotencyKey                String?                     @unique
+  idempotencyFingerprint        String?
+  idempotencyFingerprintHmac    String?                     @db.Char(64)
+  idempotencyFingerprintKeyId   String?
   idempotencyFingerprintVersion Int?
-  source                 BookingSource
-  status                 BookingStatus               @default(ONAY_BEKLIYOR)
-  brideFirstName         String?
-  brideLastName          String?
-  bridePhone             String?
-  groomFirstName         String?
-  groomLastName          String?
-  groomPhone             String?
-  primaryContact         PrimaryContact
-  primaryEmail           String?
-  piiCiphertext          String?
-  piiIv                  String?
-  piiAuthTag             String?
-  piiKeyId               String?
-  piiEncryptionVersion   Int?
-  piiSchemaVersion       Int?
-  piiRevision            Int                         @default(0)
-  primaryEmailBlindIndex String?                     @db.Char(64)
-  bridePhoneBlindIndex   String?                     @db.Char(64)
-  groomPhoneBlindIndex   String?                     @db.Char(64)
-  piiBlindIndexKeyId     String?
-  piiBlindIndexVersion   Int?
-  weddingStartsAt        DateTime
-  weddingEndsAt          DateTime
-  venueId                String?
-  venue                  Venue?                      @relation(fields: [venueId], references: [id], onDelete: Restrict)
-  packageId              String
-  package                Package                     @relation(fields: [packageId], references: [id], onDelete: Restrict)
-  packageCodeSnapshot    String
-  packageNameSnapshot    String
-  packagePriceCents      Int
-  totalPriceCents        Int
-  paymentMethod          PaymentMethod
-  payableNowCents        Int
-  paymentNotificationChannel String?
-  paymentFlowTokenHash   String?
-  paymentFlowExpiresAt   DateTime?
-  whatsappHandoffAt      DateTime?
-  paymentFlowExpiredAt   DateTime?
-  note                   String?
-  privacyConsentAt       DateTime?
-  marketingConsentAt     DateTime?
-  reviewedAt             DateTime?
-  reviewedById           String?
-  reviewedBy             User?                       @relation("BookingReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
-  rejectionReason        String?
-  createdAt              DateTime                    @default(now())
-  updatedAt              DateTime                    @updatedAt
-  deletedAt              DateTime?
-  deletedById            String?
-  deletedBy              User?                       @relation("ApplicationArchivedBy", fields: [deletedById], references: [id], onDelete: SetNull)
-  services               BookingApplicationService[]
-  wedding                Wedding?
+  source                        BookingSource
+  status                        BookingStatus               @default(ONAY_BEKLIYOR)
+  brideFirstName                String?
+  brideLastName                 String?
+  bridePhone                    String?
+  groomFirstName                String?
+  groomLastName                 String?
+  groomPhone                    String?
+  primaryContact                PrimaryContact
+  primaryEmail                  String?
+  piiCiphertext                 String?
+  piiIv                         String?
+  piiAuthTag                    String?
+  piiKeyId                      String?
+  piiEncryptionVersion          Int?
+  piiSchemaVersion              Int?
+  piiRevision                   Int                         @default(0)
+  primaryEmailBlindIndex        String?                     @db.Char(64)
+  bridePhoneBlindIndex          String?                     @db.Char(64)
+  groomPhoneBlindIndex          String?                     @db.Char(64)
+  piiBlindIndexKeyId            String?
+  piiBlindIndexVersion          Int?
+  weddingStartsAt               DateTime
+  weddingEndsAt                 DateTime
+  venueId                       String?
+  venue                         Venue?                      @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  packageId                     String
+  package                       Package                     @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  packageCodeSnapshot           String
+  packageNameSnapshot           String
+  packagePriceCents             Int
+  totalPriceCents               Int
+  paymentMethod                 PaymentMethod
+  payableNowCents               Int
+  paymentNotificationChannel    String?
+  paymentFlowTokenHash          String?
+  paymentFlowExpiresAt          DateTime?
+  whatsappHandoffAt             DateTime?
+  paymentFlowExpiredAt          DateTime?
+  note                          String?
+  privacyConsentAt              DateTime?
+  marketingConsentAt            DateTime?
+  reviewedAt                    DateTime?
+  reviewedById                  String?
+  reviewedBy                    User?                       @relation("BookingReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  rejectionReason               String?
+  createdAt                     DateTime                    @default(now())
+  updatedAt                     DateTime                    @updatedAt
+  deletedAt                     DateTime?
+  deletedById                   String?
+  deletedBy                     User?                       @relation("ApplicationArchivedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  services                      BookingApplicationService[]
+  wedding                       Wedding?
+  messageTasks                  MessageTask[]
 
   @@index([status, createdAt])
   @@index([venueId, weddingStartsAt])
@@ -346,46 +360,46 @@ model BookingApplicationService {
 }
 
 model Wedding {
-  id             String              @id @default(uuid())
-  applicationId  String              @unique
-  application    BookingApplication  @relation(fields: [applicationId], references: [id], onDelete: Restrict)
-  customerUserId String              @unique
-  customerUser   User                @relation("CustomerWedding", fields: [customerUserId], references: [id], onDelete: Restrict)
-  brideFirstName String?
-  brideLastName  String?
-  bridePhone     String?
-  groomFirstName String?
-  groomLastName  String?
-  groomPhone     String?
-  primaryContact PrimaryContact
-  primaryEmail   String?
-  piiCiphertext  String?
-  piiIv          String?
-  piiAuthTag     String?
-  piiKeyId       String?
-  piiEncryptionVersion Int?
-  piiSchemaVersion Int?
-  piiRevision    Int                 @default(0)
-  primaryEmailBlindIndex String?     @db.Char(64)
-  bridePhoneBlindIndex String?       @db.Char(64)
-  groomPhoneBlindIndex String?       @db.Char(64)
-  piiBlindIndexKeyId String?
-  piiBlindIndexVersion Int?
-  startsAt       DateTime
-  endsAt         DateTime
-  venueId        String
-  venue          Venue               @relation(fields: [venueId], references: [id], onDelete: Restrict)
-  packageSummary Json
-  note           String?
-  cancelledAt    DateTime?
-  deletedAt      DateTime?
-  deletedById    String?
-  deletedBy      User?                @relation("WeddingArchivedBy", fields: [deletedById], references: [id], onDelete: SetNull)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  delivery       Delivery?
-  messageTasks   MessageTask[]
-  assignments    WeddingAssignment[]
+  id                     String              @id @default(uuid())
+  applicationId          String              @unique
+  application            BookingApplication  @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  customerUserId         String              @unique
+  customerUser           User                @relation("CustomerWedding", fields: [customerUserId], references: [id], onDelete: Restrict)
+  brideFirstName         String?
+  brideLastName          String?
+  bridePhone             String?
+  groomFirstName         String?
+  groomLastName          String?
+  groomPhone             String?
+  primaryContact         PrimaryContact
+  primaryEmail           String?
+  piiCiphertext          String?
+  piiIv                  String?
+  piiAuthTag             String?
+  piiKeyId               String?
+  piiEncryptionVersion   Int?
+  piiSchemaVersion       Int?
+  piiRevision            Int                 @default(0)
+  primaryEmailBlindIndex String?             @db.Char(64)
+  bridePhoneBlindIndex   String?             @db.Char(64)
+  groomPhoneBlindIndex   String?             @db.Char(64)
+  piiBlindIndexKeyId     String?
+  piiBlindIndexVersion   Int?
+  startsAt               DateTime
+  endsAt                 DateTime
+  venueId                String
+  venue                  Venue               @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  packageSummary         Json
+  note                   String?
+  cancelledAt            DateTime?
+  deletedAt              DateTime?
+  deletedById            String?
+  deletedBy              User?               @relation("WeddingArchivedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  delivery               Delivery?
+  messageTasks           MessageTask[]
+  assignments            WeddingAssignment[]
 
   @@index([venueId, startsAt])
   @@index([startsAt, endsAt])
@@ -394,27 +408,27 @@ model Wedding {
 }
 
 model Staff {
-  id          String              @id @default(uuid())
-  firstName   String?
-  lastName    String?
-  phone       String?
-  piiCiphertext String?
-  piiIv String?
-  piiAuthTag String?
-  piiKeyId String?
+  id                   String              @id @default(uuid())
+  firstName            String?
+  lastName             String?
+  phone                String?
+  piiCiphertext        String?
+  piiIv                String?
+  piiAuthTag           String?
+  piiKeyId             String?
   piiEncryptionVersion Int?
-  piiSchemaVersion Int?
-  piiRevision Int @default(0)
-  phoneBlindIndex String? @db.Char(64)
-  piiBlindIndexKeyId String?
+  piiSchemaVersion     Int?
+  piiRevision          Int                 @default(0)
+  phoneBlindIndex      String?             @db.Char(64)
+  piiBlindIndexKeyId   String?
   piiBlindIndexVersion Int?
-  specialties StaffSpecialty[]
-  isActive    Boolean             @default(true)
-  venueId      String
-  venue        Venue               @relation(fields: [venueId], references: [id], onDelete: Restrict)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  assignments WeddingAssignment[]
+  specialties          StaffSpecialty[]
+  isActive             Boolean             @default(true)
+  venueId              String
+  venue                Venue               @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  assignments          WeddingAssignment[]
 
   @@index([isActive])
   @@index([venueId, isActive])
@@ -449,11 +463,17 @@ model Delivery {
   driveUrlKeyId      String?
   encryptionVersion  Int                     @default(2)
   releasedAt         DateTime?
+  accessExpiresAt    DateTime?
+  revokedAt          DateTime?
+  revokedById        String?
+  revokedBy          User?                   @relation("DeliveryRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+  revocationReason   String?
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
   history            DeliveryStatusHistory[]
 
   @@index([status, dueDate])
+  @@index([revokedById])
   @@map("deliveries")
 }
 
@@ -473,34 +493,61 @@ model DeliveryStatusHistory {
 }
 
 model MessageTask {
-  id                String        @id @default(uuid())
-  weddingId         String
-  wedding           Wedding       @relation(fields: [weddingId], references: [id], onDelete: Cascade)
-  kind              MessageKind
-  status            MessageStatus @default(PENDING)
-  dueAt             DateTime
-  recipientPhone    String?
-  piiCiphertext     String?
-  piiIv             String?
-  piiAuthTag        String?
-  piiKeyId          String?
-  piiEncryptionVersion Int?
-  piiSchemaVersion  Int?
-  piiRevision       Int           @default(0)
-  recipientPhoneBlindIndex String? @db.Char(64)
-  piiBlindIndexKeyId String?
-  piiBlindIndexVersion Int?
-  secretCiphertext  String?
-  secretIv          String?
-  secretAuthTag     String?
-  encryptionVersion Int           @default(2)
-  sentAt            DateTime?
-  sentById          String?
-  sentBy            User?         @relation("MessageSender", fields: [sentById], references: [id], onDelete: SetNull)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                       String              @id @default(uuid())
+  weddingId                String?
+  wedding                  Wedding?            @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  applicationId            String?
+  application              BookingApplication? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  kind                     MessageKind
+  channel                  MessageChannel      @default(WHATSAPP)
+  status                   MessageStatus       @default(PLANNED)
+  dueAt                    DateTime
+  recipientPhone           String?
+  piiCiphertext            String?
+  piiIv                    String?
+  piiAuthTag               String?
+  piiKeyId                 String?
+  piiEncryptionVersion     Int?
+  piiSchemaVersion         Int?
+  piiRevision              Int                 @default(0)
+  recipientPhoneBlindIndex String?             @db.Char(64)
+  piiBlindIndexKeyId       String?
+  piiBlindIndexVersion     Int?
+  secretCiphertext         String?
+  secretIv                 String?
+  secretAuthTag            String?
+  encryptionVersion        Int                 @default(2)
+  preparedAt               DateTime?
+  preparedMessageCiphertext String?
+  preparedMessageIv        String?
+  preparedMessageAuthTag   String?
+  readyAt                  DateTime?
+  failedAt                 DateTime?
+  failureReason            String?
+  nextAttemptAt            DateTime?
+  attemptCount             Int                 @default(0)
+  lastAttemptAt            DateTime?
+  earlyOverrideAt          DateTime?
+  earlyOverrideReason      String?
+  earlyOverrideById        String?
+  earlyOverrideBy          User?               @relation("MessageEarlyOverrideBy", fields: [earlyOverrideById], references: [id], onDelete: SetNull)
+  cancelledAt              DateTime?
+  cancelledReason          String?
+  cancelledById            String?
+  cancelledBy              User?               @relation("MessageCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  preparedTokenId          String?             @unique
+  preparedToken            PasswordSetupToken? @relation(fields: [preparedTokenId], references: [id], onDelete: SetNull)
+  sentAt                   DateTime?
+  sentById                 String?
+  sentBy                   User?               @relation("MessageSender", fields: [sentById], references: [id], onDelete: SetNull)
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
 
   @@unique([weddingId, kind])
+  @@unique([applicationId, kind])
+  @@index([applicationId])
+  @@index([earlyOverrideById])
+  @@index([cancelledById])
   @@index([status, dueAt])
   @@index([sentById])
   @@map("message_tasks")

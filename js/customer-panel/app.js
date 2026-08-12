@@ -33,6 +33,16 @@ function showContent() {
   });
 }
 
+function hideSensitiveContent() {
+  document.querySelectorAll(".customer-hero, .event-strip, .journey-section").forEach((item) => {
+    item.hidden = true;
+  });
+  document.querySelector(".delivery-release").hidden = true;
+  document.querySelector(".js-bride").textContent = "";
+  document.querySelector(".js-groom").textContent = "";
+  document.querySelector(".js-timeline").replaceChildren();
+}
+
 async function ensureCustomer() {
   try {
     const session = await apiRequest("/auth/session");
@@ -83,9 +93,7 @@ async function loadDashboard() {
     )
     .join("");
 
-  if (data.delivery.status === "TESLIM_EDILDI") {
-    document.querySelector(".delivery-release").hidden = false;
-  }
+  document.querySelector(".delivery-release").hidden = !data.delivery.available;
   document.querySelector(".page-message").textContent = "";
   showContent();
 }
@@ -113,6 +121,7 @@ document.querySelector(".js-open-delivery").addEventListener("click", async () =
 });
 
 document.querySelector(".js-logout").addEventListener("click", async () => {
+  hideSensitiveContent();
   await logoutUser({
     redirectTo: "login.html",
     replace: true,
@@ -120,6 +129,19 @@ document.querySelector(".js-logout").addEventListener("click", async () => {
   });
 });
 
+window.addEventListener("pagehide", hideSensitiveContent);
+window.addEventListener("pageshow", (event) => {
+  if (!event.persisted) return;
+  hideSensitiveContent();
+  void ensureCustomer().then((session) => {
+    if (!session) return;
+    void loadDashboard().catch((error) => {
+      document.querySelector(".page-message").textContent = error.message;
+    });
+  });
+});
+
+hideSensitiveContent();
 const customerSession = await ensureCustomer();
 if (customerSession) {
   await loadDashboard().catch((error) => {

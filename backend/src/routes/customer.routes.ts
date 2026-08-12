@@ -15,23 +15,23 @@ import { decryptWeddingPii } from '../utils/pii-crypto.js';
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole('MUSTERI'));
 
-const emptyRequestSchema = z.object({
-  body: z.object({}).strict().optional().default({}),
-  query: z.object({}).strict(),
-  params: z.object({}).strict(),
-});
-
 const customerDashboardSchema = z.object({
   body: z.object({}).strict().optional().default({}),
   query: z.object({
-    weddingId: z.string().optional(),
+    weddingId: z.string().uuid().optional(),
   }).strict(),
   params: z.object({}).strict(),
 });
 
+const customerDeliverySchema = z.object({
+  body: z.object({}).strict().optional().default({}),
+  query: z.object({ deliveryId: z.string().uuid().optional() }).strict(),
+  params: z.object({}).strict(),
+});
+
 const getCustomerWedding = (userId: string) =>
-  prisma.wedding.findUnique({
-    where: { customerUserId: userId },
+  prisma.wedding.findFirst({
+    where: { customerUserId: userId, deletedAt: null, cancelledAt: null },
     select: {
       id: true,
       brideFirstName: true,
@@ -64,6 +64,9 @@ router.get(
   asyncHandler(async (req, res) => {
     const wedding = await getCustomerWedding(req.auth!.userId);
     if (!wedding || !wedding.delivery) throw new AppError('Düğün kaydı bulunamadı.', 404);
+    if (req.query.weddingId && req.query.weddingId !== wedding.id) {
+      throw new AppError('Düğün kaydı bulunamadı.', 404);
+    }
     const weddingPii = decryptWeddingPii(wedding.id, {
       brideFirstName: wedding.brideFirstName ?? undefined,
       brideLastName: wedding.brideLastName ?? undefined,
@@ -81,6 +84,12 @@ router.get(
       piiSchemaVersion: wedding.piiSchemaVersion,
     });
 
+    const now = new Date();
+    const deliveryAvailable =
+      wedding.delivery.status === 'TESLIM_EDILDI' &&
+      wedding.delivery.releasedAt !== null &&
+      wedding.delivery.revokedAt === null &&
+      (wedding.delivery.accessExpiresAt === null || wedding.delivery.accessExpiresAt > now);
     res.set('Cache-Control', 'no-store');
     res.json({
       success: true,
@@ -96,7 +105,9 @@ router.get(
         delivery: {
           status: wedding.delivery.status,
           dueDate: wedding.delivery.dueDate,
-          releasedAt: wedding.delivery.releasedAt,
+          releasedAt: deliveryAvailable ? wedding.delivery.releasedAt : null,
+          accessExpiresAt: deliveryAvailable ? wedding.delivery.accessExpiresAt : null,
+          available: deliveryAvailable,
           history: wedding.delivery.history.map((entry) => ({
             status: entry.toStatus,
             createdAt: entry.createdAt,
@@ -110,14 +121,18 @@ router.get(
 
 router.get(
   '/delivery',
-  validateRequest(emptyRequestSchema),
+  validateRequest(customerDeliverySchema),
   asyncHandler(async (req, res) => {
     const wedding = await getCustomerWedding(req.auth!.userId);
     const delivery = wedding?.delivery;
+    const now = new Date();
     if (
       !delivery ||
+      (req.query.deliveryId && req.query.deliveryId !== delivery.id) ||
       delivery.status !== 'TESLIM_EDILDI' ||
-      !delivery.releasedAt
+      !delivery.releasedAt ||
+      delivery.revokedAt !== null ||
+      (delivery.accessExpiresAt !== null && delivery.accessExpiresAt <= now)
     ) {
       throw new AppError('Teslimat bağlantınız henüz yayınlanmadı.', 404);
     }

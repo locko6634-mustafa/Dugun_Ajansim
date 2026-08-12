@@ -576,10 +576,15 @@ router.post(
       setupToken.usedAt !== null ||
       setupToken.revokedAt !== null ||
       setupToken.expiresAt <= now ||
-      setupToken.user.status !== 'ACTIVE' ||
-      (setupToken.user.activeAt !== null && setupToken.user.activeAt > now);
+      setupToken.purpose !== req.body.purpose ||
+      setupToken.user.status !== 'ACTIVE';
     if (invalidToken || !setupToken) {
       throw new AppError('Parola kurulum bağlantısı geçersiz veya süresi dolmuş.', 410);
+    }
+    if (setupToken.user.activeAt !== null && setupToken.user.activeAt > now) {
+      throw new AppError('Hesap aktivasyon zamanı henüz gelmedi.', 409, true, undefined, {
+        code: 'PASSWORD_SETUP_NOT_ACTIVE',
+      });
     }
     if (isPasswordSimilarToUsername(req.body.newPassword, setupToken.user.username)) {
       throw new AppError('Yeni parola kullanıcı adına benzememelidir.', 400);
@@ -639,10 +644,21 @@ router.post(
         where: {
           wedding: { customerUserId: setupToken.user.id },
           kind: { in: ['ACCOUNT_ACTIVATION', 'PASSWORD_RESET'] },
-          status: 'PENDING',
+          status: { in: ['PLANNED', 'PREPARED', 'READY_TO_SEND', 'FAILED'] },
         },
         data: {
           status: 'CANCELLED',
+          cancelledAt: now,
+          cancelledReason: 'password_setup_completed',
+          preparedAt: null,
+          readyAt: null,
+          failedAt: null,
+          failureReason: null,
+          nextAttemptAt: null,
+          preparedTokenId: null,
+          preparedMessageCiphertext: null,
+          preparedMessageIv: null,
+          preparedMessageAuthTag: null,
           sentAt: null,
           sentById: null,
           secretCiphertext: null,
@@ -786,10 +802,21 @@ router.post(
         where: {
           wedding: { customerUserId: user.id },
           kind: { in: ['ACCOUNT_ACTIVATION', 'PASSWORD_RESET'] },
-          status: 'PENDING',
+          status: { in: ['PLANNED', 'PREPARED', 'READY_TO_SEND', 'FAILED'] },
         },
         data: {
           status: 'CANCELLED',
+          cancelledAt: now,
+          cancelledReason: 'password_changed',
+          preparedAt: null,
+          readyAt: null,
+          failedAt: null,
+          failureReason: null,
+          nextAttemptAt: null,
+          preparedTokenId: null,
+          preparedMessageCiphertext: null,
+          preparedMessageIv: null,
+          preparedMessageAuthTag: null,
           sentAt: null,
           sentById: null,
           secretCiphertext: null,

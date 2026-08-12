@@ -1,10 +1,5 @@
 import { expect, test } from "@playwright/test";
 
-test.skip(
-  process.env.PHASE01_CONTAINER_ACCEPTANCE !== "1",
-  "Yalnız açık Faz 01 konteyner kabul koşusunda çalışır."
-);
-
 test("@phase01-container gerçek Nginx sayfası katalog API'sini hatasız yükler", async ({
   page
 }) => {

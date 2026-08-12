@@ -275,85 +275,85 @@ Aşağıdaki erişimler yoksa agent kod tarafındaki hazırlığı bitirir, faka
 
 ### 03.1 Aktivasyon görev state machine’i
 
-- [ ] Aktivasyon görevi durumlarını `planlandı/hazırlandı/gönderime hazır/gönderildi/başarısız/iptal` olarak tanımla.
-- [ ] “Gönderildi” geçişinden önce render edilmiş geçerli token/link zorunlu yap.
-- [ ] Link/token oluşturulmadan doğrudan “Gönderildi” endpointini backend’de reddet.
-- [ ] `dueAt` gelmeden normal gönderim eylemini backend ve UI’da kilitle.
-- [ ] Erken gönderim gerekiyorsa ayrı yetki, neden, onay ve audit isteyen override tanımla.
-- [ ] Yanlış işaretlenmiş görev için güvenli iptal/yeniden üretim prosedürü ekle.
-- [ ] Token üretme ve görevi hazırlama işlemini transaction/yarış koşulu açısından koru.
-- [ ] Admin UI sırasını `Hazırla → Linki doğrula → Gönder → Gönderildi işaretle` olarak zorla.
-- [ ] WhatsApp açma ile “gönderildi” işaretlemeyi ayrı eylemler olarak göster.
-- [ ] Gönderim başarısızlığı ve retry kuyruğunu tanımla.
+- [x] Aktivasyon görevi durumlarını `planlandı/hazırlandı/gönderime hazır/gönderildi/başarısız/iptal` olarak tanımla.
+- [x] “Gönderildi” geçişinden önce render edilmiş geçerli token/link zorunlu yap.
+- [x] Link/token oluşturulmadan doğrudan “Gönderildi” endpointini backend’de reddet.
+- [x] `dueAt` gelmeden normal gönderim eylemini backend ve UI’da kilitle.
+- [x] Erken gönderim gerekiyorsa ayrı yetki, neden, onay ve audit isteyen override tanımla.
+- [x] Yanlış işaretlenmiş görev için güvenli iptal/yeniden üretim prosedürü ekle.
+- [x] Token üretme ve görevi hazırlama işlemini transaction/yarış koşulu açısından koru.
+- [x] Admin UI sırasını `Hazırla → Linki doğrula → Gönder → Gönderildi işaretle` olarak zorla.
+- [x] WhatsApp açma ile “gönderildi” işaretlemeyi ayrı eylemler olarak göster.
+- [x] Gönderim başarısızlığı ve retry kuyruğunu tanımla.
 
 ### 03.2 Onay ve red bildirimleri
 
-- [ ] Başvuru onaylandığında müşteriye gidecek karar bildirim şablonunu tanımla.
-- [ ] Başvuru reddedildiğinde nedenin güvenli/uygun metinle bildirileceği şablonu tanımla.
-- [ ] Kanal, due zamanı, retry ve başarısız gönderim davranışını tanımla.
-- [ ] Karar mesajı ve aktivasyon mesajının görev ayrımını netleştir.
-- [ ] Onay/red işleminin ilgili mesaj görevini atomik veya güvenilir outbox yaklaşımıyla oluşturmasını sağla.
-- [ ] Mesaj içeriğinde yanlış müşteri/ref/link karışmasını negatif test et.
+- [x] Başvuru onaylandığında müşteriye gidecek karar bildirim şablonunu tanımla.
+- [x] Başvuru reddedildiğinde nedenin güvenli/uygun metinle bildirileceği şablonu tanımla.
+- [x] Kanal, due zamanı, retry ve başarısız gönderim davranışını tanımla.
+- [x] Karar mesajı ve aktivasyon mesajının görev ayrımını netleştir.
+- [x] Onay/red işleminin ilgili mesaj görevini atomik veya güvenilir outbox yaklaşımıyla oluşturmasını sağla.
+- [x] Mesaj içeriğinde yanlış müşteri/ref/link karışmasını negatif test et.
 
 ### 03.3 Aktivasyon ve müşteri hesabı
 
-- [ ] Ayrı sentetik müşteriyle gerçek aktivasyon tokenı üret.
-- [ ] Tokenın yalnız doğru kullanıcı ve amaç için geçerli olduğunu doğrula.
-- [ ] Token tek kullanım sonrası geçersiz oluyor.
-- [ ] Süresi dolmuş token doğru, güvenli mesajla reddediliyor.
-- [ ] Erken açılan token davranışı iş kuralıyla uyumlu ve anlaşılır.
-- [ ] Güçlü parola belirleme çalışıyor.
-- [ ] Parola düz metin log/audit/response içinde görünmüyor.
-- [ ] Doğru login çalışıyor.
-- [ ] Yanlış login genel mesaj ve rate limit uyguluyor.
-- [ ] Oturum cookie bayrakları doğru.
-- [ ] Idle timeout çalışıyor.
-- [ ] Logout oturumu gerçekten geçersiz kılıyor.
-- [ ] Geri tuşu/cache korumalı veriyi yeniden göstermiyor.
-- [ ] Parola değiştirme mevcut oturum ve diğer oturumlar için tanımlı davranışı uyguluyor.
-- [ ] Şifre kurtarma yalnız metin olmaktan çıkarılıp gerçek tek kullanımlık akışa veya açık iş kanalına bağlanıyor.
+- [x] Ayrı sentetik müşteriyle gerçek aktivasyon tokenı üret.
+- [x] Tokenın yalnız doğru kullanıcı ve amaç için geçerli olduğunu doğrula.
+- [x] Token tek kullanım sonrası geçersiz oluyor.
+- [x] Süresi dolmuş token doğru, güvenli mesajla reddediliyor.
+- [x] Erken açılan token davranışı iş kuralıyla uyumlu ve anlaşılır.
+- [x] Güçlü parola belirleme çalışıyor.
+- [x] Parola düz metin log/audit/response içinde görünmüyor.
+- [x] Doğru login çalışıyor.
+- [x] Yanlış login genel mesaj ve rate limit uyguluyor.
+- [x] Oturum cookie bayrakları doğru.
+- [x] Idle timeout çalışıyor.
+- [x] Logout oturumu gerçekten geçersiz kılıyor.
+- [x] Geri tuşu/cache korumalı veriyi yeniden göstermiyor.
+- [x] Parola değiştirme mevcut oturum ve diğer oturumlar için tanımlı davranışı uyguluyor.
+- [x] Şifre kurtarma yalnız metin olmaktan çıkarılıp gerçek tek kullanımlık akışa veya açık iş kanalına bağlanıyor.
 
 ### 03.4 Müşteri veri izolasyonu
 
-- [ ] Müşteri yalnız kendi düğününü görüyor.
-- [ ] Başka müşteri ID’sine doğrudan erişim 403/404.
-- [ ] Başka düğün/teslimat ID’sine doğrudan erişim 403/404.
-- [ ] İptal/arşivli düğünde müşteri erişim kuralı uygulanıyor.
-- [ ] Hazır olmayan teslimat linki API response ve UI’da gizli.
-- [ ] Teslim edilen link yalnız doğru müşteri için açılıyor.
-- [ ] Süresi dolmuş/geri çekilmiş link doğru biçimde kapanıyor.
-- [ ] Teslimat URL’si yanlış izinle açıksa admin yayınlama işlemi engelleniyor.
+- [x] Müşteri yalnız kendi düğününü görüyor.
+- [x] Başka müşteri ID’sine doğrudan erişim 403/404.
+- [x] Başka düğün/teslimat ID’sine doğrudan erişim 403/404.
+- [x] İptal/arşivli düğünde müşteri erişim kuralı uygulanıyor.
+- [x] Hazır olmayan teslimat linki API response ve UI’da gizli.
+- [x] Teslim edilen link yalnız doğru müşteri için açılıyor.
+- [x] Süresi dolmuş/geri çekilmiş link doğru biçimde kapanıyor.
+- [x] Teslimat URL’si yanlış izinle açıksa admin yayınlama işlemi engelleniyor.
 
 ### 03.5 MFA, step-up ve güvenilen cihaz doğrulaması
 
-- [ ] Sentetik admin hesabında MFA enrollment akışını test et.
-- [ ] MFA ile doğru/yanlış login ve rate limit davranışını test et.
-- [ ] Kalıcı silme/parola sıfırlama gibi kritik eylemlerde step-up zorunluluğunu test et.
-- [ ] Step-up süresi dolduğunda yeniden doğrulama istendiğini test et.
-- [ ] Güvenilen cihaz ekleme, süre sonu ve geri çekme davranışını test et.
-- [ ] MFA recovery/break-glass prosedürünü gerçek sırrı rapora yazmadan doğrula.
-- [ ] NTP/saat sapmasının TOTP davranışına etkisini kontrollü test et.
+- [x] Sentetik admin hesabında MFA enrollment akışını test et.
+- [x] MFA ile doğru/yanlış login ve rate limit davranışını test et.
+- [x] Kalıcı silme/parola sıfırlama gibi kritik eylemlerde step-up zorunluluğunu test et.
+- [x] Step-up süresi dolduğunda yeniden doğrulama istendiğini test et.
+- [x] Güvenilen cihaz ekleme, süre sonu ve geri çekme davranışını test et.
+- [x] MFA recovery/break-glass prosedürünü gerçek sırrı rapora yazmadan doğrula.
+- [x] NTP/saat sapmasının TOTP davranışına etkisini kontrollü test et.
 
 ### 03.6 Müşteri altın yolu kabul testi
 
-- [ ] Public sentetik başvuru oluştur.
-- [ ] Admin kuyruğunda doğrula ve onayla.
-- [ ] Karar/aktivasyon görevlerini doğru sırayla oluştur.
-- [ ] Aktivasyon mesajını render et ve linki doğrula.
-- [ ] Sentetik müşteri parolasını belirle.
-- [ ] Müşteri olarak login ol.
-- [ ] Kendi düğün ve teslimat durumunu gör.
-- [ ] Hazır olmayan teslimatın gizli kaldığını gör.
-- [ ] Admin teslimat state machine’iyle test teslimatını ilerlet.
-- [ ] Güvenli test URL’sini yayınla.
-- [ ] Müşteri panelinden URL’yi aç.
-- [ ] Linki geri çek ve müşteri erişiminin kapandığını doğrula.
-- [ ] Logout ve idle timeout doğrula.
-- [ ] Bütün sentetik kayıtları güvenli cleanup ile kaldır.
+- [x] Public sentetik başvuru oluştur.
+- [x] Admin kuyruğunda doğrula ve onayla.
+- [x] Karar/aktivasyon görevlerini doğru sırayla oluştur.
+- [x] Aktivasyon mesajını render et ve linki doğrula.
+- [x] Sentetik müşteri parolasını belirle.
+- [x] Müşteri olarak login ol.
+- [x] Kendi düğün ve teslimat durumunu gör.
+- [x] Hazır olmayan teslimatın gizli kaldığını gör.
+- [x] Admin teslimat state machine’iyle test teslimatını ilerlet.
+- [x] Güvenli test URL’sini yayınla.
+- [x] Müşteri panelinden URL’yi aç.
+- [x] Linki geri çek ve müşteri erişiminin kapandığını doğrula.
+- [x] Logout ve idle timeout doğrula.
+- [x] Bütün sentetik kayıtları güvenli cleanup ile kaldır.
 
 **Faz 03 çıkış kapısı**
 
-- [ ] Gerçek aktivasyon → parola → login → izolasyon → teslimat → logout zinciri kanıtla geçti; mesaj görevleri erken/yanlış geçişe kapalı.
+- [x] Gerçek aktivasyon → parola → login → izolasyon → teslimat → logout zinciri kanıtla geçti; mesaj görevleri erken/yanlış geçişe kapalı. Kanıt: `kanit/faz-03-aktivasyon-musteri-altin-yolu.md`.
 
 ---
 

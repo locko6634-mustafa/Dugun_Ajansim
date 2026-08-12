@@ -47,7 +47,13 @@ import {
 } from "../services/booking.service.js";
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { createOpaqueToken, hashPassword } from "../utils/crypto.js";
+import {
+  createOpaqueToken,
+  decryptValue,
+  encryptValue,
+  hashPassword,
+  hashToken
+} from "../utils/crypto.js";
 import { buildDeliveryDriveUrlData, decryptDeliveryDriveUrl } from "../utils/delivery-crypto.js";
 import {
   assertGoogleDriveUrl,
@@ -89,6 +95,36 @@ const markSentRequest = z.object({
   query: emptyQuery,
   params: uuidParamsSchema
 });
+const messageFailureRequest = z.object({
+  body: z
+    .object({
+      expectedUpdatedAt: z.string().datetime({ offset: true }),
+      reason: z.string().trim().min(3).max(500)
+    })
+    .strict(),
+  query: emptyQuery,
+  params: uuidParamsSchema
+});
+const messageTransitionRequest = z.object({
+  body: z.object({ reason: z.string().trim().min(3).max(500) }).strict(),
+  query: emptyQuery,
+  params: uuidParamsSchema
+});
+const deliveryReleaseRequest = z.object({
+  body: z
+    .object({
+      sharingConfirmed: z.literal(true),
+      sharingConfirmation: z.literal("ERİŞİMİ DOĞRULADIM")
+    })
+    .strict(),
+  query: emptyQuery,
+  params: uuidParamsSchema
+});
+
+const messagePreparationAad = (taskId: string): string => `message-preparation:${taskId}`;
+const deliveryAccessTtlMs = 30 * 24 * 60 * 60 * 1_000;
+const passwordSetupTokenFromMessage = (message: string): string | null =>
+  message.match(/#setup=([A-Za-z0-9_-]{43})(?:&|$)/)?.[1] ?? null;
 
 const assignmentParamsSchema = z
   .object({
@@ -627,7 +663,12 @@ router.get(
         orderBy: { name: "asc" }
       }),
       prisma.bookingApplication.count({ where: { status: "ONAY_BEKLIYOR", deletedAt: null } }),
-      prisma.messageTask.count({ where: { status: "PENDING", wedding: { deletedAt: null } } }),
+      prisma.messageTask.count({
+        where: {
+          status: { in: ["PLANNED", "PREPARED", "READY_TO_SEND", "FAILED"] },
+          OR: [{ wedding: { deletedAt: null } }, { application: { deletedAt: null } }]
+        }
+      }),
       prisma.delivery.count({ where: { status: "TESLIME_HAZIR", wedding: { deletedAt: null } } }),
       prisma.delivery.findMany({
         where: {
@@ -1153,6 +1194,8 @@ router.get(
             status: true,
             dueDate: true,
             releasedAt: true,
+            accessExpiresAt: true,
+            revokedAt: true,
             updatedAt: true,
             driveUrlCiphertext: true
           }
@@ -1177,6 +1220,8 @@ router.get(
             status: wedding.delivery.status,
             dueDate: wedding.delivery.dueDate,
             releasedAt: wedding.delivery.releasedAt,
+            accessExpiresAt: wedding.delivery.accessExpiresAt,
+            revokedAt: wedding.delivery.revokedAt,
             updatedAt: wedding.delivery.updatedAt,
             hasDriveUrl: Boolean(wedding.delivery.driveUrlCiphertext)
           }
@@ -1261,6 +1306,8 @@ router.get(
               status: delivery.status,
               dueDate: delivery.dueDate,
               releasedAt: delivery.releasedAt,
+              accessExpiresAt: delivery.accessExpiresAt,
+              revokedAt: delivery.revokedAt,
               updatedAt: delivery.updatedAt,
               hasDriveUrl: Boolean(driveUrl),
               driveUrl
@@ -1826,22 +1873,48 @@ router.patch(
             }
 
             const pendingMessageTasks = await transaction.messageTask.findMany({
-              where: { weddingId: wedding.id, status: "PENDING" },
-              select: { id: true, updatedAt: true, piiRevision: true }
+              where: {
+                weddingId: wedding.id,
+                status: { in: ["PLANNED", "PREPARED", "READY_TO_SEND", "FAILED"] }
+              },
+              select: { id: true, updatedAt: true, piiRevision: true, preparedTokenId: true }
             });
             for (const pendingTask of pendingMessageTasks) {
+              if (pendingTask.preparedTokenId) {
+                await transaction.passwordSetupToken.updateMany({
+                  where: { id: pendingTask.preparedTokenId, usedAt: null, revokedAt: null },
+                  data: { revokedAt: now }
+                });
+              }
               const claimedTask = await transaction.messageTask.updateMany({
                 where: {
                   id: pendingTask.id,
-                  status: "PENDING",
+                  status: {
+                    in: ["PLANNED", "PREPARED", "READY_TO_SEND", "FAILED"]
+                  },
                   updatedAt: pendingTask.updatedAt,
                   piiRevision: pendingTask.piiRevision
                 },
-                data: buildMessageTaskPiiData(
-                  pendingTask.id,
-                  { recipientPhone },
-                  pendingTask.piiRevision + 1
-                )
+                data: {
+                  ...buildMessageTaskPiiData(
+                    pendingTask.id,
+                    { recipientPhone },
+                    pendingTask.piiRevision + 1
+                  ),
+                  status: "PLANNED",
+                  preparedAt: null,
+                  readyAt: null,
+                  failedAt: null,
+                  failureReason: null,
+                  nextAttemptAt: null,
+                  preparedTokenId: null,
+                  preparedMessageCiphertext: null,
+                  preparedMessageIv: null,
+                  preparedMessageAuthTag: null,
+                  earlyOverrideAt: null,
+                  earlyOverrideReason: null,
+                  earlyOverrideById: null
+                }
               });
               if (claimedTask.count !== 1) {
                 throw new AppError("Mesaj görevi başka bir işlemde güncellendi.", 409);
@@ -1853,7 +1926,7 @@ router.patch(
                 where: {
                   weddingId: wedding.id,
                   kind: "PREPARATION_UPDATE",
-                  status: "PENDING"
+                  status: { in: ["PLANNED", "PREPARED", "READY_TO_SEND", "FAILED"] }
                 },
                 data: { dueAt: preparationAt }
               });
@@ -1864,10 +1937,21 @@ router.patch(
                 where: {
                   weddingId: wedding.id,
                   kind: "PASSWORD_RESET",
-                  status: "PENDING"
+                  status: { in: ["PLANNED", "PREPARED", "READY_TO_SEND", "FAILED"] }
                 },
                 data: {
                   status: "CANCELLED",
+                  cancelledAt: now,
+                  cancelledReason: "credentials_regenerated",
+                  preparedAt: null,
+                  readyAt: null,
+                  failedAt: null,
+                  failureReason: null,
+                  nextAttemptAt: null,
+                  preparedTokenId: null,
+                  preparedMessageCiphertext: null,
+                  preparedMessageIv: null,
+                  preparedMessageAuthTag: null,
                   sentAt: null,
                   sentById: null,
                   secretCiphertext: null,
@@ -1895,7 +1979,24 @@ router.patch(
                       { recipientPhone },
                       existingActivationTask.piiRevision + 1
                     ),
-                    status: "PENDING",
+                    status: "PLANNED",
+                    preparedAt: null,
+                    readyAt: null,
+                    failedAt: null,
+                    failureReason: null,
+                    nextAttemptAt: null,
+                    attemptCount: 0,
+                    lastAttemptAt: null,
+                    preparedTokenId: null,
+                    preparedMessageCiphertext: null,
+                    preparedMessageIv: null,
+                    preparedMessageAuthTag: null,
+                    earlyOverrideAt: null,
+                    earlyOverrideReason: null,
+                    earlyOverrideById: null,
+                    cancelledAt: null,
+                    cancelledReason: null,
+                    cancelledById: null,
                     dueAt: activationAt,
                     sentAt: null,
                     sentById: null,
@@ -2069,7 +2170,7 @@ router.patch(
 router.post(
   "/deliveries/:id/deliver",
   verifyCsrf,
-  validateRequest(uuidRequest),
+  validateRequest(deliveryReleaseRequest),
   asyncHandler(async (req, res) => {
     const delivery = await prisma.delivery.findUnique({
       where: { id: req.params.id },
@@ -2084,6 +2185,7 @@ router.post(
     }
 
     const now = new Date();
+    const accessExpiresAt = new Date(now.valueOf() + deliveryAccessTtlMs);
     const updated = await prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw`
         SELECT "id" FROM "weddings"
@@ -2105,7 +2207,14 @@ router.post(
           releasedAt: null,
           updatedAt: delivery.updatedAt
         },
-        data: { status: "TESLIM_EDILDI", releasedAt: now }
+        data: {
+          status: "TESLIM_EDILDI",
+          releasedAt: now,
+          accessExpiresAt,
+          revokedAt: null,
+          revokedById: null,
+          revocationReason: null
+        }
       });
       if (claimed.count !== 1) {
         throw new AppError("Teslimat başka bir işlemde güncellendi.", 409);
@@ -2138,7 +2247,24 @@ router.post(
               { recipientPhone },
               existingDeliveryTask.piiRevision + 1
             ),
-            status: "PENDING",
+            status: "PLANNED",
+            preparedAt: null,
+            readyAt: null,
+            failedAt: null,
+            failureReason: null,
+            nextAttemptAt: null,
+            attemptCount: 0,
+            lastAttemptAt: null,
+            preparedTokenId: null,
+            preparedMessageCiphertext: null,
+            preparedMessageIv: null,
+            preparedMessageAuthTag: null,
+            earlyOverrideAt: null,
+            earlyOverrideReason: null,
+            earlyOverrideById: null,
+            cancelledAt: null,
+            cancelledReason: null,
+            cancelledById: null,
             dueAt: now,
             sentAt: null,
             sentById: null
@@ -2161,7 +2287,12 @@ router.post(
         action: "delivery.released",
         targetType: "Delivery",
         targetId: delivery.id,
-        correlationId: req.correlationId
+        correlationId: req.correlationId,
+        metadata: {
+          sharingConfirmed: req.body.sharingConfirmed,
+          sharingConfirmation: "verified_by_operator",
+          accessExpiresAt
+        }
       });
       return transaction.delivery.findUniqueOrThrow({
         where: { id: delivery.id },
@@ -2170,12 +2301,55 @@ router.post(
           status: true,
           dueDate: true,
           releasedAt: true,
+          accessExpiresAt: true,
+          revokedAt: true,
           updatedAt: true
         }
       });
     });
 
     res.json({ success: true, data: updated, correlationId: req.correlationId });
+  })
+);
+
+router.post(
+  "/deliveries/:id/revoke",
+  verifyCsrf,
+  requireRecentAdminStepUp,
+  validateRequest(messageTransitionRequest),
+  asyncHandler(async (req, res) => {
+    const now = new Date();
+    const revoked = await prisma.$transaction(async (transaction) => {
+      const updated = await transaction.delivery.updateMany({
+        where: {
+          id: req.params.id,
+          status: "TESLIM_EDILDI",
+          releasedAt: { not: null },
+          revokedAt: null
+        },
+        data: {
+          revokedAt: now,
+          revokedById: req.auth!.userId,
+          revocationReason: req.body.reason
+        }
+      });
+      if (updated.count !== 1) {
+        throw new AppError("Teslimat bağlantısı bulunamadı veya zaten geri çekildi.", 409);
+      }
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: "delivery.access_revoked",
+        targetType: "Delivery",
+        targetId: req.params.id,
+        correlationId: req.correlationId,
+        metadata: { reason: req.body.reason }
+      });
+      return transaction.delivery.findUniqueOrThrow({
+        where: { id: req.params.id },
+        select: { id: true, status: true, releasedAt: true, revokedAt: true }
+      });
+    });
+    res.json({ success: true, data: revoked, correlationId: req.correlationId });
   })
 );
 
@@ -2472,11 +2646,36 @@ router.get(
   validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const tasks = await prisma.messageTask.findMany({
-      where: { wedding: { deletedAt: null } },
+      where: {
+        OR: [
+          { wedding: { deletedAt: null } },
+          { application: { deletedAt: null } }
+        ]
+      },
       include: {
         wedding: {
           select: {
             id: true,
+            brideFirstName: true,
+            brideLastName: true,
+            bridePhone: true,
+            groomFirstName: true,
+            groomLastName: true,
+            groomPhone: true,
+            primaryEmail: true,
+            note: true,
+            piiCiphertext: true,
+            piiIv: true,
+            piiAuthTag: true,
+            piiKeyId: true,
+            piiEncryptionVersion: true,
+            piiSchemaVersion: true
+          }
+        },
+        application: {
+          select: {
+            id: true,
+            referenceCode: true,
             brideFirstName: true,
             brideLastName: true,
             bridePhone: true,
@@ -2505,10 +2704,30 @@ router.get(
         secretIv: _iv,
         secretAuthTag: _tag,
         encryptionVersion: _secretEncryptionVersion,
+        preparedMessageCiphertext: _preparedCiphertext,
+        preparedMessageIv: _preparedIv,
+        preparedMessageAuthTag: _preparedTag,
+        preparedTokenId: _preparedTokenId,
         wedding: rawWedding,
+        application: rawApplication,
         ...task
       } = decryptedTask;
-      return { ...task, wedding: weddingNames(rawWedding) };
+      const target = rawWedding
+        ? weddingNames(rawWedding)
+        : rawApplication
+          ? (() => {
+              const pii = decryptBookingApplicationPii(rawApplication.id, rawApplication);
+              return {
+                brideFirstName: pii.brideFirstName,
+                brideLastName: pii.brideLastName,
+                groomFirstName: pii.groomFirstName,
+                groomLastName: pii.groomLastName,
+                referenceCode: rawApplication.referenceCode
+              };
+            })()
+          : null;
+      if (!target) throw new AppError("Mesaj görevinin hedefi bulunamadı.", 409);
+      return { ...task, wedding: target };
     });
     res.json({ success: true, data: safeTasks, correlationId: req.correlationId });
   })
@@ -2528,46 +2747,67 @@ const renderMessage = async (
           customerUser: true,
           delivery: true
         }
-      }
+      },
+      application: true,
+      preparedToken: true
     }
   });
   if (!task) throw new AppError("Mesaj görevi bulunamadı.", 404);
+  if (!task.wedding && !task.application) {
+    throw new AppError("Mesaj görevinin hedefi bulunamadı.", 409);
+  }
   const isSensitiveCredentialTask =
     task.kind === "ACCOUNT_ACTIVATION" || task.kind === "PASSWORD_RESET";
   if (isSensitiveCredentialTask) {
     assertRecentAdminStepUp(adminStepUpVerifiedAt);
   }
-  if (isSensitiveCredentialTask && task.status !== "PENDING") {
-    throw new AppError("Bu parola bağlantısı görevi artık etkin değil.", 409);
+  if (task.status !== "PLANNED" && task.status !== "FAILED") {
+    throw new AppError("Bu mesaj görevi hazırlanmaya uygun değil.", 409);
+  }
+  if (task.status === "FAILED" && task.nextAttemptAt && task.nextAttemptAt > new Date()) {
+    throw new AppError("Mesaj görevinin yeniden deneme zamanı henüz gelmedi.", 409);
   }
 
-  const weddingPii = decryptWeddingPii(task.wedding.id, task.wedding);
+  const wedding = task.wedding;
+  const application = task.application;
+  const targetPii = wedding
+    ? decryptWeddingPii(wedding.id, wedding)
+    : decryptBookingApplicationPii(application!.id, application!);
   const taskPii = decryptMessageTaskPii(task.id, task);
-  const couple = `${weddingPii.brideFirstName} & ${weddingPii.groomFirstName}`;
+  const couple = `${targetPii.brideFirstName} & ${targetPii.groomFirstName}`;
   let message: string;
+  let preparedTokenId: string | null = null;
   if (task.kind === "ACCOUNT_ACTIVATION") {
+    if (!wedding) throw new AppError("Parola bağlantısı görevinin düğün kaydı bulunamadı.", 409);
     const setup = await issuePasswordSetupToken(transaction, {
-      userId: task.wedding.customerUser.id,
+      userId: wedding.customerUser.id,
       purpose: "ACCOUNT_ACTIVATION",
       createdById: actorUserId,
-      notBefore: task.wedding.customerUser.activeAt
+      notBefore: wedding.customerUser.activeAt
     });
-    const setupUrl = createPasswordSetupUrl(setup.token);
-    message = `Merhaba ${couple}.\n\nDüğün Ajansım teslimat paneliniz hazır.\nKullanıcı adı: ${task.wedding.customerUser.username}\nTek kullanımlık parola belirleme bağlantısı: ${setupUrl}\n\nBağlantı yalnız bir kez kullanılabilir.`;
+    preparedTokenId = setup.id;
+    const setupUrl = createPasswordSetupUrl(setup.token, "ACCOUNT_ACTIVATION");
+    message = `Merhaba ${couple}.\n\nDüğün Ajansım teslimat paneliniz hazır.\nKullanıcı adı: ${wedding.customerUser.username}\nTek kullanımlık parola belirleme bağlantısı: ${setupUrl}\n\nBağlantı yalnız bir kez kullanılabilir.`;
   } else if (task.kind === "PASSWORD_RESET") {
+    if (!wedding) throw new AppError("Parola bağlantısı görevinin düğün kaydı bulunamadı.", 409);
     const setup = await issuePasswordSetupToken(transaction, {
-      userId: task.wedding.customerUser.id,
+      userId: wedding.customerUser.id,
       purpose: "PASSWORD_RESET",
       createdById: actorUserId,
-      notBefore: task.wedding.customerUser.activeAt
+      notBefore: wedding.customerUser.activeAt
     });
-    const setupUrl = createPasswordSetupUrl(setup.token);
-    message = `Merhaba ${couple}.\n\nKullanıcı adı: ${task.wedding.customerUser.username}\nTek kullanımlık parola sıfırlama bağlantısı: ${setupUrl}\n\nBağlantı yalnız bir kez kullanılabilir.`;
+    preparedTokenId = setup.id;
+    const setupUrl = createPasswordSetupUrl(setup.token, "PASSWORD_RESET");
+    message = `Merhaba ${couple}.\n\nKullanıcı adı: ${wedding.customerUser.username}\nTek kullanımlık parola sıfırlama bağlantısı: ${setupUrl}\n\nBağlantı yalnız bir kez kullanılabilir.`;
+  } else if (task.kind === "APPLICATION_APPROVED") {
+    message = `Merhaba ${couple}.\n\n${task.application!.referenceCode} referanslı başvurunuz onaylandı. Müşteri paneli aktivasyon bağlantınız ayrı bir mesaj göreviyle iletilecektir.`;
+  } else if (task.kind === "APPLICATION_REJECTED") {
+    message = `Merhaba ${couple}.\n\n${task.application!.referenceCode} referanslı başvurunuz bu aşamada onaylanamadı. Ayrıntılı bilgi için Düğün Ajansım ekibiyle iletişime geçebilirsiniz.`;
   } else if (task.kind === "PREPARATION_UPDATE") {
-    if (!task.wedding.delivery?.dueDate) {
+    if (!wedding?.delivery?.dueDate) {
       throw new AppError("Teslimat tahmini tarihi bulunamadı.", 409);
     }
-    const dueDate = task.wedding.delivery.dueDate.toLocaleDateString("tr-TR", {
+    const dueDate = wedding.delivery.dueDate.toLocaleDateString("tr-TR", {
       timeZone: "UTC"
     });
     message = `Merhaba ${couple}.\n\nFotoğraf ve video çalışmalarınız hazırlanmaktadır.\nOrtalama teslim süremiz 21 gündür.\nTahmini teslim tarihi: ${dueDate}`;
@@ -2579,8 +2819,121 @@ const renderMessage = async (
   if (!/^\d{8,15}$/.test(phone)) {
     throw new AppError("Mesaj görevinin alıcı telefonu geçersiz.", 409);
   }
+  const preparedAt = new Date();
+  const encryptedMessage = encryptValue(message, messagePreparationAad(task.id));
+  const prepared = await transaction.messageTask.updateMany({
+    where: {
+      id: task.id,
+      status: { in: ["PLANNED", "FAILED"] },
+      updatedAt: task.updatedAt
+    },
+    data: {
+      status: "PREPARED",
+      preparedAt,
+      readyAt: null,
+      preparedTokenId,
+      preparedMessageCiphertext: encryptedMessage.ciphertext,
+      preparedMessageIv: encryptedMessage.iv,
+      preparedMessageAuthTag: encryptedMessage.authTag,
+      failedAt: null,
+      failureReason: null,
+      nextAttemptAt: null
+    }
+  });
+  if (prepared.count !== 1) {
+    throw new AppError("Mesaj görevi başka bir işlemde hazırlandı.", 409);
+  }
+  const preparedTask = await transaction.messageTask.findUniqueOrThrow({
+    where: { id: task.id },
+    include: { preparedToken: true }
+  });
   return {
-    task,
+    task: preparedTask,
+    message
+  };
+};
+
+const verifyPreparedMessage = async (
+  taskId: string,
+  adminStepUpVerifiedAt: Date | null,
+  transaction: Prisma.TransactionClient = prisma
+) => {
+  const task = await transaction.messageTask.findUnique({
+    where: { id: taskId },
+    include: {
+      preparedToken: true,
+      wedding: { select: { customerUserId: true } }
+    }
+  });
+  if (!task) throw new AppError("Mesaj görevi bulunamadı.", 404);
+  if (task.status !== "PREPARED" && task.status !== "READY_TO_SEND") {
+    throw new AppError("Mesaj önce hazırlanmalıdır.", 409);
+  }
+  if (
+    !task.preparedAt ||
+    !task.preparedMessageCiphertext ||
+    !task.preparedMessageIv ||
+    !task.preparedMessageAuthTag
+  ) {
+    throw new AppError("Hazırlanan mesaj doğrulanamadı.", 409);
+  }
+  const now = new Date();
+  if (task.dueAt > now && !task.earlyOverrideAt) {
+    throw new AppError("Mesajın planlanan gönderim zamanı henüz gelmedi.", 409);
+  }
+
+  const isSensitiveCredentialTask =
+    task.kind === "ACCOUNT_ACTIVATION" || task.kind === "PASSWORD_RESET";
+  if (isSensitiveCredentialTask) {
+    assertRecentAdminStepUp(adminStepUpVerifiedAt);
+  }
+  const message = decryptValue(
+    {
+      ciphertext: task.preparedMessageCiphertext,
+      iv: task.preparedMessageIv,
+      authTag: task.preparedMessageAuthTag
+    },
+    messagePreparationAad(task.id)
+  );
+  if (isSensitiveCredentialTask) {
+    const expectedPurpose =
+      task.kind === "ACCOUNT_ACTIVATION" ? "ACCOUNT_ACTIVATION" : "PASSWORD_RESET";
+    const messageToken = passwordSetupTokenFromMessage(message);
+    if (
+      !task.preparedToken ||
+      task.preparedToken.purpose !== expectedPurpose ||
+      task.preparedToken.userId !== task.wedding?.customerUserId ||
+      task.preparedToken.usedAt ||
+      task.preparedToken.revokedAt ||
+      task.preparedToken.expiresAt <= now ||
+      !messageToken ||
+      hashToken(messageToken) !== task.preparedToken.tokenHash
+    ) {
+      throw new AppError("Hazırlanan parola bağlantısı artık geçerli değil.", 409);
+    }
+  } else if (task.preparedTokenId) {
+    throw new AppError("Mesaj görevinin hazırlama kaydı geçersiz.", 409);
+  }
+
+  const taskPii = decryptMessageTaskPii(task.id, task);
+  const phone = taskPii.recipientPhone.replace(/\D/g, "");
+  if (!/^\d{8,15}$/.test(phone)) {
+    throw new AppError("Mesaj görevinin alıcı telefonu geçersiz.", 409);
+  }
+
+  if (task.status === "PREPARED") {
+    const readyAt = new Date();
+    const updated = await transaction.messageTask.updateMany({
+      where: { id: task.id, status: "PREPARED", updatedAt: task.updatedAt },
+      data: { status: "READY_TO_SEND", readyAt }
+    });
+    if (updated.count !== 1) {
+      throw new AppError("Mesaj görevi başka bir işlemde doğrulandı.", 409);
+    }
+  }
+  const readyTask = await transaction.messageTask.findUniqueOrThrow({ where: { id: task.id } });
+  return {
+    task: readyTask,
     message,
     whatsappUrl: `https://wa.me/${phone}`
   };
@@ -2617,9 +2970,30 @@ router.post(
     res.json({
       success: true,
       data: {
-        message: rendered.message,
-        whatsappUrl: rendered.whatsappUrl,
+        status: rendered.task.status,
         expectedUpdatedAt: rendered.task.updatedAt.toISOString()
+      },
+      correlationId: req.correlationId
+    });
+  })
+);
+
+router.post(
+  "/message-tasks/:id/verify",
+  verifyCsrf,
+  validateRequest(uuidRequest),
+  asyncHandler(async (req, res) => {
+    const verified = await prisma.$transaction((transaction) =>
+      verifyPreparedMessage(req.params.id, req.auth!.adminStepUpVerifiedAt, transaction)
+    );
+    res.set("Cache-Control", "no-store");
+    res.json({
+      success: true,
+      data: {
+        message: verified.message,
+        whatsappUrl: verified.whatsappUrl,
+        status: verified.task.status,
+        expectedUpdatedAt: verified.task.updatedAt.toISOString()
       },
       correlationId: req.correlationId
     });
@@ -2634,16 +3008,63 @@ router.post(
     const expectedUpdatedAt = new Date(req.body.expectedUpdatedAt);
     const now = new Date();
     const task = await prisma.$transaction(async (transaction) => {
+      const candidate = await transaction.messageTask.findUnique({
+        where: { id: req.params.id },
+        include: {
+          preparedToken: true,
+          wedding: { select: { customerUserId: true } }
+        }
+      });
+      if (!candidate) throw new AppError("Mesaj görevi bulunamadı.", 404);
+      if (candidate.status !== "READY_TO_SEND" || !candidate.preparedAt || !candidate.readyAt) {
+        throw new AppError("Mesaj önce hazırlanmalı ve gönderime hazır olmalıdır.", 409);
+      }
+      if (candidate.dueAt > now && !candidate.earlyOverrideAt) {
+        throw new AppError("Mesajın planlanan gönderim zamanı henüz gelmedi.", 409);
+      }
+      if (
+        (candidate.kind === "ACCOUNT_ACTIVATION" || candidate.kind === "PASSWORD_RESET") &&
+        !candidate.wedding
+      ) {
+        throw new AppError("Parola bağlantısı görevinin müşteri hesabı bulunamadı.", 409);
+      }
+      if (
+        (candidate.kind === "ACCOUNT_ACTIVATION" || candidate.kind === "PASSWORD_RESET") &&
+        !candidate.preparedTokenId
+      ) {
+        throw new AppError("Hazırlanan parola bağlantısı artık geçerli değil.", 409);
+      }
+      if (candidate.kind === "ACCOUNT_ACTIVATION" || candidate.kind === "PASSWORD_RESET") {
+        const validTokens = await transaction.$queryRaw<Array<{ id: string }>>`
+          SELECT "id"
+          FROM "password_setup_tokens"
+          WHERE "id" = ${candidate.preparedTokenId}
+            AND "userId" = ${candidate.wedding!.customerUserId}
+            AND "purpose" = ${candidate.kind}::"PasswordSetupPurpose"
+            AND "usedAt" IS NULL
+            AND "revokedAt" IS NULL
+            AND "expiresAt" > ${now}
+          FOR SHARE
+        `;
+        if (validTokens.length !== 1) {
+          throw new AppError("Hazırlanan parola bağlantısı artık geçerli değil.", 409);
+        }
+      }
       const claimed = await transaction.messageTask.updateMany({
         where: {
           id: req.params.id,
-          status: "PENDING",
+          status: "READY_TO_SEND",
           updatedAt: expectedUpdatedAt
         },
         data: {
           status: "SENT",
           sentAt: now,
           sentById: req.auth!.userId,
+          attemptCount: { increment: 1 },
+          lastAttemptAt: now,
+          preparedMessageCiphertext: null,
+          preparedMessageIv: null,
+          preparedMessageAuthTag: null,
           secretCiphertext: null,
           secretIv: null,
           secretAuthTag: null
@@ -2667,6 +3088,158 @@ router.post(
       return transaction.messageTask.findUniqueOrThrow({
         where: { id: req.params.id },
         select: { id: true, status: true, sentAt: true }
+      });
+    });
+    res.json({ success: true, data: task, correlationId: req.correlationId });
+  })
+);
+
+router.post(
+  "/message-tasks/:id/override-due",
+  verifyCsrf,
+  requireRecentAdminStepUp,
+  validateRequest(messageTransitionRequest),
+  asyncHandler(async (req, res) => {
+    const now = new Date();
+    const task = await prisma.$transaction(async (transaction) => {
+      const updated = await transaction.messageTask.updateMany({
+        where: {
+          id: req.params.id,
+          status: { in: ["PLANNED", "PREPARED", "READY_TO_SEND"] },
+          dueAt: { gt: now }
+        },
+        data: {
+          earlyOverrideAt: now,
+          earlyOverrideById: req.auth!.userId,
+          earlyOverrideReason: req.body.reason
+        }
+      });
+      if (updated.count !== 1) throw new AppError("Erken gönderim override'ı uygulanamadı.", 409);
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: "message.early_send_overridden",
+        targetType: "MessageTask",
+        targetId: req.params.id,
+        correlationId: req.correlationId,
+        metadata: { reason: req.body.reason }
+      });
+      return transaction.messageTask.findUniqueOrThrow({
+        where: { id: req.params.id },
+        select: { id: true, status: true, dueAt: true, earlyOverrideAt: true, updatedAt: true }
+      });
+    });
+    res.json({ success: true, data: task, correlationId: req.correlationId });
+  })
+);
+
+router.post(
+  "/message-tasks/:id/mark-failed",
+  verifyCsrf,
+  validateRequest(messageFailureRequest),
+  asyncHandler(async (req, res) => {
+    const now = new Date();
+    const task = await prisma.$transaction(async (transaction) => {
+      const current = await transaction.messageTask.findUnique({
+        where: { id: req.params.id },
+        include: { preparedToken: true }
+      });
+      if (!current || current.status !== "READY_TO_SEND") {
+        throw new AppError("Mesaj görevi gönderime hazır değil.", 409);
+      }
+      if (current.preparedToken && !current.preparedToken.usedAt && !current.preparedToken.revokedAt) {
+        await transaction.passwordSetupToken.update({
+          where: { id: current.preparedToken.id },
+          data: { revokedAt: now }
+        });
+      }
+      const updated = await transaction.messageTask.updateMany({
+        where: {
+          id: current.id,
+          status: "READY_TO_SEND",
+          updatedAt: new Date(req.body.expectedUpdatedAt)
+        },
+        data: {
+          status: "FAILED",
+          preparedAt: null,
+          readyAt: null,
+          preparedTokenId: null,
+          preparedMessageCiphertext: null,
+          preparedMessageIv: null,
+          preparedMessageAuthTag: null,
+          failedAt: now,
+          failureReason: req.body.reason,
+          nextAttemptAt: new Date(now.valueOf() + 5 * 60 * 1_000),
+          attemptCount: { increment: 1 },
+          lastAttemptAt: now
+        }
+      });
+      if (updated.count !== 1) throw new AppError("Mesaj görevi başka bir işlemde güncellendi.", 409);
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: "message.failed",
+        targetType: "MessageTask",
+        targetId: req.params.id,
+        correlationId: req.correlationId,
+        metadata: { reason: req.body.reason }
+      });
+      return transaction.messageTask.findUniqueOrThrow({
+        where: { id: req.params.id },
+        select: { id: true, status: true, failedAt: true, nextAttemptAt: true, updatedAt: true }
+      });
+    });
+    res.json({ success: true, data: task, correlationId: req.correlationId });
+  })
+);
+
+router.post(
+  "/message-tasks/:id/cancel",
+  verifyCsrf,
+  validateRequest(messageTransitionRequest),
+  asyncHandler(async (req, res) => {
+    const now = new Date();
+    const task = await prisma.$transaction(async (transaction) => {
+      const current = await transaction.messageTask.findUnique({ where: { id: req.params.id } });
+      if (!current || current.status === "SENT" || current.status === "CANCELLED") {
+        throw new AppError("Mesaj görevi iptal edilemez.", 409);
+      }
+      if (current.preparedTokenId) {
+        await transaction.passwordSetupToken.updateMany({
+          where: { id: current.preparedTokenId, usedAt: null, revokedAt: null },
+          data: { revokedAt: now }
+        });
+      }
+      const updated = await transaction.messageTask.updateMany({
+        where: { id: current.id, updatedAt: current.updatedAt },
+        data: {
+          status: "CANCELLED",
+          cancelledAt: now,
+          cancelledById: req.auth!.userId,
+          cancelledReason: req.body.reason,
+          preparedAt: null,
+          readyAt: null,
+          preparedTokenId: null,
+          preparedMessageCiphertext: null,
+          preparedMessageIv: null,
+          preparedMessageAuthTag: null,
+          failedAt: null,
+          failureReason: null,
+          nextAttemptAt: null
+        }
+      });
+      if (updated.count !== 1) {
+        throw new AppError("Mesaj görevi başka bir işlemde güncellendi.", 409);
+      }
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: "message.cancelled",
+        targetType: "MessageTask",
+        targetId: req.params.id,
+        correlationId: req.correlationId,
+        metadata: { reason: req.body.reason }
+      });
+      return transaction.messageTask.findUniqueOrThrow({
+        where: { id: current.id },
+        select: { id: true, status: true, cancelledAt: true }
       });
     });
     res.json({ success: true, data: task, correlationId: req.correlationId });
@@ -2741,10 +3314,21 @@ router.post(
         where: {
           weddingId: user.customerWedding!.id,
           kind: "ACCOUNT_ACTIVATION",
-          status: "PENDING"
+          status: { in: ["PLANNED", "PREPARED", "READY_TO_SEND", "FAILED"] }
         },
         data: {
           status: "CANCELLED",
+          cancelledAt: now,
+          cancelledReason: "password_reset_requested",
+          preparedAt: null,
+          readyAt: null,
+          failedAt: null,
+          failureReason: null,
+          nextAttemptAt: null,
+          preparedTokenId: null,
+          preparedMessageCiphertext: null,
+          preparedMessageIv: null,
+          preparedMessageAuthTag: null,
           sentAt: null,
           sentById: null,
           secretCiphertext: null,
@@ -2772,7 +3356,24 @@ router.post(
                 { recipientPhone },
                 existingResetTask.piiRevision + 1
               ),
-              status: "PENDING",
+              status: "PLANNED",
+              preparedAt: null,
+              readyAt: null,
+              failedAt: null,
+              failureReason: null,
+              nextAttemptAt: null,
+              attemptCount: 0,
+              lastAttemptAt: null,
+              preparedTokenId: null,
+              preparedMessageCiphertext: null,
+              preparedMessageIv: null,
+              preparedMessageAuthTag: null,
+              earlyOverrideAt: null,
+              earlyOverrideReason: null,
+              earlyOverrideById: null,
+              cancelledAt: null,
+              cancelledReason: null,
+              cancelledById: null,
               dueAt: now,
               sentAt: null,
               sentById: null,
@@ -2803,15 +3404,10 @@ router.post(
       });
       return messageTask;
     });
-    const rendered = await renderMessage(
-      task.id,
-      req.auth!.userId,
-      req.auth!.adminStepUpVerifiedAt
-    );
     res.set("Cache-Control", "no-store");
     res.json({
       success: true,
-      data: { taskId: task.id, message: rendered.message, whatsappUrl: rendered.whatsappUrl },
+      data: { taskId: task.id, status: task.status },
       correlationId: req.correlationId
     });
   })
@@ -2837,7 +3433,9 @@ router.get(
     const [pendingBookings, activeWeddings, pendingMessages, readyDeliveries] = await Promise.all([
       prisma.bookingApplication.count({ where: { status: "ONAY_BEKLIYOR" } }),
       prisma.wedding.count({ where: { cancelledAt: null } }),
-      prisma.messageTask.count({ where: { status: "PENDING" } }),
+      prisma.messageTask.count({
+        where: { status: { in: ["PLANNED", "PREPARED", "READY_TO_SEND", "FAILED"] } }
+      }),
       prisma.delivery.count({ where: { status: "TESLIME_HAZIR" } })
     ]);
     res.json({

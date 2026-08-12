@@ -29,6 +29,7 @@
     "validate:deploy-health": "node --test deploy/tests/public-health-contract.test.mjs",
     "validate": "npm run format:check && npm run lint:js && npm run lint:css && npm run validate:html && npm run validate:domain-contract && npm run validate:site-content && npm run validate:asset-cache && npm run validate:asset-url && npm run validate:runtime-config && npm run validate:html-escaping && npm run validate:booking-schedule-policy && npm run validate:serve-security && npm run validate:dependency-security && npm run validate:operations-security && npm run validate:backup-safety && npm run validate:file-secrets && npm run validate:deploy-health",
     "test:targeted": "playwright test",
+    "test:phase01-container": "playwright test --config=playwright.phase01.config.js",
     "test:quick": "node tools/agent-check.mjs",
     "test:agent-check": "node --test tools/agent-check.test.mjs",
     "test:e2e": "playwright test",

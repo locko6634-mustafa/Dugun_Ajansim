@@ -714,6 +714,14 @@ authTest('RFC 6238 TOTP kodu dar zaman penceresi, AAD ve tekrar adımıyla doğr
     2n,
   );
   assert.equal(
+    findMatchingTotpStep(rfcSecret, generateTotpCode(rfcSecret, 1n), new Date(89_000)),
+    1n,
+  );
+  assert.equal(
+    findMatchingTotpStep(rfcSecret, generateTotpCode(rfcSecret, 3n), new Date(89_000)),
+    3n,
+  );
+  assert.equal(
     findMatchingTotpStep(rfcSecret, generateTotpCode(rfcSecret, 1n), new Date(119_000)),
     undefined,
   );

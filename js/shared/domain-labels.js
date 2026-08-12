@@ -28,6 +28,8 @@ export const DELIVERY_STATUS_LABELS = Object.freeze({
 export const DELIVERY_STATUS_ORDER = Object.freeze(Object.keys(DELIVERY_STATUS_LABELS));
 
 export const MESSAGE_KIND_LABELS = Object.freeze({
+  APPLICATION_APPROVED: "Başvuru onayı",
+  APPLICATION_REJECTED: "Başvuru reddi",
   ACCOUNT_ACTIVATION: "Hesap aktivasyonu",
   PREPARATION_UPDATE: "Hazırlık bilgisi",
   DELIVERY_READY: "Teslimat hazır",
@@ -52,8 +54,11 @@ export const PRIMARY_CONTACT_LABELS = Object.freeze({
 });
 
 export const MESSAGE_STATUS_LABELS = Object.freeze({
-  PENDING: "Bekliyor",
+  PLANNED: "Planlandı",
+  PREPARED: "Hazırlandı",
+  READY_TO_SEND: "Gönderime hazır",
   SENT: "Gönderildi",
+  FAILED: "Başarısız",
   CANCELLED: "İptal"
 });
 

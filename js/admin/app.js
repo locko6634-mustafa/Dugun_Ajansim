@@ -71,7 +71,8 @@ const state = {
   packages: [],
   services: [],
   catalogFormConstraints: null,
-  currentWedding: null
+  currentWedding: null,
+  openedMessageTaskIds: new Set()
 };
 
 const globalMessage = document.querySelector(".global-message");
@@ -920,7 +921,7 @@ function renderWeddingDetail(wedding) {
             )
             .join(
               ""
-            )}</select><input data-field="dueDate" type="date" aria-label="Teslim tarihi" value="${String(delivery.dueDate).slice(0, 10)}" ${delivery.status === "TESLIM_EDILDI" ? "disabled" : ""} /><input data-field="driveUrl" type="url" aria-label="Google Drive bağlantısı" placeholder="Google Drive bağlantısı" value="${escapeHtml(delivery.driveUrl || "")}" ${delivery.status === "TESLIM_EDILDI" ? "disabled" : ""} /><button class="mini-button" type="button" data-save-delivery="${delivery.id}" ${delivery.status === "TESLIM_EDILDI" ? "disabled" : ""}>Kaydet</button><button class="mini-button mini-button--primary" type="button" data-deliver="${delivery.id}" ${delivery.status !== "TESLIME_HAZIR" || !delivery.hasDriveUrl ? "disabled" : ""}>Teslim Et</button></div>`
+            )}</select><input data-field="dueDate" type="date" aria-label="Teslim tarihi" value="${String(delivery.dueDate).slice(0, 10)}" ${delivery.status === "TESLIM_EDILDI" ? "disabled" : ""} /><input data-field="driveUrl" type="url" aria-label="Google Drive bağlantısı" placeholder="Google Drive bağlantısı" value="${escapeHtml(delivery.driveUrl || "")}" ${delivery.status === "TESLIM_EDILDI" ? "disabled" : ""} /><button class="mini-button" type="button" data-save-delivery="${delivery.id}" ${delivery.status === "TESLIM_EDILDI" ? "disabled" : ""}>Kaydet</button><button class="mini-button mini-button--primary" type="button" data-deliver="${delivery.id}" ${delivery.status !== "TESLIME_HAZIR" || !delivery.hasDriveUrl ? "disabled" : ""}>Teslim Et</button>${delivery.status === "TESLIM_EDILDI" && !delivery.revokedAt ? `<button class="mini-button mini-button--danger" type="button" data-revoke-delivery="${delivery.id}">Erişimi geri çek</button>` : ""}${delivery.revokedAt ? `<span class="status-dot">Erişim geri çekildi</span>` : ""}</div>`
         : empty("Teslimat kaydı yok.")
     }</section>
     <section class="detail-block wide"><h3>Personel dağılımı</h3><div class="assignment-list">${
@@ -1078,6 +1079,29 @@ async function openManagerForm(manager = null) {
   managerDialog.showModal();
 }
 
+function renderMessageActions(task) {
+  if (task.status === "SENT" || task.status === "CANCELLED") {
+    return `<span class="status-dot" data-status="TESLIM_EDILDI">${escapeHtml(MESSAGE_STATUS_LABELS[task.status] || task.status)}</span>`;
+  }
+  const dueReached = new Date(task.dueAt).valueOf() <= Date.now() || Boolean(task.earlyOverrideAt);
+  const retryReached = !task.nextAttemptAt || new Date(task.nextAttemptAt).valueOf() <= Date.now();
+  const cancelButton = `<button class="mini-button" type="button" data-cancel-message="${task.id}">İptal</button>`;
+  const overrideButton = !dueReached
+    ? `<button class="mini-button" type="button" data-override-message="${task.id}">Erken gönderim onayı</button>`
+    : "";
+  if (task.status === "PLANNED" || task.status === "FAILED") {
+    return `<button class="mini-button mini-button--primary" type="button" data-prepare-message="${task.id}" ${retryReached ? "" : "disabled"}>Hazırla</button>${overrideButton}${cancelButton}`;
+  }
+  if (task.status === "PREPARED") {
+    return `<button class="mini-button mini-button--primary" type="button" data-verify-message="${task.id}" ${dueReached ? "" : "disabled"}>Linki doğrula</button>${overrideButton}${cancelButton}`;
+  }
+  if (task.status === "READY_TO_SEND") {
+    const opened = state.openedMessageTaskIds.has(task.id);
+    return `<button class="mini-button mini-button--primary" type="button" data-send-message="${task.id}" ${dueReached ? "" : "disabled"}>WhatsApp'ta gönder</button><button class="mini-button" type="button" data-mark-sent="${task.id}" data-task-updated-at="${escapeHtml(task.updatedAt)}" ${opened ? "" : "disabled"}>Gönderildi işaretle</button><button class="mini-button" type="button" data-mark-failed="${task.id}" data-task-updated-at="${escapeHtml(task.updatedAt)}" ${opened ? "" : "disabled"}>Başarısız</button>${overrideButton}${cancelButton}`;
+  }
+  return `<span class="status-dot">${escapeHtml(MESSAGE_STATUS_LABELS[task.status] || task.status)}</span>`;
+}
+
 async function loadMessages() {
   const container = document.querySelector(".js-messages");
   container.innerHTML = empty("Mesaj kayıtları yükleniyor…");
@@ -1087,11 +1111,7 @@ async function loadMessages() {
       ? response.data
           .map(
             (task) =>
-              `<article class="data-row"><div><strong>${escapeHtml(task.wedding.brideFirstName)} &amp; ${escapeHtml(task.wedding.groomFirstName)}</strong><small>${escapeHtml(MESSAGE_LABELS[task.kind] || task.kind)}</small></div><div><small>Alıcı</small><strong>${escapeHtml(task.recipientPhone)}</strong></div><div><small>${task.status === "SENT" ? "Gönderilen" : "Planlanan"}</small><strong>${formatDate(task.sentAt || task.dueAt, true)}</strong></div><div class="data-row__actions">${
-                task.status === "PENDING"
-                  ? `<button class="mini-button mini-button--primary" type="button" data-open-message="${task.id}" data-message-kind="${escapeHtml(task.kind)}">WhatsApp</button><button class="mini-button" type="button" data-mark-sent="${task.id}" data-task-updated-at="${escapeHtml(task.updatedAt)}">Gönderildi</button>`
-                  : `<span class="status-dot" data-status="TESLIM_EDILDI">${escapeHtml(MESSAGE_STATUS_LABELS[task.status] || task.status)}</span>`
-              }</div></article>`
+              `<article class="data-row"><div><strong>${escapeHtml(task.wedding.brideFirstName)} &amp; ${escapeHtml(task.wedding.groomFirstName)}</strong><small>${escapeHtml(MESSAGE_LABELS[task.kind] || task.kind)}</small></div><div><small>Alıcı</small><strong>${escapeHtml(task.recipientPhone)}</strong></div><div><small>${task.status === "SENT" ? "Gönderilen" : "Planlanan"}</small><strong>${formatDate(task.sentAt || task.dueAt, true)}</strong></div><div class="data-row__actions">${renderMessageActions(task)}</div></article>`
           )
           .join("")
       : empty("Mesaj kaydı bulunmuyor.");
@@ -1487,6 +1507,7 @@ detailContent.addEventListener("click", async (event) => {
   const editButton = event.target.closest("[data-edit-current]");
   const saveButton = event.target.closest("[data-save-delivery]");
   const deliverButton = event.target.closest("[data-deliver]");
+  const revokeDeliveryButton = event.target.closest("[data-revoke-delivery]");
   const resetButton = event.target.closest("[data-reset-user]");
   const removeButton = event.target.closest("[data-remove-assignment]");
   const archiveWeddingButton = event.target.closest("[data-archive-wedding]");
@@ -1510,17 +1531,38 @@ detailContent.addEventListener("click", async (event) => {
       });
       setMessage("Teslimat bilgileri kaydedildi.", true);
     } else if (deliverButton) {
-      const confirmed = await showCustomConfirm({
-        title: "Teslimatı Onayla ve Bildir",
-        message: "Drive bağlantısını müşteriye açıp teslim mesajını hazırlamak istiyor musunuz?",
+      const sharingConfirmation = await showCustomPrompt({
+        title: "Drive paylaşımını doğrula",
+        message:
+          "Bağlantıyı gizli pencerede açıp 'bağlantıya sahip herkes' erişimini doğrulayın ve ERİŞİMİ DOĞRULADIM yazın.",
+        placeholder: "ERİŞİMİ DOĞRULADIM",
         confirmText: "Teslim Et",
-        cancelText: "Vazgeç"
+        required: true
       });
-      if (!confirmed) return;
+      if (sharingConfirmation !== "ERİŞİMİ DOĞRULADIM") {
+        throw new Error("Teslimat için Drive paylaşım izni doğrulanmalıdır.");
+      }
       await apiRequest(`/admin/deliveries/${deliverButton.dataset.deliver}/deliver`, {
-        method: "POST"
+        method: "POST",
+        body: { sharingConfirmed: true, sharingConfirmation }
       });
       setMessage("Teslimat müşteriye açıldı ve mesaj görevi oluşturuldu.", true);
+    } else if (revokeDeliveryButton) {
+      const reason = await showCustomPrompt({
+        title: "Teslimat erişimini geri çek",
+        message: "Müşteri bağlantıya artık erişemeyecek. Gerekçeyi yazın.",
+        confirmText: "Erişimi geri çek",
+        isDanger: true,
+        required: true
+      });
+      if (!reason) return;
+      const response = await apiRequestWithAdminStepUp(
+        `/admin/deliveries/${revokeDeliveryButton.dataset.revokeDelivery}/revoke`,
+        { method: "POST", body: { reason } },
+        { actionLabel: "Teslimat erişimini geri çekme" }
+      );
+      if (!response) return;
+      setMessage("Teslimat erişimi geri çekildi.", true);
     } else if (resetButton) {
       const confirmation = await requestDangerConfirmation(
         {
@@ -1533,23 +1575,14 @@ detailContent.addEventListener("click", async (event) => {
         resetButton
       );
       if (confirmation === null) return;
-      const popup = openBlankPopup();
-      try {
-        const response = await apiRequestWithAdminStepUp(
-          `/admin/customers/${resetButton.dataset.resetUser}/reset-password`,
-          { method: "POST", body: confirmation },
-          { actionLabel: "Müşteri parolasını sıfırlama" }
-        );
-        if (!response) {
-          popup?.close();
-          return;
-        }
-        await openWhatsAppMessage(response.data, popup);
-        setMessage("Tek kullanımlık bağlantı panoya kopyalandı ve WhatsApp açıldı.", true);
-      } catch (error) {
-        popup?.close();
-        throw error;
-      }
+      const response = await apiRequestWithAdminStepUp(
+        `/admin/customers/${resetButton.dataset.resetUser}/reset-password`,
+        { method: "POST", body: confirmation },
+        { actionLabel: "Müşteri parolasını sıfırlama" }
+      );
+      if (!response) return;
+      setMessage("Parola sıfırlama görevi oluşturuldu; Mesajlar bölümünden hazırlayın.", true);
+      await Promise.all([loadMessages(), loadDashboard()]);
     } else if (archiveWeddingButton) {
       const accepted = await requestDangerConfirmation(
         {
@@ -1776,26 +1809,60 @@ managerForm.addEventListener("submit", async (event) => {
 });
 
 document.querySelector(".js-messages").addEventListener("click", async (event) => {
-  const openButton = event.target.closest("[data-open-message]");
+  const prepareButton = event.target.closest("[data-prepare-message]");
+  const verifyButton = event.target.closest("[data-verify-message]");
+  const sendButton = event.target.closest("[data-send-message]");
   const sentButton = event.target.closest("[data-mark-sent]");
+  const failedButton = event.target.closest("[data-mark-failed]");
+  const cancelButton = event.target.closest("[data-cancel-message]");
+  const overrideButton = event.target.closest("[data-override-message]");
   try {
-    if (openButton) {
+    if (prepareButton) {
+      const response = await apiRequestWithAdminStepUp(
+        `/admin/message-tasks/${prepareButton.dataset.prepareMessage}/render`,
+        { method: "POST", body: {} },
+        { actionLabel: "Hassas müşteri mesajını ve kimlik bağlantısını hazırlama" }
+      );
+      if (!response) return;
+      setMessage("Mesaj hazırlandı; link doğrulaması bekleniyor.", true);
+      await loadMessages();
+    } else if (verifyButton) {
+      const response = await apiRequestWithAdminStepUp(
+        `/admin/message-tasks/${verifyButton.dataset.verifyMessage}/verify`,
+        { method: "POST", body: {} },
+        { actionLabel: "Hassas müşteri mesajı bağlantısını doğrulama" }
+      );
+      if (!response) return;
+      setMessage("Mesaj ve bağlantı doğrulandı; gönderime hazır.", true);
+      await loadMessages();
+    } else if (sendButton) {
       const popup = openBlankPopup();
       try {
         const response = await apiRequestWithAdminStepUp(
-          `/admin/message-tasks/${openButton.dataset.openMessage}/render`,
+          `/admin/message-tasks/${sendButton.dataset.sendMessage}/verify`,
           { method: "POST", body: {} },
-          { actionLabel: "Hassas müşteri mesajını ve kimlik bağlantısını hazırlama" }
+          { actionLabel: "Hassas müşteri mesajını WhatsApp'ta gönderme" }
         );
         if (!response) {
           popup?.close();
           return;
         }
         await openWhatsAppMessage(response.data, popup);
+        state.openedMessageTaskIds.add(sendButton.dataset.sendMessage);
         const markButton = document.querySelector(
-          `[data-mark-sent="${openButton.dataset.openMessage}"]`
+          `[data-mark-sent="${sendButton.dataset.sendMessage}"]`
         );
-        if (markButton) markButton.dataset.taskUpdatedAt = response.data.expectedUpdatedAt;
+        const failedMarkButton = document.querySelector(
+          `[data-mark-failed="${sendButton.dataset.sendMessage}"]`
+        );
+        if (markButton) {
+          markButton.dataset.taskUpdatedAt = response.data.expectedUpdatedAt;
+          markButton.disabled = false;
+        }
+        if (failedMarkButton) {
+          failedMarkButton.dataset.taskUpdatedAt = response.data.expectedUpdatedAt;
+          failedMarkButton.disabled = false;
+        }
         setMessage("Mesaj panoya kopyalandı ve WhatsApp açıldı.", true);
       } catch (error) {
         popup?.close();
@@ -1806,7 +1873,52 @@ document.querySelector(".js-messages").addEventListener("click", async (event) =
         method: "POST",
         body: { expectedUpdatedAt: sentButton.dataset.taskUpdatedAt }
       });
+      state.openedMessageTaskIds.delete(sentButton.dataset.markSent);
       await Promise.all([loadMessages(), loadDashboard()]);
+    } else if (failedButton) {
+      const reason = await showCustomPrompt({
+        title: "Gönderim başarısız",
+        message: "Yeniden deneme kuyruğuna alınması için kısa nedeni yazın.",
+        confirmText: "Başarısız işaretle",
+        required: true
+      });
+      if (!reason) return;
+      await apiRequest(`/admin/message-tasks/${failedButton.dataset.markFailed}/mark-failed`, {
+        method: "POST",
+        body: { expectedUpdatedAt: failedButton.dataset.taskUpdatedAt, reason }
+      });
+      state.openedMessageTaskIds.delete(failedButton.dataset.markFailed);
+      await loadMessages();
+    } else if (cancelButton) {
+      const reason = await showCustomPrompt({
+        title: "Mesaj görevini iptal et",
+        message: "İptal nedeni denetim kaydına yazılır.",
+        confirmText: "İptal et",
+        isDanger: true,
+        required: true
+      });
+      if (!reason) return;
+      await apiRequest(`/admin/message-tasks/${cancelButton.dataset.cancelMessage}/cancel`, {
+        method: "POST",
+        body: { reason }
+      });
+      state.openedMessageTaskIds.delete(cancelButton.dataset.cancelMessage);
+      await loadMessages();
+    } else if (overrideButton) {
+      const reason = await showCustomPrompt({
+        title: "Erken gönderim onayı",
+        message: "Planlanan zamandan önce gönderme gerekçesini yazın.",
+        confirmText: "Onayla",
+        required: true
+      });
+      if (!reason) return;
+      const response = await apiRequestWithAdminStepUp(
+        `/admin/message-tasks/${overrideButton.dataset.overrideMessage}/override-due`,
+        { method: "POST", body: { reason } },
+        { actionLabel: "Mesaj için erken gönderim onayı" }
+      );
+      if (!response) return;
+      await loadMessages();
     }
   } catch (error) {
     setMessage(error.message);

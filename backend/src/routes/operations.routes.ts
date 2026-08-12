@@ -670,7 +670,7 @@ router.patch(
               where: {
                 weddingId: current.id,
                 kind: "PREPARATION_UPDATE",
-                status: "PENDING"
+                status: "PLANNED"
               },
               data: { dueAt: atIstanbulTime(addCalendarDays(req.body.weddingDate, 2), "10:00") }
             });
