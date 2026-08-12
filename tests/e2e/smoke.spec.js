@@ -1329,7 +1329,8 @@ test("@frontend-smoke offline public başvuruda form verisi ve tekrar deneme kor
   await page.locator(".js-summary-step").click();
   await expect(page.locator(".js-builder-request-status")).toContainText("Bilgileriniz korundu");
   await expect(page.locator(".js-builder-request-retry")).toBeVisible();
-  await page.locator('.builder-step[data-step="4"] .js-step-back[data-target-step="3"]').click();
+  await expect(page.locator('.builder-step[data-step="5"]')).toBeVisible();
+  await page.locator('.builder-step[data-step="5"] .js-edit-details').click();
   await expect(page.locator('input[name="primaryEmail"]')).toHaveValue("ayse@example.com");
 });
 
@@ -1373,6 +1374,7 @@ test("@frontend-smoke Turnstile error ve expired durumları güvenli yeniden haz
     route.fulfill({ contentType: "application/json", body: '{"success":true,"data":[]}' })
   );
   await page.goto("/paketini-olustur.html");
+  await expect.poll(() => page.evaluate(() => window.__turnstileRenderCount)).toBe(1);
   await page.evaluate(() => window.__turnstileOptions["error-callback"]());
   await expect(page.locator(".js-builder-request-status")).toContainText(
     "Bot doğrulaması tamamlanamadı"
