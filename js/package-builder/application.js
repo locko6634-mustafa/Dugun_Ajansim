@@ -1012,13 +1012,15 @@ function positionMobilePicker(picker) {
   const popoverHeight = popover.offsetHeight;
   const edgeGap = 16;
   const triggerGap = 8;
+  const stickyBottom = [...document.querySelectorAll(".builder-header, .builder-progress")].reduce(
+    (bottom, element) => Math.max(bottom, element.getBoundingClientRect().bottom),
+    viewportTop
+  );
+  const safeTop = Math.max(viewportTop + edgeGap, stickyBottom + triggerGap);
   const belowTop = triggerRect.bottom + triggerGap;
   const aboveTop = triggerRect.top - popoverHeight - triggerGap;
   const preferredTop = belowTop + popoverHeight <= viewportBottom - edgeGap ? belowTop : aboveTop;
-  const top = Math.max(
-    viewportTop + edgeGap,
-    Math.min(preferredTop, viewportBottom - popoverHeight - edgeGap)
-  );
+  const top = Math.max(safeTop, Math.min(preferredTop, viewportBottom - popoverHeight - edgeGap));
 
   popover.style.setProperty("--picker-mobile-top", `${Math.round(top)}px`);
 }
