@@ -997,11 +997,38 @@ const valueToDate = (value) => {
   return new Date(year, month - 1, day);
 };
 
+function positionMobilePicker(picker) {
+  const popover = picker.querySelector(".picker-popover");
+  const trigger = picker.querySelector(".picker-trigger");
+  if (!popover || !trigger || !window.matchMedia("(max-width: 640px)").matches) {
+    popover?.style.removeProperty("--picker-mobile-top");
+    return;
+  }
+
+  const viewport = window.visualViewport;
+  const viewportTop = viewport?.offsetTop ?? 0;
+  const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+  const triggerRect = trigger.getBoundingClientRect();
+  const popoverHeight = popover.offsetHeight;
+  const edgeGap = 16;
+  const triggerGap = 8;
+  const belowTop = triggerRect.bottom + triggerGap;
+  const aboveTop = triggerRect.top - popoverHeight - triggerGap;
+  const preferredTop = belowTop + popoverHeight <= viewportBottom - edgeGap ? belowTop : aboveTop;
+  const top = Math.max(
+    viewportTop + edgeGap,
+    Math.min(preferredTop, viewportBottom - popoverHeight - edgeGap)
+  );
+
+  popover.style.setProperty("--picker-mobile-top", `${Math.round(top)}px`);
+}
+
 function setPickerOpen(picker, isOpen) {
   const popover = picker.querySelector(".picker-popover");
   const trigger = picker.querySelector(".picker-trigger");
   popover.hidden = !isOpen;
   trigger.setAttribute("aria-expanded", String(isOpen));
+  if (isOpen) positionMobilePicker(picker);
 }
 
 function setPickerDisabled(input, isDisabled) {

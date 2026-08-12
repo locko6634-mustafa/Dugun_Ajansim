@@ -250,7 +250,7 @@ button {
 .builder-step {
   width: min(980px, 100%);
   margin: 0 auto;
-  animation: step-in 480ms var(--ease) both;
+  animation: step-in 480ms var(--ease) backwards;
 }
 
 .builder-step[hidden] {
@@ -1102,12 +1102,15 @@ button {
 @media (max-width: 640px) {
   .picker-popover {
     position: fixed;
+    top: var(--picker-mobile-top, 16px);
     right: 16px;
-    bottom: 16px;
+    bottom: auto;
     left: 16px;
     width: auto;
+    max-height: calc(100dvh - 32px);
     margin: 0;
     padding: 18px;
+    overflow-y: auto;
     box-shadow:
       0 0 0 100vmax hsl(30 20% 15% / 0.25),
       0 20px 45px hsl(30 18% 25% / 0.2);

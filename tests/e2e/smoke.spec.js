@@ -360,7 +360,8 @@ test("@frontend-smoke paketini olustur sayfasinda masaustunde sepet acilip kapan
 });
 
 test("@frontend-smoke paket formu çift, saat ve salon alanlarını backend kataloğuyla hazırlar", async ({
-  page
+  page,
+  isMobile
 }) => {
   await page.route("**/api/v1/catalog", (route) =>
     route.fulfill({
@@ -420,6 +421,25 @@ test("@frontend-smoke paket formu çift, saat ve salon alanlarını backend kata
   ).toBeVisible();
   await expect(page.locator(".js-venue-select")).toContainText("Cess Wedding");
   await page.locator('select[name="venueId"]').selectOption("de305d54-75b4-431b-adb2-eb6b9e546014");
+  if (isMobile) {
+    const dateTrigger = page.locator(".js-date-trigger");
+    await dateTrigger.evaluate((trigger) => {
+      window.scrollTo(0, trigger.getBoundingClientRect().top + window.scrollY - 170);
+    });
+    await dateTrigger.click();
+    const pickerPosition = await page.locator(".js-date-popover").evaluate((popover) => {
+      const trigger = document.querySelector(".js-date-trigger");
+      return {
+        popover: popover.getBoundingClientRect().toJSON(),
+        trigger: trigger.getBoundingClientRect().toJSON(),
+        viewportHeight: window.innerHeight
+      };
+    });
+    expect(pickerPosition.popover.top - pickerPosition.trigger.bottom).toBeLessThanOrEqual(12);
+    expect(pickerPosition.popover.top).toBeGreaterThanOrEqual(pickerPosition.trigger.bottom);
+    expect(pickerPosition.popover.bottom).toBeLessThanOrEqual(pickerPosition.viewportHeight - 15);
+    await page.keyboard.press("Escape");
+  }
   await selectWeddingDate(page, "2027-08-10");
   await expect(page.locator(".js-availability-banner")).toContainText(
     "Bu tarihte salon için başka kayıtlar bulunmaktadır."
