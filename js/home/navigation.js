@@ -80,6 +80,8 @@ const sectionsToTrack = sectionIds.map((id) => document.getElementById(id)).filt
 let isManualClick = false;
 let manualClickTimer = null;
 let scrollFrame = null;
+let layoutCorrectionTimer = null;
+let targetStabilityTimer = null;
 
 function setActiveNav(targetId) {
   if (!targetId) return;
@@ -98,18 +100,28 @@ function setActiveNav(targetId) {
 function scrollToTarget(targetElement) {
   if (!targetElement) return;
 
-  const getDesiredY = () => {
-    const header = document.querySelector(".header-bar, .site-header, header");
-    const headerHeight = header ? header.getBoundingClientRect().height : 80;
-    const targetTop = targetElement.getBoundingClientRect().top + window.scrollY;
-    return Math.max(0, targetTop - headerHeight - 16);
-  };
+  const header = document.querySelector(".header-bar, .site-header, header");
+  const headerHeight = header ? header.getBoundingClientRect().height : 80;
+  const targetTop = targetElement.getBoundingClientRect().top + window.scrollY;
+  const desiredY = Math.max(0, targetTop - headerHeight - 16);
 
-  const initialY = getDesiredY();
   window.scrollTo({
-    top: initialY,
+    top: desiredY,
     behavior: "smooth"
   });
+}
+
+function correctTargetPosition(targetId) {
+  if (window.location.hash !== `#${targetId}`) return;
+
+  const targetElement = document.getElementById(targetId);
+  const headerHeight = document.querySelector(".site-header")?.getBoundingClientRect().height ?? 80;
+  if (
+    targetElement &&
+    Math.abs(targetElement.getBoundingClientRect().top - headerHeight - 16) > 2
+  ) {
+    scrollToTarget(targetElement);
+  }
 }
 
 document.addEventListener("click", (event) => {
@@ -122,6 +134,8 @@ document.addEventListener("click", (event) => {
     const targetElement = document.getElementById(targetId);
     if (targetElement) {
       event.preventDefault();
+      clearTimeout(layoutCorrectionTimer);
+      clearTimeout(targetStabilityTimer);
       if (targetId === "anasayfa") {
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
@@ -131,6 +145,9 @@ document.addEventListener("click", (event) => {
         window.history.pushState(null, "", `#${targetId}`);
       } catch {}
       setActiveNav(targetId);
+      if (sectionIds.indexOf(targetId) > sectionIds.indexOf("hizmetler")) {
+        targetStabilityTimer = window.setTimeout(() => correctTargetPosition(targetId), 900);
+      }
       isManualClick = true;
       clearTimeout(manualClickTimer);
       manualClickTimer = setTimeout(() => {
@@ -180,6 +197,14 @@ window.addEventListener("hashchange", () => {
   if (hash && sectionIds.includes(hash)) {
     setActiveNav(hash);
   }
+});
+
+document.addEventListener("home:layoutchange", () => {
+  const targetId = window.location.hash.replace("#", "");
+  if (sectionIds.indexOf(targetId) <= sectionIds.indexOf("hizmetler")) return;
+
+  clearTimeout(layoutCorrectionTimer);
+  layoutCorrectionTimer = window.setTimeout(() => correctTargetPosition(targetId), 100);
 });
 
 window.addEventListener(

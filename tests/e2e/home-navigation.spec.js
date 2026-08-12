@@ -88,6 +88,42 @@ test("@responsive masaustu navigasyon tiklamasi tek bir kaydirma baslatir", asyn
   expect(await page.evaluate(() => window.__navigationScrollCalls)).toHaveLength(1);
 });
 
+test("@responsive gec yuklenen katalog paket olustur hedefini kaydirmaz", async ({ page }) => {
+  await page.route("**/api/v1/catalog", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          packages: [],
+          services: Array.from({ length: 8 }, (_, index) => ({
+            code: `hizmet-${index + 1}`,
+            name: `Hizmet ${index + 1}`,
+            priceCents: 100_000,
+            imagePath: "assets/images/hero-couple.webp"
+          }))
+        }
+      })
+    });
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/index.html");
+
+  await page.locator('.header-cta[href="#paket-olustur"]').click();
+  await expect(page.locator(".service-card")).toHaveCount(8);
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const headerBottom = document.querySelector(".site-header").getBoundingClientRect().bottom;
+        const targetTop = document.getElementById("paket-olustur").getBoundingClientRect().top;
+        return Math.abs(targetTop - headerBottom - 16);
+      })
+    )
+    .toBeLessThan(3);
+});
+
 test("@responsive scroll konumu masaustu navigasyonunun ust basligini gunceller", async ({
   page
 }) => {

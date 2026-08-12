@@ -36,6 +36,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let catalogServices = [];
   let activeServiceId = null;
 
+  function notifyLayoutChange() {
+    window.requestAnimationFrame(() => {
+      document.dispatchEvent(new window.CustomEvent("home:layoutchange"));
+    });
+  }
+
   function createFallbackIcon() {
     const icon = document.createElement("span");
     icon.className = "service-card__icon";
@@ -95,9 +101,11 @@ document.addEventListener("DOMContentLoaded", () => {
       emptyMessage.className = "services-empty";
       emptyMessage.textContent = "Aktif hizmetler kısa süre içinde burada yayınlanacak.";
       servicesGrid.replaceChildren(emptyMessage);
+      notifyLayoutChange();
       return;
     }
     servicesGrid.replaceChildren(...catalogServices.map(createServiceCard));
+    notifyLayoutChange();
   }
 
   function renderCatalogUnavailable() {
@@ -106,6 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
     message.textContent = "Hizmet kataloğu şu anda yüklenemiyor. Lütfen daha sonra tekrar deneyin.";
     catalogServices = [];
     servicesGrid.replaceChildren(message);
+    notifyLayoutChange();
   }
 
   function normalizeCatalogServices(remoteServices) {
