@@ -17,9 +17,16 @@ const PANEL_TITLES = {
   staff: "Salon ekibi"
 };
 const state = {
+  venueId: null,
   dashboard: null,
   weekStart: "",
+  dashboardReady: false,
+  dashboardLoading: false,
+  dashboardRequestId: 0,
   calendarMonth: "",
+  calendarReady: false,
+  calendarLoading: false,
+  calendarRequestId: 0,
   weddings: [],
   weddingPagination: {
     cursor: null,
@@ -42,6 +49,12 @@ const staffDialog = document.querySelector(".js-staff-dialog");
 const staffForm = document.querySelector(".js-staff-form");
 const weddingSearchInput = document.querySelector(".js-wedding-search");
 const weddingPagination = document.querySelector(".js-wedding-pagination");
+const weekNavigationButtons = [...document.querySelectorAll("[data-week-move], [data-week-today]")];
+const calendarNavigationButtons = [
+  ...document.querySelectorAll("[data-month-move], [data-month-today]")
+];
+const formControlStates = new WeakMap();
+const dialogReturnFocus = new WeakMap();
 
 const empty = (copy) => `<p class="empty">${escapeHtml(copy)}</p>`;
 const couple = (wedding) => `${wedding.brideFirstName} & ${wedding.groomFirstName}`;
@@ -82,6 +95,54 @@ const setMessage = (copy, success = false) => {
   message.classList.toggle("is-success", success);
 };
 
+function syncDateNavigation() {
+  weekNavigationButtons.forEach((button) => {
+    button.disabled = state.dashboardLoading || !state.dashboardReady;
+  });
+  calendarNavigationButtons.forEach((button) => {
+    button.disabled = state.calendarLoading || !state.calendarReady;
+  });
+  document.querySelector(".js-week")?.setAttribute("aria-busy", String(state.dashboardLoading));
+  document.querySelector(".js-calendar")?.setAttribute("aria-busy", String(state.calendarLoading));
+}
+
+function clearVenueScopedUi(nextVenueId = null) {
+  state.venueId = nextVenueId;
+  state.dashboard = null;
+  state.weekStart = "";
+  state.dashboardReady = false;
+  state.dashboardLoading = false;
+  state.dashboardRequestId += 1;
+  state.calendarMonth = "";
+  state.calendarReady = false;
+  state.calendarLoading = false;
+  state.calendarRequestId += 1;
+  state.weddings = [];
+  state.staff = [];
+  state.currentWedding = null;
+  state.weddingRequestId += 1;
+  resetWeddingPagination();
+  [".js-today", ".js-week", ".js-calendar", ".js-weddings", ".js-staff"].forEach((selector) =>
+    document.querySelector(selector)?.replaceChildren()
+  );
+  document.querySelectorAll("[data-metric]").forEach((node) => {
+    node.textContent = "—";
+  });
+  document.querySelectorAll(".js-venue-name").forEach((node) => {
+    node.textContent = "Yükleniyor";
+  });
+  syncDateNavigation();
+}
+
+function assertVenuePayload(data) {
+  if (!state.venueId || data?.venue?.id !== state.venueId) {
+    clearVenueScopedUi();
+    throw new Error(
+      "Salon oturumu değişti. Veriler güvenlik için temizlendi; yeniden giriş yapın."
+    );
+  }
+}
+
 async function ensureSession() {
   try {
     const response = await apiRequest("/auth/session");
@@ -89,11 +150,14 @@ async function ensureSession() {
       window.location.replace("login.html");
       return false;
     }
+    if (typeof response.data.venueId !== "string") throw new Error("Salon kapsamı bulunamadı.");
+    if (state.venueId !== response.data.venueId) clearVenueScopedUi(response.data.venueId);
     document.querySelector(".js-username").textContent = response.data.username;
     document.querySelector(".js-user-initial").textContent =
       response.data.username[0].toUpperCase();
     return true;
   } catch {
+    clearVenueScopedUi();
     window.location.replace("login.html");
     return false;
   }
@@ -111,8 +175,10 @@ function crew(assignments) {
 }
 
 function renderDashboard(data) {
+  assertVenuePayload(data);
   state.dashboard = data;
   state.weekStart = data.weekStart;
+  state.dashboardReady = true;
   document.querySelectorAll(".js-venue-name").forEach((node) => {
     node.textContent = data.venue.name;
   });
@@ -161,13 +227,32 @@ function renderDashboard(data) {
 }
 
 async function loadDashboard(weekStart = state.weekStart) {
+  const requestId = ++state.dashboardRequestId;
   const query = weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : "";
-  const response = await apiRequest(`/operations/dashboard${query}`);
-  renderDashboard(response.data);
+  state.dashboardLoading = true;
+  syncDateNavigation();
+  document.querySelector(".js-week-message").textContent = "";
+  try {
+    const response = await apiRequest(`/operations/dashboard${query}`);
+    if (requestId !== state.dashboardRequestId) return;
+    renderDashboard(response.data);
+  } catch (error) {
+    if (requestId === state.dashboardRequestId) {
+      document.querySelector(".js-week-message").textContent = error.message;
+    }
+    throw error;
+  } finally {
+    if (requestId === state.dashboardRequestId) {
+      state.dashboardLoading = false;
+      syncDateNavigation();
+    }
+  }
 }
 
 function renderCalendar(data) {
+  assertVenuePayload(data);
   state.calendarMonth = data.month;
+  state.calendarReady = true;
   const [year, month] = data.month.split("-").map(Number);
   document.querySelector(".js-calendar-label").textContent = new Intl.DateTimeFormat(APP_LOCALE, {
     month: "long",
@@ -202,9 +287,26 @@ function renderCalendar(data) {
 }
 
 async function loadCalendar(month = state.calendarMonth) {
+  const requestId = ++state.calendarRequestId;
   const query = month ? `?month=${encodeURIComponent(month)}` : "";
-  const response = await apiRequest(`/operations/calendar${query}`);
-  renderCalendar(response.data);
+  state.calendarLoading = true;
+  syncDateNavigation();
+  document.querySelector(".js-calendar-message").textContent = "";
+  try {
+    const response = await apiRequest(`/operations/calendar${query}`);
+    if (requestId !== state.calendarRequestId) return;
+    renderCalendar(response.data);
+  } catch (error) {
+    if (requestId === state.calendarRequestId) {
+      document.querySelector(".js-calendar-message").textContent = error.message;
+    }
+    throw error;
+  } finally {
+    if (requestId === state.calendarRequestId) {
+      state.calendarLoading = false;
+      syncDateNavigation();
+    }
+  }
 }
 
 function weddingSearchTerm() {
@@ -257,6 +359,8 @@ function renderWeddings() {
 }
 
 async function loadWeddings() {
+  const venueId = state.venueId;
+  if (!venueId) throw new Error("Salon oturumu doğrulanmadan veri yüklenemez.");
   const term = weddingSearchTerm();
   if (term.length === 1) {
     state.weddingRequestId += 1;
@@ -278,10 +382,16 @@ async function loadWeddings() {
 
   try {
     const response = await apiRequest(`/operations/weddings?${query.toString()}`);
-    if (requestId !== state.weddingRequestId) return;
+    if (requestId !== state.weddingRequestId || venueId !== state.venueId) return;
     const isLegacy = Array.isArray(response.data);
     const items = isLegacy ? response.data : response.data?.items;
     if (!Array.isArray(items)) throw new Error("Düğün listesi geçersiz yanıt verdi.");
+    if (items.some((wedding) => wedding?.venueId !== venueId)) {
+      clearVenueScopedUi();
+      throw new Error(
+        "Salon kapsamı dışında düğün verisi alındı; görünüm güvenlik için temizlendi."
+      );
+    }
     const pagination = isLegacy ? null : response.data?.pagination;
     state.weddings = items;
     state.weddingPagination.isLegacy = isLegacy;
@@ -376,7 +486,17 @@ function renderStaff() {
 }
 
 async function loadStaff() {
+  const venueId = state.venueId;
+  if (!venueId) throw new Error("Salon oturumu doğrulanmadan veri yüklenemez.");
   const response = await apiRequest("/operations/staff");
+  if (venueId !== state.venueId) return;
+  if (
+    !Array.isArray(response.data) ||
+    response.data.some((staff) => staff.venue?.id && staff.venue.id !== venueId)
+  ) {
+    clearVenueScopedUi();
+    throw new Error("Salon kapsamı dışında veri alındı; görünüm güvenlik için temizlendi.");
+  }
   state.staff = response.data;
   populateVenueFilter();
   renderStaff();
@@ -389,6 +509,7 @@ function setStaffFieldError(fieldName, copy = "") {
   const input = staffForm.elements[fieldName];
   const error = staffForm.querySelector(`[data-staff-error="${fieldName}"]`);
   input?.setCustomValidity(copy);
+  input?.setAttribute("aria-invalid", String(Boolean(copy)));
   if (error) error.textContent = copy;
 }
 
@@ -422,6 +543,7 @@ function validateStaffSpecialties() {
   const valid = inputs.some((input) => input.checked);
   const copy = valid ? "" : "En az bir uzmanlık seçin.";
   inputs[0]?.setCustomValidity(copy);
+  staffForm.querySelector(".specialty-choices")?.setAttribute("aria-invalid", String(!valid));
   staffForm.querySelector(".js-specialties-error").textContent = copy;
   return valid;
 }
@@ -431,6 +553,7 @@ function clearStaffFormErrors() {
   staffForm
     .querySelectorAll('[name="specialties"]')
     .forEach((input) => input.setCustomValidity(""));
+  staffForm.querySelector(".specialty-choices")?.setAttribute("aria-invalid", "false");
   staffForm.querySelector(".js-specialties-error").textContent = "";
 }
 
@@ -453,11 +576,94 @@ function applyStaffApiFieldErrors(error) {
       setStaffFieldError(item.field, item.message);
     } else if (item?.field === "specialties") {
       staffForm.querySelector(".js-specialties-error").textContent = item.message;
+      staffForm.querySelector(".specialty-choices")?.setAttribute("aria-invalid", "true");
     }
   });
 }
 
-function openStaffForm(staff = null) {
+function setFormBusy(form, busy, pendingLabel) {
+  const controls = [...form.querySelectorAll("input, select, textarea, button")];
+  if (busy) {
+    formControlStates.set(
+      form,
+      controls.map((control) => ({ control, disabled: control.disabled }))
+    );
+    controls.forEach((control) => {
+      control.disabled = true;
+    });
+    const submit = form.querySelector('[type="submit"]');
+    if (submit) {
+      submit.dataset.idleLabel = submit.textContent;
+      submit.textContent = pendingLabel;
+    }
+    form.setAttribute("aria-busy", "true");
+    return;
+  }
+
+  (formControlStates.get(form) || []).forEach(({ control, disabled }) => {
+    control.disabled = disabled;
+  });
+  const submit = form.querySelector('[type="submit"]');
+  if (submit?.dataset.idleLabel) {
+    submit.textContent = submit.dataset.idleLabel;
+    delete submit.dataset.idleLabel;
+  }
+  form.removeAttribute("aria-busy");
+  formControlStates.delete(form);
+}
+
+function setDialogBusy(dialog, busy) {
+  dialog.dataset.busy = String(busy);
+  const closeButton = dialog.querySelector(".dialog-close");
+  if (closeButton) closeButton.disabled = busy;
+}
+
+function clearDynamicFieldError(input) {
+  input.setCustomValidity("");
+  input.setAttribute("aria-invalid", "false");
+  input.form?.querySelector(`[data-field-error="${input.name}"]`)?.replaceChildren();
+}
+
+function showDynamicFieldError(form, fieldName, copy) {
+  const input = form.elements[fieldName];
+  const error = form.querySelector(`[data-field-error="${fieldName}"]`);
+  if (!input || !error) return false;
+  input.setCustomValidity(copy);
+  input.setAttribute("aria-invalid", "true");
+  error.textContent = copy;
+  return true;
+}
+
+function applyDynamicApiErrors(form, error) {
+  const errors = error?.payload?.fieldErrors;
+  if (!Array.isArray(errors)) return false;
+  return errors.reduce((shown, item) => {
+    const fieldName = String(item?.field || "")
+      .split(".")
+      .at(-1);
+    return showDynamicFieldError(form, fieldName, item?.message || "Alanı kontrol edin.") || shown;
+  }, false);
+}
+
+function showDialog(dialog, returnFocus, initialFocus) {
+  if (returnFocus instanceof HTMLElement) dialogReturnFocus.set(dialog, returnFocus);
+  if (dialog.open) return;
+  dialog.showModal();
+  window.requestAnimationFrame(() => initialFocus?.focus());
+}
+
+function closeDialog(dialog) {
+  if (dialog.dataset.busy === "true") return;
+  if (dialog.open) dialog.close();
+}
+
+function restoreDialogFocus(dialog) {
+  const target = dialogReturnFocus.get(dialog);
+  dialogReturnFocus.delete(dialog);
+  if (target?.isConnected) target.focus();
+}
+
+function openStaffForm(staff = null, returnFocus = null) {
   staffForm.reset();
   clearStaffFormErrors();
   staffForm.elements.staffId.value = staff?.id || "";
@@ -472,7 +678,7 @@ function openStaffForm(staff = null) {
     ? "Personeli düzenle"
     : "Personel ekle";
   staffForm.querySelector(".dialog-message").textContent = "";
-  staffDialog.showModal();
+  showDialog(staffDialog, returnFocus, staffForm.elements.firstName);
 }
 
 function isWeddingReadOnly(wedding) {
@@ -498,14 +704,63 @@ function renderWeddingDetail(wedding) {
     )
     .join("");
   const assignments = wedding.assignments || [];
-  detailContainer.innerHTML = `<div class="detail-grid">${locked ? `<section class="detail-card wide"><p class="dialog-message">${escapeHtml(lockedMessage)}</p></section>` : ""}<section class="detail-card"><p class="section-index">İletişim</p><strong>${escapeHtml(wedding.brideFirstName)}: ${escapeHtml(wedding.bridePhone)}</strong><br><strong>${escapeHtml(wedding.groomFirstName)}: ${escapeHtml(wedding.groomPhone)}</strong></section><section class="detail-card"><p class="section-index">Paket</p><strong>${escapeHtml(wedding.packageSummary?.name || "Paket belirtilmedi")}</strong><p>${escapeHtml(wedding.note || "Operasyon notu yok.")}</p></section><section class="detail-card wide"><p class="section-index">Takvim düzenle</p><form class="form-grid js-schedule-form"><label>Tarih<input name="weddingDate" type="date" value="${startDate}" required${disabled}></label><label>Başlangıç<input name="startTime" type="time" value="${inputTime(wedding.startsAt)}" required${disabled}></label><label>Bitiş<input name="endTime" type="time" value="${inputTime(wedding.endsAt)}" required${disabled}></label><label class="switch-row"><input name="endsNextDay" type="checkbox" ${startDate !== endDate ? "checked" : ""}${disabled}> Bitiş ertesi gün</label><label class="wide">Operasyon notu<textarea name="note"${disabled}>${escapeHtml(wedding.note || "")}</textarea></label><button class="primary-button wide" type="submit"${disabled}>Takvimi güncelle</button></form></section><section class="detail-card wide"><p class="section-index">Görevli ekip</p><div>${assignments.length ? assignments.map((assignment) => `<div class="assignment-row"><span><strong>${escapeHtml(assignment.staff.firstName)} ${escapeHtml(assignment.staff.lastName)}</strong><small>${escapeHtml(SPECIALTIES[assignment.specialty])}</small></span>${locked ? "" : `<button class="mini-button" type="button" data-remove-assignment="${assignment.id}">Kaldır</button>`}</div>`).join("") : empty("Henüz personel atanmadı.")}</div>${locked ? "" : `<form class="assignment-form js-assignment-form"><select name="staffId" required><option value="">Müsait personel seçin</option>${availableOptions}</select><select name="specialty" required><option value="">Önce personel seçin</option></select><button class="primary-button" type="submit">Ata</button></form>`}<p class="dialog-message" role="status"></p></section></div>`;
+  detailContainer.innerHTML = `<div class="detail-grid">
+    ${locked ? `<section class="detail-card wide"><p class="dialog-message">${escapeHtml(lockedMessage)}</p></section>` : ""}
+    <section class="detail-card">
+      <p class="section-index">İletişim</p>
+      <strong>${escapeHtml(wedding.brideFirstName)}: ${escapeHtml(wedding.bridePhone)}</strong><br>
+      <strong>${escapeHtml(wedding.groomFirstName)}: ${escapeHtml(wedding.groomPhone)}</strong>
+    </section>
+    <section class="detail-card">
+      <p class="section-index">Paket</p>
+      <strong>${escapeHtml(wedding.packageSummary?.name || "Paket belirtilmedi")}</strong>
+      <p>${escapeHtml(wedding.note || "Operasyon notu yok.")}</p>
+    </section>
+    <section class="detail-card wide">
+      <p class="section-index">Takvim düzenle</p>
+      <form class="form-grid js-schedule-form">
+        <label>Tarih
+          <input name="weddingDate" type="date" value="${startDate}" aria-describedby="schedule-date-error" required${disabled}>
+          <span class="field-error" id="schedule-date-error" data-field-error="weddingDate" aria-live="polite"></span>
+        </label>
+        <label>Başlangıç
+          <input name="startTime" type="time" value="${inputTime(wedding.startsAt)}" step="1800" aria-describedby="schedule-start-error" required${disabled}>
+          <span class="field-error" id="schedule-start-error" data-field-error="startTime" aria-live="polite"></span>
+        </label>
+        <label>Bitiş
+          <input name="endTime" type="time" value="${inputTime(wedding.endsAt)}" step="1800" aria-describedby="schedule-end-error" required${disabled}>
+          <span class="field-error" id="schedule-end-error" data-field-error="endTime" aria-live="polite"></span>
+        </label>
+        <label class="switch-row">
+          <input name="endsNextDay" type="checkbox" ${startDate !== endDate ? "checked" : ""}${disabled}> Bitiş ertesi gün
+        </label>
+        <label class="wide">Operasyon notu
+          <textarea name="note" aria-describedby="schedule-note-error"${disabled}>${escapeHtml(wedding.note || "")}</textarea>
+          <span class="field-error" id="schedule-note-error" data-field-error="note" aria-live="polite"></span>
+        </label>
+        <p class="dialog-message wide js-form-message" role="alert" aria-live="assertive"></p>
+        <button class="primary-button wide" type="submit"${disabled}>Takvimi güncelle</button>
+      </form>
+    </section>
+    <section class="detail-card wide">
+      <p class="section-index">Görevli ekip</p>
+      <div>${assignments.length ? assignments.map((assignment) => `<div class="assignment-row"><span><strong>${escapeHtml(assignment.staff.firstName)} ${escapeHtml(assignment.staff.lastName)}</strong><small>${escapeHtml(SPECIALTIES[assignment.specialty])}</small></span>${locked ? "" : `<button class="mini-button" type="button" data-remove-assignment="${assignment.id}">Kaldır</button>`}</div>`).join("") : empty("Henüz personel atanmadı.")}</div>
+      ${locked ? "" : `<form class="assignment-form js-assignment-form"><label>Personel<select name="staffId" aria-describedby="assignment-staff-error" required><option value="">Müsait personel seçin</option>${availableOptions}</select><span class="field-error" id="assignment-staff-error" data-field-error="staffId" aria-live="polite"></span></label><label>Uzmanlık<select name="specialty" aria-describedby="assignment-specialty-error" required><option value="">Önce personel seçin</option></select><span class="field-error" id="assignment-specialty-error" data-field-error="specialty" aria-live="polite"></span></label><button class="primary-button" type="submit">Ata</button><p class="dialog-message js-form-message" role="alert" aria-live="assertive"></p></form>`}
+    </section>
+  </div>`;
 }
 
-async function openWedding(weddingId) {
-  if (!weddingDialog.open) weddingDialog.showModal();
-  detailContainer.innerHTML = empty("Düğün dosyası yükleniyor…");
+async function openWedding(weddingId, returnFocus = null, { showLoading = true } = {}) {
+  showDialog(weddingDialog, returnFocus, weddingDialog.querySelector(".dialog-close"));
+  if (showLoading) detailContainer.innerHTML = empty("Düğün dosyası yükleniyor…");
   try {
     const response = await apiRequest(`/operations/weddings/${weddingId}`);
+    if (!state.venueId || response.data?.venueId !== state.venueId) {
+      clearVenueScopedUi();
+      throw new Error(
+        "Salon kapsamı dışında düğün verisi alındı; görünüm güvenlik için temizlendi."
+      );
+    }
     renderWeddingDetail(response.data);
   } catch (error) {
     detailContainer.innerHTML = empty(error.message);
@@ -518,6 +773,19 @@ const loaders = {
   weddings: loadWeddings,
   staff: loadStaff
 };
+
+function activePanelName() {
+  return document.querySelector("[data-panel].is-active")?.dataset.panel || "overview";
+}
+
+async function refreshActivePanel() {
+  await loaders[activePanelName()]?.();
+}
+
+async function refreshWeddingContext(weddingId) {
+  await Promise.all([openWedding(weddingId, null, { showLoading: false }), refreshActivePanel()]);
+}
+
 function activatePanel(name) {
   document
     .querySelectorAll("[data-panel]")
@@ -535,11 +803,11 @@ document.addEventListener("click", (event) => {
   const panel = event.target.closest("[data-panel]");
   const wedding = event.target.closest("[data-open-wedding]");
   if (panel) activatePanel(panel.dataset.panel);
-  else if (wedding) void openWedding(wedding.dataset.openWedding);
+  else if (wedding) void openWedding(wedding.dataset.openWedding, wedding);
 });
 document
   .querySelector("[data-close-dialog]")
-  .addEventListener("click", () => weddingDialog.close());
+  .addEventListener("click", () => closeDialog(weddingDialog));
 let weddingSearchTimer = null;
 weddingSearchInput.addEventListener("input", () => {
   window.clearTimeout(weddingSearchTimer);
@@ -573,19 +841,33 @@ document.querySelector(".js-add-staff").addEventListener("click", () => openStaf
 document.querySelector(".js-staff").addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit-staff]");
   const toggle = event.target.closest("[data-toggle-staff]");
-  if (edit) openStaffForm(state.staff.find((staff) => staff.id === edit.dataset.editStaff));
-  else if (toggle)
+  if (edit)
+    openStaffForm(
+      state.staff.find((staff) => staff.id === edit.dataset.editStaff),
+      edit
+    );
+  else if (toggle) {
+    const idleLabel = toggle.textContent;
+    toggle.disabled = true;
+    toggle.textContent = "Güncelleniyor…";
     void apiRequest(`/operations/staff/${toggle.dataset.toggleStaff}`, {
       method: "PATCH",
       body: { isActive: toggle.dataset.active !== "true" }
     })
-      .then(() => Promise.all([loadStaff(), loadDashboard()]))
+      .then(() => loadStaff())
       .then(() => setMessage("Personel durumu güncellendi.", true))
-      .catch((error) => setMessage(error.message));
+      .catch((error) => {
+        if (toggle.isConnected) {
+          toggle.disabled = false;
+          toggle.textContent = idleLabel;
+        }
+        setMessage(error.message);
+      });
+  }
 });
 staffForm
   .querySelectorAll('[value="cancel"]')
-  .forEach((button) => button.addEventListener("click", () => staffDialog.close()));
+  .forEach((button) => button.addEventListener("click", () => closeDialog(staffDialog)));
 staffForm.addEventListener("input", (event) => {
   if (["firstName", "lastName"].includes(event.target.name))
     validateStaffTextField(event.target.name);
@@ -598,11 +880,8 @@ staffForm.addEventListener("submit", async (event) => {
   if (!validateStaffForm()) return;
   const data = new FormData(staffForm);
   const staffId = data.get("staffId");
-  const submitButton = staffForm.querySelector(".js-staff-submit");
-  const submitLabel = submitButton.textContent;
-  submitButton.disabled = true;
-  submitButton.textContent = "Kaydediliyor…";
-  staffForm.setAttribute("aria-busy", "true");
+  setFormBusy(staffForm, true, "Kaydediliyor…");
+  setDialogBusy(staffDialog, true);
   try {
     await apiRequest(staffId ? `/operations/staff/${staffId}` : "/operations/staff", {
       method: staffId ? "PATCH" : "POST",
@@ -614,16 +893,16 @@ staffForm.addEventListener("submit", async (event) => {
         isActive: data.has("isActive")
       }
     });
-    staffDialog.close();
-    await Promise.all([loadStaff(), loadDashboard()]);
+    setDialogBusy(staffDialog, false);
+    closeDialog(staffDialog);
+    await loadStaff();
     setMessage(staffId ? "Personel güncellendi." : "Personel eklendi.", true);
   } catch (error) {
     applyStaffApiFieldErrors(error);
     staffForm.querySelector(".dialog-message").textContent = error.message;
   } finally {
-    submitButton.disabled = false;
-    submitButton.textContent = submitLabel;
-    staffForm.removeAttribute("aria-busy");
+    setFormBusy(staffForm, false);
+    setDialogBusy(staffDialog, false);
   }
 });
 
@@ -640,15 +919,23 @@ detailContainer.addEventListener("change", (event) => {
         .join("")
     : '<option value="">Önce personel seçin</option>';
 });
+detailContainer.addEventListener("input", (event) => {
+  if (event.target.matches("input, select, textarea")) clearDynamicFieldError(event.target);
+});
 detailContainer.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (isWeddingReadOnly(state.currentWedding)) {
     setMessage("İptal veya arşiv durumundaki düğünlerde operasyon değişikliği yapılamaz.");
     return;
   }
+  const form = event.target;
   const data = new FormData(event.target);
+  const formMessage = form.querySelector(".js-form-message");
+  formMessage?.replaceChildren();
+  setFormBusy(form, true, form.matches(".js-schedule-form") ? "Güncelleniyor…" : "Atanıyor…");
+  setDialogBusy(weddingDialog, true);
   try {
-    if (event.target.matches(".js-schedule-form")) {
+    if (form.matches(".js-schedule-form")) {
       await apiRequest(`/operations/weddings/${state.currentWedding.id}`, {
         method: "PATCH",
         body: {
@@ -660,7 +947,7 @@ detailContainer.addEventListener("submit", async (event) => {
         }
       });
       setMessage("Düğün takvimi güncellendi.", true);
-    } else if (event.target.matches(".js-assignment-form")) {
+    } else if (form.matches(".js-assignment-form")) {
       await apiRequest(`/operations/weddings/${state.currentWedding.id}/assignments`, {
         method: "POST",
         body: {
@@ -670,18 +957,13 @@ detailContainer.addEventListener("submit", async (event) => {
       });
       setMessage("Personel göreve atandı.", true);
     }
-    await Promise.all([
-      openWedding(state.currentWedding.id),
-      loadDashboard(),
-      loadWeddings(),
-      loadCalendar()
-    ]);
+    await refreshWeddingContext(state.currentWedding.id);
   } catch (error) {
-    event.target
-      .closest(".detail-card")
-      .querySelector(".dialog-message")
-      ?.replaceChildren(error.message);
-    setMessage(error.message);
+    applyDynamicApiErrors(form, error);
+    formMessage?.replaceChildren(error.message);
+  } finally {
+    setFormBusy(form, false);
+    setDialogBusy(weddingDialog, false);
   }
 });
 detailContainer.addEventListener("click", async (event) => {
@@ -691,15 +973,29 @@ detailContainer.addEventListener("click", async (event) => {
     setMessage("İptal veya arşiv durumundaki düğünlerde atama kaldırılamaz.");
     return;
   }
+  const idleLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Kaldırılıyor…";
+  setDialogBusy(weddingDialog, true);
   try {
     await apiRequest(
       `/operations/weddings/${state.currentWedding.id}/assignments/${button.dataset.removeAssignment}`,
       { method: "DELETE" }
     );
-    await Promise.all([openWedding(state.currentWedding.id), loadDashboard(), loadWeddings()]);
+    await refreshWeddingContext(state.currentWedding.id);
     setMessage("Personel ataması kaldırıldı.", true);
   } catch (error) {
-    setMessage(error.message);
+    detailContainer
+      .querySelector(
+        ".js-assignment-form + .dialog-message, .detail-card:last-child .dialog-message"
+      )
+      ?.replaceChildren(error.message);
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      button.textContent = idleLabel;
+    }
+    setDialogBusy(weddingDialog, false);
   }
 });
 
@@ -708,12 +1004,14 @@ document
   .forEach((button) =>
     button.addEventListener(
       "click",
-      () => void loadDashboard(addDays(state.weekStart, Number(button.dataset.weekMove)))
+      () =>
+        void loadDashboard(addDays(state.weekStart, Number(button.dataset.weekMove))).catch(
+          (error) => setMessage(error.message)
+        )
     )
   );
 document.querySelector("[data-week-today]").addEventListener("click", () => {
-  state.weekStart = "";
-  void loadDashboard();
+  void loadDashboard("").catch((error) => setMessage(error.message));
 });
 const moveMonth = (offset) => {
   const [year, month] = state.calendarMonth.split("-").map(Number);
@@ -725,12 +1023,14 @@ document
   .forEach((button) =>
     button.addEventListener(
       "click",
-      () => void loadCalendar(moveMonth(Number(button.dataset.monthMove)))
+      () =>
+        void loadCalendar(moveMonth(Number(button.dataset.monthMove))).catch((error) =>
+          setMessage(error.message)
+        )
     )
   );
 document.querySelector("[data-month-today]").addEventListener("click", () => {
-  state.calendarMonth = "";
-  void loadCalendar();
+  void loadCalendar("").catch((error) => setMessage(error.message));
 });
 
 document.querySelector(".js-specialties").innerHTML = Object.entries(SPECIALTIES)
@@ -759,17 +1059,27 @@ const toggleOpsSidebarBtn = document.querySelector(".js-toggle-ops-sidebar");
 const closeOpsSidebarBtn = document.querySelector(".js-close-ops-sidebar");
 const opsSidebar = document.querySelector(".ops-sidebar");
 const opsSidebarOverlay = document.querySelector(".js-ops-sidebar-overlay");
+const opsMain = document.querySelector(".ops-main");
 
-function closeOpsSidebar() {
+function closeOpsSidebar({ restoreFocus = true } = {}) {
+  const wasOpen = opsSidebar?.classList.contains("is-open");
   opsSidebar?.classList.remove("is-open");
   opsSidebarOverlay?.classList.remove("is-open");
+  opsSidebarOverlay?.setAttribute("aria-hidden", "true");
+  toggleOpsSidebarBtn?.setAttribute("aria-expanded", "false");
+  if (opsMain) opsMain.inert = false;
   document.body.classList.remove("sidebar-open");
+  if (wasOpen && restoreFocus) toggleOpsSidebarBtn?.focus();
 }
 
 function openOpsSidebar() {
   opsSidebar?.classList.add("is-open");
   opsSidebarOverlay?.classList.add("is-open");
+  opsSidebarOverlay?.setAttribute("aria-hidden", "false");
+  toggleOpsSidebarBtn?.setAttribute("aria-expanded", "true");
+  if (opsMain) opsMain.inert = true;
   document.body.classList.add("sidebar-open");
+  closeOpsSidebarBtn?.focus();
 }
 
 if (toggleOpsSidebarBtn && opsSidebar) {
@@ -784,7 +1094,7 @@ if (toggleOpsSidebarBtn && opsSidebar) {
   closeOpsSidebarBtn?.addEventListener("click", () => closeOpsSidebar());
   opsSidebarOverlay?.addEventListener("click", () => closeOpsSidebar());
   opsSidebar.querySelectorAll("button, a").forEach((btn) => {
-    btn.addEventListener("click", () => closeOpsSidebar());
+    if (btn !== closeOpsSidebarBtn) btn.addEventListener("click", () => closeOpsSidebar());
   });
   document.addEventListener("click", (e) => {
     if (
@@ -797,11 +1107,17 @@ if (toggleOpsSidebarBtn && opsSidebar) {
   });
 }
 
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
+[weddingDialog, staffDialog].forEach((dialog) => {
+  dialog.addEventListener("cancel", (event) => {
+    if (dialog.dataset.busy === "true") event.preventDefault();
+  });
+  dialog.addEventListener("close", () => restoreDialogFocus(dialog));
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && opsSidebar?.classList.contains("is-open")) {
+    event.preventDefault();
     closeOpsSidebar();
-    if (weddingDialog?.open) weddingDialog.close();
-    if (staffDialog?.open) staffDialog.close();
   }
 });
 

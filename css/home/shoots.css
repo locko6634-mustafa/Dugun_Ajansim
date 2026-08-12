@@ -220,6 +220,22 @@
     transform 800ms var(--ease);
 }
 
+.shoot-card__open {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.shoot-card__open:focus-visible {
+  outline: 3px solid var(--gold-light);
+  outline-offset: -5px;
+}
+
 .shoot-card:hover video {
   transform: scale(1.025);
 }
@@ -319,7 +335,7 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  z-index: 3;
+  z-index: 4;
   display: grid;
   width: 42px;
   height: 42px;
@@ -370,7 +386,7 @@
   position: absolute;
   top: 18px;
   left: 18px;
-  z-index: 3;
+  z-index: 4;
   color: hsl(38 42% 98% / 0.86);
   font-family: var(--serif);
   font-size: 12px;

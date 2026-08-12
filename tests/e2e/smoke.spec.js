@@ -71,6 +71,14 @@ test("@frontend-smoke yayın manifesti SEO, FAQ ve footer içeriğine yansır", 
   await expect(page.locator(".site-footer__brand > p")).toHaveText(
     siteContent.brand.footerDescription
   );
+  await expect(page.locator('.site-footer__contact a[href^="tel:"]')).toHaveAttribute(
+    "href",
+    "tel:+905386888306"
+  );
+  await expect(page.locator('.site-footer__contact a[href^="https://wa.me/"]')).toHaveAttribute(
+    "href",
+    "https://wa.me/905386888306"
+  );
 });
 
 async function clickPanel(page, panelName, isOps = false) {
@@ -78,7 +86,7 @@ async function clickPanel(page, panelName, isOps = false) {
   const toggleBtn = page.locator(toggleSelector);
   if (await toggleBtn.isVisible()) {
     await toggleBtn.click();
-    await page.waitForTimeout(200);
+    await expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
   }
   await page.locator(`[data-panel="${panelName}"]`).first().click();
 }
@@ -122,6 +130,20 @@ for (const pagePath of pages) {
     await expect(page.locator("html")).toHaveAttribute("lang", "tr");
     await expect(page.locator("h1:visible")).toHaveCount(1);
     await expect(page).toHaveTitle(/.+/);
+    if (pagePath === "/login.html") {
+      await expect(page.locator("#username")).toHaveAttribute("maxlength", "64");
+      await expect(page.locator("#password")).toHaveAttribute("maxlength", "256");
+      await expect(page.locator(".forgot-button")).toHaveAttribute("href", /^https:\/\/wa\.me\//);
+    }
+    if (pagePath === "/index.html") {
+      await expect(page.locator(".shoot-card__open").first()).toHaveAccessibleName(
+        "Talia akşam düğün çekimini büyüt ve oynat"
+      );
+      await expect(page.locator(".shoot-card__sound").first()).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
+    }
   });
 
   test(`@frontend-smoke @responsive ${pagePath} yatay tasma uretmiyor`, async ({ page }) => {
@@ -228,6 +250,9 @@ test("@frontend-smoke ana sayfa kartları ve detayları backend kataloğundan al
   await expect(page.locator(".service-card img")).toHaveAttribute(
     "src",
     "assets/images/services/360-video.webp"
+  );
+  await expect(page.locator('[data-open-service="yeni-hizmet"]')).toHaveAccessibleName(
+    "API Katalog Hizmeti hizmetini incele"
   );
   await expect(page.locator('[data-open-service="fotograf"]')).toHaveCount(0);
   await page.locator('[data-open-service="yeni-hizmet"]').click();
@@ -517,6 +542,12 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
         success: true,
         data: { role: "ADMIN", mustChangePassword: false, username: "admin" }
       })
+    })
+  );
+  await page.route("**/api/v1/health", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { status: "healthy", database: "connected" } })
     })
   );
   let adminStepUpActive = false;
@@ -865,6 +896,15 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   });
   await page.goto("/admin.html");
   await expect(page.getByRole("heading", { name: "Günün akışı" })).toBeVisible();
+  await expect(page.locator('.admin-nav [data-panel="overview"]')).toHaveAttribute(
+    "aria-current",
+    "page"
+  );
+  await expect(page.locator(".js-today-weddings .event-card")).toHaveCount(1);
+  await expect(page.locator('[data-metric="todayWeddings"]')).toHaveText("1");
+  await expect(page.locator(".js-badge-weddings")).toHaveText("1");
+  await expect(page.locator(".js-connection-text")).toHaveText("Sistem bağlı");
+  await expect(page.locator(".js-last-data-time")).toContainText("Son veri");
   await expect(page.locator('.js-staff-form input[name="firstName"]')).toHaveAttribute(
     "maxlength",
     "80"
@@ -878,6 +918,13 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     "2000"
   );
   await clickPanel(page, "weddings");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Düğünler ve teslimatlar" })
+  ).toBeVisible();
+  await expect(page.locator('.admin-nav [data-panel="weddings"]')).toHaveAttribute(
+    "aria-current",
+    "page"
+  );
   await page.getByRole("button", { name: "Ayrıntılar" }).click();
   await expect(
     page.getByRole("dialog").getByRole("heading", { name: "Ayşe Yılmaz & Mehmet Demir" })
@@ -956,7 +1003,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await page.locator(".js-danger-reason").fill("Artık sunulmayan katalog paketi kaldırılıyor.");
   await page.locator(".js-danger-submit").click();
   await completeAdminStepUp(page);
-  await expect(page.locator(".global-message")).toContainText("Temel paketi silindi");
+  await expect(page.locator(".js-catalog-message")).toContainText("Temel paketi silindi");
   expect(packageDeleteAttempts).toBe(2);
   expect(packageDeleteBodies).toEqual([
     {
@@ -1526,6 +1573,7 @@ test("@frontend-smoke Turnstile script yükleme hatası görünür retry eylemi 
 });
 
 test("@frontend-smoke yavaş eski uygunluk yanıtı yeni salon seçimini ezmez", async ({ page }) => {
+  let oldResponseCompleted = false;
   await page.route("**/api/v1/catalog", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -1563,6 +1611,7 @@ test("@frontend-smoke yavaş eski uygunluk yanıtı yeni salon seçimini ezmez",
         data: { date: "2027-08-10", hasOccupancy: isOldVenue }
       })
     });
+    if (isOldVenue) oldResponseCompleted = true;
   });
   await page.goto("/paketini-olustur.html");
   await page.locator(".js-next-step").click();
@@ -1574,7 +1623,7 @@ test("@frontend-smoke yavaş eski uygunluk yanıtı yeni salon seçimini ezmez",
   await expect(page.locator(".js-availability-banner")).toContainText(
     "Seçilen tarihte bu salon için henüz bir düğün/başvuru kaydı bulunmamaktadır."
   );
-  await page.waitForTimeout(450);
+  await expect.poll(() => oldResponseCompleted).toBe(true);
   await expect(page.locator(".js-availability-banner")).not.toContainText("başka kayıtlar");
 });
 
@@ -1984,12 +2033,17 @@ test("@frontend-smoke ortak istemci askıda isteği keser ve güvenli anahtar ü
   });
 });
 
-test("@frontend-smoke ortak dialog dinamik rozet içeriğini metin olarak işler", async ({
+test("@frontend-smoke @responsive ortak dialog güvenli içerik, erişilebilir ad ve odak dönüşü sağlar", async ({
   page
 }) => {
   await page.goto("/gizlilik-politikasi.html");
   await page.evaluate(async () => {
     const { showCustomConfirm } = await import("/js/shared/custom-dialogs.js");
+    const opener = document.createElement("button");
+    opener.id = "phase05-dialog-opener";
+    opener.textContent = "Onayı aç";
+    document.body.appendChild(opener);
+    opener.focus();
     void showCustomConfirm({
       badge: '<img src="/missing-dialog-badge.png" alt="unsafe">',
       title: "Güvenlik doğrulaması"
@@ -1997,9 +2051,13 @@ test("@frontend-smoke ortak dialog dinamik rozet içeriğini metin olarak işler
   });
 
   const badge = page.locator(".custom-dialog-badge");
+  const dialog = page.locator("#app-custom-dialog");
   await expect(badge).toHaveText('<img src="/missing-dialog-badge.png" alt="unsafe">');
   await expect(badge.locator("img")).toHaveCount(0);
+  await expect(dialog).toHaveAccessibleName("Güvenlik doğrulaması");
+  await expect(dialog.locator(".js-dialog-submit")).toBeFocused();
   await page.locator(".js-dialog-cancel").first().click();
+  await expect(page.locator("#phase05-dialog-opener")).toBeFocused();
 });
 
 test("@frontend-smoke zorunlu parola değişim ekranı 15–128 karakter sözleşmesini uygular", async ({

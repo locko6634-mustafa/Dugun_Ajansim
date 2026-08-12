@@ -285,7 +285,8 @@ button {
   text-transform: uppercase;
 }
 
-.builder-intro h1 {
+.builder-intro h1,
+.builder-intro h2 {
   margin: 0;
   font-family: var(--serif);
   font-size: clamp(52px, 5vw, 76px);
@@ -294,7 +295,8 @@ button {
   line-height: 1;
 }
 
-.builder-intro h1 em {
+.builder-intro h1 em,
+.builder-intro h2 em {
   color: var(--gold-dark);
   font-style: normal;
 }
@@ -2203,7 +2205,8 @@ body.is-summary-open .package-summary__close svg {
     font-size: 8px;
   }
 
-  .builder-intro h1 {
+  .builder-intro h1,
+  .builder-intro h2 {
     font-size: clamp(38px, 11.5vw, 58px);
     line-height: 1.02;
   }
@@ -2693,7 +2696,7 @@ body.is-summary-open .package-summary__close svg {
   text-transform: uppercase;
 }
 
-.completion-success__heading h1 {
+.completion-success__heading h2 {
   margin: 0;
   font-family: var(--serif);
   font-size: clamp(40px, 6vw, 64px);
@@ -2703,7 +2706,7 @@ body.is-summary-open .package-summary__close svg {
   outline: none;
 }
 
-.completion-success__heading h1 em {
+.completion-success__heading h2 em {
   color: var(--gold-dark);
   font-style: italic;
 }
@@ -3463,7 +3466,7 @@ body.is-summary-open .package-summary__close svg {
     padding: 38px 0 28px;
   }
 
-  .completion-success__heading h1 {
+  .completion-success__heading h2 {
     font-size: clamp(36px, 10.8vw, 48px);
     line-height: 1.05;
   }
@@ -3634,7 +3637,7 @@ body.is-summary-open .package-summary__close svg {
     padding-top: 28px;
   }
 
-  .completion-success__heading h1 {
+  .completion-success__heading h2 {
     font-size: 34px;
   }
 

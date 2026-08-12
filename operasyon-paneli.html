@@ -19,7 +19,7 @@
   <body>
     <div class="sidebar-overlay js-ops-sidebar-overlay" aria-hidden="true"></div>
     <div class="ops-shell">
-      <aside class="ops-sidebar" aria-label="Salon hesabı ve ana menü">
+      <aside id="ops-navigation" class="ops-sidebar" aria-label="Salon hesabı ve ana menü">
         <div class="sidebar-header-mobile">
           <a class="ops-brand" href="index.html"
             ><span>DA</span><strong>Düğünajansım</strong><small>Salon operasyonu</small></a
@@ -71,6 +71,8 @@
               class="mobile-toggle-btn js-toggle-ops-sidebar"
               type="button"
               aria-label="Menüyü Aç/Kapat"
+              aria-controls="ops-navigation"
+              aria-expanded="false"
             >
               <svg
                 width="22"
@@ -141,12 +143,16 @@
                 <h2 class="js-week-label">Haftalık plan</h2>
               </div>
               <div class="pager">
-                <button type="button" data-week-move="-7" aria-label="Önceki hafta">←</button
-                ><button type="button" data-week-today>Bugün</button
-                ><button type="button" data-week-move="7" aria-label="Sonraki hafta">→</button>
+                <button type="button" data-week-move="-7" aria-label="Önceki hafta" disabled>
+                  ←</button
+                ><button type="button" data-week-today disabled>Bugün</button
+                ><button type="button" data-week-move="7" aria-label="Sonraki hafta" disabled>
+                  →
+                </button>
               </div>
             </div>
-            <div class="week-grid js-week"></div>
+            <div class="week-grid js-week" aria-busy="true"></div>
+            <p class="dialog-message js-week-message" role="status" aria-live="polite"></p>
           </section>
         </section>
 
@@ -157,9 +163,9 @@
               <h2 class="js-calendar-label">Aylık takvim</h2>
             </div>
             <div class="pager">
-              <button type="button" data-month-move="-1" aria-label="Önceki ay">←</button
-              ><button type="button" data-month-today>Bu ay</button
-              ><button type="button" data-month-move="1" aria-label="Sonraki ay">→</button>
+              <button type="button" data-month-move="-1" aria-label="Önceki ay" disabled>←</button
+              ><button type="button" data-month-today disabled>Bu ay</button
+              ><button type="button" data-month-move="1" aria-label="Sonraki ay" disabled>→</button>
             </div>
           </div>
           <div class="calendar-shell">
@@ -167,7 +173,8 @@
               <span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span
               ><span>Cmt</span><span>Paz</span>
             </div>
-            <div class="month-grid js-calendar"></div>
+            <div class="month-grid js-calendar" aria-busy="true"></div>
+            <p class="dialog-message js-calendar-message" role="status" aria-live="polite"></p>
             <p class="calendar-mobile-empty js-calendar-empty" hidden>
               Bu ay salonunuzda planlı düğün yok.
             </p>
@@ -233,12 +240,12 @@
       </main>
     </div>
 
-    <dialog class="detail-dialog js-wedding-dialog">
+    <dialog class="detail-dialog js-wedding-dialog" aria-labelledby="wedding-dialog-title">
       <div class="dialog-shell">
         <div class="dialog-heading">
           <div>
             <p class="section-index">Düğün dosyası</p>
-            <h2 class="js-detail-title">Yükleniyor</h2>
+            <h2 id="wedding-dialog-title" class="js-detail-title">Yükleniyor</h2>
           </div>
           <button class="dialog-close" type="button" data-close-dialog aria-label="Kapat">×</button>
         </div>
@@ -246,12 +253,12 @@
       </div>
     </dialog>
 
-    <dialog class="form-dialog js-staff-dialog">
+    <dialog class="form-dialog js-staff-dialog" aria-labelledby="staff-dialog-title">
       <form class="dialog-shell js-staff-form" method="dialog">
         <div class="dialog-heading">
           <div>
             <p class="section-index">Salon ekibi</p>
-            <h2 class="js-staff-form-title">Personel ekle</h2>
+            <h2 id="staff-dialog-title" class="js-staff-form-title">Personel ekle</h2>
           </div>
           <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
         </div>
@@ -309,8 +316,12 @@
               aria-live="polite"
             ></span
           ></label>
-          <fieldset class="wide specialty-choices" aria-describedby="staff-specialties-error">
-            <legend>Uzmanlıklar</legend>
+          <fieldset
+            class="wide specialty-choices"
+            aria-describedby="staff-specialties-error"
+            aria-required="true"
+          >
+            <legend>Uzmanlıklar (zorunlu)</legend>
             <div class="js-specialties"></div>
             <span
               class="field-error js-specialties-error"
@@ -322,7 +333,7 @@
             ><input name="isActive" type="checkbox" checked /> Aktif personel</label
           >
         </div>
-        <p class="dialog-message" role="status"></p>
+        <p class="dialog-message" role="alert" aria-live="assertive"></p>
         <div class="dialog-actions">
           <button class="secondary-button" type="button" value="cancel">Vazgeç</button
           ><button class="primary-button js-staff-submit" type="submit">Kaydet</button>

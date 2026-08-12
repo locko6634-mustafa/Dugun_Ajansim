@@ -85,7 +85,36 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await page.route("**/api/v1/catalog", (route) =>
     route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ success: true, data: { packages: [], services: [] } })
+      body: JSON.stringify({
+        success: true,
+        data: {
+          packages: [],
+          services: [],
+          bookingFormConstraints: {
+            personName: {
+              minLength: 2,
+              maxLength: 80,
+              pattern: "^[\\p{L}\\p{M}][\\p{L}\\p{M} '’\\-]*$",
+              message: "Geçerli bir ad girin."
+            },
+            phone: {
+              minLength: 10,
+              maxLength: 24,
+              pattern: "^\\+?[\\d\\s\\(\\)\\x2D]+$",
+              message: "Geçerli bir telefon girin."
+            },
+            email: { maxLength: 254 },
+            customVenueName: { minLength: 2, maxLength: 140 },
+            note: { maxLength: 2000 }
+          },
+          bookingSchedulePolicy: {
+            earliestTime: "00:00",
+            latestTime: "23:30",
+            stepMinutes: 30,
+            allowNextDay: true
+          }
+        }
+      })
     })
   );
   await page.route(/\/api\/v1\/admin\/(packages|services|venues)$/, async (route) => {

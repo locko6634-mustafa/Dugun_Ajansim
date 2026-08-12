@@ -106,6 +106,8 @@
                   type="text"
                   autocomplete="username"
                   placeholder="Kullanıcı adınız"
+                  minlength="3"
+                  maxlength="64"
                   aria-describedby="username-error"
                   required
                 />
@@ -116,7 +118,14 @@
             <div class="form-field">
               <div class="label-row">
                 <label for="password">Şifre</label>
-                <button class="forgot-button" type="button">Şifremi unuttum</button>
+                <a
+                  class="forgot-button"
+                  href="https://wa.me/905386888306?text=Parolam%C4%B1%20s%C4%B1f%C4%B1rlamak%20i%C3%A7in%20destek%20istiyorum."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="WhatsApp üzerinden parola sıfırlama desteği iste"
+                  >Şifremi unuttum</a
+                >
               </div>
               <div class="input-shell">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -130,6 +139,7 @@
                   autocomplete="current-password"
                   placeholder="Şifrenizi girin"
                   minlength="6"
+                  maxlength="256"
                   aria-describedby="password-error"
                   required
                 />
@@ -217,6 +227,8 @@
                   name="currentPassword"
                   type="password"
                   autocomplete="current-password"
+                  minlength="6"
+                  maxlength="256"
                   required
                 />
               </div>
@@ -279,6 +291,7 @@
                   type="password"
                   autocomplete="current-password"
                   minlength="6"
+                  maxlength="256"
                   required
                 />
               </div>

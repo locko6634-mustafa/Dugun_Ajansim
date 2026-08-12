@@ -20,10 +20,7 @@ import {
   venueStaffBodySchema,
   venueStaffUpdateBodySchema
 } from "../schemas/api.schemas.js";
-import {
-  assertVenueScheduleAvailable,
-  createAudit
-} from "../services/booking.service.js";
+import { assertVenueScheduleAvailable, createAudit } from "../services/booking.service.js";
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { findBoundedIntervalConflicts } from "../utils/intervalConflicts.js";
@@ -87,7 +84,9 @@ const sortStaffByName = <StaffMember extends { firstName: string; lastName: stri
 
 const sortStaffByStatusAndName = <
   StaffMember extends { firstName: string; lastName: string; isActive: boolean }
->(staff: StaffMember[]): StaffMember[] =>
+>(
+  staff: StaffMember[]
+): StaffMember[] =>
   [...staff].sort(
     (left, right) =>
       Number(right.isActive) - Number(left.isActive) ||
@@ -166,19 +165,21 @@ const decryptSelectedWeddingPii = (wedding: SelectedWeddingPiiRecord) =>
     piiSchemaVersion: wedding.piiSchemaVersion
   });
 
-const weddingSelectForVenue = (venueId: string) => ({
-  ...weddingPiiRecordSelect,
-  startsAt: true,
-  endsAt: true,
-  cancelledAt: true,
-  deletedAt: true,
-  packageSummary: true,
-  assignments: {
-    where: { staff: { venueId } },
-    include: { staff: true },
-    orderBy: { createdAt: "asc" as const }
-  }
-}) satisfies Prisma.WeddingSelect;
+const weddingSelectForVenue = (venueId: string) =>
+  ({
+    ...weddingPiiRecordSelect,
+    venueId: true,
+    startsAt: true,
+    endsAt: true,
+    cancelledAt: true,
+    deletedAt: true,
+    packageSummary: true,
+    assignments: {
+      where: { staff: { venueId } },
+      include: { staff: true },
+      orderBy: { createdAt: "asc" as const }
+    }
+  }) satisfies Prisma.WeddingSelect;
 
 type VenueOperationsWedding = Prisma.WeddingGetPayload<{
   select: ReturnType<typeof weddingSelectForVenue>;
@@ -188,6 +189,7 @@ const venueOperationsWeddingDto = (wedding: VenueOperationsWedding) => {
   const pii = decryptSelectedWeddingPii(wedding);
   return {
     id: wedding.id,
+    venueId: wedding.venueId,
     brideFirstName: pii.brideFirstName,
     bridePhone: pii.bridePhone,
     groomFirstName: pii.groomFirstName,
@@ -422,41 +424,43 @@ router.post(
   ),
   asyncHandler(async (req, res) => {
     const venueId = venueIdOf(req.auth!.venueId);
-    const staff = await prisma.$transaction(async (transaction) => {
-      const staffId = randomUUID();
-      const normalizedPhone = normalizePhone(req.body.phone);
-      await assertActiveStaffPhoneAvailable(transaction, {
-        venueId,
-        phone: normalizedPhone,
-        isActive: req.body.isActive
-      });
-      const created = await transaction.staff.create({
-        data: {
-          id: staffId,
-          ...buildStaffPiiData(
-            staffId,
-            {
-              firstName: req.body.firstName,
-              lastName: req.body.lastName,
-              phone: normalizedPhone
-            },
-            1
-          ),
-          specialties: [...new Set(req.body.specialties)] as StaffSpecialty[],
-          isActive: req.body.isActive,
-          venueId
-        }
-      });
-      await createAudit(transaction, {
-        actorUserId: req.auth!.userId,
-        action: "venue_staff.created",
-        targetType: "Staff",
-        targetId: created.id,
-        correlationId: req.correlationId,
-        metadata: { venueId }
-      });
-      return staffWithDecryptedPii(created);
-    }).catch(staffPhoneConflictError);
+    const staff = await prisma
+      .$transaction(async (transaction) => {
+        const staffId = randomUUID();
+        const normalizedPhone = normalizePhone(req.body.phone);
+        await assertActiveStaffPhoneAvailable(transaction, {
+          venueId,
+          phone: normalizedPhone,
+          isActive: req.body.isActive
+        });
+        const created = await transaction.staff.create({
+          data: {
+            id: staffId,
+            ...buildStaffPiiData(
+              staffId,
+              {
+                firstName: req.body.firstName,
+                lastName: req.body.lastName,
+                phone: normalizedPhone
+              },
+              1
+            ),
+            specialties: [...new Set(req.body.specialties)] as StaffSpecialty[],
+            isActive: req.body.isActive,
+            venueId
+          }
+        });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "venue_staff.created",
+          targetType: "Staff",
+          targetId: created.id,
+          correlationId: req.correlationId,
+          metadata: { venueId }
+        });
+        return staffWithDecryptedPii(created);
+      })
+      .catch(staffPhoneConflictError);
     res.status(201).json({ success: true, data: staff, correlationId: req.correlationId });
   })
 );
@@ -469,45 +473,49 @@ router.patch(
   ),
   asyncHandler(async (req, res) => {
     const venueId = venueIdOf(req.auth!.venueId);
-    const staff = await prisma.$transaction(async (transaction) => {
-      const current = await transaction.staff.findFirst({ where: { id: req.params.id, venueId } });
-      if (!current) throw new AppError("Personel bulunamadı.", 404);
-      const currentPii = staffWithDecryptedPii(current);
-      const normalizedPhone = req.body.phone ? normalizePhone(req.body.phone) : currentPii.phone;
-      await assertActiveStaffPhoneAvailable(transaction, {
-        venueId,
-        phone: normalizedPhone,
-        isActive: req.body.isActive ?? current.isActive,
-        excludeStaffId: current.id
-      });
-      const updated = await transaction.staff.update({
-        where: { id: current.id, piiRevision: current.piiRevision },
-        data: {
-          ...buildStaffPiiData(
-            current.id,
-            {
-              firstName: req.body.firstName ?? currentPii.firstName,
-              lastName: req.body.lastName ?? currentPii.lastName,
-              phone: normalizedPhone
-            },
-            current.piiRevision + 1
-          ),
-          ...(req.body.specialties
-            ? { specialties: [...new Set(req.body.specialties)] as StaffSpecialty[] }
-            : {}),
-          ...(req.body.isActive === undefined ? {} : { isActive: req.body.isActive })
-        }
-      });
-      await createAudit(transaction, {
-        actorUserId: req.auth!.userId,
-        action: "venue_staff.updated",
-        targetType: "Staff",
-        targetId: updated.id,
-        correlationId: req.correlationId,
-        metadata: { venueId }
-      });
-      return staffWithDecryptedPii(updated);
-    }).catch(staffPhoneConflictError);
+    const staff = await prisma
+      .$transaction(async (transaction) => {
+        const current = await transaction.staff.findFirst({
+          where: { id: req.params.id, venueId }
+        });
+        if (!current) throw new AppError("Personel bulunamadı.", 404);
+        const currentPii = staffWithDecryptedPii(current);
+        const normalizedPhone = req.body.phone ? normalizePhone(req.body.phone) : currentPii.phone;
+        await assertActiveStaffPhoneAvailable(transaction, {
+          venueId,
+          phone: normalizedPhone,
+          isActive: req.body.isActive ?? current.isActive,
+          excludeStaffId: current.id
+        });
+        const updated = await transaction.staff.update({
+          where: { id: current.id, piiRevision: current.piiRevision },
+          data: {
+            ...buildStaffPiiData(
+              current.id,
+              {
+                firstName: req.body.firstName ?? currentPii.firstName,
+                lastName: req.body.lastName ?? currentPii.lastName,
+                phone: normalizedPhone
+              },
+              current.piiRevision + 1
+            ),
+            ...(req.body.specialties
+              ? { specialties: [...new Set(req.body.specialties)] as StaffSpecialty[] }
+              : {}),
+            ...(req.body.isActive === undefined ? {} : { isActive: req.body.isActive })
+          }
+        });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "venue_staff.updated",
+          targetType: "Staff",
+          targetId: updated.id,
+          correlationId: req.correlationId,
+          metadata: { venueId }
+        });
+        return staffWithDecryptedPii(updated);
+      })
+      .catch(staffPhoneConflictError);
     res.json({ success: true, data: staff, correlationId: req.correlationId });
   })
 );
@@ -580,10 +588,10 @@ router.get(
         Promise.all([
           transaction.wedding.count({ where: baseWhere }),
           transaction.wedding.findMany({
-          where,
-          select: weddingSelectForVenue(venueId),
-          orderBy: [{ startsAt: "desc" }, { id: "desc" }],
-          take: pageSize + 1
+            where,
+            select: weddingSelectForVenue(venueId),
+            orderBy: [{ startsAt: "desc" }, { id: "desc" }],
+            take: pageSize + 1
           })
         ]),
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }
@@ -824,87 +832,96 @@ router.post(
   ),
   asyncHandler(async (req, res) => {
     const venueId = venueIdOf(req.auth!.venueId);
-    const assignment = await prisma.$transaction(
-      async (transaction) => {
-        const lockedStaff = await transaction.$queryRaw<Array<{ id: string }>>(
-          Prisma.sql`SELECT "id" FROM "staff" WHERE "id" = ${req.body.staffId} AND "venueId" = ${venueId} FOR UPDATE`
-        );
-        if (lockedStaff.length !== 1) throw new AppError("Aktif personel bulunamadı.", 404);
-        const lockedWedding = await transaction.$queryRaw<Array<{ id: string }>>(
-          Prisma.sql`SELECT "id" FROM "weddings" WHERE "id" = ${req.params.id} AND "venueId" = ${venueId} FOR UPDATE`
-        );
-        if (lockedWedding.length !== 1) throw new AppError("Düğün kaydı bulunamadı.", 404);
-        const [wedding, staff] = await Promise.all([
-          transaction.wedding.findFirst({
-            where: { id: req.params.id, venueId, deletedAt: null, cancelledAt: null }
-          }),
-          transaction.staff.findFirst({ where: { id: req.body.staffId, venueId, isActive: true } })
-        ]);
-        if (!wedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
-        if (!staff) throw new AppError("Aktif personel bulunamadı.", 404);
-        if (!staff.specialties.includes(req.body.specialty))
-          throw new AppError("Seçilen görev personelin uzmanlıkları arasında değil.", 400);
-        const conflicts = await transaction.weddingAssignment.count({
-          where: {
-            staffId: staff.id,
-            wedding: {
-              id: { not: wedding.id },
-              cancelledAt: null,
-              deletedAt: null,
-              startsAt: { lt: wedding.endsAt },
-              endsAt: { gt: wedding.startsAt }
+    const assignment = await prisma
+      .$transaction(
+        async (transaction) => {
+          const lockedStaff = await transaction.$queryRaw<Array<{ id: string }>>(
+            Prisma.sql`SELECT "id" FROM "staff" WHERE "id" = ${req.body.staffId} AND "venueId" = ${venueId} FOR UPDATE`
+          );
+          if (lockedStaff.length !== 1) throw new AppError("Aktif personel bulunamadı.", 404);
+          const lockedWedding = await transaction.$queryRaw<Array<{ id: string }>>(
+            Prisma.sql`SELECT "id" FROM "weddings" WHERE "id" = ${req.params.id} AND "venueId" = ${venueId} FOR UPDATE`
+          );
+          if (lockedWedding.length !== 1) throw new AppError("Düğün kaydı bulunamadı.", 404);
+          const [wedding, staff] = await Promise.all([
+            transaction.wedding.findFirst({
+              where: { id: req.params.id, venueId, deletedAt: null, cancelledAt: null }
+            }),
+            transaction.staff.findFirst({
+              where: { id: req.body.staffId, venueId, isActive: true }
+            })
+          ]);
+          if (!wedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
+          if (!staff) throw new AppError("Aktif personel bulunamadı.", 404);
+          if (!staff.specialties.includes(req.body.specialty))
+            throw new AppError("Seçilen görev personelin uzmanlıkları arasında değil.", 400);
+          const conflicts = await transaction.weddingAssignment.count({
+            where: {
+              staffId: staff.id,
+              wedding: {
+                id: { not: wedding.id },
+                cancelledAt: null,
+                deletedAt: null,
+                startsAt: { lt: wedding.endsAt },
+                endsAt: { gt: wedding.startsAt }
+              }
             }
-          }
-        });
-        if (conflicts)
-          throw new AppError("Personelin bu saatlerde başka bir görevi var.", 409, true, {
-            code: "STAFF_CONFLICT"
           });
-        try {
-          const created = await transaction.weddingAssignment.create({
-            data: { weddingId: wedding.id, staffId: staff.id, specialty: req.body.specialty },
-            include: { staff: true }
-          });
-          await createAudit(transaction, {
-            actorUserId: req.auth!.userId,
-            action: "venue_wedding.assignment_created",
-            targetType: "WeddingAssignment",
-            targetId: created.id,
-            correlationId: req.correlationId,
-            metadata: { venueId, weddingId: wedding.id, staffId: staff.id }
-          });
-          return { ...created, staff: staffWithDecryptedPii(created.staff) };
-        } catch (error) {
-          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
-            throw new AppError("Bu personel düğüne zaten atanmış.", 409, true, {
-              code: "ASSIGNMENT_ALREADY_EXISTS"
+          if (conflicts)
+            throw new AppError("Personelin bu saatlerde başka bir görevi var.", 409, true, {
+              code: "STAFF_CONFLICT"
             });
-          throw error;
+          try {
+            const created = await transaction.weddingAssignment.create({
+              data: { weddingId: wedding.id, staffId: staff.id, specialty: req.body.specialty },
+              include: { staff: true }
+            });
+            await createAudit(transaction, {
+              actorUserId: req.auth!.userId,
+              action: "venue_wedding.assignment_created",
+              targetType: "WeddingAssignment",
+              targetId: created.id,
+              correlationId: req.correlationId,
+              metadata: { venueId, weddingId: wedding.id, staffId: staff.id }
+            });
+            return { ...created, staff: staffWithDecryptedPii(created.staff) };
+          } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
+              throw new AppError("Bu personel düğüne zaten atanmış.", 409, true, {
+                code: "ASSIGNMENT_ALREADY_EXISTS"
+              });
+            throw error;
+          }
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      )
+      .catch((error: unknown) => {
+        const rawDatabaseCode =
+          error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2010"
+            ? String(error.meta?.code ?? "")
+            : "";
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          throw new AppError("Bu personel düğüne zaten atanmış.", 409, true, {
+            code: "ASSIGNMENT_ALREADY_EXISTS"
+          });
         }
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
-    ).catch((error: unknown) => {
-      const rawDatabaseCode =
-        error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2010"
-          ? String(error.meta?.code ?? "")
-          : "";
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        throw new AppError("Bu personel düğüne zaten atanmış.", 409, true, {
-          code: "ASSIGNMENT_ALREADY_EXISTS"
-        });
-      }
-      if (
-        (error instanceof Prisma.PrismaClientKnownRequestError &&
-          (error.code === "P2025" || error.code === "P2034")) ||
-        rawDatabaseCode === "40001" ||
-        rawDatabaseCode === "40P01"
-      ) {
-        throw new AppError("Personel ataması başka bir işlemde güncellendi. Tekrar deneyin.", 409, true, {
-          code: "ASSIGNMENT_STATE_CONFLICT"
-        });
-      }
-      throw error;
-    });
+        if (
+          (error instanceof Prisma.PrismaClientKnownRequestError &&
+            (error.code === "P2025" || error.code === "P2034")) ||
+          rawDatabaseCode === "40001" ||
+          rawDatabaseCode === "40P01"
+        ) {
+          throw new AppError(
+            "Personel ataması başka bir işlemde güncellendi. Tekrar deneyin.",
+            409,
+            true,
+            {
+              code: "ASSIGNMENT_STATE_CONFLICT"
+            }
+          );
+        }
+        throw error;
+      });
     res.status(201).json({ success: true, data: assignment, correlationId: req.correlationId });
   })
 );
@@ -924,9 +941,14 @@ router.delete(
       const lockedWedding = lockedWeddings[0];
       if (!lockedWedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
       if (lockedWedding.deletedAt || lockedWedding.cancelledAt) {
-        throw new AppError("İptal edilmiş veya arşivlenmiş düğünün personel ataması kaldırılamaz.", 409, true, {
-          code: "ASSIGNMENT_WEDDING_INACTIVE"
-        });
+        throw new AppError(
+          "İptal edilmiş veya arşivlenmiş düğünün personel ataması kaldırılamaz.",
+          409,
+          true,
+          {
+            code: "ASSIGNMENT_WEDDING_INACTIVE"
+          }
+        );
       }
       const current = await transaction.weddingAssignment.findFirst({
         where: { id: req.params.assignmentId, weddingId: req.params.id, wedding: { venueId } }

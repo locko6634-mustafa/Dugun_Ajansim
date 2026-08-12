@@ -1,5 +1,7 @@
 import { escapeHtml } from "./html.js";
 
+let dialogTitleSequence = 0;
+
 /**
  * Custom Modal & Dialog Utility
  * Replaces browser default alert(), confirm(), prompt() dialogs
@@ -15,6 +17,30 @@ function getOrCreateDialog() {
     document.body.appendChild(dialog);
   }
   return dialog;
+}
+
+function openAccessibleDialog(dialog, initialFocus) {
+  const title = dialog.querySelector(".custom-dialog-title");
+  if (title) {
+    dialogTitleSequence += 1;
+    title.id = `app-custom-dialog-title-${dialogTitleSequence}`;
+    dialog.setAttribute("aria-labelledby", title.id);
+  } else {
+    dialog.removeAttribute("aria-labelledby");
+  }
+  dialog.setAttribute("aria-modal", "true");
+
+  const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  dialog.addEventListener(
+    "close",
+    () => {
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+    },
+    { once: true }
+  );
+
+  dialog.showModal();
+  window.queueMicrotask(() => initialFocus?.focus());
 }
 
 /**
@@ -53,15 +79,12 @@ export function showCustomConfirm({
   `;
 
   return new Promise((resolve) => {
-    dialog.showModal();
     const form = dialog.querySelector("form");
     const cancelButtons = dialog.querySelectorAll(".js-dialog-cancel");
     const submitBtn = dialog.querySelector(".js-dialog-submit");
 
-    submitBtn?.focus();
-
     const cleanup = (result) => {
-      dialog.close();
+      if (dialog.open) dialog.close();
       dialog.removeEventListener("close", onClose);
       resolve(result);
     };
@@ -77,6 +100,8 @@ export function showCustomConfirm({
       e.preventDefault();
       cleanup(true);
     };
+
+    openAccessibleDialog(dialog, submitBtn);
   });
 }
 
@@ -119,7 +144,7 @@ export function showCustomPrompt({
           ${label ? `<span>${escapeHtml(label)}</span>` : ""}
           ${inputHtml}
         </label>
-        <p class="dialog-message js-dialog-error" role="status"></p>
+        <p id="app-custom-dialog-error" class="dialog-message js-dialog-error" role="status" aria-live="polite"></p>
       </div>
       <div class="dialog-actions">
         <button class="secondary-button js-dialog-cancel" type="button">${escapeHtml(cancelText)}</button>
@@ -129,16 +154,14 @@ export function showCustomPrompt({
   `;
 
   return new Promise((resolve) => {
-    dialog.showModal();
     const form = dialog.querySelector("form");
     const input = dialog.querySelector(".custom-dialog-input");
     const errorEl = dialog.querySelector(".js-dialog-error");
     const cancelButtons = dialog.querySelectorAll(".js-dialog-cancel");
-
-    setTimeout(() => input?.focus(), 50);
+    input?.setAttribute("aria-describedby", "app-custom-dialog-error");
 
     const cleanup = (value) => {
-      dialog.close();
+      if (dialog.open) dialog.close();
       dialog.removeEventListener("close", onClose);
       resolve(value);
     };
@@ -160,6 +183,8 @@ export function showCustomPrompt({
       }
       cleanup(val);
     };
+
+    openAccessibleDialog(dialog, input);
   });
 }
 
@@ -315,8 +340,7 @@ export function showAdminStepUpDialog({
       }
     };
 
-    dialog.showModal();
-    setTimeout(() => passwordInput?.focus(), 0);
+    openAccessibleDialog(dialog, passwordInput);
   });
 }
 
@@ -491,7 +515,7 @@ export function showCatalogFormModal({
           <span><strong>Yayında / Aktif</strong> <small>Müşterilere başvuru ve paket oluşturma ekranında görünsün.</small></span>
         </label>
       </div>
-      <p class="dialog-message js-dialog-error" role="status"></p>
+      <p id="app-custom-dialog-error" class="dialog-message js-dialog-error" role="status" aria-live="polite"></p>
       <div class="dialog-actions" style="margin-top: 24px;">
         <button class="secondary-button js-dialog-cancel" type="button">Vazgeç</button>
         <button class="primary-button js-dialog-submit" type="submit">${isEdit ? "Değişiklikleri Kaydet" : "Katalog Kaydı Oluştur"}</button>
@@ -500,7 +524,6 @@ export function showCatalogFormModal({
   `;
 
   return new Promise((resolve) => {
-    dialog.showModal();
     const form = dialog.querySelector("form");
     const codeInput = dialog.querySelector(".js-catalog-code");
     const nameInput = dialog.querySelector(".js-catalog-name");
@@ -524,13 +547,8 @@ export function showCatalogFormModal({
       });
     });
 
-    setTimeout(() => {
-      if (!isEdit && codeInput) codeInput.focus();
-      else if (nameInput) nameInput.focus();
-    }, 50);
-
     const cleanup = (value) => {
-      dialog.close();
+      if (dialog.open) dialog.close();
       dialog.removeEventListener("close", onClose);
       resolve(value);
     };
@@ -598,6 +616,9 @@ export function showCatalogFormModal({
         isActive
       });
     };
+
+    form.setAttribute("aria-describedby", "app-custom-dialog-error");
+    openAccessibleDialog(dialog, isEdit ? nameInput : codeInput);
   });
 }
 
@@ -655,7 +676,7 @@ export function showVenueFormModal({ title = "", initialData = null, constraints
           <span><strong>Aktif</strong> <small>Pasif mekân yeni başvuru ve vitrin akışlarında gösterilmez.</small></span>
         </label>
       </div>
-      <p class="dialog-message js-dialog-error" role="status"></p>
+      <p id="app-custom-dialog-error" class="dialog-message js-dialog-error" role="status" aria-live="polite"></p>
       <div class="dialog-actions" style="margin-top: 24px;">
         <button class="secondary-button js-dialog-cancel" type="button">Vazgeç</button>
         <button class="primary-button" type="submit">${isEdit ? "Değişiklikleri Kaydet" : "Mekân Oluştur"}</button>
@@ -664,7 +685,6 @@ export function showVenueFormModal({ title = "", initialData = null, constraints
   `;
 
   return new Promise((resolve) => {
-    dialog.showModal();
     const form = dialog.querySelector("form");
     const slugInput = dialog.querySelector(".js-venue-slug");
     const nameInput = dialog.querySelector(".js-venue-name");
@@ -677,7 +697,7 @@ export function showVenueFormModal({ title = "", initialData = null, constraints
     const errorEl = dialog.querySelector(".js-dialog-error");
 
     const cleanup = (value) => {
-      dialog.close();
+      if (dialog.open) dialog.close();
       dialog.removeEventListener("close", onClose);
       resolve(value);
     };
@@ -686,8 +706,6 @@ export function showVenueFormModal({ title = "", initialData = null, constraints
     dialog.querySelectorAll(".js-dialog-cancel").forEach((button) => {
       button.addEventListener("click", () => cleanup(null), { once: true });
     });
-
-    (isEdit ? nameInput : slugInput)?.focus();
 
     form.onsubmit = (event) => {
       event.preventDefault();
@@ -723,5 +741,8 @@ export function showVenueFormModal({ title = "", initialData = null, constraints
         isActive: activeInput.checked
       });
     };
+
+    form.setAttribute("aria-describedby", "app-custom-dialog-error");
+    openAccessibleDialog(dialog, isEdit ? nameInput : slugInput);
   });
 }

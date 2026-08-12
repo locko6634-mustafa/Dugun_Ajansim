@@ -508,11 +508,15 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 - Bugünkü düğün metriği `2` iken kart alanında düğün görünmedi.
 - Kanıt: `js/admin/app.js:371-376`, `admin.html:103-181`, `css/admin/admin.css:294-335`.
 
+**Güncel durum:** KAPALI — Faz 05. Görünen kartlar ve metrik aynı aktif günlük kayıt kümesinden üretiliyor; gerçek render hedefi ve veri tabanlı navigasyon badge'i eklendi. Kanıt: `kanit/faz-05-frontend-kalite.md`.
+
 ### P1-07 — Panel başlığı sayfayla birlikte değişmiyor
 
 - Admin alt bölümlerde H1 sürekli `Günün akışı` kalıyor.
 - Aktif navigasyon değişse de sayfa bağlamı ekran okuyucu ve kullanıcı için net değil.
 - Kanıt: `admin.html:93-95`, `js/admin/app.js:1236-1248`.
+
+**Güncel durum:** KAPALI — Faz 05. Tek H1 aktif panel başlığıyla, navigasyon durumu da `aria-current` ile eşzamanlı güncelleniyor. Kanıt: `kanit/faz-05-frontend-kalite.md`.
 
 ### P1-08 — API/form hatalarının bir bölümü yanlış bağlamda veya çok genel gösteriliyor
 
@@ -524,7 +528,7 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Standart:** hata, hatalı alanın yanında; anlaşılır neden, korunmuş veri ve güvenli tekrar deneme ile görünmeli.
 
-**Güncel durum:** KISMEN KAPALI — Faz 04 personel uzmanlığı ile admin teslimat/atama hata bağlamlarını ve mutasyon kilitlerini düzeltti. Public başvuru ve operasyon formunun kalan genel hata davranışları Faz 05 kapsamındadır.
+**Güncel durum:** KAPALI — Faz 04–05. Public retry, operasyon alan hataları ve admin teslimat/atama/katalog hata bağlamları alan veya açık modal içinde korunmuş veriyle gösteriliyor. Kanıt: `kanit/faz-04-yasam-dongusu-veri-butunlugu.md`, `kanit/faz-05-frontend-kalite.md`.
 
 ### P1-09 — Mutasyonlarda in-flight kilidi ve güvenilir çift tıklama koruması eksik
 
@@ -534,7 +538,7 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Kapanış ölçütü:** buton loading/disabled, idempotency key ve backend unique/transaction koruması birlikte doğrulanmalı.
 
-**Güncel durum:** KISMEN KAPALI — Faz 04 personel ve atama mutasyonlarında loading/disabled, unique constraint ve transaction/yarış korumasını doğruladı. Diğer frontend mutasyonları Faz 05'te tamamlanacaktır.
+**Güncel durum:** KAPALI — Faz 04–05. Personel/atama yanında başvuru, paket, hizmet, salon ve teslimat mutasyonları da in-flight kilitli; backend unique/transaction ve idempotency korumalarıyla birlikte çalışıyor. Kanıt: `kanit/faz-04-yasam-dongusu-veri-butunlugu.md`, `kanit/faz-05-frontend-kalite.md`.
 
 ### P1-10 — Salon personeli formu ile backend sözleşmesi uyuşmuyor
 
@@ -551,11 +555,15 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 **Kapanış ölçütü:** AbortController veya monoton request ID ile yalnız en yeni yanıt uygulanmalı; yavaş ağ testi eklenmeli.
 
+**Güncel durum:** KAPALI — Faz 01/05. Monoton istek kimliği yalnız en yeni salon/uygunluk yanıtını uygular; geciken eski yanıt koşul tabanlı regresyon testiyle doğrulandı. Kanıt: `kanit/faz-05-frontend-kalite.md`.
+
 ### P1-12 — Turnstile yükleme hatası başvuruyu kalıcı kilitleyebiliyor
 
 - Script yüklenmezse hata katalog yükleme akışıyla aynı catch’e düşebiliyor.
 - Güvenli otomatik retry veya kullanıcıya yeniden yükleme eylemi yok.
 - Kanıt: `js/package-builder/application.js:243-319`, `js/package-builder/application.js:390-397`.
+
+**Güncel durum:** KAPALI — Faz 01/05. Script error/expired durumları görünür ve yeniden denenebilir; form verisi korunuyor. Kanıt: `kanit/faz-05-frontend-kalite.md`.
 
 ### P1-13 — Liste sonuçları sessizce kesiliyor
 
@@ -581,6 +589,8 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 - API hata durumunda `RangeError`/yakalanmamış hata olasılığı var.
 - Kanıt: `js/admin/app.js:220-229`, `js/admin/app.js:1285-1317`, `js/operations/app.js:459-485`.
 
+**Güncel durum:** KAPALI — Faz 05. Admin ve salon takvim/hafta kontrolleri yükleme ve hata durumunda kilitli; geçersiz dönem hesabı güvenli biçimde kesiliyor. Kanıt: `kanit/faz-05-frontend-kalite.md`.
+
 ### P1-16 — Canlı sistem durumu bazı alanlarda statik gösteriliyor
 
 - `Sistem bağlı` ifadesi gerçek health/connection sonucuna bağlı değil.
@@ -588,6 +598,8 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 - Yanlış güven sinyali üretir.
 
 **Kapanış ölçütü:** status yalnız gerçek API health ve son başarılı veri zamanı ile gösterilmeli.
+
+**Güncel durum:** KAPALI — Faz 05. Durum göstergesi `/health` sonucuna, son veri metni başarılı API yanıtına, düğün badge'i gerçek günlük metriğe bağlıdır. Kanıt: `kanit/faz-05-frontend-kalite.md`.
 
 ---
 

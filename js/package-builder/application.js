@@ -1832,6 +1832,55 @@ if (continueBtn) {
   });
 }
 
+const showcaseLightbox = document.querySelector(".js-showcase-lightbox");
+const showcaseImageButtons = [...document.querySelectorAll(".js-showcase-image")];
+const showcaseLightboxImage = showcaseLightbox?.querySelector(".js-showcase-lightbox-image");
+const showcaseLightboxCaption = showcaseLightbox?.querySelector(".js-showcase-lightbox-caption");
+const showcaseLightboxClose = showcaseLightbox?.querySelector(".js-showcase-lightbox-close");
+const showcaseLightboxPrevious = showcaseLightbox?.querySelector(".js-showcase-lightbox-prev");
+const showcaseLightboxNext = showcaseLightbox?.querySelector(".js-showcase-lightbox-next");
+let activeShowcaseImageIndex = 0;
+let showcaseLightboxTrigger = null;
+
+function renderShowcaseLightbox(index) {
+  if (!showcaseImageButtons.length || !showcaseLightboxImage || !showcaseLightboxCaption) return;
+  activeShowcaseImageIndex = (index + showcaseImageButtons.length) % showcaseImageButtons.length;
+  const sourceImage = showcaseImageButtons[activeShowcaseImageIndex].querySelector("img");
+  showcaseLightboxImage.src = sourceImage.currentSrc || sourceImage.src;
+  showcaseLightboxImage.alt = sourceImage.alt;
+  showcaseLightboxCaption.textContent = sourceImage.alt;
+}
+
+function openShowcaseLightbox(button, index) {
+  if (!showcaseLightbox) return;
+  showcaseLightboxTrigger = button;
+  renderShowcaseLightbox(index);
+  showcaseLightbox.showModal();
+}
+
+showcaseImageButtons.forEach((button, index) => {
+  button.addEventListener("click", () => openShowcaseLightbox(button, index));
+});
+
+showcaseLightboxClose?.addEventListener("click", () => showcaseLightbox.close());
+showcaseLightboxPrevious?.addEventListener("click", () =>
+  renderShowcaseLightbox(activeShowcaseImageIndex - 1)
+);
+showcaseLightboxNext?.addEventListener("click", () =>
+  renderShowcaseLightbox(activeShowcaseImageIndex + 1)
+);
+showcaseLightbox?.addEventListener("click", (event) => {
+  if (event.target === showcaseLightbox) showcaseLightbox.close();
+});
+showcaseLightbox?.addEventListener("keydown", (event) => {
+  if (event.key === "ArrowLeft") renderShowcaseLightbox(activeShowcaseImageIndex - 1);
+  if (event.key === "ArrowRight") renderShowcaseLightbox(activeShowcaseImageIndex + 1);
+});
+showcaseLightbox?.addEventListener("close", () => {
+  showcaseLightboxTrigger?.focus();
+  showcaseLightboxTrigger = null;
+});
+
 filterButtons.forEach((button) => {
   button.addEventListener("click", () => {
     state.filter = button.dataset.filter;

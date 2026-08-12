@@ -12,6 +12,7 @@ import {
   applyBookingFormConstraints,
   parseBookingFormConstraints
 } from "../shared/booking-form-constraints.js";
+import { parseBookingSchedulePolicy } from "../shared/booking-schedule-policy.js";
 import {
   ACCOUNT_STATUS_LABELS,
   BOOKING_STATUS_LABELS,
@@ -73,10 +74,12 @@ const createPaginationState = () => ({
 
 const state = {
   dashboard: null,
+  dashboardStatus: "idle",
   weekStart: "",
   availabilityDate: "",
   availabilityVenueId: "",
   calendar: null,
+  calendarStatus: "idle",
   calendarMonth: "",
   calendarVenueId: "",
   weddings: [],
@@ -87,6 +90,9 @@ const state = {
   packages: [],
   services: [],
   catalogFormConstraints: null,
+  bookingFormConstraintsReady: false,
+  bookingSchedulePolicy: null,
+  lastDataAt: null,
   currentWedding: null,
   openedMessageTaskIds: new Set(),
   pagination: {
@@ -145,7 +151,43 @@ const weddingDialog = document.querySelector(".js-wedding-dialog");
 const weddingForm = document.querySelector(".js-wedding-form");
 const dangerDialog = document.querySelector(".js-danger-dialog");
 const dangerForm = document.querySelector(".js-danger-form");
+const connectionStatus = document.querySelector(".js-connection-status");
+const connectionText = document.querySelector(".js-connection-text");
+const lastDataTime = document.querySelector(".js-last-data-time");
+const dialogReturnFocus = new WeakMap();
 let dangerTrigger = null;
+
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function openManagedDialog(dialog, trigger = document.activeElement) {
+  if (!dialog || dialog.open) return;
+  if (trigger instanceof HTMLElement) dialogReturnFocus.set(dialog, trigger);
+  dialog.showModal();
+  window.requestAnimationFrame(() => dialog.querySelector(FOCUSABLE_SELECTOR)?.focus());
+}
+
+document.querySelectorAll("dialog").forEach((dialog) => {
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const focusable = [...dialog.querySelectorAll(FOCUSABLE_SELECTOR)];
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+  dialog.addEventListener("close", () => {
+    const trigger = dialogReturnFocus.get(dialog);
+    dialogReturnFocus.delete(dialog);
+    if (trigger?.isConnected) trigger.focus();
+  });
+});
 
 dangerForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
   button.addEventListener("click", () => dangerDialog.close());
@@ -170,7 +212,7 @@ function requestDangerConfirmation(
   reasonInput.required = reasonRequired;
   dangerForm.querySelector(".js-danger-message").textContent = "";
   dangerForm.querySelector(".js-danger-submit").textContent = button;
-  dangerDialog.showModal();
+  openManagedDialog(dangerDialog, trigger);
   setTimeout(
     () =>
       (confirmation
@@ -283,14 +325,21 @@ const timePartInIstanbul = (value) =>
     hourCycle: "h23"
   }).format(new Date(value));
 
+const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || "");
+const isIsoMonth = (value) => /^\d{4}-\d{2}$/.test(value || "");
+
 const addDays = (date, days) => {
+  if (!isIsoDate(date) || !Number.isFinite(days)) return null;
   const value = new Date(`${date}T12:00:00.000Z`);
+  if (Number.isNaN(value.valueOf())) return null;
   value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
 };
 
 const addMonths = (month, amount) => {
+  if (!isIsoMonth(month) || !Number.isFinite(amount)) return null;
   const value = new Date(`${month}-01T12:00:00.000Z`);
+  if (Number.isNaN(value.valueOf())) return null;
   value.setUTCMonth(value.getUTCMonth() + amount);
   return value.toISOString().slice(0, 7);
 };
@@ -300,13 +349,44 @@ const setMessage = (message, success = false) => {
   globalMessage.style.color = success ? "var(--success)" : "";
 };
 
+const clearFormErrorState = (form) => {
+  const message = form.querySelector(".dialog-message");
+  form.querySelectorAll('[aria-invalid="true"]').forEach((field) => {
+    field.removeAttribute("aria-invalid");
+    if (message?.id) {
+      const ids = (field.getAttribute("aria-describedby") || "")
+        .split(/\s+/)
+        .filter((id) => id && id !== message.id);
+      if (ids.length) field.setAttribute("aria-describedby", ids.join(" "));
+      else field.removeAttribute("aria-describedby");
+    }
+  });
+};
+
 const formErrorMessage = (form, error) => {
-  const detail = error?.payload?.errors?.find(({ field }) => field.startsWith("body."));
+  clearFormErrorState(form);
+  const details = [
+    ...(Array.isArray(error?.payload?.errors) ? error.payload.errors : []),
+    ...(Array.isArray(error?.payload?.fieldErrors) ? error.payload.fieldErrors : [])
+  ];
+  const detail = details.find(({ field }) => typeof field === "string");
   if (!detail) return error.message;
 
-  const fieldName = detail.field.slice("body.".length);
+  const fieldName = detail.field
+    .replace(/^body\./, "")
+    .split(".")
+    .at(-1);
   const field = form.elements.namedItem(fieldName);
-  if (field instanceof HTMLElement) field.focus();
+  const message = form.querySelector(".dialog-message");
+  if (field instanceof HTMLElement) {
+    field.setAttribute("aria-invalid", "true");
+    if (message?.id) {
+      const describedBy = new Set((field.getAttribute("aria-describedby") || "").split(/\s+/));
+      describedBy.add(message.id);
+      field.setAttribute("aria-describedby", [...describedBy].filter(Boolean).join(" "));
+    }
+    field.focus();
+  }
 
   const label =
     field instanceof HTMLElement
@@ -314,6 +394,121 @@ const formErrorMessage = (form, error) => {
       : "Alan";
   return `${label || "Alan"}: ${detail.message}`;
 };
+
+function beginInFlight(control) {
+  if (!(control instanceof HTMLElement) || control.dataset.inFlight === "true") return null;
+  const wasDisabled = control.disabled;
+  control.dataset.inFlight = "true";
+  control.disabled = true;
+  control.setAttribute("aria-busy", "true");
+  return () => {
+    if (!control.isConnected) return;
+    delete control.dataset.inFlight;
+    control.disabled = wasDisabled;
+    control.removeAttribute("aria-busy");
+  };
+}
+
+function setCatalogMessage(copy, success = false) {
+  const message = document.querySelector(".js-catalog-message");
+  if (!message) return;
+  message.textContent = copy;
+  message.style.color = success ? "var(--success)" : "";
+}
+
+function syncDependencyControls() {
+  const manualReady = state.bookingFormConstraintsReady && Boolean(state.bookingSchedulePolicy);
+  const manualButton = document.querySelector(".js-open-manual");
+  if (manualButton) {
+    manualButton.disabled = !manualReady;
+    manualButton.title = manualReady
+      ? "Yeni manuel düğün başvurusu oluştur"
+      : "Başvuru form koşulları yüklenemedi; sayfayı yenileyip tekrar deneyin";
+  }
+
+  const catalogReady = Boolean(state.catalogFormConstraints);
+  document.querySelectorAll("[data-add-catalog], [data-edit-catalog]").forEach((button) => {
+    button.disabled = !catalogReady;
+    button.title = catalogReady
+      ? ""
+      : "Katalog form koşulları yüklenemedi; sayfayı yenileyip tekrar deneyin";
+  });
+}
+
+function syncScheduleFields(form) {
+  const policy = state.bookingSchedulePolicy;
+  if (!form || !policy) return;
+  const dateInput = form.elements.namedItem("weddingDate");
+  const startInput = form.elements.namedItem("startTime");
+  const endInput = form.elements.namedItem("endTime");
+  const nextDayInput = form.elements.namedItem("endsNextDay");
+  if (!(dateInput instanceof window.HTMLInputElement)) return;
+
+  const today = datePartInIstanbul(new Date());
+  const [hours, minutes] = timePartInIstanbul(new Date()).split(":").map(Number);
+  const nowMinutes = hours * 60 + minutes;
+  const roundedMinutes = Math.ceil(nowMinutes / policy.stepMinutes) * policy.stepMinutes;
+  const latestMinutes = policy.latestTime
+    .split(":")
+    .map(Number)
+    .reduce((total, value, index) => total + value * (index === 0 ? 60 : 1), 0);
+  const todayHasSlot = roundedMinutes <= latestMinutes;
+  const newBookingMinimum = todayHasSlot ? today : addDays(today, 1);
+  const originalWeddingDate = form.dataset.originalWeddingDate;
+  dateInput.min =
+    originalWeddingDate && originalWeddingDate < newBookingMinimum
+      ? originalWeddingDate
+      : newBookingMinimum;
+
+  [startInput, endInput].forEach((input) => {
+    if (!(input instanceof window.HTMLInputElement)) return;
+    input.min = policy.earliestTime;
+    input.max = policy.latestTime;
+    input.step = String(policy.stepMinutes * 60);
+  });
+  if (startInput instanceof window.HTMLInputElement && dateInput.value === today && todayHasSlot) {
+    const rounded = `${String(Math.floor(roundedMinutes / 60)).padStart(2, "0")}:${String(
+      roundedMinutes % 60
+    ).padStart(2, "0")}`;
+    startInput.min = rounded > policy.earliestTime ? rounded : policy.earliestTime;
+  }
+  if (nextDayInput instanceof window.HTMLInputElement) {
+    nextDayInput.disabled = !policy.allowNextDay;
+    if (!policy.allowNextDay) nextDayInput.checked = false;
+  }
+}
+
+function markDataSuccess() {
+  state.lastDataAt = new Date();
+  if (lastDataTime) {
+    lastDataTime.textContent = `Son veri ${new Intl.DateTimeFormat(APP_LOCALE, {
+      timeZone: APP_TIME_ZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    }).format(state.lastDataAt)}`;
+  }
+}
+
+function setConnectionState(status, label) {
+  if (!connectionStatus || !connectionText) return;
+  connectionStatus.classList.remove("is-checking", "is-connected", "is-disconnected");
+  connectionStatus.classList.add(`is-${status}`);
+  connectionText.textContent = label;
+}
+
+async function loadHealth() {
+  setConnectionState("checking", "Sistem kontrol ediliyor");
+  try {
+    const response = await apiRequest("/health", { timeoutMs: 5000 });
+    if (response.data?.status !== "healthy" || response.data?.database !== "connected") {
+      throw new Error("Sistem sağlığı doğrulanamadı.");
+    }
+    setConnectionState("connected", "Sistem bağlı");
+  } catch {
+    setConnectionState("disconnected", "Sistem bağlantısı kesildi");
+  }
+}
 
 const empty = (message) => `<p class="empty-state">${escapeHtml(message)}</p>`;
 const coupleName = (wedding) =>
@@ -429,15 +624,19 @@ function compactWedding(wedding) {
 
 function renderDashboard() {
   const data = state.dashboard;
-  Object.entries(data.metrics).forEach(([key, value]) => {
+  const todayWeddings = (data.todayWeddings || []).filter(
+    (wedding) => !wedding.cancelledAt && !wedding.deletedAt
+  );
+  const metrics = { ...data.metrics, todayWeddings: todayWeddings.length };
+  Object.entries(metrics).forEach(([key, value]) => {
     const element = document.querySelector(`[data-metric="${key}"]`);
     if (element) element.textContent = value;
   });
-  updateNavBadges(data.metrics);
+  updateNavBadges(metrics);
   const todayElem = document.querySelector(".js-today-weddings");
   if (todayElem) {
-    todayElem.innerHTML = data.todayWeddings.length
-      ? data.todayWeddings.map(eventCard).join("")
+    todayElem.innerHTML = todayWeddings.length
+      ? todayWeddings.map(eventCard).join("")
       : empty("Bugün planlanmış düğün yok. Takvim nefes alıyor.");
   }
   document.querySelector(".js-tomorrow-weddings").innerHTML = data.tomorrowWeddings.length
@@ -522,15 +721,27 @@ function renderWeek() {
 }
 
 async function loadDashboard(weekStart = state.weekStart) {
+  state.dashboardStatus = "loading";
+  syncCalendarNavigation();
   const query = new window.URLSearchParams();
   if (weekStart) query.set("weekStart", weekStart);
   if (state.availabilityDate) query.set("availabilityDate", state.availabilityDate);
   if (state.availabilityVenueId) query.set("venueId", state.availabilityVenueId);
-  const response = await apiRequest(`/admin/dashboard${query.size ? `?${query}` : ""}`);
-  state.dashboard = response.data;
-  state.weekStart = response.data.weekStart;
-  state.availabilityDate = response.data.availabilityDate;
-  renderDashboard();
+  try {
+    const response = await apiRequest(`/admin/dashboard${query.size ? `?${query}` : ""}`);
+    if (!isIsoDate(response.data?.weekStart)) throw new Error("Hafta bilgisi doğrulanamadı.");
+    state.dashboard = response.data;
+    state.weekStart = response.data.weekStart;
+    state.availabilityDate = response.data.availabilityDate;
+    state.dashboardStatus = "ready";
+    renderDashboard();
+    markDataSuccess();
+  } catch (error) {
+    state.dashboardStatus = "error";
+    throw error;
+  } finally {
+    syncCalendarNavigation();
+  }
 }
 
 function calendarEventsByDate(weddings) {
@@ -549,6 +760,7 @@ function calendarEventsByDate(weddings) {
 
 function renderCalendar() {
   const data = state.calendar;
+  if (!data || !isIsoMonth(data.month)) return;
   const venueContainer = document.querySelector(".js-calendar-venues");
   venueContainer.innerHTML = data.venues.length
     ? data.venues
@@ -600,14 +812,41 @@ function renderCalendar() {
 }
 
 async function loadCalendar(month = state.calendarMonth, venueId = state.calendarVenueId) {
+  const calendarContainer = document.querySelector(".js-month-calendar");
+  state.calendarStatus = "loading";
+  syncCalendarNavigation();
+  calendarContainer.innerHTML = empty("Takvim yükleniyor…");
   const query = new window.URLSearchParams();
   if (month) query.set("month", month);
   if (venueId) query.set("venueId", venueId);
-  const response = await apiRequest(`/admin/calendar${query.size ? `?${query}` : ""}`);
-  state.calendar = response.data;
-  state.calendarMonth = response.data.month;
-  state.calendarVenueId = response.data.selectedVenue?.id || "";
-  renderCalendar();
+  try {
+    const response = await apiRequest(`/admin/calendar${query.size ? `?${query}` : ""}`);
+    if (!isIsoMonth(response.data?.month)) throw new Error("Takvim ayı doğrulanamadı.");
+    state.calendar = response.data;
+    state.calendarMonth = response.data.month;
+    state.calendarVenueId = response.data.selectedVenue?.id || "";
+    state.calendarStatus = "ready";
+    renderCalendar();
+    markDataSuccess();
+  } catch (error) {
+    state.calendar = null;
+    state.calendarStatus = "error";
+    calendarContainer.innerHTML = empty(`Takvim yüklenemedi: ${error.message}`);
+    throw error;
+  } finally {
+    syncCalendarNavigation();
+  }
+}
+
+function syncCalendarNavigation() {
+  const weekEnabled = state.dashboardStatus === "ready" && isIsoDate(state.weekStart);
+  const monthEnabled = state.calendarStatus === "ready" && isIsoMonth(state.calendarMonth);
+  document.querySelectorAll("[data-week-move], [data-week-today]").forEach((button) => {
+    button.disabled = !weekEnabled;
+  });
+  document.querySelectorAll("[data-month-move], [data-month-today]").forEach((button) => {
+    button.disabled = !monthEnabled;
+  });
 }
 
 async function loadApplications() {
@@ -627,6 +866,7 @@ async function loadApplications() {
       `/admin/booking-applications${query.size ? `?${query}` : ""}`
     );
     const applications = unpackPaginatedList("applications", response.data);
+    markDataSuccess();
     container.innerHTML = applications.length
       ? applications.map((item) => renderApplicationCard(item)).join("")
       : empty("Bu durumda başvuru yok.");
@@ -687,7 +927,7 @@ function renderApplicationCard(item) {
         <button class="mini-button" type="button" data-open-application="${escapeHtml(item.id)}">Detaylar</button>
         ${
           item.deletedAt
-            ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button><button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>`
+            ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button>${["ONAY_BEKLIYOR", "REDDEDILDI"].includes(item.status) ? `<button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>` : ""}`
             : item.status === "ONAY_BEKLIYOR"
               ? `${canApprove ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button>` : ""}<button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
               : ["REDDEDILDI", "IPTAL_EDILDI"].includes(item.status)
@@ -731,7 +971,7 @@ function renderApplicationCard(item) {
 
 async function openApplicationDetail(applicationId) {
   if (!appDetailDialog) return;
-  if (!appDetailDialog.open) appDetailDialog.showModal();
+  if (!appDetailDialog.open) openManagedDialog(appDetailDialog);
   appDetailTitle.textContent = "Yükleniyor…";
   appDetailContent.innerHTML = empty("Başvuru detayları hazırlanıyor…");
   try {
@@ -897,7 +1137,7 @@ function renderApplicationDetailModal(item) {
       <div class="app-detail-footer-actions">
         ${
           item.deletedAt
-            ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button><button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>`
+            ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button>${["ONAY_BEKLIYOR", "REDDEDILDI"].includes(item.status) ? `<button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>` : ""}`
             : item.status === "ONAY_BEKLIYOR"
               ? `${canApprove ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button>` : ""}<button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
               : ["REDDEDILDI", "IPTAL_EDILDI"].includes(item.status)
@@ -927,6 +1167,7 @@ async function loadWeddings() {
     if (pager.cursor) query.set("cursor", pager.cursor);
     const response = await apiRequest(`/admin/weddings${query.size ? `?${query}` : ""}`);
     state.weddings = unpackPaginatedList("weddings", response.data);
+    markDataSuccess();
     renderWeddings();
   } catch (error) {
     container.innerHTML = empty(error.message);
@@ -1017,6 +1258,7 @@ function renderWeddingDetail(wedding) {
     : [];
   const assignedIds = new Set(wedding.assignments.map((assignment) => assignment.staffId));
   const available = wedding.availableStaff.filter((staff) => !assignedIds.has(staff.id));
+  const expectedDeliveryDate = addDays(datePartInIstanbul(wedding.startsAt), 21);
   document.querySelector(".js-detail-title").textContent = coupleName(wedding);
   detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(wedding.cancelledAt ? "İptal edildi" : STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span>${wedding.cancelledAt && wedding.cancellationReason ? `<small>İptal nedeni: ${escapeHtml(wedding.cancellationReason)}</small>` : ""}</div><div class="detail-actions">${renderWeddingLifecycleActions(wedding)}</div></section>
   <div class="detail-grid">
@@ -1031,7 +1273,7 @@ function renderWeddingDetail(wedding) {
             )
             .join(
               ""
-            )}</select><input data-field="dueDate" type="date" aria-label="Teslim tarihi" value="${String(delivery.dueDate).slice(0, 10)}" ${deliveryInputsDisabled ? "disabled" : ""} /><input data-field="driveUrl" type="url" aria-label="Google Drive bağlantısı" placeholder="Google Drive bağlantısı" value="${escapeHtml(delivery.driveUrl || "")}" ${deliveryInputsDisabled ? "disabled" : ""} /><button class="mini-button" type="button" data-save-delivery="${delivery.id}" ${deliveryInputsDisabled ? "disabled" : ""}>Kaydet</button><button class="mini-button mini-button--primary" type="button" data-deliver="${delivery.id}" ${deliveryLocked || delivery.status !== "TESLIME_HAZIR" || !delivery.hasDriveUrl ? "disabled" : ""}>Teslim Et</button>${delivery.status === "TESLIM_EDILDI" && !delivery.revokedAt && !deliveryLocked ? `<button class="mini-button mini-button--danger" type="button" data-revoke-delivery="${delivery.id}">Erişimi geri çek</button>` : ""}${delivery.revokedAt ? `<span class="status-dot">Erişim geri çekildi</span>` : ""}</div>`
+            )}</select><input data-field="dueDate" type="date" aria-label="Teslim tarihi" aria-describedby="delivery-error-${delivery.id}" min="${expectedDeliveryDate}" max="${expectedDeliveryDate}" value="${String(delivery.dueDate).slice(0, 10)}" ${deliveryInputsDisabled ? "disabled" : ""} /><input data-field="driveUrl" type="url" aria-label="Google Drive bağlantısı" aria-describedby="delivery-error-${delivery.id}" pattern="https://(drive\\.google\\.com|docs\\.google\\.com)/.+" placeholder="https://drive.google.com/..." value="${escapeHtml(delivery.driveUrl || "")}" ${deliveryInputsDisabled ? "disabled" : ""} /><button class="mini-button" type="button" data-save-delivery="${delivery.id}" ${deliveryInputsDisabled ? "disabled" : ""}>Kaydet</button><button class="mini-button mini-button--primary" type="button" data-deliver="${delivery.id}" ${deliveryLocked || delivery.status !== "TESLIME_HAZIR" || !delivery.hasDriveUrl ? "disabled" : ""}>Teslim Et</button>${delivery.status === "TESLIM_EDILDI" && !delivery.revokedAt && !deliveryLocked ? `<button class="mini-button mini-button--danger" type="button" data-revoke-delivery="${delivery.id}">Erişimi geri çek</button>` : ""}${delivery.revokedAt ? `<span class="status-dot">Erişim geri çekildi</span>` : ""}<p id="delivery-error-${delivery.id}" class="dialog-message js-delivery-message" role="alert" aria-live="assertive"></p></div>`
         : empty("Teslimat kaydı yok.")
     }</section>
     <section class="detail-block wide"><h3>Personel dağılımı</h3><div class="assignment-list">${
@@ -1054,8 +1296,8 @@ function renderWeddingDetail(wedding) {
             .join(
               ""
             )}</select><select name="specialty" aria-label="Görev" required><option value="">Görev seçin</option></select><button class="mini-button mini-button--primary" type="submit">Ata</button></form>`
-    }</section>
-    <section class="detail-block wide danger-zone"><h3>Tehlikeli işlemler</h3><p>Kalıcı silme; atamaları, mesaj görevlerini ve teslimat operasyon kayıtlarını geri alınamaz şekilde siler. Denetim kayıtları korunur.</p><button class="mini-button mini-button--danger" type="button" data-delete-wedding="${wedding.id}" data-confirm="${escapeHtml(coupleName(wedding))}">Kalıcı Sil</button></section>
+    }<p class="dialog-message js-assignment-message" role="alert" aria-live="assertive"></p></section>
+    ${wedding.deletedAt && !wedding.cancelledAt ? `<section class="detail-block wide danger-zone"><h3>Tehlikeli işlemler</h3><p>Kalıcı silme; atamaları, mesaj görevlerini ve teslimat operasyon kayıtlarını geri alınamaz şekilde siler. Denetim kayıtları korunur.</p><button class="mini-button mini-button--danger" type="button" data-delete-wedding="${wedding.id}" data-confirm="${escapeHtml(coupleName(wedding))}">Kalıcı Sil</button></section>` : ""}
     <section class="detail-block wide"><h3>Mesaj geçmişi</h3><div class="message-timeline">${
       wedding.messageTasks.length
         ? wedding.messageTasks
@@ -1070,7 +1312,7 @@ function renderWeddingDetail(wedding) {
 }
 
 async function openWeddingDetail(weddingId) {
-  if (!detailDialog.open) detailDialog.showModal();
+  if (!detailDialog.open) openManagedDialog(detailDialog);
   document.querySelector(".js-detail-title").textContent = "Yükleniyor…";
   detailContent.innerHTML = empty("Düğün dosyası hazırlanıyor…");
   try {
@@ -1088,6 +1330,7 @@ async function loadStaff() {
   try {
     const [response] = await Promise.all([apiRequest("/admin/staff"), ensureVenues()]);
     state.staff = response.data;
+    markDataSuccess();
     renderStaff();
   } catch (error) {
     container.innerHTML = empty(error.message);
@@ -1157,7 +1400,7 @@ async function openStaffForm(staff = null) {
   staffForm.querySelectorAll('input[name="specialties"]').forEach((input) => {
     input.checked = staff?.specialties.includes(input.value) || false;
   });
-  staffDialog.showModal();
+  openManagedDialog(staffDialog);
 }
 
 async function loadManagers() {
@@ -1166,6 +1409,7 @@ async function loadManagers() {
   try {
     const response = await apiRequest("/admin/venue-managers");
     state.managers = response.data;
+    markDataSuccess();
     container.innerHTML = state.managers.length
       ? state.managers
           .map(
@@ -1194,7 +1438,7 @@ async function openManagerForm(manager = null) {
     ? "Sorumlu hesabını düzenle"
     : "Sorumlu hesabı ekle";
   managerForm.querySelector(".dialog-message").textContent = "";
-  managerDialog.showModal();
+  openManagedDialog(managerDialog);
 }
 
 function renderMessageActions(task) {
@@ -1233,6 +1477,7 @@ async function loadMessages() {
     if (pager.cursor) query.set("cursor", pager.cursor);
     const response = await apiRequest(`/admin/message-tasks?${query}`);
     const tasks = unpackPaginatedList("messages", response.data);
+    markDataSuccess();
     container.innerHTML = tasks.length
       ? tasks
           .map(
@@ -1288,7 +1533,7 @@ function renderCatalogRows(container, rows, type) {
             <strong>₺${priceFormatted}</strong>
           </div>
           <div class="catalog-actions">
-            <button class="mini-button mini-button--primary catalog-edit" type="button" data-edit-catalog="${item.id}">Düzenle</button>
+            <button class="mini-button mini-button--primary catalog-edit" type="button" data-edit-catalog="${item.id}" ${state.catalogFormConstraints ? "" : 'disabled title="Katalog form koşulları yüklenemedi"'}>Düzenle</button>
             <button class="mini-button mini-button--danger catalog-delete" type="button" data-delete-catalog="${item.id}">Sil</button>
           </div>
         </article>`;
@@ -1342,7 +1587,7 @@ function renderVenueRows(container, rows) {
             <strong>${venue.displayOrder}</strong>
           </div>
           <div class="catalog-actions">
-            <button class="mini-button mini-button--primary catalog-edit" type="button" data-edit-catalog="${venue.id}">Düzenle</button>
+            <button class="mini-button mini-button--primary catalog-edit" type="button" data-edit-catalog="${venue.id}" ${state.catalogFormConstraints ? "" : 'disabled title="Katalog form koşulları yüklenemedi"'}>Düzenle</button>
             <button class="mini-button mini-button--danger catalog-delete" type="button" data-delete-catalog="${venue.id}">Kaldır</button>
           </div>
         </article>`;
@@ -1351,20 +1596,27 @@ function renderVenueRows(container, rows) {
 }
 
 async function loadCatalogAdmin() {
-  const [packagesResponse, servicesResponse, venuesResponse, publicVenuesResponse] =
-    await Promise.all([
-      apiRequest("/admin/packages"),
-      apiRequest("/admin/services"),
-      apiRequest("/admin/venues"),
-      apiRequest("/venues")
-    ]);
-  state.packages = packagesResponse.data;
-  state.services = servicesResponse.data;
-  state.catalogVenues = venuesResponse.data;
-  state.venues = publicVenuesResponse.data;
-  renderCatalogRows(document.querySelector(".js-packages"), state.packages, "packages");
-  renderCatalogRows(document.querySelector(".js-services"), state.services, "services");
-  renderVenueRows(document.querySelector(".js-venues-catalog"), state.catalogVenues);
+  setCatalogMessage("");
+  try {
+    const [packagesResponse, servicesResponse, venuesResponse, publicVenuesResponse] =
+      await Promise.all([
+        apiRequest("/admin/packages"),
+        apiRequest("/admin/services"),
+        apiRequest("/admin/venues"),
+        apiRequest("/venues")
+      ]);
+    state.packages = packagesResponse.data;
+    state.services = servicesResponse.data;
+    state.catalogVenues = venuesResponse.data;
+    state.venues = publicVenuesResponse.data;
+    markDataSuccess();
+    renderCatalogRows(document.querySelector(".js-packages"), state.packages, "packages");
+    renderCatalogRows(document.querySelector(".js-services"), state.services, "services");
+    renderVenueRows(document.querySelector(".js-venues-catalog"), state.catalogVenues);
+  } catch (error) {
+    setCatalogMessage(error.message);
+    throw error;
+  }
 }
 
 const panelLoaders = {
@@ -1377,6 +1629,18 @@ const panelLoaders = {
   managers: loadManagers,
   messages: loadMessages,
   catalog: loadCatalogAdmin
+};
+
+const PANEL_TITLES = {
+  overview: "Günün akışı",
+  plan: "Haftalık plan",
+  calendar: "Salon takvimi",
+  applications: "Paket başvuruları",
+  weddings: "Düğünler ve teslimatlar",
+  staff: "Personeller",
+  messages: "Mesaj geçmişi",
+  catalog: "Katalog yönetimi",
+  managers: "Salon sorumluları"
 };
 
 async function movePagination(key, direction) {
@@ -1403,8 +1667,13 @@ async function movePagination(key, direction) {
 
 function activatePanel(name) {
   document.querySelectorAll("[data-panel]").forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.panel === name);
+    const active = button.dataset.panel === name;
+    button.classList.toggle("is-active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
   });
+  const panelTitle = document.querySelector(".js-panel-title");
+  if (panelTitle) panelTitle.textContent = PANEL_TITLES[name] || "Yönetim";
   document.querySelectorAll("[data-panel-content]").forEach((panel) => {
     const active = panel.dataset.panelContent === name;
     panel.hidden = !active;
@@ -1451,38 +1720,46 @@ if (appDetailDialog) {
 }
 
 document.querySelectorAll("[data-week-move]").forEach((button) => {
-  button.addEventListener(
-    "click",
-    () => void loadDashboard(addDays(state.weekStart, Number(button.dataset.weekMove)))
-  );
+  button.addEventListener("click", () => {
+    if (state.dashboardStatus !== "ready") return;
+    const target = addDays(state.weekStart, Number(button.dataset.weekMove));
+    if (target) void loadDashboard(target).catch((error) => setMessage(error.message));
+  });
 });
 document.querySelector("[data-week-today]").addEventListener("click", () => {
+  if (state.dashboardStatus !== "ready") return;
   state.weekStart = "";
-  void loadDashboard();
+  void loadDashboard().catch((error) => setMessage(error.message));
 });
 
 document.querySelector(".js-availability-filters").addEventListener("change", (event) => {
   if (!event.target.matches("select, input")) return;
   state.availabilityVenueId = document.querySelector(".js-availability-venue").value;
   state.availabilityDate = document.querySelector(".js-availability-date").value;
-  void loadDashboard();
+  void loadDashboard().catch((error) => setMessage(error.message));
 });
 
 document.querySelector(".js-calendar-venues").addEventListener("click", (event) => {
   const button = event.target.closest("[data-calendar-venue]");
-  if (button) void loadCalendar(state.calendarMonth, button.dataset.calendarVenue);
+  if (button && state.calendarStatus === "ready") {
+    void loadCalendar(state.calendarMonth, button.dataset.calendarVenue).catch((error) =>
+      setMessage(error.message)
+    );
+  }
 });
 document.querySelectorAll("[data-month-move]").forEach((button) => {
   button.addEventListener("click", () => {
-    void loadCalendar(
-      addMonths(state.calendarMonth, Number(button.dataset.monthMove)),
-      state.calendarVenueId
-    );
+    if (state.calendarStatus !== "ready") return;
+    const target = addMonths(state.calendarMonth, Number(button.dataset.monthMove));
+    if (target) {
+      void loadCalendar(target, state.calendarVenueId).catch((error) => setMessage(error.message));
+    }
   });
 });
 document.querySelector("[data-month-today]").addEventListener("click", () => {
+  if (state.calendarStatus !== "ready") return;
   state.calendarMonth = "";
-  void loadCalendar("", state.calendarVenueId);
+  void loadCalendar("", state.calendarVenueId).catch((error) => setMessage(error.message));
 });
 
 document.querySelector(".js-application-search").addEventListener("submit", (event) => {
@@ -1509,6 +1786,11 @@ async function handleApplicationAction(event) {
     void openApplicationDetail(openAppButton.dataset.openApplication);
     return;
   }
+
+  const actionButton =
+    approveButton || rejectButton || archiveButton || restoreButton || deleteButton;
+  const finishInFlight = beginInFlight(actionButton);
+  if (!finishInFlight) return;
 
   try {
     if (approveButton) {
@@ -1592,6 +1874,8 @@ async function handleApplicationAction(event) {
   } catch (error) {
     if (deleteButton) deleteButton.disabled = false;
     setMessage(error.message);
+  } finally {
+    finishInFlight();
   }
 }
 
@@ -1647,55 +1931,111 @@ detailContent.addEventListener("change", (event) => {
 detailContent.addEventListener("submit", async (event) => {
   if (!event.target.matches(".js-assignment-form")) return;
   event.preventDefault();
-  const data = new FormData(event.target);
+  const form = event.target;
+  const finishInFlight = beginInFlight(event.submitter || form.querySelector('[type="submit"]'));
+  if (!finishInFlight) return;
+  const formMessage = form.closest(".detail-block")?.querySelector(".js-assignment-message");
+  if (formMessage) formMessage.textContent = "";
+  const data = new FormData(form);
   const body = {
     staffId: data.get("staffId"),
     specialty: data.get("specialty"),
     allowConflict: false
   };
   try {
-    await apiRequest(`/admin/weddings/${state.currentWedding.id}/assignments`, {
-      method: "POST",
-      body
-    });
-  } catch (error) {
-    const conflicts = error.payload?.errors?.conflicts;
-    if (error.status !== 409 || !Array.isArray(conflicts) || conflicts.length === 0) {
-      setMessage(error.message);
-      return;
-    }
-    const summary = conflicts
-      .map((wedding) => `${coupleName(wedding)} (${formatDate(wedding.startsAt, true)})`)
-      .join("\n");
-    const confirmed = await showCustomConfirm({
-      title: "Çakışan Görev Uyarısı",
-      message: `Personelin çakışan görevi var:\n${summary}\n\nYine de atansın mı?`,
-      confirmText: "Yine de Atansın",
-      cancelText: "Vazgeç",
-      isWarning: true
-    });
-    if (!confirmed) return;
-    const overrideReason = await requestRequiredReason({
-      title: "Çakışan atama gerekçesi",
-      message: "Bu istisnanın neden gerekli olduğunu denetim kaydı için yazın.",
-      placeholder: "En az 10 karakterlik operasyon gerekçesi",
-      confirmText: "Gerekçeyi kaydet",
-      cancelText: "Vazgeç",
-      isWarning: true
-    });
-    if (!overrideReason) return;
-    const response = await apiRequestWithAdminStepUp(
-      `/admin/weddings/${state.currentWedding.id}/assignments`,
-      {
+    try {
+      await apiRequest(`/admin/weddings/${state.currentWedding.id}/assignments`, {
         method: "POST",
-        body: { ...body, allowConflict: true, overrideReason }
-      },
-      { actionLabel: "Çakışan personel ataması" }
-    );
-    if (!response) return;
+        body
+      });
+    } catch (error) {
+      const conflicts = error.payload?.errors?.conflicts;
+      if (error.status !== 409 || !Array.isArray(conflicts) || conflicts.length === 0) {
+        if (formMessage) formMessage.textContent = formErrorMessage(form, error);
+        return;
+      }
+      const summary = conflicts
+        .map((wedding) => `${coupleName(wedding)} (${formatDate(wedding.startsAt, true)})`)
+        .join("\n");
+      const confirmed = await showCustomConfirm({
+        title: "Çakışan Görev Uyarısı",
+        message: `Personelin çakışan görevi var:\n${summary}\n\nYine de atansın mı?`,
+        confirmText: "Yine de Atansın",
+        cancelText: "Vazgeç",
+        isWarning: true
+      });
+      if (!confirmed) return;
+      const overrideReason = await requestRequiredReason({
+        title: "Çakışan atama gerekçesi",
+        message: "Bu istisnanın neden gerekli olduğunu denetim kaydı için yazın.",
+        placeholder: "En az 10 karakterlik operasyon gerekçesi",
+        confirmText: "Gerekçeyi kaydet",
+        cancelText: "Vazgeç",
+        isWarning: true
+      });
+      if (!overrideReason) return;
+      const response = await apiRequestWithAdminStepUp(
+        `/admin/weddings/${state.currentWedding.id}/assignments`,
+        {
+          method: "POST",
+          body: { ...body, allowConflict: true, overrideReason }
+        },
+        { actionLabel: "Çakışan personel ataması" }
+      );
+      if (!response) return;
+    }
+    setMessage("Personel düğüne atandı.", true);
+    await Promise.all([
+      openWeddingDetail(state.currentWedding.id),
+      loadDashboard(),
+      loadWeddings()
+    ]);
+  } catch (error) {
+    if (formMessage) formMessage.textContent = formErrorMessage(form, error);
+  } finally {
+    finishInFlight();
   }
-  setMessage("Personel düğüne atandı.", true);
-  await Promise.all([openWeddingDetail(state.currentWedding.id), loadDashboard(), loadWeddings()]);
+});
+
+function validateDeliveryRow(row) {
+  const message = row.querySelector(".js-delivery-message");
+  const dueDateInput = row.querySelector('[data-field="dueDate"]');
+  const driveUrlInput = row.querySelector('[data-field="driveUrl"]');
+  if (message) message.textContent = "";
+  if (!dueDateInput.reportValidity() || !driveUrlInput.reportValidity()) {
+    if (message) message.textContent = "Teslim tarihi veya Google Drive bağlantısını kontrol edin.";
+    return false;
+  }
+  if (driveUrlInput.value.trim()) {
+    try {
+      const url = new URL(driveUrlInput.value.trim());
+      if (
+        url.protocol !== "https:" ||
+        !["drive.google.com", "docs.google.com"].includes(url.hostname.toLowerCase())
+      ) {
+        throw new Error("invalid");
+      }
+    } catch {
+      driveUrlInput.setCustomValidity(
+        "HTTPS kullanan geçerli bir Google Drive veya Google Docs bağlantısı girin."
+      );
+      driveUrlInput.reportValidity();
+      if (message) message.textContent = driveUrlInput.validationMessage;
+      return false;
+    }
+  }
+  driveUrlInput.setCustomValidity("");
+  return true;
+}
+
+detailContent.addEventListener("input", (event) => {
+  if (event.target.matches('[data-field="dueDate"], [data-field="driveUrl"]')) {
+    event.target.setCustomValidity("");
+    event.target
+      .closest("[data-delivery-row]")
+      ?.querySelector(".js-delivery-message")
+      ?.replaceChildren();
+  }
 });
 
 detailContent.addEventListener("click", async (event) => {
@@ -1710,6 +2050,20 @@ detailContent.addEventListener("click", async (event) => {
   const archiveWeddingButton = event.target.closest("[data-archive-wedding]");
   const restoreWeddingButton = event.target.closest("[data-restore-wedding]");
   const deleteWeddingButton = event.target.closest("[data-delete-wedding]");
+  const actionButton =
+    editButton ||
+    saveButton ||
+    deliverButton ||
+    revokeDeliveryButton ||
+    resetButton ||
+    removeButton ||
+    cancelWeddingButton ||
+    reinstateWeddingButton ||
+    archiveWeddingButton ||
+    restoreWeddingButton ||
+    deleteWeddingButton;
+  const finishInFlight = beginInFlight(actionButton);
+  if (!finishInFlight) return;
   try {
     if (editButton) {
       await openWeddingEditor(state.currentWedding);
@@ -1717,6 +2071,7 @@ detailContent.addEventListener("click", async (event) => {
     }
     if (saveButton) {
       const row = saveButton.closest("[data-delivery-row]");
+      if (!validateDeliveryRow(row)) return;
       const driveUrl = row.querySelector('[data-field="driveUrl"]').value.trim();
       const currentStatus = row.dataset.currentStatus;
       const nextStatus = row.querySelector('[data-field="status"]').value;
@@ -1914,7 +2269,16 @@ detailContent.addEventListener("click", async (event) => {
   } catch (error) {
     if (removeButton) removeButton.disabled = false;
     if (deleteWeddingButton) deleteWeddingButton.disabled = false;
-    setMessage(error.message);
+    const contextualMessage =
+      saveButton || deliverButton || revokeDeliveryButton
+        ? detailContent.querySelector(".js-delivery-message")
+        : removeButton
+          ? detailContent.querySelector(".js-assignment-message")
+          : null;
+    if (contextualMessage) contextualMessage.textContent = error.message;
+    else setMessage(error.message);
+  } finally {
+    finishInFlight();
   }
 });
 
@@ -1938,15 +2302,18 @@ document.querySelector(".js-staff").addEventListener("click", (event) => {
   const deleteButton = event.target.closest("[data-delete-staff]");
   if (button)
     void openStaffForm(state.staff.find((staff) => staff.id === button.dataset.editStaff));
-  else if (toggleButton)
+  else if (toggleButton) {
+    const finishInFlight = beginInFlight(toggleButton);
+    if (!finishInFlight) return;
     void apiRequest(`/admin/staff/${toggleButton.dataset.toggleStaff}`, {
       method: "PATCH",
       body: { isActive: toggleButton.dataset.active !== "true" }
     })
       .then(() => Promise.all([loadStaff(), loadDashboard()]))
       .then(() => setMessage("Personel durumu güncellendi.", true))
-      .catch((error) => setMessage(error.message));
-  else if (deleteButton)
+      .catch((error) => setMessage(error.message))
+      .finally(finishInFlight);
+  } else if (deleteButton)
     void requestDangerConfirmation(
       {
         title: "Personeli sil",
@@ -2028,7 +2395,7 @@ staffForm.addEventListener("submit", async (event) => {
     setMessage(staffId ? "Personel güncellendi." : "Personel eklendi.", true);
     await Promise.all([loadStaff(), loadDashboard()]);
   } catch (error) {
-    formMessage.textContent = error.message;
+    formMessage.textContent = formErrorMessage(staffForm, error);
   } finally {
     submitButton.disabled = false;
     submitButton.textContent = "Kaydet";
@@ -2202,208 +2569,232 @@ document
     const editButton = event.target.closest("[data-edit-catalog]");
     const saveButton = event.target.closest("[data-save-catalog]");
     const deleteButton = event.target.closest("[data-delete-catalog]");
+    const actionButton = editButton || saveButton || deleteButton;
+    if (!actionButton) return;
+    if (editButton && !state.catalogFormConstraints) {
+      setCatalogMessage("Katalog form koşulları yüklenemedi. Sayfayı yenileyip tekrar deneyin.");
+      return;
+    }
+    const finishInFlight = beginInFlight(actionButton);
+    if (!finishInFlight) return;
 
-    if (editButton) {
-      const row = editButton.closest("[data-catalog-row]");
-      const type = row.dataset.catalogType;
-      const itemId = row.dataset.catalogRow;
-      const itemsList =
-        type === "packages"
-          ? state.packages
-          : type === "services"
-            ? state.services
-            : state.catalogVenues;
-      const currentItem = itemsList.find((i) => i.id === itemId);
+    try {
+      if (editButton) {
+        const row = editButton.closest("[data-catalog-row]");
+        const type = row.dataset.catalogType;
+        const itemId = row.dataset.catalogRow;
+        const itemsList =
+          type === "packages"
+            ? state.packages
+            : type === "services"
+              ? state.services
+              : state.catalogVenues;
+        const currentItem = itemsList.find((i) => i.id === itemId);
 
-      if (!currentItem) return;
+        if (!currentItem) return;
 
-      const formData =
-        type === "venues"
-          ? await showVenueFormModal({
-              title: "Mekân Bilgilerini Düzenle",
-              initialData: currentItem,
-              constraints: state.catalogFormConstraints
-            })
-          : await showCatalogFormModal({
-              type,
-              title:
-                type === "packages" ? "Paket Bilgilerini Düzenle" : "Ek Hizmet Bilgilerini Düzenle",
-              initialData: currentItem,
-              constraints: state.catalogFormConstraints
-            });
+        const formData =
+          type === "venues"
+            ? await showVenueFormModal({
+                title: "Mekân Bilgilerini Düzenle",
+                initialData: currentItem,
+                constraints: state.catalogFormConstraints
+              })
+            : await showCatalogFormModal({
+                type,
+                title:
+                  type === "packages"
+                    ? "Paket Bilgilerini Düzenle"
+                    : "Ek Hizmet Bilgilerini Düzenle",
+                initialData: currentItem,
+                constraints: state.catalogFormConstraints
+              });
 
-      if (!formData) return;
+        if (!formData) return;
 
-      const body =
-        type === "venues"
-          ? {
-              name: formData.name,
-              displayName: formData.displayName,
-              imagePath: formData.imagePath,
-              displayOrder: formData.displayOrder,
-              isFeatured: formData.isFeatured,
-              isPartner: formData.isPartner,
-              isActive: formData.isActive
+        const body =
+          type === "venues"
+            ? {
+                name: formData.name,
+                displayName: formData.displayName,
+                imagePath: formData.imagePath,
+                displayOrder: formData.displayOrder,
+                isFeatured: formData.isFeatured,
+                isPartner: formData.isPartner,
+                isActive: formData.isActive
+              }
+            : {
+                name: formData.name,
+                priceCents: formData.priceCents,
+                imagePath: formData.imagePath,
+                description: formData.description,
+                features: formData.features,
+                isActive: formData.isActive
+              };
+        if (type === "packages") {
+          body.subtitle = formData.subtitle;
+          body.deliveryText = formData.deliveryText;
+        } else if (type === "services") {
+          body.category = formData.category;
+          body.eyebrow = formData.eyebrow;
+          body.delivery = formData.delivery;
+          body.gallery = formData.gallery;
+        }
+
+        try {
+          await apiRequest(`/admin/${type}/${itemId}`, {
+            method: "PATCH",
+            body
+          });
+          await loadCatalogAdmin();
+          setCatalogMessage("Katalog kaydı başarıyla güncellendi.", true);
+        } catch (error) {
+          setCatalogMessage(error.message);
+        }
+      } else if (saveButton) {
+        const row = saveButton.closest("[data-catalog-row]");
+        try {
+          await apiRequest(`/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`, {
+            method: "PATCH",
+            body: {
+              name: row.querySelector('input[type="text"]')?.value.trim(),
+              priceCents: Math.round(
+                Number(row.querySelector('input[type="number"]')?.value || 0) * 100
+              ),
+              isActive: row.querySelector('input[type="checkbox"]')?.checked ?? true
             }
-          : {
-              name: formData.name,
-              priceCents: formData.priceCents,
-              imagePath: formData.imagePath,
-              description: formData.description,
-              features: formData.features,
-              isActive: formData.isActive
-            };
-      if (type === "packages") {
-        body.subtitle = formData.subtitle;
-        body.deliveryText = formData.deliveryText;
-      } else if (type === "services") {
-        body.category = formData.category;
-        body.eyebrow = formData.eyebrow;
-        body.delivery = formData.delivery;
-        body.gallery = formData.gallery;
-      }
-
-      try {
-        await apiRequest(`/admin/${type}/${itemId}`, {
-          method: "PATCH",
-          body
-        });
-        await loadCatalogAdmin();
-        setMessage("Katalog kaydı başarıyla güncellendi.", true);
-      } catch (error) {
-        setMessage(error.message);
-      }
-    } else if (saveButton) {
-      const row = saveButton.closest("[data-catalog-row]");
-      try {
-        await apiRequest(`/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`, {
-          method: "PATCH",
-          body: {
-            name: row.querySelector('input[type="text"]')?.value.trim(),
-            priceCents: Math.round(
-              Number(row.querySelector('input[type="number"]')?.value || 0) * 100
-            ),
-            isActive: row.querySelector('input[type="checkbox"]')?.checked ?? true
-          }
-        });
-        await loadCatalogAdmin();
-        setMessage("Katalog güncellendi.", true);
-      } catch (error) {
-        setMessage(error.message);
-      }
-    } else if (deleteButton) {
-      const row = deleteButton.closest("[data-catalog-row]");
-      const typeLabel =
-        row.dataset.catalogType === "packages"
-          ? "Temel paketi"
-          : row.dataset.catalogType === "services"
-            ? "Ek hizmeti"
-            : "Mekânı";
-      const name = row.dataset.catalogName || "Katalog kaydı";
-      const isVenue = row.dataset.catalogType === "venues";
-      const confirmation = await requestDangerConfirmation(
-        {
-          title: `${typeLabel} ${isVenue ? "kaldır" : "sil"}`,
-          copy: isVenue
-            ? `"${name}" mekânı ilişkili operasyon kaydı varsa pasife alınır; yoksa kalıcı silinir.`
-            : `"${name}" seçeneği kullanılmıyorsa kalıcı silinir; ilişkili kayıt varsa pasife alınır.`,
-          confirmation: name,
-          button: isVenue ? "Kaldır" : "Sil",
-          reasonRequired: true
-        },
-        deleteButton
-      );
-      if (confirmation === null) return;
-      try {
-        const response = await apiRequestWithAdminStepUp(
-          `/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`,
-          { method: "DELETE", body: confirmation },
-          { actionLabel: `${typeLabel} ${isVenue ? "kaldırma" : "silme"}` }
+          });
+          await loadCatalogAdmin();
+          setCatalogMessage("Katalog güncellendi.", true);
+        } catch (error) {
+          setCatalogMessage(error.message);
+        }
+      } else if (deleteButton) {
+        const row = deleteButton.closest("[data-catalog-row]");
+        const typeLabel =
+          row.dataset.catalogType === "packages"
+            ? "Temel paketi"
+            : row.dataset.catalogType === "services"
+              ? "Ek hizmeti"
+              : "Mekânı";
+        const name = row.dataset.catalogName || "Katalog kaydı";
+        const isVenue = row.dataset.catalogType === "venues";
+        const confirmation = await requestDangerConfirmation(
+          {
+            title: `${typeLabel} ${isVenue ? "kaldır" : "sil"}`,
+            copy: isVenue
+              ? `"${name}" mekânı ilişkili operasyon kaydı varsa pasife alınır; yoksa kalıcı silinir.`
+              : `"${name}" seçeneği kullanılmıyorsa kalıcı silinir; ilişkili kayıt varsa pasife alınır.`,
+            confirmation: name,
+            button: isVenue ? "Kaldır" : "Sil",
+            reasonRequired: true
+          },
+          deleteButton
         );
-        if (!response) return;
-        await loadCatalogAdmin();
-        setMessage(`${typeLabel} ${isVenue ? "kaldırıldı" : "silindi"}.`, true);
-      } catch (error) {
-        setMessage(error.message);
+        if (confirmation === null) return;
+        try {
+          const response = await apiRequestWithAdminStepUp(
+            `/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`,
+            { method: "DELETE", body: confirmation },
+            { actionLabel: `${typeLabel} ${isVenue ? "kaldırma" : "silme"}` }
+          );
+          if (!response) return;
+          await loadCatalogAdmin();
+          setCatalogMessage(`${typeLabel} ${isVenue ? "kaldırıldı" : "silindi"}.`, true);
+        } catch (error) {
+          setCatalogMessage(error.message);
+        }
       }
+    } finally {
+      finishInFlight();
     }
   });
 
 document.querySelectorAll("[data-add-catalog]").forEach((button) => {
   button.addEventListener("click", async () => {
-    const type = button.dataset.addCatalog;
-    const formData =
-      type === "venues"
-        ? await showVenueFormModal({
-            title: "Yeni Mekân Oluştur",
-            constraints: state.catalogFormConstraints
-          })
-        : await showCatalogFormModal({
-            type,
-            title: type === "packages" ? "Yeni Paket Oluştur" : "Yeni Ek Hizmet Oluştur",
-            constraints: state.catalogFormConstraints
-          });
-    if (!formData) return;
-
-    if (type === "venues") {
-      try {
-        await apiRequest("/admin/venues", { method: "POST", body: formData });
-        await loadCatalogAdmin();
-        setMessage("Yeni mekân oluşturuldu.", true);
-      } catch (error) {
-        setMessage(error.message);
-      }
+    if (!state.catalogFormConstraints) {
+      setCatalogMessage("Katalog form koşulları yüklenemedi. Sayfayı yenileyip tekrar deneyin.");
       return;
     }
-
-    const {
-      code,
-      name,
-      priceCents,
-      category,
-      eyebrow,
-      subtitle,
-      deliveryText,
-      delivery,
-      imagePath,
-      description,
-      features,
-      gallery,
-      isActive
-    } = formData;
-    const body =
-      type === "packages"
-        ? {
-            code,
-            name,
-            priceCents,
-            subtitle,
-            deliveryText,
-            imagePath,
-            description,
-            features,
-            isActive
-          }
-        : {
-            code,
-            name,
-            category,
-            eyebrow,
-            priceCents,
-            delivery,
-            imagePath,
-            description,
-            features,
-            gallery,
-            isActive
-          };
-
+    const finishInFlight = beginInFlight(button);
+    if (!finishInFlight) return;
     try {
-      await apiRequest(`/admin/${type}`, { method: "POST", body });
-      await loadCatalogAdmin();
-      setMessage("Yeni katalog kaydı oluşturuldu.", true);
-    } catch (error) {
-      setMessage(error.message);
+      const type = button.dataset.addCatalog;
+      const formData =
+        type === "venues"
+          ? await showVenueFormModal({
+              title: "Yeni Mekân Oluştur",
+              constraints: state.catalogFormConstraints
+            })
+          : await showCatalogFormModal({
+              type,
+              title: type === "packages" ? "Yeni Paket Oluştur" : "Yeni Ek Hizmet Oluştur",
+              constraints: state.catalogFormConstraints
+            });
+      if (!formData) return;
+
+      if (type === "venues") {
+        try {
+          await apiRequest("/admin/venues", { method: "POST", body: formData });
+          await loadCatalogAdmin();
+          setCatalogMessage("Yeni mekân oluşturuldu.", true);
+        } catch (error) {
+          setCatalogMessage(error.message);
+        }
+        return;
+      }
+
+      const {
+        code,
+        name,
+        priceCents,
+        category,
+        eyebrow,
+        subtitle,
+        deliveryText,
+        delivery,
+        imagePath,
+        description,
+        features,
+        gallery,
+        isActive
+      } = formData;
+      const body =
+        type === "packages"
+          ? {
+              code,
+              name,
+              priceCents,
+              subtitle,
+              deliveryText,
+              imagePath,
+              description,
+              features,
+              isActive
+            }
+          : {
+              code,
+              name,
+              category,
+              eyebrow,
+              priceCents,
+              delivery,
+              imagePath,
+              description,
+              features,
+              gallery,
+              isActive
+            };
+
+      try {
+        await apiRequest(`/admin/${type}`, { method: "POST", body });
+        await loadCatalogAdmin();
+        setCatalogMessage("Yeni katalog kaydı oluşturuldu.", true);
+      } catch (error) {
+        setCatalogMessage(error.message);
+      }
+    } finally {
+      finishInFlight();
     }
   });
 });
@@ -2427,12 +2818,17 @@ async function loadManualOptions() {
     .join("");
 }
 
-document.querySelector(".js-open-manual").addEventListener("click", async () => {
+document.querySelector(".js-open-manual").addEventListener("click", async (event) => {
+  const finishInFlight = beginInFlight(event.currentTarget);
+  if (!finishInFlight) return;
   try {
     await loadManualOptions();
-    manualDialog.showModal();
+    syncScheduleFields(manualForm);
+    openManagedDialog(manualDialog, event.currentTarget);
   } catch (error) {
     setMessage(error.message);
+  } finally {
+    finishInFlight();
   }
 });
 manualForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
@@ -2442,6 +2838,10 @@ manualForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (event.submitter?.value === "cancel") return;
   if (!manualForm.reportValidity()) return;
+  const finishInFlight = beginInFlight(
+    event.submitter || manualForm.querySelector('[type="submit"]')
+  );
+  if (!finishInFlight) return;
   const data = new FormData(manualForm);
   try {
     await apiRequest("/admin/booking-applications", {
@@ -2474,6 +2874,8 @@ manualForm.addEventListener("submit", async (event) => {
     await Promise.all([loadApplications(), loadDashboard()]);
   } catch (error) {
     manualForm.querySelector(".dialog-message").textContent = formErrorMessage(manualForm, error);
+  } finally {
+    finishInFlight();
   }
 });
 
@@ -2535,12 +2937,14 @@ async function openWeddingEditor(wedding) {
     datePartInIstanbul(wedding.startsAt) !== datePartInIstanbul(wedding.endsAt);
   weddingForm.querySelector(".dialog-message").textContent = "";
   weddingForm.dataset.originalPackageCode = currentPackage.code || "";
+  weddingForm.dataset.originalWeddingDate = values.weddingDate;
   weddingForm.dataset.originalPackageName = currentPackage.name || "Paket bilgisi yok";
   weddingForm.dataset.originalServices = JSON.stringify(
     currentServices.map(({ code, name }) => ({ code, name }))
   );
   weddingForm.dataset.generatedNote = "";
-  weddingDialog.showModal();
+  syncScheduleFields(weddingForm);
+  openManagedDialog(weddingDialog);
 }
 
 function updateWeddingChangeNote() {
@@ -2588,6 +2992,10 @@ weddingForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (event.submitter?.value === "cancel") return;
   if (!weddingForm.reportValidity()) return;
+  const finishInFlight = beginInFlight(
+    event.submitter || weddingForm.querySelector('[type="submit"]')
+  );
+  if (!finishInFlight) return;
   const data = new FormData(weddingForm);
   const weddingId = data.get("weddingId");
   try {
@@ -2627,6 +3035,8 @@ weddingForm.addEventListener("submit", async (event) => {
     await Promise.all([openWeddingDetail(weddingId), loadWeddings(), loadDashboard()]);
   } catch (error) {
     weddingForm.querySelector(".dialog-message").textContent = formErrorMessage(weddingForm, error);
+  } finally {
+    finishInFlight();
   }
 });
 
@@ -2645,18 +3055,45 @@ document.querySelector(".js-current-date").textContent = `${new Intl.DateTimeFor
   dateStyle: "long"
 }).format(new Date())} · ${OPERATIONS_CITY}`;
 
+[manualForm, weddingForm].forEach((form) => {
+  form.elements
+    .namedItem("weddingDate")
+    ?.addEventListener("change", () => syncScheduleFields(form));
+});
+
 if (await ensureAdmin()) {
   initTrustedDevices();
   await Promise.all([
-    loadDashboard(),
-    apiRequest("/admin/catalog-form-constraints").then((response) => {
-      state.catalogFormConstraints = response.data;
-    }),
-    apiRequest("/catalog").then((response) => {
-      const constraints = parseBookingFormConstraints(response.data?.bookingFormConstraints);
-      applyBookingFormConstraints(document, constraints);
-    })
-  ]).catch((error) => setMessage(error.message));
+    loadDashboard().catch((error) => setMessage(error.message)),
+    loadHealth(),
+    apiRequest("/admin/catalog-form-constraints")
+      .then((response) => {
+        state.catalogFormConstraints = response.data;
+        setCatalogMessage("");
+      })
+      .catch((error) => {
+        state.catalogFormConstraints = null;
+        setCatalogMessage(`Katalog formları kapalı: ${error.message}`);
+      })
+      .finally(syncDependencyControls),
+    apiRequest("/catalog")
+      .then((response) => {
+        const constraints = parseBookingFormConstraints(response.data?.bookingFormConstraints);
+        state.bookingSchedulePolicy = parseBookingSchedulePolicy(
+          response.data?.bookingSchedulePolicy
+        );
+        applyBookingFormConstraints(document, constraints);
+        state.bookingFormConstraintsReady = true;
+        syncScheduleFields(manualForm);
+        syncScheduleFields(weddingForm);
+      })
+      .catch((error) => {
+        state.bookingFormConstraintsReady = false;
+        state.bookingSchedulePolicy = null;
+        setMessage(`Yeni düğün formu kapalı: ${error.message}`);
+      })
+      .finally(syncDependencyControls)
+  ]);
 }
 
 /* UX & Klavye Kısayolları */
@@ -2664,17 +3101,27 @@ const toggleSidebarBtn = document.querySelector(".js-toggle-sidebar");
 const closeSidebarBtn = document.querySelector(".js-close-sidebar");
 const sidebar = document.querySelector(".admin-sidebar");
 const sidebarOverlay = document.querySelector(".js-sidebar-overlay");
+const adminMain = document.querySelector(".admin-main");
 
-function closeAdminSidebar() {
+function closeAdminSidebar({ restoreFocus = true } = {}) {
+  const wasOpen = sidebar?.classList.contains("is-open");
   sidebar?.classList.remove("is-open");
   sidebarOverlay?.classList.remove("is-open");
+  sidebarOverlay?.setAttribute("aria-hidden", "true");
+  toggleSidebarBtn?.setAttribute("aria-expanded", "false");
+  if (adminMain) adminMain.inert = false;
   document.body.classList.remove("sidebar-open");
+  if (wasOpen && restoreFocus) toggleSidebarBtn?.focus();
 }
 
 function openAdminSidebar() {
   sidebar?.classList.add("is-open");
   sidebarOverlay?.classList.add("is-open");
+  sidebarOverlay?.setAttribute("aria-hidden", "false");
+  toggleSidebarBtn?.setAttribute("aria-expanded", "true");
+  if (adminMain) adminMain.inert = true;
   document.body.classList.add("sidebar-open");
+  closeSidebarBtn?.focus();
 }
 
 if (toggleSidebarBtn && sidebar) {
@@ -2689,7 +3136,8 @@ if (toggleSidebarBtn && sidebar) {
   closeSidebarBtn?.addEventListener("click", () => closeAdminSidebar());
   sidebarOverlay?.addEventListener("click", () => closeAdminSidebar());
   sidebar.querySelectorAll("button, a").forEach((btn) => {
-    btn.addEventListener("click", () => closeAdminSidebar());
+    if (btn !== closeSidebarBtn)
+      btn.addEventListener("click", () => closeAdminSidebar({ restoreFocus: false }));
   });
   document.addEventListener("click", (e) => {
     if (
@@ -2703,7 +3151,8 @@ if (toggleSidebarBtn && sidebar) {
 }
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
+  if (e.key === "Escape" && sidebar?.classList.contains("is-open")) {
+    e.preventDefault();
     closeAdminSidebar();
   }
 });
@@ -2727,5 +3176,11 @@ function updateNavBadges(metrics) {
     } else {
       msgBadge.hidden = true;
     }
+  }
+  const weddingBadge = document.querySelector(".js-badge-weddings");
+  if (weddingBadge) {
+    const count = Number(metrics.todayWeddings || 0);
+    weddingBadge.textContent = String(count);
+    weddingBadge.hidden = count === 0;
   }
 }

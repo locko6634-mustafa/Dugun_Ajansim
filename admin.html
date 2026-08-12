@@ -20,7 +20,7 @@
   <body>
     <div class="sidebar-overlay js-sidebar-overlay" aria-hidden="true"></div>
     <div class="admin-shell">
-      <aside class="admin-sidebar" aria-label="Ana yönetim menüsü">
+      <aside id="admin-sidebar" class="admin-sidebar" aria-label="Ana yönetim menüsü">
         <div class="sidebar-header-mobile">
           <a class="admin-brand" href="index.html" aria-label="Düğünajansım ana sayfa">
             <span>DA</span><strong>Düğünajansım</strong><small>Ajans yönetimi</small>
@@ -29,6 +29,7 @@
             class="mobile-sidebar-close js-close-sidebar"
             type="button"
             aria-label="Menüyü Kapat"
+            aria-controls="admin-sidebar"
           >
             <svg
               width="20"
@@ -46,7 +47,7 @@
           </button>
         </div>
         <nav class="admin-nav" aria-label="Yönetim bölümleri">
-          <button class="is-active" type="button" data-panel="overview">
+          <button class="is-active" type="button" data-panel="overview" aria-current="page">
             <span>01</span> Genel Bakış
           </button>
           <button type="button" data-panel="plan"><span>02</span> Haftalık Plan</button>
@@ -65,7 +66,17 @@
           <button type="button" data-panel="managers"><span>09</span> Salon Sorumluları</button>
         </nav>
         <div class="admin-sidebar__footer">
-          <span class="connection-status"><i></i> Sistem bağlı</span>
+          <span
+            class="connection-status is-checking js-connection-status"
+            role="status"
+            aria-live="polite"
+          >
+            <i aria-hidden="true"></i>
+            <span
+              ><b class="js-connection-text">Sistem kontrol ediliyor</b
+              ><small class="js-last-data-time">Henüz veri alınmadı</small></span
+            >
+          </span>
           <button class="text-button js-logout" type="button">Güvenli çıkış</button>
         </div>
       </aside>
@@ -77,6 +88,8 @@
               class="mobile-toggle-btn js-toggle-sidebar"
               type="button"
               aria-label="Menüyü Aç/Kapat"
+              aria-controls="admin-sidebar"
+              aria-expanded="false"
             >
               <svg
                 width="22"
@@ -91,11 +104,18 @@
             </button>
             <div>
               <p class="kicker js-current-date">İstanbul</p>
-              <h1>Günün akışı</h1>
+              <h1 class="js-panel-title">Günün akışı</h1>
             </div>
           </div>
           <div class="topbar-actions">
-            <button class="primary-button js-open-manual" type="button">+ Yeni düğün</button>
+            <button
+              class="primary-button js-open-manual"
+              type="button"
+              disabled
+              title="Form koşulları yükleniyor"
+            >
+              + Yeni düğün
+            </button>
           </div>
         </header>
         <p class="global-message" role="status" aria-live="polite"></p>
@@ -116,6 +136,15 @@
             </article>
           </div>
           <div class="overview-layout">
+            <section class="today-flow" aria-labelledby="today-weddings-title">
+              <div class="section-heading compact">
+                <div>
+                  <p class="section-index">Bugün</p>
+                  <h2 id="today-weddings-title">Düğün akışı</h2>
+                </div>
+              </div>
+              <div class="event-stack js-today-weddings" aria-live="polite"></div>
+            </section>
             <aside class="attention-rail" aria-label="Yaklaşan işler ve uyarılar">
               <section class="rail-block">
                 <div class="section-heading compact">
@@ -192,14 +221,16 @@
                 type="button"
                 data-week-move="-7"
                 aria-label="Önceki hafta"
+                disabled
               >
                 ←</button
-              ><button class="mini-button" type="button" data-week-today>Bugün</button
+              ><button class="mini-button" type="button" data-week-today disabled>Bugün</button
               ><button
                 class="mini-button"
                 type="button"
                 data-week-move="7"
                 aria-label="Sonraki hafta"
+                disabled
               >
                 →
               </button>
@@ -215,11 +246,23 @@
               <h2 class="js-calendar-label">Aylık takvim</h2>
             </div>
             <div class="plan-controls">
-              <button class="mini-button" type="button" data-month-move="-1" aria-label="Önceki ay">
+              <button
+                class="mini-button"
+                type="button"
+                data-month-move="-1"
+                aria-label="Önceki ay"
+                disabled
+              >
                 ←
               </button>
-              <button class="mini-button" type="button" data-month-today>Bu ay</button>
-              <button class="mini-button" type="button" data-month-move="1" aria-label="Sonraki ay">
+              <button class="mini-button" type="button" data-month-today disabled>Bu ay</button>
+              <button
+                class="mini-button"
+                type="button"
+                data-month-move="1"
+                aria-label="Sonraki ay"
+                disabled
+              >
                 →
               </button>
             </div>
@@ -388,6 +431,7 @@
               <h2>Paket, hizmet ve mekânlar</h2>
             </div>
           </div>
+          <p class="dialog-message js-catalog-message" role="status" aria-live="polite"></p>
           <div class="catalog-layout">
             <section class="catalog-card catalog-card--packages">
               <div class="catalog-card__heading">
@@ -400,6 +444,8 @@
                   class="mini-button catalog-card__add"
                   type="button"
                   data-add-catalog="packages"
+                  disabled
+                  title="Katalog form koşulları yükleniyor"
                 >
                   <span aria-hidden="true">+</span> Yeni paket
                 </button>
@@ -417,6 +463,8 @@
                   class="mini-button catalog-card__add"
                   type="button"
                   data-add-catalog="services"
+                  disabled
+                  title="Katalog form koşulları yükleniyor"
                 >
                   <span aria-hidden="true">+</span> Yeni hizmet
                 </button>
@@ -434,6 +482,8 @@
                   class="mini-button catalog-card__add"
                   type="button"
                   data-add-catalog="venues"
+                  disabled
+                  title="Katalog form koşulları yükleniyor"
                 >
                   <span aria-hidden="true">+</span> Yeni mekân
                 </button>
@@ -445,12 +495,12 @@
       </main>
     </div>
 
-    <dialog class="sheet-dialog js-wedding-detail">
+    <dialog class="sheet-dialog js-wedding-detail" aria-labelledby="wedding-detail-title">
       <div class="sheet-shell">
         <div class="sheet-heading">
           <div>
             <p class="section-index">Düğün dosyası</p>
-            <h2 class="js-detail-title">Yükleniyor</h2>
+            <h2 id="wedding-detail-title" class="js-detail-title">Yükleniyor</h2>
           </div>
           <button class="dialog-close" type="button" data-close-dialog aria-label="Kapat">×</button>
         </div>
@@ -458,12 +508,15 @@
       </div>
     </dialog>
 
-    <dialog class="sheet-dialog js-application-detail-dialog">
+    <dialog
+      class="sheet-dialog js-application-detail-dialog"
+      aria-labelledby="application-detail-title"
+    >
       <div class="sheet-shell">
         <div class="sheet-heading">
           <div>
             <p class="section-index">Başvuru detayları</p>
-            <h2 class="js-app-detail-title">Yükleniyor</h2>
+            <h2 id="application-detail-title" class="js-app-detail-title">Yükleniyor</h2>
           </div>
           <button class="dialog-close" type="button" data-close-dialog aria-label="Kapat">×</button>
         </div>
@@ -471,12 +524,12 @@
       </div>
     </dialog>
 
-    <dialog class="form-dialog js-staff-dialog">
-      <form class="form-shell js-staff-form" method="dialog">
+    <dialog class="form-dialog js-staff-dialog" aria-labelledby="staff-form-title">
+      <form class="form-shell js-staff-form" method="dialog" aria-describedby="staff-form-message">
         <div class="sheet-heading">
           <div>
             <p class="section-index">Ekip</p>
-            <h2 class="js-staff-form-title">Personel ekle</h2>
+            <h2 id="staff-form-title" class="js-staff-form-title">Personel ekle</h2>
           </div>
           <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
         </div>
@@ -525,7 +578,12 @@
             ><input name="isActive" type="checkbox" checked /> Aktif personel</label
           >
         </div>
-        <p class="dialog-message js-staff-form-message" role="status"></p>
+        <p
+          id="staff-form-message"
+          class="dialog-message js-staff-form-message"
+          role="status"
+          aria-live="polite"
+        ></p>
         <div class="dialog-actions">
           <button class="secondary-button" type="button" value="cancel">Vazgeç</button
           ><button class="primary-button js-staff-submit" type="submit">Kaydet</button>
@@ -533,12 +591,16 @@
       </form>
     </dialog>
 
-    <dialog class="form-dialog js-manager-dialog">
-      <form class="form-shell js-manager-form" method="dialog">
+    <dialog class="form-dialog js-manager-dialog" aria-labelledby="manager-form-title">
+      <form
+        class="form-shell js-manager-form"
+        method="dialog"
+        aria-describedby="manager-form-message"
+      >
         <div class="sheet-heading">
           <div>
             <p class="section-index">Salon hesabı</p>
-            <h2 class="js-manager-form-title">Sorumlu hesabı ekle</h2>
+            <h2 id="manager-form-title" class="js-manager-form-title">Sorumlu hesabı ekle</h2>
           </div>
           <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
         </div>
@@ -566,7 +628,7 @@
             ><input name="isActive" type="checkbox" checked /> Aktif hesap</label
           >
         </div>
-        <p class="dialog-message" role="status"></p>
+        <p id="manager-form-message" class="dialog-message" role="status" aria-live="polite"></p>
         <div class="dialog-actions">
           <button class="secondary-button" type="button" value="cancel">Vazgeç</button
           ><button class="primary-button" type="submit">Kaydet</button>
@@ -574,12 +636,16 @@
       </form>
     </dialog>
 
-    <dialog class="form-dialog js-manual-dialog">
-      <form class="form-shell js-manual-form" method="dialog">
+    <dialog class="form-dialog js-manual-dialog" aria-labelledby="manual-form-title">
+      <form
+        class="form-shell js-manual-form"
+        method="dialog"
+        aria-describedby="manual-form-message"
+      >
         <div class="sheet-heading">
           <div>
             <p class="section-index">Yeni kayıt</p>
-            <h2>Manuel düğün başvurusu</h2>
+            <h2 id="manual-form-title">Manuel düğün başvurusu</h2>
           </div>
           <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
         </div>
@@ -613,7 +679,7 @@
           </fieldset>
           <label class="wide">Not<textarea name="note" rows="3"></textarea></label>
         </div>
-        <p class="dialog-message" role="status"></p>
+        <p id="manual-form-message" class="dialog-message" role="status" aria-live="polite"></p>
         <div class="dialog-actions">
           <button class="secondary-button" type="button" value="cancel">Vazgeç</button
           ><button class="primary-button" type="submit">Kaydı oluştur</button>
@@ -621,12 +687,16 @@
       </form>
     </dialog>
 
-    <dialog class="form-dialog js-wedding-dialog">
-      <form class="form-shell js-wedding-form" method="dialog">
+    <dialog class="form-dialog js-wedding-dialog" aria-labelledby="wedding-form-title">
+      <form
+        class="form-shell js-wedding-form"
+        method="dialog"
+        aria-describedby="wedding-form-message"
+      >
         <div class="sheet-heading">
           <div>
             <p class="section-index">Düğün kaydı</p>
-            <h2>Bilgileri güncelle</h2>
+            <h2 id="wedding-form-title">Bilgileri güncelle</h2>
           </div>
           <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
         </div>
@@ -659,7 +729,7 @@
           </fieldset>
           <label class="wide">Not<textarea name="note" rows="3" maxlength="2000"></textarea></label>
         </div>
-        <p class="dialog-message" role="status"></p>
+        <p id="wedding-form-message" class="dialog-message" role="status" aria-live="polite"></p>
         <div class="dialog-actions">
           <button class="secondary-button" type="button" value="cancel">Vazgeç</button
           ><button class="primary-button" type="submit">Değişiklikleri kaydet</button>

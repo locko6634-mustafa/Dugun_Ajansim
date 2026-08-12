@@ -8,7 +8,6 @@ const passwordInput = document.querySelector("#password");
 const passwordToggle = document.querySelector(".password-toggle");
 const mfaLoginField = document.querySelector(".mfa-login-field");
 const totpCodeInput = document.querySelector("#totp-code");
-const forgotButton = document.querySelector(".forgot-button");
 const formMessage = loginForm.querySelector(".form-message");
 const changeMessage = changeForm.querySelector(".password-change-message");
 const changeCurrentPasswordField = changeForm.querySelector(".password-current-field");
@@ -61,14 +60,15 @@ function setFieldError(input, message) {
 }
 
 function validateUsername() {
-  const valid = usernameInput.value.trim().length >= 3;
-  setFieldError(usernameInput, valid ? "" : "Kullanıcı adınızı girin.");
+  const length = usernameInput.value.trim().length;
+  const valid = length >= 3 && length <= 64;
+  setFieldError(usernameInput, valid ? "" : "Kullanıcı adınız 3–64 karakter olmalıdır.");
   return valid;
 }
 
 function validatePassword() {
-  const valid = passwordInput.value.length >= 6;
-  setFieldError(passwordInput, valid ? "" : "Parolanız en az 6 karakter olmalıdır.");
+  const valid = passwordInput.value.length >= 6 && passwordInput.value.length <= 256;
+  setFieldError(passwordInput, valid ? "" : "Parolanız 6–256 karakter arasında olmalıdır.");
   return valid;
 }
 
@@ -136,12 +136,6 @@ passwordToggle.addEventListener("click", () => {
 usernameInput.addEventListener("blur", validateUsername);
 passwordInput.addEventListener("blur", validatePassword);
 
-forgotButton.addEventListener("click", () => {
-  formMessage.classList.add("is-info");
-  formMessage.textContent =
-    "Parolanızı sıfırlamak için Düğün Ajansım ekibiyle iletişime geçin. Size tek kullanımlık bağlantı gönderilecektir.";
-});
-
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   formMessage.textContent = "";
@@ -187,8 +181,17 @@ changeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   changeMessage.textContent = "";
   const data = new FormData(changeForm);
+  const currentPassword = String(data.get("currentPassword") ?? "");
   const newPassword = String(data.get("newPassword") ?? "");
   const confirmPassword = String(data.get("confirmPassword") ?? "");
+  if (
+    !changeCurrentPasswordField.hidden &&
+    (currentPassword.length < 6 || currentPassword.length > 256)
+  ) {
+    changeMessage.textContent = "Mevcut parolanız 6–256 karakter arasında olmalıdır.";
+    changeForm.elements.currentPassword.focus();
+    return;
+  }
   if (newPassword.length < 15 || newPassword.length > 128) {
     changeMessage.textContent = "Yeni parolanız 15–128 karakter arasında olmalıdır.";
     changeForm.elements.newPassword.focus();
@@ -224,7 +227,7 @@ changeForm.addEventListener("submit", async (event) => {
     const response = await apiRequest("/auth/password/change", {
       method: "POST",
       body: {
-        currentPassword: data.get("currentPassword"),
+        currentPassword,
         newPassword
       }
     });
@@ -244,8 +247,8 @@ mfaEnrollmentForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   mfaEnrollmentMessage.textContent = "";
   const currentPassword = String(mfaEnrollmentForm.elements.currentPassword.value ?? "");
-  if (currentPassword.length < 6) {
-    mfaEnrollmentMessage.textContent = "Mevcut parolanızı girin.";
+  if (currentPassword.length < 6 || currentPassword.length > 256) {
+    mfaEnrollmentMessage.textContent = "Mevcut parolanız 6–256 karakter arasında olmalıdır.";
     mfaEnrollmentForm.elements.currentPassword.focus();
     return;
   }

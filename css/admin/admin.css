@@ -137,12 +137,28 @@ textarea:focus-visible {
   color: hsl(42 12% 72%);
   font-size: 11px;
 }
+.connection-status span {
+  display: grid;
+  gap: 2px;
+}
+.connection-status small {
+  color: hsl(42 12% 65%);
+  font-size: 9px;
+}
 .connection-status i {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: hsl(88 45% 57%);
   box-shadow: 0 0 0 5px hsl(88 45% 57% / 12%);
+}
+.connection-status.is-checking i {
+  background: hsl(42 75% 58%);
+  box-shadow: 0 0 0 5px hsl(42 75% 58% / 12%);
+}
+.connection-status.is-disconnected i {
+  background: hsl(2 68% 58%);
+  box-shadow: 0 0 0 5px hsl(2 68% 58% / 12%);
 }
 .text-button {
   padding: 0;

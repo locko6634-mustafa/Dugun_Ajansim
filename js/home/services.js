@@ -86,6 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
     button.className = "service-card__link";
     button.type = "button";
     button.dataset.openService = service.id;
+    button.setAttribute("aria-label", `${service.name} hizmetini incele`);
     button.append("İncele ");
     const arrow = document.createElement("span");
     arrow.setAttribute("aria-hidden", "true");

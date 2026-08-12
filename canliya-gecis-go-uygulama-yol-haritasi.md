@@ -438,57 +438,57 @@ Aşağıdaki erişimler yoksa agent kod tarafındaki hazırlığı bitirir, faka
 
 ### 05.1 Admin paneli
 
-- [ ] Genel Bakış’a gerçek `.js-today-weddings` render hedefi ekle.
-- [ ] Bugünkü düğün metriği ile görünen kartları aynı veri/filtreye bağla.
-- [ ] Sayfa H1’ini aktif admin bölümüne göre güncelle.
-- [ ] Aktif navigasyonda `aria-current` uygula.
-- [ ] Düğün badge sayısını gerçek veriyle güncelle.
-- [ ] `Sistem bağlı` metnini gerçek health ve son başarılı veri zamanı ile bağla.
-- [ ] API yüklenmemişken takvim prev/next/today eylemlerini kilitle.
-- [ ] API hata durumunda takvim navigasyonunun `RangeError` üretmesini engelle.
-- [ ] Teslimat, atama ve katalog hatalarını açık modal/form bağlamında göster.
-- [ ] URL/date alanlarında native ve uygulama validasyonunu uyumlu hale getir.
-- [ ] Katalog API yüklenmezse constraint bağımlı formları güvenli kapat ve açıklayıcı hata göster.
-- [ ] Başvuru, personel, paket, hizmet, salon ve teslimat mutasyonlarında in-flight kilidi ekle.
-- [ ] Arşivli/iptal kayıtta geçersiz mutasyon butonlarını gizle veya devre dışı bırak.
+- [x] Genel Bakış’a gerçek `.js-today-weddings` render hedefi ekle.
+- [x] Bugünkü düğün metriği ile görünen kartları aynı veri/filtreye bağla.
+- [x] Sayfa H1’ini aktif admin bölümüne göre güncelle.
+- [x] Aktif navigasyonda `aria-current` uygula.
+- [x] Düğün badge sayısını gerçek veriyle güncelle.
+- [x] `Sistem bağlı` metnini gerçek health ve son başarılı veri zamanı ile bağla.
+- [x] API yüklenmemişken takvim prev/next/today eylemlerini kilitle.
+- [x] API hata durumunda takvim navigasyonunun `RangeError` üretmesini engelle.
+- [x] Teslimat, atama ve katalog hatalarını açık modal/form bağlamında göster.
+- [x] URL/date alanlarında native ve uygulama validasyonunu uyumlu hale getir.
+- [x] Katalog API yüklenmezse constraint bağımlı formları güvenli kapat ve açıklayıcı hata göster.
+- [x] Başvuru, personel, paket, hizmet, salon ve teslimat mutasyonlarında in-flight kilidi ekle.
+- [x] Arşivli/iptal kayıtta geçersiz mutasyon butonlarını gizle veya devre dışı bırak.
 
 ### 05.2 Salon operasyon paneli
 
-- [ ] Takvim/hafta navigasyonunu veri yükleme ve hata durumuna göre kilitle.
-- [ ] Düğün güncelleme API/alan hatalarını modal içinde göster.
-- [ ] Personel uzmanlığını zorunlu işaretle.
-- [ ] Ad/telefon/uzmanlık hatalarını alan bazlı göster.
-- [ ] Personel ve atama mutasyonlarında loading/disabled uygula.
-- [ ] Başarılı mutasyon sonrası yalnız gerekli görünümü güncelle.
-- [ ] Yetkisiz başka salon verisini UI cache’inde göstermediğini doğrula.
+- [x] Takvim/hafta navigasyonunu veri yükleme ve hata durumuna göre kilitle.
+- [x] Düğün güncelleme API/alan hatalarını modal içinde göster.
+- [x] Personel uzmanlığını zorunlu işaretle.
+- [x] Ad/telefon/uzmanlık hatalarını alan bazlı göster.
+- [x] Personel ve atama mutasyonlarında loading/disabled uygula.
+- [x] Başarılı mutasyon sonrası yalnız gerekli görünümü güncelle.
+- [x] Yetkisiz başka salon verisini UI cache’inde göstermediğini doğrula.
 
 ### 05.3 Public ve giriş sayfaları
 
-- [ ] Public başvuru görünür hata/retry düzeltmesini Faz 01 ile tamamla.
-- [ ] Hizmet `İncele` butonunun erişilebilir adına hizmet adını dahil et.
-- [ ] İletişim hedefinde gerçek telefon/e-posta/WhatsApp aksiyonlarını göster.
-- [ ] Şifre kurtarma eylemini gerçek akış veya açık iletişim kanalına bağla.
-- [ ] Login input sınırlarını backend sözleşmesiyle uyumlu hale getir.
-- [ ] Paket oluşturucu başarı/tamamlama markup’ının gerçekten kullanılan akışa bağlı olduğunu doğrula.
-- [ ] Kullanılmayan/handlersız tamamlama ve lightbox kontrollerini ya işlevsel yap ya güvenle kaldır.
-- [ ] Public paket builder indeksleme kararını SEO fazıyla uyumlu tut.
-- [ ] Builder adım başlıklarını tek sayfa H1’i ve anlamlı H2/H3 hiyerarşisiyle düzenle.
+- [x] Public başvuru görünür hata/retry düzeltmesini Faz 01 ile tamamla.
+- [x] Hizmet `İncele` butonunun erişilebilir adına hizmet adını dahil et.
+- [x] İletişim hedefinde doğrulanmış gerçek iletişim aksiyonlarını göster. Telefon ve WhatsApp yayımlandı; doğrulanmış işletme e-postası bulunmadığından kullanıcı onayıyla e-posta kapsam dışında bırakıldı (2026-08-13).
+- [x] Şifre kurtarma eylemini gerçek akış veya açık iletişim kanalına bağla.
+- [x] Login input sınırlarını backend sözleşmesiyle uyumlu hale getir.
+- [x] Paket oluşturucu başarı/tamamlama markup’ının gerçekten kullanılan akışa bağlı olduğunu doğrula.
+- [x] Kullanılmayan/handlersız tamamlama ve lightbox kontrollerini ya işlevsel yap ya güvenle kaldır.
+- [x] Public paket builder indeksleme kararını SEO fazıyla uyumlu tut.
+- [x] Builder adım başlıklarını tek sayfa H1’i ve anlamlı H2/H3 hiyerarşisiyle düzenle.
 
 ### 05.4 Erişilebilir panel navigasyonu
 
-- [ ] Admin ve salon drawer butonuna `aria-expanded` ekle.
-- [ ] Drawer butonuna `aria-controls` ekle.
-- [ ] Drawer açıldığında focus’u doğru yere taşı.
-- [ ] Drawer kapanınca focus’u tetikleyiciye geri ver.
-- [ ] Drawer açıkken arka içeriği focus/interaction dışına çıkar.
-- [ ] Escape ile güvenli kapatma uygula.
-- [ ] Dialoglarda `aria-labelledby`, focus trap ve focus dönüşünü tamamla.
-- [ ] Form hata alanlarını `aria-describedby` ve live region ile bağla.
-- [ ] Video/ses kontrollerinin klavye ve ekran okuyucu etkileşimini düzelt.
+- [x] Admin ve salon drawer butonuna `aria-expanded` ekle.
+- [x] Drawer butonuna `aria-controls` ekle.
+- [x] Drawer açıldığında focus’u doğru yere taşı.
+- [x] Drawer kapanınca focus’u tetikleyiciye geri ver.
+- [x] Drawer açıkken arka içeriği focus/interaction dışına çıkar.
+- [x] Escape ile güvenli kapatma uygula.
+- [x] Dialoglarda `aria-labelledby`, focus trap ve focus dönüşünü tamamla.
+- [x] Form hata alanlarını `aria-describedby` ve live region ile bağla.
+- [x] Video/ses kontrollerinin klavye ve ekran okuyucu etkileşimini düzelt.
 
 **Faz 05 çıkış kapısı**
 
-- [ ] Admin, salon, public ve login ekranlarında kaynak rapordaki görünür/erişilebilirlik bozuklukları regresyon testleriyle kapanmıştır.
+- [x] Admin, salon, public ve login ekranlarında kaynak rapordaki görünür/erişilebilirlik bozuklukları regresyon testleriyle kapanmıştır. Kanıt: `kanit/faz-05-frontend-kalite.md`.
 
 ---
 
