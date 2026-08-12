@@ -451,7 +451,7 @@ button {
 
 .base-package__topline small {
   margin-bottom: 5px;
-  color: var(--gold-dark);
+  color: hsl(32 58% 34%);
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.12em;

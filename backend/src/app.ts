@@ -40,6 +40,15 @@ export const createApp = (registerRoutes: RouteRegistrar = registerApplicationRo
   // Yeni bir Express uygulaması örneği oluştur
   const application: Express = express();
 
+  // Yalnız izole test ortamında dış Google ağına bağımlı olmayan deterministik kabul sözleşmesi.
+  // Production env doğrulaması bu modu kesin olarak reddeder.
+  if (env.DELIVERY_LINK_VERIFICATION_MODE === 'synthetic') {
+    application.locals.deliveryLinkAccessVerifier = async () => ({
+      status: 200,
+      redirectHost: null,
+    });
+  }
+
   // Her isteğe güvenli bir izleme kimliği ekle.
   application.use(attachRequestContext);
 

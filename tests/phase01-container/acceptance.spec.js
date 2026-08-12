@@ -17,13 +17,12 @@ test("@phase01-container gerçek Nginx sayfası katalog API'sini hatasız yükle
   });
 
   await page.goto("/paketini-olustur.html");
-  await page.waitForTimeout(3_000);
+  await expect(page.locator(".base-package").first()).toBeVisible();
   expect({ consoleErrors, pageErrors, failedRequests }).toEqual({
     consoleErrors: [],
     pageErrors: [],
     failedRequests: []
   });
-  await expect(page.locator(".base-package").first()).toBeVisible();
   await expect(page.locator(".js-next-step")).toBeEnabled();
   await expect(page.locator(".js-builder-request-status")).toBeHidden();
 });

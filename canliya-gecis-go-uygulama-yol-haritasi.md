@@ -498,106 +498,106 @@ Aşağıdaki erişimler yoksa agent kod tarafındaki hazırlığı bitirir, faka
 
 ### 06.1 Abuse testlerini CI’a dahil et
 
-- [ ] `backend/tests/abuse-security.test.ts` içindeki 6 senaryoyu normal backend CI komutuna ekle.
-- [ ] Production rate limiter PostgreSQL deposu testini koru.
-- [ ] Sentetik hassas veri opt-in testini koru.
-- [ ] Honeypot ve minimum form süresi testini koru.
-- [ ] E-posta/telefon tekrar kotası testini koru.
-- [ ] Şüpheli başvurunun veri yazımına ulaşmama testini koru.
-- [ ] CORS abuse başlıkları testini koru.
-- [ ] Testlerin yalnız typecheck edilmediğini, gerçekten koştuğunu CI çıktısında doğrula.
-- [ ] Test sayısı/rapor kaydıyla regresyon kapısını görünür yap.
+- [x] `backend/tests/abuse-security.test.ts` içindeki 6 senaryoyu normal backend CI komutuna ekle.
+- [x] Production rate limiter PostgreSQL deposu testini koru.
+- [x] Sentetik hassas veri opt-in testini koru.
+- [x] Honeypot ve minimum form süresi testini koru.
+- [x] E-posta/telefon tekrar kotası testini koru. İşletme iletişimi telefon + WhatsApp kapsamındadır; `primaryEmail` mevcut hesap/abuse sinyali olarak korunur.
+- [x] Şüpheli başvurunun veri yazımına ulaşmama testini koru.
+- [x] CORS abuse başlıkları testini koru.
+- [x] Testlerin yalnız typecheck edilmediğini, gerçekten koştuğunu CI çıktısında doğrula.
+- [x] Test sayısı/rapor kaydıyla regresyon kapısını görünür yap.
 
 ### 06.2 Production-benzeri full-stack ortam
 
-- [ ] Test ortamı gerçek production frontend image’ını kullansın.
-- [ ] Gerçek Nginx yapılandırmasını kullansın.
-- [ ] Gerçek backend image’ını kullansın.
-- [ ] Gerçek PostgreSQL ve migration zincirini kullansın.
-- [ ] Runtime least-privilege DB rolünü kullansın.
-- [ ] Gerçek cookie, CSRF, CORS ve proxy zincirini kullansın.
-- [ ] Public akışta production-benzeri Turnstile test anahtar/sözleşmesi kullansın.
-- [ ] Production sırrı veya gerçek müşteri verisi kullanmasın.
-- [ ] Test başına izole sentetik kimlik/reference üret.
-- [ ] Başarıda ve başarısızlıkta güvenli cleanup uygula.
-- [ ] Cleanup başarısızlığını test hatası yap ve kalıntı ID’lerini raporla.
+- [x] Test ortamı gerçek production frontend image’ını kullansın.
+- [x] Gerçek Nginx yapılandırmasını kullansın.
+- [x] Gerçek backend image’ını kullansın.
+- [x] Gerçek PostgreSQL ve migration zincirini kullansın.
+- [x] Runtime least-privilege DB rolünü kullansın.
+- [x] Gerçek cookie, CSRF, CORS ve proxy zincirini kullansın.
+- [x] Public akışta production-benzeri Turnstile test anahtar/sözleşmesi kullansın.
+- [x] Production sırrı veya gerçek müşteri verisi kullanmasın.
+- [x] Test başına izole sentetik kimlik/reference üret.
+- [x] Başarıda ve başarısızlıkta güvenli cleanup uygula.
+- [x] Cleanup başarısızlığını test hatası yap ve kalıntı ID’lerini raporla.
 
 ### 06.3 Mock kullanmayan altın yol
 
-- [ ] Public paket/katalog yükle.
-- [ ] Nakit veya kapora başvurusu oluştur.
-- [ ] Başvuruyu gerçek admin API/UI kuyruğunda bul.
-- [ ] Admin onayla; düğün, teslimat ve mesaj görevlerini doğrula.
-- [ ] Aktivasyon mesajını doğru sırayla hazırla.
-- [ ] Müşteri parolasını gerçek tokenla belirle.
-- [ ] Gerçek müşteri cookie’siyle login ol.
-- [ ] Müşteri veri izolasyonunu doğrula.
-- [ ] Düğünü salon panelinde gör.
-- [ ] Salon personeli oluştur/düzenle veya izole test personeli kullan.
-- [ ] Atama ekle ve geri kaldır.
-- [ ] Admin teslimat durumlarını izinli sırayla ilerlet.
-- [ ] Güvenli test teslimat URL’si yayınla.
-- [ ] Müşteri panelinden URL’yi aç.
-- [ ] Teslimatı geri çekme davranışını doğrula.
-- [ ] Bütün sentetik veriyi temizle.
-- [ ] Bu zincirde `page.route(...).fulfill(...)` veya eşdeğer API mock’u kullanma.
+- [x] Public paket/katalog yükle.
+- [x] Nakit veya kapora başvurusu oluştur.
+- [x] Başvuruyu gerçek admin API/UI kuyruğunda bul.
+- [x] Admin onayla; düğün, teslimat ve mesaj görevlerini doğrula.
+- [x] Aktivasyon mesajını doğru sırayla hazırla.
+- [x] Müşteri parolasını gerçek tokenla belirle.
+- [x] Gerçek müşteri cookie’siyle login ol.
+- [x] Müşteri veri izolasyonunu doğrula.
+- [x] Düğünü salon panelinde gör.
+- [x] Salon personeli oluştur/düzenle veya izole test personeli kullan.
+- [x] Atama ekle ve geri kaldır.
+- [x] Admin teslimat durumlarını izinli sırayla ilerlet.
+- [x] Güvenli test teslimat URL’si yayınla.
+- [x] Müşteri panelinden URL’yi aç.
+- [x] Teslimatı geri çekme davranışını doğrula.
+- [x] Bütün sentetik veriyi temizle.
+- [x] Bu zincirde `page.route(...).fulfill(...)` veya eşdeğer API mock’u kullanma.
 
 ### 06.4 Global browser hata kapısı
 
-- [ ] Beklenmeyen `console.error` testleri fail etsin.
-- [ ] `pageerror` testleri fail etsin.
-- [ ] `requestfailed` testleri fail etsin.
-- [ ] İzinli listede olmayan 4xx/5xx testleri fail etsin.
-- [ ] Sonsuz pending/cancelled request testi fail etsin.
-- [ ] İzin verilen negatif test HTTP durumları senaryo bazında açık allowlist olsun.
-- [ ] Request ID’ler test raporuna hassas veri içermeden yazılsın.
+- [x] Beklenmeyen `console.error` testleri fail etsin.
+- [x] `pageerror` testleri fail etsin.
+- [x] `requestfailed` testleri fail etsin.
+- [x] İzinli listede olmayan 4xx/5xx testleri fail etsin.
+- [x] Sonsuz pending/cancelled request testi fail etsin.
+- [x] İzin verilen negatif test HTTP durumları senaryo bazında açık allowlist olsun.
+- [x] Request ID’ler test raporuna hassas veri içermeden yazılsın.
 
 ### 06.5 CI artifact ve tarayıcı matrisi
 
-- [ ] Başarısızlıkta Playwright trace yükle.
-- [ ] Başarısızlıkta screenshot yükle.
-- [ ] Başarısızlıkta video yükle.
-- [ ] Gereken ağ senaryolarında maskelenmiş HAR yükle.
-- [ ] Desktop Chromium zorunlu.
-- [ ] WebKit/Safari sözleşmesi zorunlu.
-- [ ] Firefox smoke ekle.
+- [x] Başarısızlıkta Playwright trace yükle.
+- [x] Başarısızlıkta screenshot yükle.
+- [x] Başarısızlıkta video yükle.
+- [x] Gereken ağ senaryolarında maskelenmiş HAR yükle.
+- [x] Desktop Chromium zorunlu.
+- [x] WebKit/Safari sözleşmesi zorunlu.
+- [x] Firefox smoke ekle.
 - [ ] Edge/Chrome farkı için release manuel smoke kaydı ekle.
 - [ ] Mobil emülasyon yanında gerçek cihaz manuel kanıtına bağlantı ver.
 
 ### 06.6 Test kararlılığı ve kapsamı
 
-- [ ] `reuseExistingServer: true` nedeniyle yanlış port/sunucuya bağlanma riskini kaldır veya kimlik doğrulaması ekle.
-- [ ] Sabit `waitForTimeout` beklemelerini olay/koşul tabanlı beklemeyle değiştir.
-- [ ] TOTP testlerinde kontrollü saat/fake clock veya güvenli pencere yaklaşımı uygula.
+- [x] `reuseExistingServer: true` nedeniyle yanlış port/sunucuya bağlanma riskini kaldır veya kimlik doğrulaması ekle.
+- [x] Sabit `waitForTimeout` beklemelerini olay/koşul tabanlı beklemeyle değiştir.
+- [x] TOTP testlerinde kontrollü saat/fake clock veya güvenli pencere yaklaşımı uygula.
 - [ ] Çok büyük DB entegrasyon testini bağımsız, izole ve anlamlı testlere böl.
-- [ ] Erken assertion hatasının sonraki kritik senaryoları atlamasını engelle.
-- [ ] Frontend/backend kod kapsamı ölçümünü ekle.
-- [ ] Anlamlı line/branch threshold belirle; düşük değeri yalnız yeşil görünmek için seçme.
-- [ ] Axe kapısını yalnız critical değil serious/moderate bulgular için de kararlaştır ve ihlalleri düzelt.
-- [ ] `production-hardening` testini yalnız string aramak yerine gerçek image/Compose/Nginx runtime smoke ile destekle.
+- [x] Erken assertion hatasının sonraki kritik senaryoları atlamasını engelle.
+- [x] Frontend/backend kod kapsamı ölçümünü ekle.
+- [x] Anlamlı line/branch threshold belirle; düşük değeri yalnız yeşil görünmek için seçme.
+- [x] Axe kapısını yalnız critical değil serious/moderate bulgular için de kararlaştır ve ihlalleri düzelt.
+- [x] `production-hardening` testini yalnız string aramak yerine gerçek image/Compose/Nginx runtime smoke ile destekle.
 - [ ] Production clone üzerinde migration prova testini release sürecine bağla.
 
 ### 06.7 Rol ve route negatif matrisi
 
-- [ ] Anonim → public izinli rotalar.
-- [ ] Anonim → admin/salon/müşteri 401/redirect.
-- [ ] Admin → admin izinli rotalar.
-- [ ] Admin → step-up/MFA gerektiren kritik rotalar.
-- [ ] Salon → yalnız kendi salon rotaları.
-- [ ] Salon → başka salon 403/404.
-- [ ] Salon → admin/müşteri rol rotaları 403/redirect.
-- [ ] Müşteri → yalnız kendi kullanıcı/düğün/teslimat rotaları.
-- [ ] Müşteri → başka müşteri/düğün/teslimat 403/404.
-- [ ] Arşivli/iptal/silinmiş kayıtta bütün rollerin beklenen 404/409 davranışı.
-- [ ] CSRF eksik/yanlış state-changing isteklerin reddi.
-- [ ] CORS yanlış origin/credentials isteklerinin reddi.
+- [x] Anonim → public izinli rotalar.
+- [x] Anonim → admin/salon/müşteri 401/redirect.
+- [x] Admin → admin izinli rotalar.
+- [x] Admin → step-up/MFA gerektiren kritik rotalar.
+- [x] Salon → yalnız kendi salon rotaları.
+- [x] Salon → başka salon 403/404.
+- [x] Salon → admin/müşteri rol rotaları 403/redirect.
+- [x] Müşteri → yalnız kendi kullanıcı/düğün/teslimat rotaları.
+- [x] Müşteri → başka müşteri/düğün/teslimat 403/404.
+- [x] Arşivli/iptal/silinmiş kayıtta bütün rollerin beklenen 404/409 davranışı.
+- [x] CSRF eksik/yanlış state-changing isteklerin reddi.
+- [x] CORS yanlış origin/credentials isteklerinin reddi.
 
 ### 06.8 Test sonuçlarının izlenebilirliği
 
-- [ ] Her kaynak rapor test maddesini test dosyası/senaryo adıyla eşleştir.
-- [ ] Manuel kalan testlerin neden otomatikleştirilemediğini yaz.
-- [ ] Başarısız/flaky testleri gizleme; ayrı kayıt ve sahibi belirle.
-- [ ] Release SHA değişirse ilgili full-stack ve regresyon kapılarını yeniden çalıştır.
+- [x] Her kaynak rapor test maddesini test dosyası/senaryo adıyla eşleştir.
+- [x] Manuel kalan testlerin neden otomatikleştirilemediğini yaz.
+- [x] Başarısız/flaky testleri gizleme; ayrı kayıt ve sahibi belirle.
+- [x] Release SHA değişirse ilgili full-stack ve regresyon kapılarını yeniden çalıştır.
 
 **Faz 06 çıkış kapısı**
 

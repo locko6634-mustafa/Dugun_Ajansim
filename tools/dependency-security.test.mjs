@@ -37,16 +37,19 @@ test("kalite workflow'u en az yetki, audit ve immutable action SHA'larÄ± kullanÄ
   const expectedShaByAction = {
     "actions/checkout": "11d5960a326750d5838078e36cf38b85af677262",
     "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020",
-    "actions/cache": "0057852bfaa89a56745cba8c7296529d2fc39830"
+    "actions/cache": "0057852bfaa89a56745cba8c7296529d2fc39830",
+    "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02"
   };
   const actionReferences = [
-    ...workflow.matchAll(/uses:\s+(actions\/(?:checkout|setup-node|cache))@([^\s#]+)/g)
+    ...workflow.matchAll(
+      /uses:\s+(actions\/(?:checkout|setup-node|cache|upload-artifact))@([^\s#]+)/g
+    )
   ];
 
   assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   assert.match(workflow, /- run: npm run audit:dependencies/);
   assert.equal(workflow.match(/- run: npm run audit:dependencies/g)?.length, 2);
-  assert.equal(workflow.match(/node-version: 22\.23\.2/g)?.length, 2);
+  assert.equal(workflow.match(/node-version: 22\.23\.2/g)?.length, 3);
   assert.match(
     workflow,
     /image: postgres:17\.10-alpine3\.23@sha256:8189a1f6e40904781fc9e2612687877791d21679866db58b1de996b31fc312e4/
@@ -60,7 +63,7 @@ test("kalite workflow'u en az yetki, audit ve immutable action SHA'larÄ± kullanÄ
   assert.match(postgresDockerfile, /^COPY --from=patched \/ \/$/m);
   assert.match(postgresDockerfile, /apk add --no-cache "su-exec=0\.3-r0"/);
   assert.match(postgresDockerfile, /rm -f \/usr\/local\/bin\/gosu/);
-  assert.equal(actionReferences.length, 5);
+  assert.equal(actionReferences.length, 8);
 
   for (const [, actionName, sha] of actionReferences) {
     assert.equal(sha, expectedShaByAction[actionName]);

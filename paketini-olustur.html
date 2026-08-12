@@ -33,12 +33,6 @@
     <meta name="twitter:image" content="assets/images/hero-couple.webp" />
     <meta name="twitter:image:alt" content="Düğünajansım düğün çekimi" />
     <!-- site-content:seo:end -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Italiana&family=Manrope:wght@400;500;600;700&family=Parisienne&display=swap"
-      rel="stylesheet"
-    />
     <link rel="stylesheet" href="css/package-builder/package-builder.css" />
     <script type="module" src="js/package-builder/main.js"></script>
   </head>
@@ -76,39 +70,39 @@
       </button>
     </header>
 
-    <div class="builder-progress" role="list" aria-label="Paket oluşturma ilerlemesi">
-      <div
-        class="builder-progress__item is-active"
-        data-progress="1"
-        role="listitem"
-        aria-current="step"
-      >
-        <span>1</span>
-        <strong>Paket Seçimi</strong>
-      </div>
-      <i aria-hidden="true"></i>
-      <div class="builder-progress__item" data-progress="2" role="listitem">
-        <span>2</span>
-        <strong>Ek Hizmetler</strong>
-      </div>
-      <i aria-hidden="true"></i>
-      <div class="builder-progress__item" data-progress="3" role="listitem">
-        <span>3</span>
-        <strong>Bilgiler</strong>
-      </div>
-      <i aria-hidden="true"></i>
-      <div class="builder-progress__item" data-progress="4" role="listitem">
-        <span>4</span>
-        <strong>Ödeme</strong>
-      </div>
-      <i aria-hidden="true"></i>
-      <div class="builder-progress__item" data-progress="5" role="listitem">
-        <span>5</span>
-        <strong>Özet</strong>
-      </div>
-    </div>
-
     <main class="builder-layout">
+      <div class="builder-progress" role="list" aria-label="Paket oluşturma ilerlemesi">
+        <div
+          class="builder-progress__item is-active"
+          data-progress="1"
+          role="listitem"
+          aria-current="step"
+        >
+          <span>1</span>
+          <strong>Paket Seçimi</strong>
+        </div>
+        <i aria-hidden="true"></i>
+        <div class="builder-progress__item" data-progress="2" role="listitem">
+          <span>2</span>
+          <strong>Ek Hizmetler</strong>
+        </div>
+        <i aria-hidden="true"></i>
+        <div class="builder-progress__item" data-progress="3" role="listitem">
+          <span>3</span>
+          <strong>Bilgiler</strong>
+        </div>
+        <i aria-hidden="true"></i>
+        <div class="builder-progress__item" data-progress="4" role="listitem">
+          <span>4</span>
+          <strong>Ödeme</strong>
+        </div>
+        <i aria-hidden="true"></i>
+        <div class="builder-progress__item" data-progress="5" role="listitem">
+          <span>5</span>
+          <strong>Özet</strong>
+        </div>
+      </div>
+
       <div class="builder-content">
         <section
           class="builder-request-status js-builder-request-status"
@@ -911,6 +905,7 @@
         id="package-summary"
         aria-labelledby="package-summary-title"
         aria-hidden="true"
+        inert
       >
         <button
           class="package-summary__close js-summary-toggle"

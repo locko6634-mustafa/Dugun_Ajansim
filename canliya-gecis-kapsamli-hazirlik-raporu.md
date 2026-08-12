@@ -419,6 +419,8 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 ### P0-12 — Gerçek full-stack release kapısı yok; kritik abuse testleri CI dışında
 
+**Güncel durum (2026-08-13): KISMEN KAPALI / dış kanıt bekliyor.** Gerçek production frontend/backend imajları, Nginx, PostgreSQL migration zinciri, least-privilege runtime rolü, cookie/CSRF/CORS/proxy ve Turnstile test sözleşmesi `compose.quality.yaml` üzerinde doğrulandı. Mocksuz telefon + WhatsApp altın yolu, rol negatif matrisi ve Chromium/WebKit/Firefox/mobil emülasyon kapısı 7/7 geçti. Normal backend CI komutunda 6 abuse senaryosu dahil 85/85 test ve hedeflenen iki güvenlik modülünde %100 line/branch/function kapsamı geçti. Chrome kanal smoke geçti; yerel makinede Edge bulunmadığı ve kurucu yönetici yetkisi istediği için Edge smoke ile gerçek Android/iPhone manuel kanıtı açıktır. Kanıt: `kanit/faz-06-release-kalite.md`.
+
 **Kanıt**
 
 - Playwright statik `127.0.0.1:8000` sunucusunda çalışıyor ve API’leri `page.route(...).fulfill(...)` ile mockluyor.

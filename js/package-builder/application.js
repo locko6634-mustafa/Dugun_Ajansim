@@ -622,8 +622,10 @@ function setSummaryOpen(isOpen, { returnFocus = true } = {}) {
   const isMobile = window.matchMedia("(max-width: 960px)").matches;
   if (!isMobile) {
     summaryPanel.removeAttribute("aria-hidden");
+    summaryPanel.inert = false;
   } else {
     summaryPanel.setAttribute("aria-hidden", String(!shouldOpen));
+    summaryPanel.inert = !shouldOpen;
     document
       .querySelectorAll(".builder-header, .builder-progress, .builder-content")
       .forEach((element) => {

@@ -409,6 +409,11 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   assert.equal(parsed.HTTP_KEEP_ALIVE_TIMEOUT_MS, 5000);
   assert.equal(parsed.BOT_PROTECTION_MODE, 'turnstile');
   assert.equal(parsed.TURNSTILE_EXPECTED_HOSTNAME, 'example.com');
+  assert.equal(
+    parsed.TURNSTILE_VERIFY_URL,
+    'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+  );
+  assert.equal(parsed.DELIVERY_LINK_VERIFICATION_MODE, 'remote');
   assert.equal(parsed.ADMIN_SESSION_TTL_HOURS, 8);
   assert.equal(parsed.ADMIN_SESSION_IDLE_MINUTES, 240);
   assert.equal(parsed.SALON_SESSION_IDLE_MINUTES, 60);
@@ -556,6 +561,18 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     parseEnvironment({
       ...productionEnvironmentInput,
       TURNSTILE_EXPECTED_HOSTNAME: 'attacker.example',
+    }),
+  );
+  assert.throws(() =>
+    parseEnvironment({
+      ...productionEnvironmentInput,
+      TURNSTILE_VERIFY_URL: 'http://turnstile-stub:8080/siteverify',
+    }),
+  );
+  assert.throws(() =>
+    parseEnvironment({
+      ...productionEnvironmentInput,
+      DELIVERY_LINK_VERIFICATION_MODE: 'synthetic',
     }),
   );
   assert.throws(() =>
@@ -1511,9 +1528,12 @@ test('backend-unit [pagination] cursor sıralama alanlarını güvenli ve deği�
 });
 
 test('backend-unit [delivery-link] yayın öncesi erişim smoke kontrolü kapalı bağlantıyı reddeder', async () => {
-  const accessible = await verifyGoogleDriveLinkAccess('https://drive.google.com/file/d/demo/view', {
-    fetchImpl: async () => new Response(null, { status: 200 }),
-  });
+  const accessible = await verifyGoogleDriveLinkAccess(
+    'https://drive.google.com/file/d/demo/view',
+    {
+      fetchImpl: async () => new Response(null, { status: 200 }),
+    },
+  );
   assert.equal(accessible.status, 200);
 
   await assert.rejects(
@@ -1525,6 +1545,64 @@ test('backend-unit [delivery-link] yayın öncesi erişim smoke kontrolü kapal�
         }),
     }),
     /anonim erişime açık görünmüyor/,
+  );
+});
+
+test('backend-unit [delivery-link] yönlendirme allowlist ve servis hata dallarını korur', async () => {
+  const sourceUrl = 'https://drive.google.com/file/d/demo/view';
+  const allowedRedirects = [
+    'https://google.com/open',
+    'https://drive.google.com/open',
+    'https://googleusercontent.com/download',
+    'https://lh3.googleusercontent.com/download',
+  ];
+
+  for (const location of allowedRedirects) {
+    const result = await verifyGoogleDriveLinkAccess(sourceUrl, {
+      fetchImpl: async () => new Response(null, { status: 302, headers: { location } }),
+    });
+    assert.equal(result.redirectHost, new URL(location).hostname);
+  }
+
+  const rejectedResponses = [
+    { response: new Response(null, { status: 403 }), statusCode: 422 },
+    { response: new Response(null, { status: 503 }), statusCode: 503 },
+    { response: new Response(null, { status: 302 }), statusCode: 422 },
+    {
+      response: new Response(null, { status: 302, headers: { location: 'http://[invalid' } }),
+      statusCode: 422,
+    },
+    {
+      response: new Response(null, {
+        status: 302,
+        headers: { location: 'http://drive.google.com/open' },
+      }),
+      statusCode: 422,
+    },
+    {
+      response: new Response(null, {
+        status: 302,
+        headers: { location: 'https://example.com/open' },
+      }),
+      statusCode: 422,
+    },
+    { response: new Response(null, { status: 418 }), statusCode: 422 },
+  ];
+
+  for (const { response, statusCode } of rejectedResponses) {
+    await assert.rejects(
+      verifyGoogleDriveLinkAccess(sourceUrl, { fetchImpl: async () => response }),
+      (error: unknown) => error instanceof AppError && error.statusCode === statusCode,
+    );
+  }
+
+  await assert.rejects(
+    verifyGoogleDriveLinkAccess(sourceUrl, {
+      fetchImpl: async () => {
+        throw new Error('network unavailable');
+      },
+    }),
+    (error: unknown) => error instanceof AppError && error.statusCode === 503,
   );
 });
 
@@ -1808,9 +1886,11 @@ test('takvim çakışmaları personel bazında sıralı ve sınırlı hesaplanı
   assert.equal(result.truncated, true);
 });
 
-test('Turnstile doğrulaması token, hostname ve action sözleşmesini sunucuda denetler', async () => {
+test('Turnstile doğrulaması token, hostname, action ve test endpoint sözleşmesini denetler', async () => {
   let requestBody: Record<string, unknown> | undefined;
-  const fetchImpl: typeof fetch = async (_input, init) => {
+  let requestUrl = '';
+  const fetchImpl: typeof fetch = async (input, init) => {
+    requestUrl = String(input);
     requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
     return new Response(
       JSON.stringify({
@@ -1826,6 +1906,7 @@ test('Turnstile doğrulaması token, hostname ve action sözleşmesini sunucuda 
     secretKey: 'server-only-secret',
     expectedHostname: 'example.com',
     timeoutMs: 1_000,
+    verifyUrl: 'http://turnstile-stub:8080/siteverify',
   };
 
   await verifyBookingBotChallenge({
@@ -1841,6 +1922,7 @@ test('Turnstile doğrulaması token, hostname ve action sözleşmesini sunucuda 
     remoteip: '203.0.113.10',
     idempotency_key: '9c3715de-f949-469a-bc06-a00af46cf9b6',
   });
+  assert.equal(requestUrl, 'http://turnstile-stub:8080/siteverify');
 
   await assert.rejects(
     verifyBookingBotChallenge({
@@ -1880,6 +1962,89 @@ test('Turnstile servis hatasında güvenli biçimde kapalı kalır', async () =>
     }),
     (error: unknown) => error instanceof AppError && error.statusCode === 503,
   );
+});
+
+test('Turnstile kapalı mod, token sınırı ve sağlayıcı yanıt hatalarını korur', async () => {
+  assert.doesNotThrow(() => assertBookingBotProtectionConfigured('development', 'disabled'));
+
+  let disabledFetchCalled = false;
+  await verifyBookingBotChallenge({
+    token: undefined,
+    remoteIp: undefined,
+    idempotencyKey: '9c3715de-f949-469a-bc06-a00af46cf9b6',
+    fetchImpl: async () => {
+      disabledFetchCalled = true;
+      throw new Error('disabled mode must not call provider');
+    },
+  });
+  assert.equal(disabledFetchCalled, false);
+
+  const configuration = {
+    mode: 'turnstile' as const,
+    secretKey: 'server-only-secret',
+    expectedHostname: 'example.com',
+    timeoutMs: 1_000,
+  };
+  for (const token of ['   ', 'x'.repeat(2_049)]) {
+    await assert.rejects(
+      verifyBookingBotChallenge({
+        token,
+        remoteIp: undefined,
+        idempotencyKey: '9c3715de-f949-469a-bc06-a00af46cf9b6',
+        configuration,
+      }),
+      (error: unknown) => error instanceof AppError && error.statusCode === 400,
+    );
+  }
+
+  const providerCases = [
+    { response: new Response(null, { status: 502 }), statusCode: 503 },
+    {
+      response: new Response('not-json', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      statusCode: 503,
+    },
+    {
+      response: new Response(JSON.stringify({ unexpected: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      statusCode: 503,
+    },
+    {
+      response: new Response(
+        JSON.stringify({
+          success: false,
+          hostname: 'example.com',
+          action: 'booking_application',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+      statusCode: 400,
+    },
+    {
+      response: new Response(
+        JSON.stringify({ success: true, hostname: 'example.com', action: 'wrong-action' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+      statusCode: 400,
+    },
+  ];
+
+  for (const { response, statusCode } of providerCases) {
+    await assert.rejects(
+      verifyBookingBotChallenge({
+        token: 'opaque-client-token',
+        remoteIp: undefined,
+        idempotencyKey: '9c3715de-f949-469a-bc06-a00af46cf9b6',
+        configuration,
+        fetchImpl: async () => response,
+      }),
+      (error: unknown) => error instanceof AppError && error.statusCode === statusCode,
+    );
+  }
 });
 
 test('gerçek rate limiter aynı IPv6 /56 ağındaki adreslerle limit aşımını engeller', async () => {

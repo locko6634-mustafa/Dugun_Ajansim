@@ -82,3 +82,35 @@ jobs:
           RUNTIME_DATABASE_URL: postgresql://ci_runtime:Ci-Runtime-Only-2026_@localhost:55632/dugun_ajansim_test
           RUNTIME_DATABASE_ROLE: ci_runtime
         run: npm run test:runtime-role
+
+  phase06-release-gate:
+    needs: [quality, backend-integration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.23.2
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+      - name: Frontend test dependencies
+        run: npm ci
+      - name: Backend test dependencies
+        working-directory: backend
+        run: npm ci
+      - name: Release browser matrix
+        run: npx playwright install --with-deps chromium webkit firefox
+      - name: Isolated production-like full-stack quality gate
+        shell: pwsh
+        run: ./tools/run-phase06-quality.ps1 -SkipChannels
+      - name: Failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: phase06-${{ github.sha }}
+          path: test-results/phase06
+          if-no-files-found: ignore
+          retention-days: 7

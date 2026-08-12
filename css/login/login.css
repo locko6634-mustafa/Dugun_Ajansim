@@ -92,7 +92,7 @@ button {
 }
 
 .brand__year {
-  color: var(--gold-dark);
+  color: hsl(32 58% 34%);
   font-family: var(--script);
   font-size: clamp(23px, 1.8vw, 31px);
   white-space: nowrap;

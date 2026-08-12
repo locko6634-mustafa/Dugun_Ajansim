@@ -83,7 +83,7 @@ test("@responsive masaustu navigasyon tiklamasi tek bir kaydirma baslatir", asyn
   });
 
   await page.locator('.desktop-nav a[href="#hizmetler"]').click();
-  await page.waitForTimeout(1500);
+  await expect.poll(() => page.evaluate(() => window.__navigationScrollCalls.length)).toBe(1);
 
   expect(await page.evaluate(() => window.__navigationScrollCalls)).toHaveLength(1);
 });

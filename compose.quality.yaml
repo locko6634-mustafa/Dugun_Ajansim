@@ -1,0 +1,226 @@
+name: dugun-ajansim-phase06
+
+x-quality-service: &quality-service
+  restart: "no"
+  init: true
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  postgres:
+    image: dugun-ajansim-phase06-postgres:${PHASE06_RELEASE_SHA:-local}
+    build:
+      context: .
+      dockerfile: deploy/postgres/Dockerfile
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    environment:
+      POSTGRES_DB: dugun_ajansim_phase06
+      POSTGRES_USER: phase06_owner
+      POSTGRES_PASSWORD: ${PHASE06_POSTGRES_PASSWORD:?PHASE06_POSTGRES_PASSWORD zorunludur}
+      POSTGRES_RUNTIME_USER: phase06_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${PHASE06_RUNTIME_PASSWORD:?PHASE06_RUNTIME_PASSWORD zorunludur}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    ports:
+      - "127.0.0.1:${PHASE06_POSTGRES_PORT:-55436}:5432"
+    volumes:
+      - phase06_postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init-runtime-role.sh:/docker-entrypoint-initdb.d/20-runtime-role.sh:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+      - /var/run/postgresql:rw,noexec,nosuid,nodev,size=16m,mode=3775
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phase06_owner -d dugun_ajansim_phase06"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    networks: [quality]
+
+  migrate:
+    <<: *quality-service
+    image: dugun-ajansim-phase06-migrate:${PHASE06_RELEASE_SHA:-local}
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://phase06_owner:${PHASE06_POSTGRES_PASSWORD:?PHASE06_POSTGRES_PASSWORD zorunludur}@postgres:5432/dugun_ajansim_phase06?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    networks: [quality]
+
+  db-role-bootstrap:
+    <<: *quality-service
+    image: dugun-ajansim-phase06-postgres:${PHASE06_RELEASE_SHA:-local}
+    command: ["sh", "/usr/local/bin/init-runtime-role.sh"]
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGPASSWORD: ${PHASE06_POSTGRES_PASSWORD:?PHASE06_POSTGRES_PASSWORD zorunludur}
+      POSTGRES_DB: dugun_ajansim_phase06
+      POSTGRES_USER: phase06_owner
+      POSTGRES_RUNTIME_USER: phase06_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${PHASE06_RUNTIME_PASSWORD:?PHASE06_RUNTIME_PASSWORD zorunludur}
+    volumes:
+      - ./deploy/postgres/init-runtime-role.sh:/usr/local/bin/init-runtime-role.sh:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    networks: [quality]
+
+  db-runtime-hardening:
+    <<: *quality-service
+    image: dugun-ajansim-phase06-postgres:${PHASE06_RELEASE_SHA:-local}
+    command: ["sh", "/usr/local/bin/configure-runtime-timeouts.sh"]
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGPASSWORD: ${PHASE06_POSTGRES_PASSWORD:?PHASE06_POSTGRES_PASSWORD zorunludur}
+      POSTGRES_DB: dugun_ajansim_phase06
+      POSTGRES_USER: phase06_owner
+      POSTGRES_RUNTIME_USER: phase06_runtime
+      POSTGRES_RUNTIME_STATEMENT_TIMEOUT_MS: 30000
+      POSTGRES_RUNTIME_LOCK_TIMEOUT_MS: 5000
+      POSTGRES_RUNTIME_IDLE_TRANSACTION_TIMEOUT_MS: 30000
+    volumes:
+      - ./deploy/postgres/configure-runtime-timeouts.sh:/usr/local/bin/configure-runtime-timeouts.sh:ro
+    depends_on:
+      db-role-bootstrap:
+        condition: service_completed_successfully
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    networks: [quality]
+
+  seed:
+    <<: *quality-service
+    image: dugun-ajansim-phase06-migrate:${PHASE06_RELEASE_SHA:-local}
+    command: ["node", "--import", "tsx", "prisma/seed.ts"]
+    environment:
+      DATABASE_URL: postgresql://phase06_runtime:${PHASE06_RUNTIME_PASSWORD:?PHASE06_RUNTIME_PASSWORD zorunludur}@postgres:5432/dugun_ajansim_phase06?sslmode=disable
+    depends_on:
+      db-runtime-hardening:
+        condition: service_completed_successfully
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    networks: [quality]
+
+  turnstile-stub:
+    <<: *quality-service
+    image: dugun-ajansim-phase06-backend:${PHASE06_RELEASE_SHA:-local}
+    command:
+      - node
+      - -e
+      - >-
+        require('node:http').createServer((req,res)=>{let b='';req.on('data',c=>b+=c);req.on('end',()=>{let ok=false;try{const v=JSON.parse(b);ok=req.url==='/siteverify'&&req.method==='POST'&&String(v.response||'').length>0}catch{}res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({success:ok,hostname:'127.0.0.1',action:'booking_application'}))})}).listen(8080,'0.0.0.0')
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+    networks: [quality]
+
+  backend:
+    <<: *quality-service
+    image: dugun-ajansim-phase06-backend:${PHASE06_RELEASE_SHA:-local}
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runtime
+      args:
+        BUILD_REVISION: ${PHASE06_RELEASE_SHA:-local}
+    environment:
+      NODE_ENV: test
+      APP_PROCESS_ROLE: api
+      PORT: 5000
+      CORS_ORIGIN: http://127.0.0.1:${PHASE06_HTTP_PORT:-8186}
+      BOT_PROTECTION_MODE: turnstile
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      TURNSTILE_SECRET_KEY: ${PHASE06_TURNSTILE_SECRET:?PHASE06_TURNSTILE_SECRET zorunludur}
+      TURNSTILE_EXPECTED_HOSTNAME: 127.0.0.1
+      TURNSTILE_VERIFY_URL: http://turnstile-stub:8080/siteverify
+      TURNSTILE_VERIFY_TIMEOUT_MS: 2000
+      DELIVERY_LINK_VERIFICATION_MODE: synthetic
+      DATABASE_URL: postgresql://phase06_runtime:${PHASE06_RUNTIME_PASSWORD:?PHASE06_RUNTIME_PASSWORD zorunludur}@postgres:5432/dugun_ajansim_phase06?sslmode=disable
+      TRUST_PROXY: "1"
+      HEALTHCHECK_TIMEOUT_MS: 2000
+      DATA_ENCRYPTION_KEY: ${PHASE06_DATA_ENCRYPTION_KEY:?PHASE06_DATA_ENCRYPTION_KEY zorunludur}
+      DATA_ENCRYPTION_ACTIVE_KEY_ID: phase06
+      DATA_ENCRYPTION_KEYRING_JSON: ${PHASE06_DATA_ENCRYPTION_KEYRING_JSON:?PHASE06_DATA_ENCRYPTION_KEYRING_JSON zorunludur}
+      PII_BLIND_INDEX_KEY: ${PHASE06_BLIND_INDEX_KEY:?PHASE06_BLIND_INDEX_KEY zorunludur}
+      PII_BLIND_INDEX_ACTIVE_KEY_ID: phase06
+      PII_BLIND_INDEX_KEYRING_JSON: ${PHASE06_BLIND_INDEX_KEYRING_JSON:?PHASE06_BLIND_INDEX_KEYRING_JSON zorunludur}
+      RATE_LIMIT_HMAC_KEY: ${PHASE06_RATE_LIMIT_HMAC_KEY:?PHASE06_RATE_LIMIT_HMAC_KEY zorunludur}
+      PII_ENCRYPTION_MODE: strict
+      ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES: "true"
+      SESSION_COOKIE_NAME: dugunajansim_phase06_session
+      PAYMENT_MODE: test
+      PAYMENT_BANK_NAME: TEST BANKASI
+      PAYMENT_ACCOUNT_HOLDER: Düğün Ajansım Sentetik Hesap
+      PAYMENT_IBAN: TR000000000000000000000000
+      PAYMENT_WHATSAPP_PHONE: "905550000000"
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      turnstile-stub:
+        condition: service_started
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5000/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    networks: [quality]
+
+  frontend:
+    <<: *quality-service
+    image: dugun-ajansim-phase06-frontend:${PHASE06_RELEASE_SHA:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_ORIGIN: https://quality.invalid
+        BUILD_REVISION: ${PHASE06_RELEASE_SHA:-local}
+    ports:
+      - "127.0.0.1:${PHASE06_HTTP_PORT:-8186}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+      - /var/cache/nginx:rw,noexec,nosuid,nodev,size=16m,mode=1777
+      - /var/run:rw,noexec,nosuid,nodev,size=8m,mode=1777
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    networks: [quality]
+
+volumes:
+  phase06_postgres_data:
+
+networks:
+  quality:
+    driver: bridge

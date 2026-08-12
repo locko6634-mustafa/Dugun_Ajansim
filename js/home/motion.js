@@ -177,7 +177,9 @@ function initNonHeroMotion() {
   }
 }
 
-runIdle(initNonHeroMotion);
+if (!reducedMotionQuery.matches) {
+  runIdle(initNonHeroMotion);
+}
 
 const parallaxImages = [document.querySelector(".hero-collage .photo--main img")].filter(Boolean);
 let parallaxFrame;

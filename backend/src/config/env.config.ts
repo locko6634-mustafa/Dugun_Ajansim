@@ -217,11 +217,17 @@ const envSchema = z
     TURNSTILE_SITE_KEY: z.string().trim().max(256).default(''),
     TURNSTILE_SECRET_KEY: z.string().trim().max(256).default(''),
     TURNSTILE_EXPECTED_HOSTNAME: z.string().trim().toLowerCase().max(253).default(''),
+    TURNSTILE_VERIFY_URL: z
+      .string()
+      .trim()
+      .url()
+      .default('https://challenges.cloudflare.com/turnstile/v0/siteverify'),
     TURNSTILE_VERIFY_TIMEOUT_MS: boundedIntegerSchema(
       'TURNSTILE_VERIFY_TIMEOUT_MS',
       500,
       10_000,
     ).default('5000'),
+    DELIVERY_LINK_VERIFICATION_MODE: z.enum(['remote', 'synthetic']).default('remote'),
     DATABASE_URL: databaseUrlSchema,
     ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: booleanStringSchema(
       'ALLOW_PRIVATE_DATABASE_WITHOUT_TLS',
@@ -401,6 +407,29 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES'],
         message: 'Sentetik PII yazım istisnası production ortamında etkinleştirilemez',
+      });
+    }
+
+    if (
+      environment.NODE_ENV === 'production' &&
+      environment.TURNSTILE_VERIFY_URL !==
+        'https://challenges.cloudflare.com/turnstile/v0/siteverify'
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TURNSTILE_VERIFY_URL'],
+        message: 'Production Turnstile doğrulaması yalnız resmi Cloudflare adresini kullanabilir',
+      });
+    }
+
+    if (
+      environment.NODE_ENV === 'production' &&
+      environment.DELIVERY_LINK_VERIFICATION_MODE !== 'remote'
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DELIVERY_LINK_VERIFICATION_MODE'],
+        message: 'Production teslimat bağlantısı doğrulaması remote olmak zorundadır',
       });
     }
 

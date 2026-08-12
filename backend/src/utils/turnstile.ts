@@ -17,6 +17,7 @@ type TurnstileConfiguration = {
   secretKey: string;
   expectedHostname: string;
   timeoutMs: number;
+  verifyUrl?: string;
 };
 
 type VerifyBookingBotChallengeInput = {
@@ -40,7 +41,8 @@ const runtimeConfiguration = (): TurnstileConfiguration => ({
   mode: env.BOT_PROTECTION_MODE,
   secretKey: env.TURNSTILE_SECRET_KEY,
   expectedHostname: env.TURNSTILE_EXPECTED_HOSTNAME,
-  timeoutMs: env.TURNSTILE_VERIFY_TIMEOUT_MS
+  timeoutMs: env.TURNSTILE_VERIFY_TIMEOUT_MS,
+  verifyUrl: env.TURNSTILE_VERIFY_URL
 });
 
 export const verifyBookingBotChallenge = async ({
@@ -58,7 +60,7 @@ export const verifyBookingBotChallenge = async ({
 
   let response: Response;
   try {
-    response = await fetchImpl(TURNSTILE_SITEVERIFY_URL, {
+    response = await fetchImpl(configuration.verifyUrl ?? TURNSTILE_SITEVERIFY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
