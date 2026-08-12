@@ -120,6 +120,7 @@ const paymentInputs = [...document.querySelectorAll('input[name="payment-method"
 const checkoutForm = document.querySelector("#checkout-form");
 const bookingHoneypotInput = checkoutForm?.querySelector('input[name="companyWebsite"]');
 const orderItemsContainer = document.querySelector(".js-order-items");
+const bookingCompletion = document.querySelector(".js-booking-completion");
 const paymentNotificationForm = document.querySelector("#payment-notification-form");
 const paymentNotificationStatus = document.querySelector(".js-payment-notification-status");
 const builderRequestStatus = document.querySelector(".js-builder-request-status");
@@ -984,9 +985,10 @@ async function openPaymentSummary() {
     document.querySelector(".js-payment-flow-expired").hidden = true;
     document.querySelector(".js-transfer-layout").hidden = false;
     renderOrderReview();
+    const previewTotalCents = toCents(previewBeforeSave.subtotal + previewBeforeSave.adjustment);
     const priceChanged =
       Boolean(responseData.packageCodeSnapshot) &&
-      (toCents(previewBeforeSave.subtotal) !== responseData.totalPriceCents ||
+      (previewTotalCents !== responseData.totalPriceCents ||
         toCents(previewBeforeSave.payable) !== responseData.payableNowCents);
     if (priceChanged) {
       if (paymentSubmitButton) paymentSubmitButton.disabled = true;
@@ -1669,6 +1671,33 @@ function setPaymentNotificationStatus(message, type = "error") {
   paymentNotificationStatus.hidden = !message;
 }
 
+function showBookingCompletion() {
+  if (!bookingCompletion) return;
+  const reference = document.querySelector(".js-booking-reference");
+  if (reference) reference.textContent = state.transferReference;
+
+  const isTest = state.paymentMode === "test";
+  document.querySelector(".js-completion-eyebrow").textContent = isTest
+    ? "Test Başvurunuz Kaydedildi"
+    : "Başvurunuz Kaydedildi";
+  document.querySelector(".js-completion-status").textContent = isTest
+    ? "Test başvurunuz oluşturuldu; gerçek ödeme alınmadı."
+    : "Başvurunuz oluşturuldu ve yönetici onayına iletildi.";
+  document.querySelector(".js-completion-copy").textContent = isTest
+    ? "Bu bir test akışıdır. Test hesabına gerçek para göndermeyin."
+    : `Dekontunuzu WhatsApp üzerinden iletin. Başvurunuzu ${state.transferReference} referansıyla takip edebilirsiniz.`;
+
+  bookingCompletion.hidden = false;
+  document.body.classList.add("is-completion-open");
+  document
+    .querySelectorAll(".builder-header, .builder-progress, .builder-layout")
+    .forEach((element) => {
+      element.inert = true;
+      element.setAttribute("aria-hidden", "true");
+    });
+  document.querySelector(".js-completion-title")?.focus({ preventScroll: true });
+}
+
 if (paymentNotificationForm) {
   paymentNotificationForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1718,6 +1747,7 @@ if (paymentNotificationForm) {
       const waUrl = getWhatsAppUrl();
       if (waUrl) {
         whatsappWindow.location.href = waUrl;
+        showBookingCompletion();
       } else {
         whatsappWindow.close();
         setPaymentNotificationStatus(

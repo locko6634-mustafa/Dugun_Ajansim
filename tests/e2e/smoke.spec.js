@@ -1225,6 +1225,10 @@ test("@frontend-smoke hızlı çift gönderim yalnız tek public POST üretir", 
         data: {
           id: "4a68ef8c-65df-4899-a560-e4c79b47b455",
           referenceCode: "DA-2026-500002",
+          packageCodeSnapshot: "mini",
+          packageNameSnapshot: "Mini Paket",
+          packagePriceCents: 10_500,
+          services: [],
           totalPriceCents: 8_400,
           payableNowCents: 8_400,
           paymentFlowExpiresAt: "2027-08-10T20:00:00.000Z",
@@ -1240,6 +1244,7 @@ test("@frontend-smoke hızlı çift gönderim yalnız tek public POST üretir", 
   });
   await expect(page.locator('.builder-step[data-step="5"]')).toBeVisible();
   await expect(page.locator('.builder-step[data-step="4"]')).toBeHidden();
+  await expect(page.locator(".js-builder-request-status")).toBeHidden();
   await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-500002");
   expect(requestCount).toBe(1);
 });
@@ -1666,7 +1671,7 @@ test("@frontend-smoke referans WhatsApp'tan önce oluşturulur ve yapılandırı
   );
 });
 
-test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydeder ve banka ekranını açık tutar", async ({
+test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydeder ve tamamlanma ekranını açar", async ({
   page
 }) => {
   const applicationId = "4a68ef8c-65df-4899-a560-e4c79b47b455";
@@ -1807,14 +1812,9 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
   expect(
     await page.evaluate(() => window.sessionStorage.getItem("dugunajansim_payment_flow"))
   ).toBeNull();
-  await expect(page.locator(".js-transfer-layout")).toBeVisible();
-  await expect(page.locator(".js-edit-package")).toBeDisabled();
-  await expect(page.locator(".js-payment-notification-status")).toContainText(
-    "WhatsApp aşamasına geçildi"
-  );
-  await expect(page.locator(".js-payment-flow-expiry")).toContainText(
-    "Yönetici onayı için kalan süre"
-  );
+  await expect(page.locator(".js-booking-completion")).toBeVisible();
+  await expect(page.locator(".js-booking-reference")).toHaveText("DA-2026-777888");
+  await expect(page.locator(".js-completion-status")).toContainText("yönetici onayına iletildi");
 });
 
 test("@frontend-smoke ortak istemci askıda isteği keser ve güvenli anahtar üretir", async ({
