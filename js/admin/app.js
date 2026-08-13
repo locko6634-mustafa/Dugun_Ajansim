@@ -547,16 +547,42 @@ const safeWhatsAppUrl = (value) => {
   return url.href;
 };
 
-async function copyMessageToClipboard(value) {
+async function copyMessageToClipboard(value, popup = null) {
   const message = typeof value === "string" ? value.trim() : "";
-  if (!message) throw new Error("Kopyalanacak mesaj içeriği alınamadı.");
+  if (!message) return false;
 
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(message);
-      return;
+      return true;
     } catch {
-      // Güvenli context veya izin yoksa aşağıdaki yerel kopyalama yöntemini dene.
+      // Güvenli context veya odak eksikliği varsa diğer yöntemleri dene
+    }
+  }
+
+  if (popup?.navigator?.clipboard?.writeText) {
+    try {
+      await popup.navigator.clipboard.writeText(message);
+      return true;
+    } catch {
+      // ignore
+    }
+  }
+
+  if (popup && popup.document && popup.document.body) {
+    try {
+      const fallback = popup.document.createElement("textarea");
+      fallback.value = message;
+      fallback.setAttribute("readonly", "");
+      fallback.style.position = "fixed";
+      fallback.style.opacity = "0";
+      popup.document.body.append(fallback);
+      fallback.select();
+      const copied = popup.document.execCommand("copy");
+      fallback.remove();
+      if (copied) return true;
+    } catch {
+      // ignore
     }
   }
 
@@ -570,21 +596,22 @@ async function copyMessageToClipboard(value) {
     fallback.select();
     const copied = document.execCommand("copy");
     fallback.remove();
-    if (!copied) throw new Error("copy-failed");
+    if (copied) return true;
   } catch {
-    throw new Error("Mesaj panoya kopyalanamadı; hiçbir parola bağlantıya eklenmedi.");
+    // ignore
   }
+
+  return false;
 }
 
 async function openWhatsAppMessage(data, popup) {
   const whatsappUrl = safeWhatsAppUrl(data?.whatsappUrl);
-  await copyMessageToClipboard(data?.message);
   if (!popup) {
-    throw new Error(
-      "Mesaj panoya kopyalandı ancak WhatsApp penceresi engellendi. Açılır pencerelere izin verip tekrar deneyin."
-    );
+    throw new Error("WhatsApp penceresi engellendi. Açılır pencerelere izin verip tekrar deneyin.");
   }
+  const copied = await copyMessageToClipboard(data?.message, popup);
   popup.location.href = whatsappUrl;
+  return copied;
 }
 
 async function ensureAdmin() {
@@ -2486,7 +2513,7 @@ document.querySelector(".js-messages").addEventListener("click", async (event) =
           popup?.close();
           return;
         }
-        await openWhatsAppMessage(response.data, popup);
+        const copied = await openWhatsAppMessage(response.data, popup);
         state.openedMessageTaskIds.add(sendButton.dataset.sendMessage);
         const markButton = document.querySelector(
           `[data-mark-sent="${sendButton.dataset.sendMessage}"]`
@@ -2502,7 +2529,12 @@ document.querySelector(".js-messages").addEventListener("click", async (event) =
           failedMarkButton.dataset.taskUpdatedAt = response.data.expectedUpdatedAt;
           failedMarkButton.disabled = false;
         }
-        setMessage("Mesaj panoya kopyalandı ve WhatsApp açıldı.", true);
+        setMessage(
+          copied
+            ? "Mesaj panoya kopyalandı ve WhatsApp açıldı."
+            : "WhatsApp açıldı. Panoya kopyalama izni verilmediği için mesajı manuel kopyalamanız gerekebilir.",
+          true
+        );
       } catch (error) {
         popup?.close();
         throw error;

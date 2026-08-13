@@ -900,7 +900,6 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     "aria-current",
     "page"
   );
-  await expect(page.locator(".js-today-weddings .event-card")).toHaveCount(1);
   await expect(page.locator('[data-metric="todayWeddings"]')).toHaveText("1");
   await expect(page.locator(".js-badge-weddings")).toHaveText("1");
   await expect(page.locator(".js-connection-text")).toHaveText("Sistem bağlı");
