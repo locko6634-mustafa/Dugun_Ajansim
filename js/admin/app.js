@@ -677,7 +677,7 @@ function renderDashboard() {
         `<option value="${escapeHtml(venue.id)}" ${venue.id === state.availabilityVenueId ? "selected" : ""}>${escapeHtml(venue.name)}</option>`
     )
     .join("")}`;
-  document.querySelector(".js-availability-date").value = data.availabilityDate;
+  setAvailabilityDateDisplay(data.availabilityDate, false);
   const staffAvailability =
     data.staffAvailability ||
     data.idleStaff.map((staff) => ({ ...staff, isAvailable: true, assignments: [] }));
@@ -1758,6 +1758,158 @@ document.querySelector("[data-week-today]").addEventListener("click", () => {
   if (state.dashboardStatus !== "ready") return;
   state.weekStart = "";
   void loadDashboard().catch((error) => setMessage(error.message));
+});
+
+const availabilityDatePicker = document.querySelector(".js-availability-date-picker");
+const availabilityDateInput = document.querySelector(".js-availability-date");
+const availabilityDateTrigger = document.querySelector(".js-availability-date-trigger");
+const availabilityDatePopover = document.querySelector(".js-availability-date-popover");
+const availabilityDateValue = document.querySelector(".js-availability-date-value");
+const availabilityCalendarTitle = document.querySelector(".js-availability-calendar-title");
+const availabilityCalendarDays = document.querySelector(".js-availability-calendar-days");
+const availabilityCalendarPrev = document.querySelector(".js-availability-calendar-prev");
+const availabilityCalendarNext = document.querySelector(".js-availability-calendar-next");
+const availabilityCalendarToday = document.querySelector(".js-availability-calendar-today");
+
+const availabilityPickerDateFormatter = new Intl.DateTimeFormat(APP_LOCALE, {
+  day: "numeric",
+  month: "long",
+  year: "numeric"
+});
+const availabilityCalendarFormatter = new Intl.DateTimeFormat(APP_LOCALE, {
+  month: "long",
+  year: "numeric"
+});
+const dateToValue = (date) =>
+  [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+const valueToDate = (value) => {
+  if (!isIsoDate(value)) return new Date();
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+
+let availabilityCalendarView = valueToDate(datePartInIstanbul(new Date()));
+
+function setAvailabilityPickerOpen(isOpen) {
+  if (!availabilityDatePopover || !availabilityDateTrigger) return;
+  availabilityDatePopover.hidden = !isOpen;
+  availabilityDateTrigger.setAttribute("aria-expanded", String(isOpen));
+}
+
+function renderAvailabilityCalendar() {
+  if (!availabilityCalendarDays || !availabilityCalendarTitle) return;
+  availabilityCalendarTitle.textContent =
+    availabilityCalendarFormatter.format(availabilityCalendarView);
+  availabilityCalendarDays.replaceChildren();
+  const year = availabilityCalendarView.getFullYear();
+  const month = availabilityCalendarView.getMonth();
+  const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayValue = datePartInIstanbul(new Date());
+  const selectedValue = availabilityDateInput?.value || "";
+
+  for (let index = 0; index < firstWeekday + daysInMonth; index += 1) {
+    if (index < firstWeekday) {
+      availabilityCalendarDays.append(document.createElement("span"));
+      continue;
+    }
+    const day = index - firstWeekday + 1;
+    const value = dateToValue(new Date(year, month, day));
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "date-picker__day";
+    button.textContent = String(day);
+    button.dataset.dateValue = value;
+    button.classList.toggle("is-today", value === todayValue);
+    button.classList.toggle("is-selected", value === selectedValue);
+    button.setAttribute("aria-label", availabilityPickerDateFormatter.format(valueToDate(value)));
+    availabilityCalendarDays.append(button);
+  }
+}
+
+function setAvailabilityDateDisplay(value, triggerChangeEvent = false) {
+  if (!availabilityDateInput || !value) return;
+  availabilityDateInput.value = value;
+  state.availabilityDate = value;
+  if (availabilityDateValue) {
+    availabilityDateValue.textContent = availabilityPickerDateFormatter.format(valueToDate(value));
+  }
+  if (availabilityDateTrigger) {
+    availabilityDateTrigger.classList.add("is-selected");
+  }
+  if (triggerChangeEvent) {
+    availabilityDateInput.dispatchEvent(new window.Event("change", { bubbles: true }));
+  }
+}
+
+if (availabilityDateTrigger) {
+  availabilityDateTrigger.addEventListener("click", () => {
+    const isExpanded = availabilityDateTrigger.getAttribute("aria-expanded") === "true";
+    if (!isExpanded) {
+      if (availabilityDateInput?.value) {
+        availabilityCalendarView = valueToDate(availabilityDateInput.value);
+      }
+      renderAvailabilityCalendar();
+    }
+    setAvailabilityPickerOpen(!isExpanded);
+  });
+}
+
+if (availabilityCalendarPrev) {
+  availabilityCalendarPrev.addEventListener("click", () => {
+    availabilityCalendarView = new Date(
+      availabilityCalendarView.getFullYear(),
+      availabilityCalendarView.getMonth() - 1,
+      1
+    );
+    renderAvailabilityCalendar();
+  });
+}
+
+if (availabilityCalendarNext) {
+  availabilityCalendarNext.addEventListener("click", () => {
+    availabilityCalendarView = new Date(
+      availabilityCalendarView.getFullYear(),
+      availabilityCalendarView.getMonth() + 1,
+      1
+    );
+    renderAvailabilityCalendar();
+  });
+}
+
+if (availabilityCalendarToday) {
+  availabilityCalendarToday.addEventListener("click", () => {
+    const todayValue = datePartInIstanbul(new Date());
+    availabilityCalendarView = valueToDate(todayValue);
+    renderAvailabilityCalendar();
+    setAvailabilityDateDisplay(todayValue, true);
+    setAvailabilityPickerOpen(false);
+  });
+}
+
+if (availabilityCalendarDays) {
+  availabilityCalendarDays.addEventListener("click", (event) => {
+    const button = event.target.closest("button.date-picker__day");
+    if (!button || !button.dataset.dateValue) return;
+    const value = button.dataset.dateValue;
+    setAvailabilityDateDisplay(value, true);
+    setAvailabilityPickerOpen(false);
+  });
+}
+
+document.addEventListener("click", (event) => {
+  if (
+    availabilityDatePicker &&
+    !availabilityDatePicker.contains(event.target) &&
+    availabilityDatePopover &&
+    !availabilityDatePopover.hidden
+  ) {
+    setAvailabilityPickerOpen(false);
+  }
 });
 
 document.querySelector(".js-availability-filters").addEventListener("change", (event) => {

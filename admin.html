@@ -155,21 +155,65 @@
                       <option value="">Tüm salonlar</option>
                     </select>
                   </label>
-                  <label class="availability-date-field">
-                    <span>Tarih</span>
-                    <span class="availability-date-control">
+                  <div class="availability-date-field date-picker js-availability-date-picker">
+                    <span id="availability-date-label">Tarih</span>
+                    <input type="hidden" class="js-availability-date" name="availabilityDate" />
+                    <button
+                      class="picker-trigger js-availability-date-trigger"
+                      type="button"
+                      aria-haspopup="dialog"
+                      aria-expanded="false"
+                      aria-labelledby="availability-date-label"
+                    >
                       <svg aria-hidden="true" viewBox="0 0 24 24">
                         <rect x="3" y="5" width="18" height="16" rx="2"></rect>
                         <path d="M16 3v4M8 3v4M3 10h18"></path>
                       </svg>
-                      <input
-                        class="js-availability-date"
-                        name="availabilityDate"
-                        type="date"
-                        required
-                      />
-                    </span>
-                  </label>
+                      <span class="js-availability-date-value">Tarih seçin</span>
+                      <svg class="picker-trigger__chevron" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="m7 10 5 5 5-5"></path>
+                      </svg>
+                    </button>
+                    <div
+                      class="picker-popover date-picker__popover js-availability-date-popover"
+                      hidden
+                      role="dialog"
+                      aria-label="Tarih seçimi"
+                    >
+                      <div class="date-picker__header">
+                        <button
+                          class="date-picker__nav js-availability-calendar-prev"
+                          type="button"
+                          aria-label="Önceki ay"
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 24 24">
+                            <path d="m15 18-6-6 6-6"></path>
+                          </svg>
+                        </button>
+                        <strong class="js-availability-calendar-title" aria-live="polite"></strong>
+                        <button
+                          class="date-picker__nav js-availability-calendar-next"
+                          type="button"
+                          aria-label="Sonraki ay"
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 24 24">
+                            <path d="m9 18 6-6-6-6"></path>
+                          </svg>
+                        </button>
+                      </div>
+                      <div class="date-picker__weekdays" aria-hidden="true">
+                        <span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span
+                        ><span>Cum</span><span>Cmt</span><span>Paz</span>
+                      </div>
+                      <div class="date-picker__days js-availability-calendar-days"></div>
+                      <button
+                        class="date-picker__today js-availability-calendar-today"
+                        type="button"
+                      >
+                        Bugüne dön
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <div class="js-idle-staff availability-list" aria-live="polite"></div>
               </section>
