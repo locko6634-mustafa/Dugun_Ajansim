@@ -1747,6 +1747,8 @@ const PANEL_TITLES = {
   managers: "Salon sorumluları"
 };
 
+const MANUAL_WEDDING_PANELS = new Set(["overview", "weddings"]);
+
 async function movePagination(key, direction) {
   const pager = state.pagination[key];
   const loader = panelLoaders[key];
@@ -1778,6 +1780,8 @@ function activatePanel(name) {
   });
   const panelTitle = document.querySelector(".js-panel-title");
   if (panelTitle) panelTitle.textContent = PANEL_TITLES[name] || "Yönetim";
+  const manualWeddingButton = document.querySelector(".js-open-manual");
+  if (manualWeddingButton) manualWeddingButton.hidden = !MANUAL_WEDDING_PANELS.has(name);
   document.querySelectorAll("[data-panel-content]").forEach((panel) => {
     const active = panel.dataset.panelContent === name;
     panel.hidden = !active;

@@ -133,19 +133,6 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await expectMinimumHeight(page.getByRole("button", { name: "Yeni düğün" }), 48);
   await expectMinimumHeight(page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }));
 
-  await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
-  await expectMinimumHeight(page.getByRole("button", { name: /Menüyü Kapat/i }));
-  await expectMinimumHeight(page.locator('.admin-nav [data-panel="overview"]'));
-  await page.getByRole("button", { name: /Menüyü Kapat/i }).click();
-
-  await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
-  await page.locator('[data-panel="plan"]').click();
-  await expect(page.locator('[data-panel-content="plan"]')).toBeVisible();
-  await expectNoPageOverflow(page);
-  for (const button of await page.locator(".plan-heading .plan-controls button").all()) {
-    await expectMinimumHeight(button);
-  }
-
   await page.getByRole("button", { name: "Yeni düğün" }).click();
   const dialog = page.locator(".js-manual-dialog");
   await expect(dialog).toBeVisible();
@@ -161,11 +148,26 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   for (const button of await dialog.locator(".dialog-actions button").all()) {
     await expectMinimumHeight(button);
   }
-
   await dialog.getByRole("button", { name: "Kapat" }).click();
+
+  await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
+  await expectMinimumHeight(page.getByRole("button", { name: /Menüyü Kapat/i }));
+  await expectMinimumHeight(page.locator('.admin-nav [data-panel="overview"]'));
+  await page.getByRole("button", { name: /Menüyü Kapat/i }).click();
+
+  await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
+  await page.locator('[data-panel="plan"]').click();
+  await expect(page.locator('[data-panel-content="plan"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeHidden();
+  await expectNoPageOverflow(page);
+  for (const button of await page.locator(".plan-heading .plan-controls button").all()) {
+    await expectMinimumHeight(button);
+  }
+
   await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
   await page.locator('[data-panel="catalog"]').click();
   await expect(page.locator('[data-panel-content="catalog"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeHidden();
   await page.locator('[data-add-catalog="packages"]').click();
   const catalogDialog = page.locator(".custom-modal-dialog");
   await expect(catalogDialog).toBeVisible();
@@ -215,6 +217,16 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
       isPartner: true,
       isActive: true
     });
+
+  await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
+  await page.locator('[data-panel="staff"]').click();
+  await expect(page.locator('[data-panel-content="staff"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeHidden();
+
+  await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
+  await page.locator('[data-panel="weddings"]').click();
+  await expect(page.locator('[data-panel-content="weddings"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeVisible();
 
   for (const viewport of [
     { width: 375, height: 812 },
