@@ -767,10 +767,13 @@ function renderDashboard() {
     : empty("Çakışan personel ataması yok.");
   document.querySelector(".js-upcoming-deliveries").innerHTML = data.upcomingDeliveries.length
     ? data.upcomingDeliveries
-        .map(
-          (delivery) =>
-            `<button class="delivery-card text-button" type="button" data-open-wedding="${escapeHtml(delivery.wedding.id)}"><strong>${escapeHtml(delivery.wedding.brideFirstName)} &amp; ${escapeHtml(delivery.wedding.groomFirstName)}</strong><span>${formatDate(delivery.dueDate)} · ${escapeHtml(STATUS_LABELS[delivery.status])}</span></button>`
-        )
+        .map((delivery) => {
+          const reminderDays = delivery.driveLinkReminderDays;
+          const reminder = Number.isInteger(reminderDays)
+            ? `<small class="delivery-card__warning">${reminderDays === 0 ? "Teslim bugün." : `Teslime ${reminderDays} gün kaldı.`} Lütfen Google Drive linkini girin.</small>`
+            : "";
+          return `<button class="delivery-card text-button ${reminder ? "is-warning" : ""}" type="button" data-open-wedding="${escapeHtml(delivery.wedding.id)}"><strong>${escapeHtml(delivery.wedding.brideFirstName)} &amp; ${escapeHtml(delivery.wedding.groomFirstName)}</strong><span>${formatDate(delivery.dueDate)} · ${escapeHtml(STATUS_LABELS[delivery.status])}</span>${reminder}</button>`;
+        })
         .join("")
     : empty("Yaklaşan teslimat yok.");
   renderWeek();
@@ -1308,8 +1311,6 @@ function packageDetail(summary = {}) {
   }`;
 }
 
-const DELIVERY_STATUS_ORDER = ["HAZIRLANIYOR", "MONTAJ", "KONTROL", "TESLIME_HAZIR"];
-
 function deliveryAllowedTransitions(wedding, delivery) {
   const transitions =
     delivery?.allowedTransitions ||
@@ -1317,10 +1318,6 @@ function deliveryAllowedTransitions(wedding, delivery) {
     wedding.allowedDeliveryTransitions ||
     [];
   return Array.isArray(transitions) ? transitions : [];
-}
-
-function isBackwardDeliveryTransition(currentStatus, nextStatus) {
-  return DELIVERY_STATUS_ORDER.indexOf(nextStatus) < DELIVERY_STATUS_ORDER.indexOf(currentStatus);
 }
 
 function renderWeddingLifecycleActions(wedding) {
@@ -1349,9 +1346,11 @@ function renderWeddingDetail(wedding) {
   const delivery = wedding.delivery;
   const deliveryLocked = Boolean(wedding.cancelledAt || wedding.deletedAt);
   const deliveryInputsDisabled = deliveryLocked || delivery?.status === "TESLIM_EDILDI";
+  const deliveryTransitions = delivery ? deliveryAllowedTransitions(wedding, delivery) : [];
   const allowedDeliveryStatuses = delivery
-    ? [...new Set([delivery.status, ...deliveryAllowedTransitions(wedding, delivery)])]
+    ? [...new Set([delivery.status, ...deliveryTransitions])]
     : [];
+  const deliveryStatusDisabled = deliveryInputsDisabled || deliveryTransitions.length === 0;
   const assignedIds = new Set(wedding.assignments.map((assignment) => assignment.staffId));
   const available = wedding.availableStaff.filter((staff) => !assignedIds.has(staff.id));
   const expectedDeliveryDate = addDays(datePartInIstanbul(wedding.startsAt), 21);
@@ -1363,7 +1362,7 @@ function renderWeddingDetail(wedding) {
     <section class="detail-block"><h3>Paket</h3>${packageDetail(wedding.packageSummary)}${wedding.note ? `<p>${escapeHtml(wedding.note)}</p>` : ""}</section>
     <section class="detail-block wide"><h3>Teslimat</h3>${
       delivery
-        ? `<div class="delivery-controls" data-delivery-row="${delivery.id}" data-current-status="${escapeHtml(delivery.status)}"><select data-field="status" aria-label="Teslimat durumu" ${deliveryInputsDisabled ? "disabled" : ""}>${allowedDeliveryStatuses
+        ? `<div class="delivery-controls" data-delivery-row="${delivery.id}"><select data-field="status" aria-label="Teslimat durumu" ${deliveryStatusDisabled ? "disabled" : ""}>${allowedDeliveryStatuses
             .map(
               (status) =>
                 `<option value="${escapeHtml(status)}" ${delivery.status === status ? "selected" : ""}>${escapeHtml(STATUS_LABELS[status] || status)}</option>`
@@ -2348,35 +2347,16 @@ detailContent.addEventListener("click", async (event) => {
       const row = saveButton.closest("[data-delivery-row]");
       if (!validateDeliveryRow(row)) return;
       const driveUrl = row.querySelector('[data-field="driveUrl"]').value.trim();
-      const currentStatus = row.dataset.currentStatus;
       const nextStatus = row.querySelector('[data-field="status"]').value;
       const body = {
         status: nextStatus,
         dueDate: row.querySelector('[data-field="dueDate"]').value,
         driveUrl: driveUrl || null
       };
-      if (isBackwardDeliveryTransition(currentStatus, nextStatus)) {
-        const reason = await requestRequiredReason({
-          title: "Teslimat aşamasını geri al",
-          message: "Geri geçiş nedenini denetim kaydı için yazın.",
-          placeholder: "En az 10 karakterlik geri geçiş nedeni",
-          confirmText: "Geri al",
-          cancelText: "Vazgeç",
-          isWarning: true
-        });
-        if (!reason) return;
-        const response = await apiRequestWithAdminStepUp(
-          `/admin/deliveries/${saveButton.dataset.saveDelivery}`,
-          { method: "PATCH", body: { ...body, reason } },
-          { actionLabel: "Teslimat durumunu geri alma" }
-        );
-        if (!response) return;
-      } else {
-        await apiRequest(`/admin/deliveries/${saveButton.dataset.saveDelivery}`, {
-          method: "PATCH",
-          body
-        });
-      }
+      await apiRequest(`/admin/deliveries/${saveButton.dataset.saveDelivery}`, {
+        method: "PATCH",
+        body
+      });
       setMessage("Teslimat bilgileri kaydedildi.", true);
     } else if (deliverButton) {
       const sharingConfirmation = await showCustomPrompt({

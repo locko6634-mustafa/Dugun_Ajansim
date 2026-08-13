@@ -61,17 +61,18 @@ import { verifyGoogleDriveLinkAccess } from "../utils/delivery-link-access.js";
 import {
   assertGoogleDriveUrl,
   assertDeliveryDueDateWithinSla,
-  assertDeliveryStatusTransition,
   assertWeddingStartsInFuture,
   addCalendarDays,
   atIstanbulTime,
   createTemporaryPasswordExpiry,
   createWeddingRange,
   getIstanbulDate,
-  getAllowedDeliveryTransitions,
-  isDeliveryBackwardTransition,
   normalizePhone
 } from "../utils/domain.js";
+import {
+  getAdminDeliveryTransitions,
+  getDriveLinkReminderDays
+} from "../services/delivery-automation.service.js";
 import {
   bookingApplicationWithDecryptedPii,
   buildBookingApplicationPiiData,
@@ -829,10 +830,15 @@ router.get(
           OR: [{ wedding: { deletedAt: null } }, { application: { deletedAt: null } }]
         }
       }),
-      prisma.delivery.count({ where: { status: "TESLIME_HAZIR", wedding: { deletedAt: null } } }),
+      prisma.delivery.count({
+        where: {
+          status: "TESLIME_HAZIR",
+          wedding: { cancelledAt: null, deletedAt: null }
+        }
+      }),
       prisma.delivery.findMany({
         where: {
-          wedding: { deletedAt: null },
+          wedding: { cancelledAt: null, deletedAt: null },
           status: { not: "TESLIM_EDILDI" },
           dueDate: {
             gte: new Date(`${today}T00:00:00.000Z`),
@@ -843,6 +849,7 @@ router.get(
           id: true,
           status: true,
           dueDate: true,
+          driveUrlCiphertext: true,
           wedding: { select: weddingPiiSelect }
         },
         orderBy: { dueDate: "asc" }
@@ -924,17 +931,22 @@ router.get(
         distribution,
         conflicts,
         conflictsTruncated: conflictResult.truncated,
-        upcomingDeliveries: upcomingDeliveries.map(({ wedding, ...delivery }) => {
-          const names = weddingNames(wedding);
-          return {
-            ...delivery,
-            wedding: {
-              id: wedding.id,
-              brideFirstName: names.brideFirstName,
-              groomFirstName: names.groomFirstName
-            }
-          };
-        })
+        upcomingDeliveries: upcomingDeliveries.map(
+          ({ wedding, driveUrlCiphertext, ...delivery }) => {
+            const names = weddingNames(wedding);
+            return {
+              ...delivery,
+              driveLinkReminderDays: driveUrlCiphertext
+                ? null
+                : getDriveLinkReminderDays(delivery.dueDate),
+              wedding: {
+                id: wedding.id,
+                brideFirstName: names.brideFirstName,
+                groomFirstName: names.groomFirstName
+              }
+            };
+          }
+        )
       },
       correlationId: req.correlationId
     });
@@ -1458,7 +1470,7 @@ router.get(
             revokedAt: wedding.delivery.revokedAt,
             updatedAt: wedding.delivery.updatedAt,
             hasDriveUrl: Boolean(wedding.delivery.driveUrlCiphertext),
-            allowedTransitions: getAllowedDeliveryTransitions(wedding.delivery.status)
+            allowedTransitions: getAdminDeliveryTransitions(wedding.delivery.status)
           }
         : null
     }));
@@ -1563,7 +1575,7 @@ router.get(
               updatedAt: delivery.updatedAt,
               hasDriveUrl: Boolean(driveUrl),
               driveUrl,
-              allowedTransitions: getAllowedDeliveryTransitions(delivery.status)
+              allowedTransitions: getAdminDeliveryTransitions(delivery.status)
             }
           : null,
         availableStaff: sortStaffByName(
@@ -2706,16 +2718,14 @@ router.patch(
         )
       : undefined;
     const nextStatus = req.body.status ?? delivery.status;
-    const transitionDirection = assertDeliveryStatusTransition(delivery.status, nextStatus);
-    if (req.body.reason && transitionDirection !== "BACKWARD") {
-      throw new AppError("Gerekçe yalnız geri durum geçişinde gönderilebilir.", 400);
+    const statusChanged = nextStatus !== delivery.status;
+    if (statusChanged && !getAdminDeliveryTransitions(delivery.status).includes(nextStatus)) {
+      throw new AppError("İlk üç teslimat aşaması düğün tarihine göre otomatik güncellenir.", 409);
     }
-    if (isDeliveryBackwardTransition(delivery.status, nextStatus)) {
-      assertRecentAdminStepUp(req.auth!.adminStepUpVerifiedAt);
-      if (!req.body.reason) {
-        throw new AppError("Geri durum geçişi için gerekçe zorunludur.", 400);
-      }
+    if (req.body.reason) {
+      throw new AppError("Otomatik teslimat aşamaları manuel olarak geri alınamaz.", 400);
     }
+    const transitionDirection = statusChanged ? "FORWARD" : "UNCHANGED";
     if (req.body.dueDate) {
       assertDeliveryDueDateWithinSla(req.body.dueDate, delivery.wedding.startsAt);
     }
@@ -2745,7 +2755,7 @@ router.patch(
             fromStatus: delivery.status,
             toStatus: nextStatus,
             actorUserId: req.auth!.userId,
-            reason: transitionDirection === "BACKWARD" ? req.body.reason : null
+            reason: null
           }
         });
       }
@@ -2758,7 +2768,6 @@ router.patch(
         metadata: {
           statusChanged: nextStatus !== delivery.status,
           transitionDirection,
-          ...(transitionDirection === "BACKWARD" ? { reason: req.body.reason } : {}),
           dueDateChanged: Boolean(dueDate),
           driveUrlChanged: hasDriveUrlUpdate
         }
@@ -2779,7 +2788,7 @@ router.patch(
       success: true,
       data: {
         ...updated,
-        allowedTransitions: getAllowedDeliveryTransitions(updated.status)
+        allowedTransitions: getAdminDeliveryTransitions(updated.status)
       },
       correlationId: req.correlationId
     });
@@ -2943,7 +2952,7 @@ router.post(
       success: true,
       data: {
         ...updated,
-        allowedTransitions: getAllowedDeliveryTransitions(updated.status)
+        allowedTransitions: getAdminDeliveryTransitions(updated.status)
       },
       correlationId: req.correlationId
     });

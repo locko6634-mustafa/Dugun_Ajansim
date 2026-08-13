@@ -15,6 +15,12 @@ import {
   weddingUpdateBodySchema
 } from "../src/schemas/api.schemas.js";
 import { calculatePayment, paymentPolicy } from "../src/services/booking.service.js";
+import {
+  deliveryAutomationPolicy,
+  getAdminDeliveryTransitions,
+  getAutomaticDeliveryStatus,
+  getDriveLinkReminderDays
+} from "../src/services/delivery-automation.service.js";
 import { decryptValue, encryptValue, hashPassword, verifyPassword } from "../src/utils/crypto.js";
 import {
   addCalendarDays,
@@ -78,6 +84,39 @@ test("domain tarih, saat ve teslimat politikaları tek allowlist ile korunur", (
   assert.throws(() => assertDeliveryDueDateWithinSla("2026-08-10", startsAt));
   assert.doesNotThrow(() => assertDeliveryDueDateWithinSla("2026-08-31", startsAt));
   assert.throws(() => assertDeliveryDueDateWithinSla("2026-09-01", startsAt));
+});
+
+test("teslimat aşamaları düğün tarihine göre otomatik ilerler ve son aşama admine kalır", () => {
+  const weddingStartsAt = new Date("2026-08-10T17:00:00.000Z");
+  assert.deepEqual(deliveryAutomationPolicy, {
+    montageDaysAfterWedding: 5,
+    controlDaysAfterWedding: 8,
+    driveLinkReminderDaysBeforeDue: 2
+  });
+  assert.equal(
+    getAutomaticDeliveryStatus(weddingStartsAt, new Date("2026-08-14T20:59:59.000Z")),
+    "HAZIRLANIYOR"
+  );
+  assert.equal(
+    getAutomaticDeliveryStatus(weddingStartsAt, new Date("2026-08-14T21:00:00.000Z")),
+    "MONTAJ"
+  );
+  assert.equal(
+    getAutomaticDeliveryStatus(weddingStartsAt, new Date("2026-08-17T21:00:00.000Z")),
+    "KONTROL"
+  );
+  assert.deepEqual(getAdminDeliveryTransitions("HAZIRLANIYOR"), []);
+  assert.deepEqual(getAdminDeliveryTransitions("MONTAJ"), []);
+  assert.deepEqual(getAdminDeliveryTransitions("KONTROL"), ["TESLIME_HAZIR"]);
+  assert.deepEqual(getAdminDeliveryTransitions("TESLIME_HAZIR"), []);
+});
+
+test("Drive bağlantısı uyarısı teslimden iki gün önce başlayıp gecikince kapanır", () => {
+  const dueDate = new Date("2026-08-31T00:00:00.000Z");
+  assert.equal(getDriveLinkReminderDays(dueDate, new Date("2026-08-28T09:00:00.000Z")), null);
+  assert.equal(getDriveLinkReminderDays(dueDate, new Date("2026-08-29T09:00:00.000Z")), 2);
+  assert.equal(getDriveLinkReminderDays(dueDate, new Date("2026-08-31T09:00:00.000Z")), 0);
+  assert.equal(getDriveLinkReminderDays(dueDate, new Date("2026-09-01T09:00:00.000Z")), null);
 });
 
 test("müşteri kullanıcı adı ve geçici parola kuralları güvenli çalışır", () => {

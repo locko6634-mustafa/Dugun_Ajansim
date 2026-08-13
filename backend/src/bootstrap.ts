@@ -7,14 +7,17 @@ import { prisma, runWithRlsContext } from "./config/prisma.js";
 // Graceful shutdown oluşturucusunu ve tipini içe aktar
 import { createGracefulShutdown, type GracefulShutdown } from "./utils/processLifecycle.js";
 import { expireStalePaymentFlows } from "./services/booking.service.js";
+import { synchronizeAutomaticDeliveryStatuses } from "./services/delivery-automation.service.js";
 
 // Kapanış süreci için maksimum bekleme süresi (10 saniye)
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 const PAYMENT_FLOW_SWEEP_INTERVAL_MS = 60_000;
+const DELIVERY_STATUS_SWEEP_INTERVAL_MS = 60 * 60 * 1_000;
 
 // Sunucuyu başlatan ve sinyal dinleyicilerini kuran ana bootstrap fonksiyonu
 export const startServer = (): GracefulShutdown => {
   let paymentFlowSweepRunning = false;
+  let deliveryStatusSweepRunning = false;
   const sweepExpiredPaymentFlows = async (): Promise<void> => {
     if (paymentFlowSweepRunning) return;
     paymentFlowSweepRunning = true;
@@ -43,6 +46,29 @@ export const startServer = (): GracefulShutdown => {
     PAYMENT_FLOW_SWEEP_INTERVAL_MS
   );
   paymentFlowSweepTimer.unref();
+
+  const sweepDeliveryStatuses = async (): Promise<void> => {
+    if (deliveryStatusSweepRunning) return;
+    deliveryStatusSweepRunning = true;
+    try {
+      const metrics = await runWithRlsContext(
+        { actorRole: "maintenance", purpose: "maintenance.delivery-status" },
+        () => synchronizeAutomaticDeliveryStatuses()
+      );
+      console.log(JSON.stringify({ event: "delivery_status_sweep", ...metrics }));
+    } catch (error) {
+      console.error(JSON.stringify({ event: "delivery_status_sweep_alarm", failedCount: 1 }));
+      if (env.NODE_ENV === "development") console.error(error);
+    } finally {
+      deliveryStatusSweepRunning = false;
+    }
+  };
+  void sweepDeliveryStatuses();
+  const deliveryStatusSweepTimer = setInterval(
+    () => void sweepDeliveryStatuses(),
+    DELIVERY_STATUS_SWEEP_INTERVAL_MS
+  );
+  deliveryStatusSweepTimer.unref();
 
   // HTTP sunucusunu belirtilen PORT üzerinden dinlemeye başla
   const server = app.listen(env.PORT, () => {
@@ -95,6 +121,7 @@ export const startServer = (): GracefulShutdown => {
   });
   const gracefulShutdown: GracefulShutdown = (signal, exitCode) => {
     clearInterval(paymentFlowSweepTimer);
+    clearInterval(deliveryStatusSweepTimer);
     return baseGracefulShutdown(signal, exitCode);
   };
 

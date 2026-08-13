@@ -22,6 +22,7 @@ import {
   markWhatsappHandoff,
   rejectBookingApplication
 } from "../src/services/booking.service.js";
+import { synchronizeAutomaticDeliveryStatuses } from "../src/services/delivery-automation.service.js";
 import {
   createOpaqueToken,
   decryptValue,
@@ -3082,15 +3083,54 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("X-CSRF-Token", adminCsrfToken)
     .send({ status: "TESLIME_HAZIR", driveUrl });
   assert.equal(invalidDeliveryJump.status, 409);
-  for (const status of ["MONTAJ", "KONTROL", "TESLIME_HAZIR"] as const) {
-    const transition: request.Response = await request(phaseFourApp)
-      .patch(`/api/v1/admin/deliveries/${wedding.delivery!.id}`)
-      .set("X-Correlation-ID", correlationId)
-      .set("Cookie", adminAuthCookie)
-      .set("X-CSRF-Token", adminCsrfToken)
-      .send({ status, ...(status === "TESLIME_HAZIR" ? { driveUrl } : {}) });
-    assert.equal(transition.status, 200);
-  }
+  const manualMontage = await request(phaseFourApp)
+    .patch(`/api/v1/admin/deliveries/${wedding.delivery!.id}`)
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({ status: "MONTAJ" });
+  assert.equal(manualMontage.status, 409);
+
+  await runWithRlsContext(
+    { actorRole: "maintenance", purpose: "maintenance.delivery-status" },
+    () =>
+      synchronizeAutomaticDeliveryStatuses(
+        new Date(`${addCalendarDays(updatedWeddingDate, 5)}T09:00:00+03:00`)
+      )
+  );
+  assert.equal(
+    (await prisma.delivery.findUniqueOrThrow({ where: { id: wedding.delivery!.id } })).status,
+    "MONTAJ"
+  );
+  await runWithRlsContext(
+    { actorRole: "maintenance", purpose: "maintenance.delivery-status" },
+    () =>
+      synchronizeAutomaticDeliveryStatuses(
+        new Date(`${addCalendarDays(updatedWeddingDate, 8)}T09:00:00+03:00`)
+      )
+  );
+  assert.equal(
+    (await prisma.delivery.findUniqueOrThrow({ where: { id: wedding.delivery!.id } })).status,
+    "KONTROL"
+  );
+  await runWithRlsContext(
+    { actorRole: "maintenance", purpose: "maintenance.delivery-status" },
+    () =>
+      synchronizeAutomaticDeliveryStatuses(
+        new Date(`${addCalendarDays(updatedWeddingDate, 5)}T09:00:00+03:00`)
+      )
+  );
+  assert.equal(
+    (await prisma.delivery.findUniqueOrThrow({ where: { id: wedding.delivery!.id } })).status,
+    "KONTROL"
+  );
+  const readyTransition = await request(phaseFourApp)
+    .patch(`/api/v1/admin/deliveries/${wedding.delivery!.id}`)
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({ status: "TESLIME_HAZIR", driveUrl });
+  assert.equal(readyTransition.status, 200);
   const preparedDelivery = await prisma.delivery.findUniqueOrThrow({
     where: { id: wedding.delivery!.id }
   });
