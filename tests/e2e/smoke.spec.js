@@ -516,6 +516,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
 }) => {
   await page.addInitScript(() => {
     window.__adminWhatsAppUrls = [];
+    window.__adminWindowOpenUrls = [];
     window.__copiedAdminMessages = [];
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -525,15 +526,19 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
         }
       }
     });
-    window.open = () => ({
-      opener: null,
-      close() {},
-      location: {
-        set href(value) {
-          window.__adminWhatsAppUrls.push(String(value));
+    window.open = (url) => {
+      window.__adminWindowOpenUrls.push(String(url));
+      if (url && url !== "about:blank") window.__adminWhatsAppUrls.push(String(url));
+      return {
+        opener: null,
+        close() {},
+        location: {
+          set href(value) {
+            window.__adminWhatsAppUrls.push(String(value));
+          }
         }
-      }
-    });
+      };
+    };
   });
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
@@ -994,6 +999,8 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Müşteri MFA'sını sıfırla" })).toHaveCount(0);
   await page.getByRole("button", { name: "Müşteri hesabını aktifleştir" }).click();
+  await expect(page.getByRole("heading", { name: "Yönetici doğrulaması" })).toBeVisible();
+  expect(await page.evaluate(() => window.__adminWindowOpenUrls)).toEqual([]);
   await completeAdminStepUp(page);
   await expect
     .poll(() => page.evaluate(() => window.__copiedAdminMessages[0]))
@@ -1001,6 +1008,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await expect
     .poll(() => page.evaluate(() => window.__adminWhatsAppUrls[0]))
     .toContain("purpose%3DACCOUNT_ACTIVATION");
+  expect(await page.evaluate(() => window.__adminWindowOpenUrls[0])).toMatch(/^https:\/\/wa\.me\//);
   await expect(page.locator(".global-message")).toContainText("Müşteri hesabı aktifleştirildi");
   await page.getByRole("button", { name: "Düğün bilgilerini düzenle" }).click();
   await expect(page.getByRole("heading", { name: "Bilgileri güncelle" })).toBeVisible();

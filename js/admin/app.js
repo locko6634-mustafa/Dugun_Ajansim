@@ -617,6 +617,19 @@ async function openWhatsAppMessage(data, popup) {
   return copied;
 }
 
+async function openWhatsAppMessageAfterVerification(data) {
+  const message = typeof data?.message === "string" ? data.message : "";
+  const whatsappUrl = safeWhatsAppUrl(data?.whatsappUrl, message);
+  const copied = await copyMessageToClipboard(message);
+  const popup = window.open(whatsappUrl, "_blank");
+  if (popup) {
+    popup.opener = null;
+  } else {
+    window.location.assign(whatsappUrl);
+  }
+  return copied;
+}
+
 async function prepareWhatsAppMessageTask(
   { id, status = "PLANNED", dueAt = null, earlyOverrideAt = null },
   { activateCustomerNow = false } = {}
@@ -2312,7 +2325,6 @@ detailContent.addEventListener("click", async (event) => {
     deleteWeddingButton;
   const finishInFlight = beginInFlight(actionButton);
   if (!finishInFlight) return;
-  let whatsappPopup = null;
   try {
     if (editButton) {
       await openWeddingEditor(state.currentWedding);
@@ -2386,7 +2398,6 @@ detailContent.addEventListener("click", async (event) => {
       if (!response) return;
       setMessage("Teslimat erişimi geri çekildi.", true);
     } else if (activateCustomerButton) {
-      whatsappPopup = openBlankPopup();
       const prepared = await prepareWhatsAppMessageTask(
         {
           id: activateCustomerButton.dataset.activateCustomer,
@@ -2396,11 +2407,8 @@ detailContent.addEventListener("click", async (event) => {
         },
         { activateCustomerNow: true }
       );
-      if (!prepared) {
-        whatsappPopup?.close();
-        return;
-      }
-      const copied = await openWhatsAppMessage(prepared.data, whatsappPopup);
+      if (!prepared) return;
+      const copied = await openWhatsAppMessageAfterVerification(prepared.data);
       state.openedMessageTaskIds.add(activateCustomerButton.dataset.activateCustomer);
       setMessage(
         `Müşteri hesabı aktifleştirildi; kullanıcı adı ve şifre bağlantısı WhatsApp'ta hazırlandı${copied ? " ve panoya kopyalandı" : ""}.`,
@@ -2537,7 +2545,6 @@ detailContent.addEventListener("click", async (event) => {
       loadWeddings()
     ]);
   } catch (error) {
-    whatsappPopup?.close();
     if (removeButton) removeButton.disabled = false;
     if (deleteWeddingButton) deleteWeddingButton.disabled = false;
     const contextualMessage =
