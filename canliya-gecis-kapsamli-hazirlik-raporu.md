@@ -526,7 +526,7 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 - Operasyon düğün güncelleme API hatası modal içinde alan bazlı görünmüyor.
 - Salon personeli uzmanlığı eksikken yalnız `Girdi doğrulama hatası` gösterildi.
 - Admin teslimat/atama hataları modal dışındaki gizli/global alana düşebiliyor.
-- Kanıt: `js/operations/app.js:292-304`, `js/operations/app.js:402-441`, `js/admin/app.js:911-923`, `js/admin/app.js:1500-1511`.
+- Kanıt: `js/operations/main.js:292-304`, `js/operations/main.js:402-441`, `js/admin/app.js:911-923`, `js/admin/app.js:1500-1511`.
 
 **Standart:** hata, hatalı alanın yanında; anlaşılır neden, korunmuş veri ve güvenli tekrar deneme ile görünmeli.
 
@@ -536,7 +536,7 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 - Bazı admin ve salon formları gönderim sırasında butonu kilitlemiyor.
 - Çift tıklama duplicate personel/atama/başvuru riski oluşturabilir.
-- Kanıt: `js/operations/app.js:365-383`, `js/admin/app.js:1708-1728`, `js/admin/app.js:1745-1772`, `js/admin/app.js:2058-2091`.
+- Kanıt: `js/operations/main.js:365-383`, `js/admin/app.js:1708-1728`, `js/admin/app.js:1745-1772`, `js/admin/app.js:2058-2091`.
 
 **Kapanış ölçütü:** buton loading/disabled, idempotency key ve backend unique/transaction koruması birlikte doğrulanmalı.
 
@@ -589,7 +589,7 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 
 - Admin/operasyon önceki/sonraki hafta-ay butonları veri yüklenmeden kullanılabilir.
 - API hata durumunda `RangeError`/yakalanmamış hata olasılığı var.
-- Kanıt: `js/admin/app.js:220-229`, `js/admin/app.js:1285-1317`, `js/operations/app.js:459-485`.
+- Kanıt: `js/admin/app.js:220-229`, `js/admin/app.js:1285-1317`, `js/operations/main.js:459-485`.
 
 **Güncel durum:** KAPALI — Faz 05. Admin ve salon takvim/hafta kontrolleri yükleme ve hata durumunda kilitli; geçersiz dönem hesabı güvenli biçimde kesiliyor. Kanıt: `kanit/faz-05-frontend-kalite.md`.
 
@@ -1295,8 +1295,8 @@ Her senaryo için beklenen sonuç, kullanıcı mesajı, retry/idempotency davran
 - `js/admin/app.js:371-376`
 - `js/admin/app.js:1089-1093`
 - `js/admin/app.js:1236-1248`
-- `js/operations/app.js:292-304`
-- `js/operations/app.js:365-441`
+- `js/operations/main.js:292-304`
+- `js/operations/main.js:365-441`
 
 ### Backend/veri akışları
 

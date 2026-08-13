@@ -10,7 +10,7 @@ coverage/
 # Statik Medya, Derleme Çıktıları ve Dokümantasyon Raporları
 assets/
 backend/docs/
-css/home/styles.css
+css/home/site.css
 
 
 
@@ -23,4 +23,3 @@ scratch/
 backups/
 *.log
 *.tmp
-

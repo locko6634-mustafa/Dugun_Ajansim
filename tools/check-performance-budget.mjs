@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 const html = await readFile("index.html", "utf8");
-const homeCss = await readFile("css/home/styles.css", "utf8");
+const homeCss = await readFile("css/home/site.css", "utf8");
 const images = [...html.matchAll(/<img\b[^>]*>/gi)];
 const videos = [...html.matchAll(/<video\b[^>]*>/gi)];
 const missingDimensions = images.filter(

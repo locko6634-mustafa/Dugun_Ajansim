@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 
 const homeCssDirectory = new URL("../css/home/", import.meta.url);
-const outputFile = new URL("styles.css", homeCssDirectory);
+const outputFile = new URL("site.css", homeCssDirectory);
 const sourceFiles = [
   "base.css",
   "package-invitation.css",

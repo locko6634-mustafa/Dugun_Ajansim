@@ -5,7 +5,7 @@
     "playwright-report/**",
     "test-results/**",
     "coverage/**",
-    "css/home/styles.css"
+    "css/home/site.css"
   ],
   "rules": {
     "at-rule-no-unknown": null,
