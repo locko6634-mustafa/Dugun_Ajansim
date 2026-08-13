@@ -501,7 +501,8 @@ async function loadHealth() {
   setConnectionState("checking", "Sistem kontrol ediliyor");
   try {
     const response = await apiRequest("/health", { timeoutMs: 5000 });
-    if (response.data?.status !== "healthy" || response.data?.database !== "connected") {
+    const healthData = response.data || response;
+    if (healthData?.status !== "healthy" || healthData?.database !== "connected") {
       throw new Error("Sistem sağlığı doğrulanamadı.");
     }
     setConnectionState("connected", "Sistem bağlı");
