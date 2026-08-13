@@ -728,6 +728,20 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     weddingStartsAt: "2026-08-22T17:00:00.000Z",
     weddingEndsAt: "2026-08-22T23:00:00.000Z"
   };
+  const applicationDetail = {
+    ...midnightApplication,
+    createdAt: "2026-08-07T10:00:00.000Z",
+    packagePriceCents: 1_750_000,
+    payableNowCents: 400_000,
+    services: [
+      {
+        codeSnapshot: "drone",
+        nameSnapshot: "Drone Çekimi",
+        priceCents: 250_000
+      }
+    ],
+    note: ""
+  };
   let lastApplicationUrl = "";
   await page.route("**/api/v1/admin/booking-applications?**", (route) => {
     lastApplicationUrl = route.request().url();
@@ -740,6 +754,12 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       })
     });
   });
+  await page.route(`**/api/v1/admin/booking-applications/${midnightApplication.id}`, (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: applicationDetail })
+    })
+  );
   await page.route(
     `**/api/v1/admin/booking-applications/${approvableApplication.id}/approve`,
     (route) =>
@@ -1055,6 +1075,10 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await expect(
     page.locator(".application-card").getByRole("button", { name: "Onayla" })
   ).toHaveCount(0);
+  await page.locator(".application-card").getByRole("button", { name: "Detaylar" }).click();
+  await expect(page.locator(".js-application-detail-dialog")).toContainText("Drone Çekimi");
+  await expect(page.locator(".js-application-detail-dialog")).toContainText("₺2.500");
+  await page.locator(".js-application-detail-dialog [data-close-dialog]").click();
   await page.getByLabel("Başvuru referans kodu").fill("DA-2026-123456");
   await page.getByRole("button", { name: "Bul" }).click();
   await expect.poll(() => lastApplicationUrl).toContain("referenceCode=DA-2026-123456");

@@ -1109,8 +1109,8 @@ function renderApplicationDetailModal(item) {
           .map(
             (s) => `
         <div class="service-item-row">
-          <span>${escapeHtml(s.serviceNameSnapshot)}</span>
-          <strong>${formatMoney(s.priceCentsSnapshot)}</strong>
+          <span>${escapeHtml(s.nameSnapshot)}</span>
+          <strong>${formatMoney(s.priceCents)}</strong>
         </div>
       `
           )
