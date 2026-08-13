@@ -1,0 +1,294 @@
+.wedding-print-report {
+  display: none;
+}
+
+.wedding-detail-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wedding-pdf-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.wedding-pdf-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+@media (max-width: 560px) {
+  .wedding-detail-heading-actions {
+    align-items: flex-start;
+  }
+
+  .wedding-pdf-button {
+    width: 42px;
+    min-width: 42px;
+    padding-inline: 0;
+  }
+
+  .wedding-pdf-button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 11mm;
+}
+
+@media print {
+  html,
+  body {
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  body > :not(.wedding-print-report),
+  dialog,
+  dialog::backdrop {
+    display: none !important;
+  }
+
+  body > .wedding-print-report {
+    display: block !important;
+    color: #0b1f3a;
+    font-family: Arial, "Segoe UI", sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.45;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .wedding-print-page,
+  .wedding-print-page * {
+    box-sizing: border-box;
+  }
+
+  .wedding-print-page h1,
+  .wedding-print-page h2,
+  .wedding-print-page p,
+  .wedding-print-page dl,
+  .wedding-print-page dd {
+    margin: 0;
+  }
+
+  .wedding-print-header {
+    display: grid;
+    grid-template-columns: 1fr 2.2fr;
+    align-items: end;
+    gap: 12mm;
+    padding: 0 0 7mm;
+    border-bottom: 2px solid #0b1f3a;
+  }
+
+  .wedding-print-brand {
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+  }
+
+  .wedding-print-brand > span {
+    display: grid;
+    width: 12mm;
+    height: 12mm;
+    place-items: center;
+    border-radius: 50%;
+    background: #0b1f3a;
+    color: #d9ad55;
+    font-size: 11pt;
+    font-weight: 800;
+  }
+
+  .wedding-print-brand strong,
+  .wedding-print-brand small {
+    display: block;
+  }
+
+  .wedding-print-brand strong {
+    font-size: 12pt;
+  }
+
+  .wedding-print-brand small {
+    color: #617087;
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .wedding-print-heading {
+    text-align: right;
+  }
+
+  .wedding-print-heading > span {
+    display: inline-block;
+    margin-bottom: 2mm;
+    padding: 1mm 2.5mm;
+    border-radius: 999px;
+    background: #eef1f5;
+    color: #40516a;
+    font-size: 7.5pt;
+    font-weight: 700;
+  }
+
+  .wedding-print-heading h1 {
+    font-size: 18pt;
+    line-height: 1.12;
+  }
+
+  .wedding-print-heading p {
+    margin-top: 1.5mm;
+    color: #617087;
+  }
+
+  .wedding-print-people {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5mm;
+    margin-top: 6mm;
+  }
+
+  .wedding-print-person,
+  .wedding-print-section {
+    padding: 5mm;
+    break-inside: avoid;
+    border: 1px solid #dce1e8;
+    border-radius: 3mm;
+    background: #fff;
+  }
+
+  .wedding-print-page h2 {
+    margin-bottom: 3.5mm;
+    color: #0b1f3a;
+    font-size: 10pt;
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
+  }
+
+  .wedding-print-person dl > div,
+  .wedding-print-facts > div,
+  .wedding-print-totals > div {
+    display: grid;
+    grid-template-columns: minmax(26mm, 0.8fr) 1.4fr;
+    gap: 4mm;
+    padding: 2.5mm 0;
+    border-top: 1px solid #edf0f4;
+  }
+
+  .wedding-print-page dt {
+    color: #617087;
+    font-size: 8pt;
+  }
+
+  .wedding-print-page dd {
+    font-weight: 700;
+  }
+
+  .wedding-print-section {
+    margin-top: 5mm;
+  }
+
+  .wedding-print-facts {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 0 5mm;
+  }
+
+  .wedding-print-facts > div {
+    display: block;
+  }
+
+  .wedding-print-facts dd {
+    margin-top: 1.5mm;
+  }
+
+  .wedding-print-package {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr;
+    gap: 8mm;
+  }
+
+  .wedding-print-package-name {
+    display: block;
+    margin-bottom: 2mm;
+    font-size: 11pt;
+  }
+
+  .wedding-print-package ul {
+    margin: 2mm 0 0;
+    padding-left: 5mm;
+  }
+
+  .wedding-print-totals {
+    align-self: center;
+    border: 1px solid #dce1e8;
+    border-radius: 2mm;
+  }
+
+  .wedding-print-totals > div {
+    padding: 4mm;
+    border-top: 0;
+  }
+
+  .wedding-print-totals dd {
+    color: #23733f;
+    font-size: 12pt;
+    text-align: right;
+  }
+
+  .wedding-print-note {
+    border-color: #ead9ad;
+    background: #fff8e8;
+  }
+
+  .wedding-print-note p {
+    white-space: pre-wrap;
+  }
+
+  .wedding-print-muted {
+    color: #617087;
+  }
+
+  .wedding-print-staff table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .wedding-print-staff th,
+  .wedding-print-staff td {
+    padding: 2.5mm 3mm;
+    border: 1px solid #e5e9ef;
+    text-align: left;
+  }
+
+  .wedding-print-staff th {
+    background: #f2f4f7;
+    color: #40516a;
+    font-size: 8pt;
+  }
+
+  .wedding-print-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 10mm;
+    margin-top: 6mm;
+    padding-top: 3mm;
+    border-top: 1px solid #dce1e8;
+    color: #617087;
+    font-size: 7.5pt;
+  }
+}

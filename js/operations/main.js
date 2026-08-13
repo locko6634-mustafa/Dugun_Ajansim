@@ -8,6 +8,7 @@ import {
   formatAppTime
 } from "../shared/runtime-config.js";
 import { escapeHtml } from "../shared/html.js";
+import { printWeddingReport } from "../shared/wedding-print-report.js";
 
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
 const PANEL_TITLES = {
@@ -45,6 +46,7 @@ const state = {
 const message = document.querySelector(".global-message");
 const weddingDialog = document.querySelector(".js-wedding-dialog");
 const detailContainer = document.querySelector(".js-wedding-detail");
+const weddingPdfButton = document.querySelector(".js-create-wedding-pdf");
 const staffDialog = document.querySelector(".js-staff-dialog");
 const staffForm = document.querySelector(".js-staff-form");
 const weddingSearchInput = document.querySelector(".js-wedding-search");
@@ -681,6 +683,7 @@ function isWeddingReadOnly(wedding) {
 
 function renderWeddingDetail(wedding) {
   state.currentWedding = wedding;
+  weddingPdfButton.disabled = false;
   document.querySelector(".js-detail-title").textContent = couple(wedding);
   const startDate = dateKey(wedding.startsAt);
   const endDate = dateKey(wedding.endsAt);
@@ -747,6 +750,8 @@ function renderWeddingDetail(wedding) {
 async function openWedding(weddingId, returnFocus = null, { showLoading = true } = {}) {
   const venueId = state.venueId;
   showDialog(weddingDialog, returnFocus, weddingDialog.querySelector(".dialog-close"));
+  state.currentWedding = null;
+  weddingPdfButton.disabled = true;
   if (showLoading) detailContainer.innerHTML = empty("Düğün dosyası yükleniyor…");
   try {
     if (!venueId) throw new Error("Salon oturumu doğrulanmadan veri yüklenemez.");
@@ -757,6 +762,11 @@ async function openWedding(weddingId, returnFocus = null, { showLoading = true }
     if (venueId === state.venueId) detailContainer.innerHTML = empty(error.message);
   }
 }
+
+weddingPdfButton.addEventListener("click", () => {
+  if (!state.currentWedding) return;
+  printWeddingReport(state.currentWedding, { venueName: state.dashboard?.venue?.name });
+});
 
 const loaders = {
   overview: loadDashboard,

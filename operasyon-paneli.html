@@ -9,6 +9,7 @@
     <title>Salon Sorumlusu | Düğünajansım</title>
     <link rel="stylesheet" href="css/shared/fonts.css" />
     <link rel="stylesheet" href="css/operations/operations.css" />
+    <link rel="stylesheet" href="css/shared/wedding-print-report.css" />
     <script type="module" src="js/operations/main.js"></script>
   </head>
   <body>
@@ -242,7 +243,29 @@
             <p class="section-index">Düğün dosyası</p>
             <h2 id="wedding-dialog-title" class="js-detail-title">Yükleniyor</h2>
           </div>
-          <button class="dialog-close" type="button" data-close-dialog aria-label="Kapat">×</button>
+          <div class="wedding-detail-heading-actions">
+            <button
+              class="primary-button wedding-pdf-button js-create-wedding-pdf"
+              type="button"
+              disabled
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 2.75h8l4 4v14.5H6zM14 2.75v4h4M9 12h6M9 16h6" />
+              </svg>
+              <span>PDF oluştur</span>
+            </button>
+            <button class="dialog-close" type="button" data-close-dialog aria-label="Kapat">
+              ×
+            </button>
+          </div>
         </div>
         <div class="js-wedding-detail"></div>
       </div>

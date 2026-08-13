@@ -32,6 +32,7 @@ import {
 } from "../shared/runtime-config.js";
 import { safeImageAssetPath } from "../shared/asset-url.js";
 import { escapeHtml } from "../shared/html.js";
+import { printWeddingReport } from "../shared/wedding-print-report.js";
 
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
 const STATUS_LABELS = DELIVERY_STATUS_LABELS;
@@ -138,6 +139,7 @@ function renderPagination(key) {
 const globalMessage = document.querySelector(".global-message");
 const detailDialog = document.querySelector(".js-wedding-detail");
 const detailContent = document.querySelector(".js-wedding-detail-content");
+const weddingPdfButton = document.querySelector(".js-create-wedding-pdf");
 const appDetailDialog = document.querySelector(".js-application-detail-dialog");
 const appDetailTitle = document.querySelector(".js-app-detail-title");
 const appDetailContent = document.querySelector(".js-app-detail-content");
@@ -1354,6 +1356,7 @@ function renderWeddingDetail(wedding) {
   const available = wedding.availableStaff.filter((staff) => !assignedIds.has(staff.id));
   const expectedDeliveryDate = addDays(datePartInIstanbul(wedding.startsAt), 21);
   document.querySelector(".js-detail-title").textContent = coupleName(wedding);
+  weddingPdfButton.disabled = false;
   detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(wedding.cancelledAt ? "İptal edildi" : STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span>${wedding.cancelledAt && wedding.cancellationReason ? `<small>İptal nedeni: ${escapeHtml(wedding.cancellationReason)}</small>` : ""}</div><div class="detail-actions">${renderWeddingLifecycleActions(wedding)}</div></section>
   <div class="detail-grid">
     <section class="detail-block"><h3>Çift ve iletişim</h3><div class="contact-line"><span>${escapeHtml(wedding.brideFirstName)} ${escapeHtml(wedding.brideLastName)}</span><a href="${safePhoneHref(wedding.bridePhone)}">${escapeHtml(wedding.bridePhone)}</a></div><div class="contact-line"><span>${escapeHtml(wedding.groomFirstName)} ${escapeHtml(wedding.groomLastName)}</span><a href="${safePhoneHref(wedding.groomPhone)}">${escapeHtml(wedding.groomPhone)}</a></div><div class="contact-line"><span>E-posta</span><a href="mailto:${escapeHtml(wedding.primaryEmail)}">${escapeHtml(wedding.primaryEmail)}</a></div></section>
@@ -1407,6 +1410,8 @@ function renderWeddingDetail(wedding) {
 
 async function openWeddingDetail(weddingId) {
   if (!detailDialog.open) openManagedDialog(detailDialog);
+  state.currentWedding = null;
+  weddingPdfButton.disabled = true;
   document.querySelector(".js-detail-title").textContent = "Yükleniyor…";
   detailContent.innerHTML = empty("Düğün dosyası hazırlanıyor…");
   try {
@@ -1417,6 +1422,11 @@ async function openWeddingDetail(weddingId) {
     detailContent.innerHTML = empty(error.message);
   }
 }
+
+weddingPdfButton.addEventListener("click", () => {
+  if (!state.currentWedding) return;
+  printWeddingReport(state.currentWedding, { venueName: state.currentWedding.venue?.name });
+});
 
 async function loadStaff() {
   const container = document.querySelector(".js-staff");

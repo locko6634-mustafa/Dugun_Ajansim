@@ -518,6 +518,10 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     window.__adminWhatsAppUrls = [];
     window.__adminWindowOpenUrls = [];
     window.__copiedAdminMessages = [];
+    window.__weddingPrintCalls = 0;
+    window.print = () => {
+      window.__weddingPrintCalls += 1;
+    };
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
@@ -997,6 +1001,17 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await expect(
     page.getByRole("dialog").getByRole("heading", { name: "Ayşe Yılmaz & Mehmet Demir" })
   ).toBeVisible();
+  await page.getByRole("button", { name: "PDF oluştur" }).click();
+  await expect(page.locator(".js-wedding-print-report")).toContainText("Düğün operasyon föyü");
+  await expect(page.locator(".js-wedding-print-report")).toContainText("Mini Paket");
+  await expect(page.locator(".js-wedding-print-report")).toContainText("Cess Wedding");
+  await expect(page.locator(".js-wedding-print-report")).toContainText("₺22.500,00");
+  expect(await page.evaluate(() => window.__weddingPrintCalls)).toBe(1);
+  expect(adminStepUpBodies).toHaveLength(0);
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".js-wedding-print-report")).toBeVisible();
+  await expect(page.locator(".admin-shell")).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
   await expect(page.getByRole("button", { name: "Müşteri MFA'sını sıfırla" })).toHaveCount(0);
   await page.getByRole("button", { name: "Müşteri hesabını aktifleştir" }).click();
   await expect(page.getByRole("heading", { name: "Yönetici doğrulaması" })).toBeVisible();
@@ -2439,6 +2454,12 @@ test("@frontend-smoke basarili cikis giris durumunu sonlandirip ana sayfaya yonl
 test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yonetir", async ({
   page
 }) => {
+  await page.addInitScript(() => {
+    window.__weddingPrintCalls = 0;
+    window.print = () => {
+      window.__weddingPrintCalls += 1;
+    };
+  });
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   const venueId = "de305d54-75b4-431b-adb2-eb6b9e546014";
@@ -2522,9 +2543,27 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
       body: JSON.stringify({ success: true, data: [staff] })
     })
   );
+  await page.route(`**/api/v1/operations/weddings/${wedding.id}`, (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { ...wedding, availableStaff: [staff] }
+      })
+    })
+  );
 
   await page.goto("/operasyon-paneli.html");
   await expect(page.locator(".js-venue-name")).toContainText("Cess Wedding");
+  await page.getByRole("button", { name: "Planla" }).click();
+  await expect(
+    page.getByRole("dialog").getByRole("heading", { name: "Ayşe & Mehmet" })
+  ).toBeVisible();
+  await page.getByRole("button", { name: "PDF oluştur" }).click();
+  await expect(page.locator(".js-wedding-print-report")).toContainText("Giriş çekimi 18.30");
+  await expect(page.locator(".js-wedding-print-report")).toContainText("Cess Wedding");
+  expect(await page.evaluate(() => window.__weddingPrintCalls)).toBe(1);
+  await page.locator(".js-wedding-dialog [data-close-dialog]").click();
   await clickPanel(page, "calendar", true);
   await expect(page.locator(".calendar-event")).toContainText("Ayşe & Mehmet");
   await clickPanel(page, "staff", true);
