@@ -1,5 +1,6 @@
 import { Prisma, type BookingSource, type User } from "@prisma/client";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomInt, randomUUID } from "node:crypto";
+import { setTimeout as wait } from "node:timers/promises";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.config.js";
 import type { z } from "zod";
@@ -46,6 +47,28 @@ export const paymentPolicy = Object.freeze({
   cashDiscountPercent: 10,
   depositMaximumCents: 500_000
 });
+
+const bookingTransactionRetryPolicy = Object.freeze({
+  maxAttempts: 6,
+  baseDelayMs: 25,
+  maximumDelayMs: 400
+});
+
+const waitForBookingTransactionRetry = (attempt: number) => {
+  const maximumDelay = Math.min(
+    bookingTransactionRetryPolicy.baseDelayMs * 2 ** attempt,
+    bookingTransactionRetryPolicy.maximumDelayMs
+  );
+  const minimumDelay = Math.ceil(maximumDelay / 2);
+  return wait(randomInt(minimumDelay, maximumDelay + 1));
+};
+
+const isRetryableBookingTransactionError = (error: unknown): boolean => {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (error.code === "P2002" || error.code === "P2034") return true;
+  const rawDatabaseCode = error.code === "P2010" ? String(error.meta?.code ?? "") : "";
+  return rawDatabaseCode === "40001" || rawDatabaseCode === "40P01";
+};
 
 export const calculatePayment = (
   subtotalCents: number,
@@ -211,6 +234,15 @@ const hasPublicVenueConflict = async (
   return result?.hasConflict ?? true;
 };
 
+const publicVenueConflictError = () =>
+  new AppError(
+    "Seçilen salonda bu saat aralığı doludur. Lütfen farklı bir saat seçin.",
+    409,
+    true,
+    undefined,
+    { code: "VENUE_SCHEDULE_CONFLICT" }
+  );
+
 export const assertVenueScheduleAvailable = async (
   transaction: Prisma.TransactionClient,
   input: VenueScheduleAvailabilityInput
@@ -357,7 +389,7 @@ export const createBookingApplication = async (
     idempotencyFingerprintPayload
   );
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < bookingTransactionRetryPolicy.maxAttempts; attempt += 1) {
     try {
       const referenceCode = randomReferenceCode();
       const applicationId = randomUUID();
@@ -476,13 +508,7 @@ export const createBookingApplication = async (
 
           if (publicConflict || conflictingWedding || conflictingApp) {
             if (publicConflict) {
-              throw new AppError(
-                "Seçilen salonda bu saat aralığı doludur. Lütfen farklı bir saat seçin.",
-                409,
-                true,
-                undefined,
-                { code: "VENUE_SCHEDULE_CONFLICT" }
-              );
+              throw publicVenueConflictError();
             }
             const conflStart = formatIstanbulTime(
               conflictingWedding?.startsAt || conflictingApp!.weddingStartsAt
@@ -583,10 +609,14 @@ export const createBookingApplication = async (
         }
       );
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        (error.code === "P2002" || error.code === "P2034")
-      ) {
+      if (isRetryableBookingTransactionError(error)) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code !== "P2002" &&
+          attempt + 1 < bookingTransactionRetryPolicy.maxAttempts
+        ) {
+          await waitForBookingTransactionRetry(attempt);
+        }
         continue;
       }
       throw error;
@@ -630,6 +660,17 @@ export const createBookingApplication = async (
       return safeResponse;
     });
     if (response) return response;
+  }
+
+  if (options.source === "PUBLIC_FORM" && input.venueId) {
+    const publicConflict = await prisma.$transaction((transaction) =>
+      hasPublicVenueConflict(transaction, {
+        venueId: input.venueId!,
+        startsAt,
+        endsAt
+      })
+    );
+    if (publicConflict) throw publicVenueConflictError();
   }
 
   throw new AppError("Başvuru referansı üretilemedi. Lütfen tekrar deneyin.", 503);
