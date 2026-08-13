@@ -1501,6 +1501,7 @@ router.get(
             kind: true,
             status: true,
             dueAt: true,
+            earlyOverrideAt: true,
             recipientPhone: true,
             piiCiphertext: true,
             piiIv: true,
@@ -3626,7 +3627,17 @@ const verifyPreparedMessage = async (
       data: { activeAt: now }
     });
     customerActivatedEarly = activated.count === 1;
-    if (customerActivatedEarly) activatedCustomerUserId = task.wedding.customerUserId;
+    if (customerActivatedEarly) {
+      activatedCustomerUserId = task.wedding.customerUserId;
+      if (task.preparedToken) {
+        await transaction.passwordSetupToken.update({
+          where: { id: task.preparedToken.id },
+          data: {
+            expiresAt: new Date(now.valueOf() + env.TEMPORARY_PASSWORD_TTL_HOURS * 60 * 60 * 1_000)
+          }
+        });
+      }
+    }
   }
 
   const taskPii = decryptMessageTaskPii(task.id, task);

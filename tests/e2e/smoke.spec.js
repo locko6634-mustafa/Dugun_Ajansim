@@ -611,6 +611,16 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       driveUrl: null
     }
   };
+  const activationTask = {
+    id: "a530bd2d-222d-4d22-86dc-7487fcd3f151",
+    kind: "ACCOUNT_ACTIVATION",
+    status: "PLANNED",
+    recipientPhone: "+905551234567",
+    dueAt: "2026-08-22T10:00:00.000Z",
+    earlyOverrideAt: null,
+    updatedAt: "2026-08-10T10:00:00.000Z",
+    sentAt: null
+  };
   await page.route("**/api/v1/admin/dashboard**", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -699,14 +709,46 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     venue: { name: "Cess Wedding" },
     deletedAt: null
   };
+  const decisionTaskId = "b630bd2d-222d-4d22-86dc-7487fcd3f152";
+  const approvableApplication = {
+    ...midnightApplication,
+    id: "c730bd2d-222d-4d22-86dc-7487fcd3f153",
+    referenceCode: "DA-2026-123456",
+    paymentFlowExpiresAt: "2026-08-20T12:00:00.000Z",
+    whatsappHandoffAt: "2026-08-13T11:30:00.000Z",
+    weddingStartsAt: "2026-08-22T17:00:00.000Z",
+    weddingEndsAt: "2026-08-22T23:00:00.000Z"
+  };
   let lastApplicationUrl = "";
   await page.route("**/api/v1/admin/booking-applications?**", (route) => {
     lastApplicationUrl = route.request().url();
+    const isReferenceSearch = new URL(lastApplicationUrl).searchParams.has("referenceCode");
     return route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ success: true, data: [midnightApplication] })
+      body: JSON.stringify({
+        success: true,
+        data: [isReferenceSearch ? approvableApplication : midnightApplication]
+      })
     });
   });
+  await page.route(
+    `**/api/v1/admin/booking-applications/${approvableApplication.id}/approve`,
+    (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            applicationId: approvableApplication.id,
+            weddingId: wedding.id,
+            username: wedding.customerUser.username,
+            activeAt: activationTask.dueAt,
+            decisionTaskId,
+            activationTaskId: activationTask.id
+          }
+        })
+      })
+  );
   await page.route("**/api/v1/admin/weddings", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -793,10 +835,12 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   let messageStatus = "PLANNED";
   let messageUpdatedAt = "2026-08-10T10:00:00.000Z";
   await page.route("**/api/v1/admin/message-tasks**", async (route) => {
+    const isActivationTask = route.request().url().includes(activationTask.id);
+    const isDecisionTask = route.request().url().includes(decisionTaskId);
     if (route.request().url().endsWith("/render")) {
       messageRenderAttempts += 1;
-      if (await requireAdminStepUp(route)) return;
-      adminStepUpActive = false;
+      if (!isDecisionTask && (await requireAdminStepUp(route))) return;
+      if (!isActivationTask) adminStepUpActive = false;
       messageStatus = "PREPARED";
       messageUpdatedAt = "2026-08-10T10:01:00.000Z";
       await route.fulfill({
@@ -811,13 +855,31 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       });
       return;
     }
-    if (route.request().url().endsWith("/verify")) {
+    if (route.request().url().endsWith("/override-due")) {
       if (await requireAdminStepUp(route)) return;
+      expect(route.request().postDataJSON().reason).toContain("erken aktifleştirildi");
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: { ...activationTask, earlyOverrideAt: "2026-08-13T10:00:00.000Z" }
+        })
+      });
+      return;
+    }
+    if (route.request().url().endsWith("/verify")) {
+      if (!isDecisionTask && (await requireAdminStepUp(route))) return;
       adminStepUpActive = false;
       messageStatus = "READY_TO_SEND";
       messageUpdatedAt = "2026-08-10T10:02:00.000Z";
-      const message =
-        "Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda&purpose=PASSWORD_RESET";
+      const message = isActivationTask
+        ? "Müşteri hesabınız aktifleştirilmiştir.\nKullanıcı adı: yilmaz-demir-4821\nTek kullanımlık parola belirleme bağlantısı: https://example.test/login.html#setup=aktivasyon&purpose=ACCOUNT_ACTIVATION"
+        : isDecisionTask
+          ? "DA-2026-123456 referanslı başvurunuz onaylandı."
+          : "Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda&purpose=PASSWORD_RESET";
+      if (isActivationTask) {
+        expect(route.request().postDataJSON()).toEqual({ activateCustomerNow: true });
+      }
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -826,6 +888,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
             status: messageStatus,
             message,
             whatsappUrl: `https://wa.me/905551112233?text=${encodeURIComponent(message)}`,
+            customerActivatedEarly: isActivationTask,
             expectedUpdatedAt: messageUpdatedAt
           }
         })
@@ -866,7 +929,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
         contentType: "application/json",
         body: JSON.stringify({
           success: true,
-          data: { ...wedding, availableStaff: [], messageTasks: [] }
+          data: { ...wedding, availableStaff: [], messageTasks: [activationTask] }
         })
       });
       return;
@@ -930,6 +993,15 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     page.getByRole("dialog").getByRole("heading", { name: "Ayşe Yılmaz & Mehmet Demir" })
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Müşteri MFA'sını sıfırla" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Müşteri hesabını aktifleştir" }).click();
+  await completeAdminStepUp(page);
+  await expect
+    .poll(() => page.evaluate(() => window.__copiedAdminMessages[0]))
+    .toContain("Kullanıcı adı: yilmaz-demir-4821");
+  await expect
+    .poll(() => page.evaluate(() => window.__adminWhatsAppUrls[0]))
+    .toContain("purpose%3DACCOUNT_ACTIVATION");
+  await expect(page.locator(".global-message")).toContainText("Müşteri hesabı aktifleştirildi");
   await page.getByRole("button", { name: "Düğün bilgilerini düzenle" }).click();
   await expect(page.getByRole("heading", { name: "Bilgileri güncelle" })).toBeVisible();
   if (isMobile) {
@@ -963,6 +1035,13 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await page.getByLabel("Başvuru referans kodu").fill("DA-2026-123456");
   await page.getByRole("button", { name: "Bul" }).click();
   await expect.poll(() => lastApplicationUrl).toContain("referenceCode=DA-2026-123456");
+  await page.locator(".application-card").getByRole("button", { name: "Onayla" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__copiedAdminMessages.at(-1)))
+    .toBe("DA-2026-123456 referanslı başvurunuz onaylandı.");
+  await expect(page.locator(".global-message")).toContainText("onay mesajı WhatsApp'ta hazırlandı");
+  messageStatus = "PLANNED";
+  messageUpdatedAt = "2026-08-10T10:00:00.000Z";
   await clickPanel(page, "calendar");
   await expect(page.getByRole("heading", { name: "Ağustos 2026 · Cess Wedding" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Ayşe & Mehmet/ }).first()).toBeVisible();
@@ -982,12 +1061,12 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await page.getByRole("button", { name: "WhatsApp'ta gönder" }).click();
   await completeAdminStepUp(page);
   await expect
-    .poll(() => page.evaluate(() => window.__copiedAdminMessages[0]))
+    .poll(() => page.evaluate(() => window.__copiedAdminMessages.at(-1)))
     .toBe(
       "Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda&purpose=PASSWORD_RESET"
     );
   await expect(markSentButton).toBeEnabled();
-  const openedWhatsAppUrl = await page.evaluate(() => window.__adminWhatsAppUrls[0]);
+  const openedWhatsAppUrl = await page.evaluate(() => window.__adminWhatsAppUrls.at(-1));
   const openedWhatsApp = new URL(openedWhatsAppUrl);
   expect(openedWhatsApp.searchParams.get("text")).toBe(
     "Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda&purpose=PASSWORD_RESET"
@@ -1017,10 +1096,10 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       reason: "Artık sunulmayan katalog paketi kaldırılıyor."
     }
   ]);
-  expect(messageRenderAttempts).toBe(2);
-  expect(adminStepUpBodies).toHaveLength(5);
+  expect(messageRenderAttempts).toBe(5);
+  expect(adminStepUpBodies).toHaveLength(6);
   expect(adminStepUpBodies).toEqual(
-    Array.from({ length: 5 }, () => ({
+    Array.from({ length: 6 }, () => ({
       currentPassword: "Guvenli-Admin-Step-Up-2026!",
       totpCode: "123456"
     }))

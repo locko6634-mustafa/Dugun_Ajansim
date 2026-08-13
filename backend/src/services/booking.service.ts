@@ -1503,7 +1503,14 @@ export const approveBookingApplication = async (
             metadata: { weddingId: wedding.id }
           });
 
-          return { applicationId: application.id, weddingId: wedding.id, username, activeAt };
+          return {
+            applicationId: application.id,
+            weddingId: wedding.id,
+            username,
+            activeAt,
+            decisionTaskId,
+            activationTaskId
+          };
         },
         {
           isolationLevel: Prisma.TransactionIsolationLevel.Serializable,

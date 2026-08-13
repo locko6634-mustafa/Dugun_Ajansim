@@ -617,6 +617,49 @@ async function openWhatsAppMessage(data, popup) {
   return copied;
 }
 
+async function prepareWhatsAppMessageTask(
+  { id, status = "PLANNED", dueAt = null, earlyOverrideAt = null },
+  { activateCustomerNow = false } = {}
+) {
+  const request = activateCustomerNow ? apiRequestWithAdminStepUp : apiRequest;
+  const requestOptions = activateCustomerNow
+    ? { actionLabel: "Müşteri hesabını aktifleştirme" }
+    : undefined;
+  let currentStatus = status;
+
+  if (["PLANNED", "FAILED"].includes(currentStatus)) {
+    const rendered = await request(
+      `/admin/message-tasks/${id}/render`,
+      { method: "POST" },
+      requestOptions
+    );
+    if (!rendered) return null;
+    currentStatus = rendered.data.status;
+  }
+
+  if (activateCustomerNow && dueAt && new Date(dueAt).valueOf() > Date.now() && !earlyOverrideAt) {
+    const overridden = await apiRequestWithAdminStepUp(
+      `/admin/message-tasks/${id}/override-due`,
+      {
+        method: "POST",
+        body: { reason: "Müşteri hesabı düğün ayrıntılarından erken aktifleştirildi." }
+      },
+      { actionLabel: "Müşteri hesabını erken aktifleştirme" }
+    );
+    if (!overridden) return null;
+  }
+
+  if (!["PREPARED", "READY_TO_SEND"].includes(currentStatus)) {
+    throw new Error("WhatsApp mesaj görevi gönderime hazırlanamadı.");
+  }
+
+  return request(
+    `/admin/message-tasks/${id}/verify`,
+    { method: "POST", body: activateCustomerNow ? { activateCustomerNow: true } : {} },
+    requestOptions
+  );
+}
+
 async function ensureAdmin() {
   try {
     const response = await apiRequest("/auth/session");
@@ -1273,7 +1316,14 @@ function renderWeddingLifecycleActions(wedding) {
     return `<button class="secondary-button" type="button" data-reinstate-wedding="${wedding.id}">İptali geri al</button><button class="secondary-button" type="button" data-archive-wedding="${wedding.id}">Arşivle</button>`;
   }
 
-  const commonActions = `<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}" data-confirm="${escapeHtml(wedding.customerUser.username)}">Müşteri parolasını sıfırla</button>`;
+  const activationTask = wedding.messageTasks?.find(
+    (task) => task.kind === "ACCOUNT_ACTIVATION" && !["SENT", "CANCELLED"].includes(task.status)
+  );
+  const activationAction =
+    wedding.customerUser.mustChangePassword && activationTask
+      ? `<button class="primary-button" type="button" data-activate-customer="${escapeHtml(activationTask.id)}" data-task-status="${escapeHtml(activationTask.status)}" data-task-due-at="${escapeHtml(activationTask.dueAt)}" data-task-early-override-at="${escapeHtml(activationTask.earlyOverrideAt || "")}">Müşteri hesabını aktifleştir</button>`
+      : "";
+  const commonActions = `${activationAction}<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}" data-confirm="${escapeHtml(wedding.customerUser.username)}">Müşteri parolasını sıfırla</button>`;
   if (new Date(wedding.endsAt).valueOf() > Date.now()) {
     return `${commonActions}<button class="secondary-button" type="button" data-cancel-wedding="${wedding.id}">Düğünü iptal et</button><small>Aktif düğün arşivlenmeden önce iptal edilmelidir.</small>`;
   }
@@ -1974,13 +2024,25 @@ async function handleApplicationAction(event) {
     approveButton || rejectButton || archiveButton || restoreButton || deleteButton;
   const finishInFlight = beginInFlight(actionButton);
   if (!finishInFlight) return;
+  let whatsappPopup = null;
 
   try {
     if (approveButton) {
-      await apiRequest(`/admin/booking-applications/${approveButton.dataset.approve}/approve`, {
-        method: "POST"
-      });
-      setMessage("Başvuru onaylandı; düğün ve teslimat planı oluşturuldu.", true);
+      whatsappPopup = openBlankPopup();
+      const approval = await apiRequest(
+        `/admin/booking-applications/${approveButton.dataset.approve}/approve`,
+        { method: "POST" }
+      );
+      try {
+        const prepared = await prepareWhatsAppMessageTask({ id: approval.data.decisionTaskId });
+        if (!prepared) throw new Error("Onay mesajı hazırlanamadı.");
+        await openWhatsAppMessage(prepared.data, whatsappPopup);
+        state.openedMessageTaskIds.add(approval.data.decisionTaskId);
+        setMessage("Başvuru onaylandı; onay mesajı WhatsApp'ta hazırlandı.", true);
+      } catch (error) {
+        whatsappPopup?.close();
+        setMessage(`Başvuru onaylandı ancak WhatsApp mesajı açılamadı: ${error.message}`);
+      }
       if (appDetailDialog?.open) appDetailDialog.close();
     } else if (rejectButton) {
       const reason = await showCustomPrompt({
@@ -2055,6 +2117,7 @@ async function handleApplicationAction(event) {
     } else return;
     await Promise.all([loadApplications(), loadDashboard()]);
   } catch (error) {
+    whatsappPopup?.close();
     if (deleteButton) deleteButton.disabled = false;
     setMessage(error.message);
   } finally {
@@ -2226,6 +2289,7 @@ detailContent.addEventListener("click", async (event) => {
   const saveButton = event.target.closest("[data-save-delivery]");
   const deliverButton = event.target.closest("[data-deliver]");
   const revokeDeliveryButton = event.target.closest("[data-revoke-delivery]");
+  const activateCustomerButton = event.target.closest("[data-activate-customer]");
   const resetButton = event.target.closest("[data-reset-user]");
   const removeButton = event.target.closest("[data-remove-assignment]");
   const cancelWeddingButton = event.target.closest("[data-cancel-wedding]");
@@ -2238,6 +2302,7 @@ detailContent.addEventListener("click", async (event) => {
     saveButton ||
     deliverButton ||
     revokeDeliveryButton ||
+    activateCustomerButton ||
     resetButton ||
     removeButton ||
     cancelWeddingButton ||
@@ -2247,6 +2312,7 @@ detailContent.addEventListener("click", async (event) => {
     deleteWeddingButton;
   const finishInFlight = beginInFlight(actionButton);
   if (!finishInFlight) return;
+  let whatsappPopup = null;
   try {
     if (editButton) {
       await openWeddingEditor(state.currentWedding);
@@ -2319,6 +2385,27 @@ detailContent.addEventListener("click", async (event) => {
       );
       if (!response) return;
       setMessage("Teslimat erişimi geri çekildi.", true);
+    } else if (activateCustomerButton) {
+      whatsappPopup = openBlankPopup();
+      const prepared = await prepareWhatsAppMessageTask(
+        {
+          id: activateCustomerButton.dataset.activateCustomer,
+          status: activateCustomerButton.dataset.taskStatus,
+          dueAt: activateCustomerButton.dataset.taskDueAt,
+          earlyOverrideAt: activateCustomerButton.dataset.taskEarlyOverrideAt || null
+        },
+        { activateCustomerNow: true }
+      );
+      if (!prepared) {
+        whatsappPopup?.close();
+        return;
+      }
+      const copied = await openWhatsAppMessage(prepared.data, whatsappPopup);
+      state.openedMessageTaskIds.add(activateCustomerButton.dataset.activateCustomer);
+      setMessage(
+        `Müşteri hesabı aktifleştirildi; kullanıcı adı ve şifre bağlantısı WhatsApp'ta hazırlandı${copied ? " ve panoya kopyalandı" : ""}.`,
+        true
+      );
     } else if (resetButton) {
       const confirmation = await requestDangerConfirmation(
         {
@@ -2450,6 +2537,7 @@ detailContent.addEventListener("click", async (event) => {
       loadWeddings()
     ]);
   } catch (error) {
+    whatsappPopup?.close();
     if (removeButton) removeButton.disabled = false;
     if (deleteWeddingButton) deleteWeddingButton.disabled = false;
     const contextualMessage =

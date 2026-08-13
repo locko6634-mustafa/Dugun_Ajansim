@@ -1072,6 +1072,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     correlationId
   );
   assert.notEqual(firstApproval.username, secondApproval.username);
+  assert.match(firstApproval.decisionTaskId, /^[0-9a-f-]{36}$/i);
+  assert.match(firstApproval.activationTaskId, /^[0-9a-f-]{36}$/i);
   assert.match(firstApproval.username, /^m-[a-f0-9]{32}$/);
   assert.match(secondApproval.username, /^m-[a-f0-9]{32}$/);
   assert.equal(firstApproval.username.toLocaleLowerCase("tr-TR").includes("yilmaz"), false);
@@ -1083,6 +1085,10 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
   assert.ok(wedding.delivery);
   assert.equal(wedding.messageTasks.length, 2);
+  assert.equal(
+    wedding.messageTasks.find((task) => task.kind === "ACCOUNT_ACTIVATION")?.id,
+    firstApproval.activationTaskId
+  );
   assert.equal(wedding.brideFirstName, null);
   assert.equal(wedding.primaryEmail, null);
   const decryptedWeddingPii = decryptWeddingPii(wedding.id, wedding);

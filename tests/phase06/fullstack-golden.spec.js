@@ -507,6 +507,8 @@ test("@phase06 mocksuz telefon ve WhatsApp altın yolu", async ({ page }, testIn
       requestIds
     );
     const weddingId = approvalBody.data.weddingId;
+    expect(approvalBody.data.decisionTaskId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(approvalBody.data.activationTaskId).toMatch(/^[0-9a-f-]{36}$/i);
     identity.otherTargetIds.add(weddingId);
     const weddingBody = await responseJson(
       await admin.get(`/api/v1/admin/weddings/${weddingId}`),
@@ -522,6 +524,7 @@ test("@phase06 mocksuz telefon ve WhatsApp altın yolu", async ({ page }, testIn
       (item) => item.kind === "ACCOUNT_ACTIVATION"
     );
     expect(activationTask).toBeTruthy();
+    expect(activationTask.id).toBe(approvalBody.data.activationTaskId);
 
     await responseJson(
       await authenticatedRequest(
@@ -539,7 +542,7 @@ test("@phase06 mocksuz telefon ve WhatsApp altın yolu", async ({ page }, testIn
         admin,
         "post",
         `/api/v1/admin/message-tasks/${activationTask.id}/verify`,
-        {}
+        { activateCustomerNow: true }
       ),
       409,
       "activation early verify",
@@ -561,7 +564,7 @@ test("@phase06 mocksuz telefon ve WhatsApp altın yolu", async ({ page }, testIn
         admin,
         "post",
         `/api/v1/admin/message-tasks/${activationTask.id}/verify`,
-        {}
+        { activateCustomerNow: true }
       ),
       200,
       "activation verify",
@@ -571,15 +574,13 @@ test("@phase06 mocksuz telefon ve WhatsApp altın yolu", async ({ page }, testIn
       /#setup=([A-Za-z0-9_-]{43})&purpose=ACCOUNT_ACTIVATION/
     )?.[1];
     expect(setupToken).toBeTruthy();
+    expect(verificationBody.data.customerActivatedEarly).toBe(true);
     const customerRecord = await prisma.wedding.findUniqueOrThrow({
       where: { id: weddingId },
-      select: { customerUserId: true }
+      select: { customerUserId: true, customerUser: { select: { activeAt: true } } }
     });
     identity.otherTargetIds.add(customerRecord.customerUserId);
-    await prisma.user.update({
-      where: { id: customerRecord.customerUserId },
-      data: { activeAt: new Date(Date.now() - 60_000) }
-    });
+    expect(customerRecord.customerUser.activeAt.valueOf()).toBeLessThanOrEqual(Date.now());
     await responseJson(
       await authenticatedRequest(
         admin,
