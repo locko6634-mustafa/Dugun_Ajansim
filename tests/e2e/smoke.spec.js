@@ -816,15 +816,16 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       adminStepUpActive = false;
       messageStatus = "READY_TO_SEND";
       messageUpdatedAt = "2026-08-10T10:02:00.000Z";
+      const message =
+        "Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda&purpose=PASSWORD_RESET";
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           success: true,
           data: {
             status: messageStatus,
-            message:
-              "Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda&purpose=PASSWORD_RESET",
-            whatsappUrl: "https://wa.me/905551112233",
+            message,
+            whatsappUrl: `https://wa.me/905551112233?text=${encodeURIComponent(message)}`,
             expectedUpdatedAt: messageUpdatedAt
           }
         })
@@ -987,8 +988,10 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     );
   await expect(markSentButton).toBeEnabled();
   const openedWhatsAppUrl = await page.evaluate(() => window.__adminWhatsAppUrls[0]);
-  expect(new URL(openedWhatsAppUrl).search).toBe("");
-  expect(openedWhatsAppUrl).not.toContain("yalnız-panoda");
+  const openedWhatsApp = new URL(openedWhatsAppUrl);
+  expect(openedWhatsApp.searchParams.get("text")).toBe(
+    "Tek kullanımlık parola bağlantısı: https://example.test/login.html#setup=yalniz-panoda&purpose=PASSWORD_RESET"
+  );
   await clickPanel(page, "catalog");
   const catalogImage = page.locator(".js-packages .js-catalog-image");
   await expect(catalogImage).toHaveCount(1);

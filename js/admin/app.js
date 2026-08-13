@@ -525,7 +525,7 @@ const openBlankPopup = () => {
   return popup;
 };
 
-const safeWhatsAppUrl = (value) => {
+const safeWhatsAppUrl = (value, expectedMessage) => {
   let url;
   try {
     url = new URL(value);
@@ -538,9 +538,11 @@ const safeWhatsAppUrl = (value) => {
     url.port ||
     url.username ||
     url.password ||
-    url.search ||
     url.hash ||
-    !/^\/\d{8,15}$/.test(url.pathname)
+    !/^\/\d{8,15}$/.test(url.pathname) ||
+    [...url.searchParams.keys()].some((key) => key !== "text") ||
+    url.searchParams.getAll("text").length !== 1 ||
+    url.searchParams.get("text") !== expectedMessage
   ) {
     throw new Error("Güvenli bir WhatsApp yönlendirmesi alınamadı.");
   }
@@ -605,11 +607,12 @@ async function copyMessageToClipboard(value, popup = null) {
 }
 
 async function openWhatsAppMessage(data, popup) {
-  const whatsappUrl = safeWhatsAppUrl(data?.whatsappUrl);
+  const message = typeof data?.message === "string" ? data.message : "";
+  const whatsappUrl = safeWhatsAppUrl(data?.whatsappUrl, message);
   if (!popup) {
     throw new Error("WhatsApp penceresi engellendi. Açılır pencerelere izin verip tekrar deneyin.");
   }
-  const copied = await copyMessageToClipboard(data?.message, popup);
+  const copied = await copyMessageToClipboard(message, popup);
   popup.location.href = whatsappUrl;
   return copied;
 }
@@ -2658,7 +2661,7 @@ document.querySelector(".js-messages").addEventListener("click", async (event) =
       try {
         const response = await apiRequestWithAdminStepUp(
           `/admin/message-tasks/${sendButton.dataset.sendMessage}/verify`,
-          { method: "POST", body: {} },
+          { method: "POST", body: { activateCustomerNow: true } },
           { actionLabel: "Hassas müşteri mesajını WhatsApp'ta gönderme" }
         );
         if (!response) {

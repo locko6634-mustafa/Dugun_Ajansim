@@ -1481,7 +1481,10 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const customVenueSweep = await expireStalePaymentFlows(new Date(), correlationId);
   assert.equal(customVenueSweep.archivedAbandonedCount, 1);
   assert.equal(customVenueSweep.physicalDeletedCount, 0);
-  assert.equal(await prisma.bookingApplication.count({ where: { id: customVenueApplication.id } }), 1);
+  assert.equal(
+    await prisma.bookingApplication.count({ where: { id: customVenueApplication.id } }),
+    1
+  );
   assert.equal(await prisma.venue.count({ where: { name: updatedCustomVenueName } }), 0);
   assert.deepEqual(
     (
@@ -1654,7 +1657,10 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const unlockedSweep = await expireStalePaymentFlows(new Date(), correlationId);
   assert.equal(unlockedSweep.archivedAbandonedCount, 1);
   assert.equal(unlockedSweep.physicalDeletedCount, 0);
-  assert.equal(await prisma.bookingApplication.count({ where: { id: advisoryLockApplicationId } }), 1);
+  assert.equal(
+    await prisma.bookingApplication.count({ where: { id: advisoryLockApplicationId } }),
+    1
+  );
 
   const handedOffExpiringDate = addCalendarDays(weddingDate, 6);
   const handedOffExpiringFlowKey = `${marker}-handed-off-expiring-flow-key-1234567890`;
@@ -1827,7 +1833,9 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     true
   );
   assert.equal(
-    String(verifiedApprovalDecision.body.data.message).includes(rejectedFlowApplication.referenceCode),
+    String(verifiedApprovalDecision.body.data.message).includes(
+      rejectedFlowApplication.referenceCode
+    ),
     false
   );
 
@@ -1844,7 +1852,9 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({});
   assert.equal(verifiedRejectionDecision.status, 200);
   assert.equal(
-    String(verifiedRejectionDecision.body.data.message).includes(rejectedFlowApplication.referenceCode),
+    String(verifiedRejectionDecision.body.data.message).includes(
+      rejectedFlowApplication.referenceCode
+    ),
     true
   );
   assert.equal(
@@ -1911,37 +1921,36 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({});
   assert.equal(verifiedActivation.status, 200);
   assert.equal(verifiedActivation.body.data.status, "READY_TO_SEND");
+  assert.equal(verifiedActivation.body.data.customerActivatedEarly, false);
   const activationSetupToken = String(verifiedActivation.body.data.message).match(
     /#setup=([A-Za-z0-9_-]{43})&purpose=ACCOUNT_ACTIVATION/
   )?.[1];
   assert.ok(activationSetupToken);
   const initialCustomerPassword = "ilk-kurulum-icin-kalici-guvenli-parola";
-  const wrongPurposeSetup = await request(app)
-    .post("/api/v1/auth/password/setup")
-    .send({
-      token: activationSetupToken,
-      purpose: "PASSWORD_RESET",
-      newPassword: initialCustomerPassword
-    });
-  assert.equal(wrongPurposeSetup.status, 410);
-  const earlyPasswordSetup = await request(app)
-    .post("/api/v1/auth/password/setup")
-    .send({
-      token: activationSetupToken,
-      purpose: "ACCOUNT_ACTIVATION",
-      newPassword: initialCustomerPassword
-    });
-  assert.equal(earlyPasswordSetup.status, 409);
-  assert.equal(earlyPasswordSetup.body.details.code, "PASSWORD_SETUP_NOT_ACTIVE");
-  await prisma.user.update({
-    where: { id: wedding.customerUserId },
-    data: { activeAt: new Date(Date.now() - 60_000) }
+  const wrongPurposeSetup = await request(app).post("/api/v1/auth/password/setup").send({
+    token: activationSetupToken,
+    purpose: "PASSWORD_RESET",
+    newPassword: initialCustomerPassword
   });
+  assert.equal(wrongPurposeSetup.status, 410);
+  const openedEarlyActivation = await request(app)
+    .post(`/api/v1/admin/message-tasks/${activationTask.id}/verify`)
+    .set("Cookie", activationAdminCookie)
+    .set("X-CSRF-Token", activationAdminCsrf)
+    .send({ activateCustomerNow: true });
+  assert.equal(openedEarlyActivation.status, 200);
+  assert.equal(openedEarlyActivation.body.data.customerActivatedEarly, true);
+  const earlyActivatedCustomer = await prisma.user.findUniqueOrThrow({
+    where: { id: wedding.customerUserId },
+    select: { activeAt: true }
+  });
+  assert.ok(earlyActivatedCustomer.activeAt);
+  assert.ok(earlyActivatedCustomer.activeAt <= new Date());
   const markedActivationSent = await request(app)
     .post(`/api/v1/admin/message-tasks/${activationTask.id}/mark-sent`)
     .set("Cookie", activationAdminCookie)
     .set("X-CSRF-Token", activationAdminCsrf)
-    .send({ expectedUpdatedAt: verifiedActivation.body.data.expectedUpdatedAt });
+    .send({ expectedUpdatedAt: openedEarlyActivation.body.data.expectedUpdatedAt });
   assert.equal(markedActivationSent.status, 200);
   const passwordSetup = await request(app)
     .post("/api/v1/auth/password/setup")
@@ -1953,13 +1962,11 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     });
   assert.equal(passwordSetup.status, 200);
   assert.equal(passwordSetup.body.data.username, wedding.customerUser.username);
-  const replayedPasswordSetup = await request(app)
-    .post("/api/v1/auth/password/setup")
-    .send({
-      token: activationSetupToken,
-      purpose: "ACCOUNT_ACTIVATION",
-      newPassword: "yeniden-kullanilamayacak-guvenli-parola"
-    });
+  const replayedPasswordSetup = await request(app).post("/api/v1/auth/password/setup").send({
+    token: activationSetupToken,
+    purpose: "ACCOUNT_ACTIVATION",
+    newPassword: "yeniden-kullanilamayacak-guvenli-parola"
+  });
   assert.equal(replayedPasswordSetup.status, 410);
   const expiredSetupToken = createOpaqueToken();
   await prisma.passwordSetupToken.create({
@@ -1971,13 +1978,11 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       createdById: admin.id
     }
   });
-  const expiredPasswordSetup = await request(app)
-    .post("/api/v1/auth/password/setup")
-    .send({
-      token: expiredSetupToken,
-      purpose: "PASSWORD_RESET",
-      newPassword: "suresi-dolmus-link-icin-guvenli-parola"
-    });
+  const expiredPasswordSetup = await request(app).post("/api/v1/auth/password/setup").send({
+    token: expiredSetupToken,
+    purpose: "PASSWORD_RESET",
+    newPassword: "suresi-dolmus-link-icin-guvenli-parola"
+  });
   assert.equal(expiredPasswordSetup.status, 410);
 
   const login = await request(app)
@@ -2317,7 +2322,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({
       confirmText: secondWeddingBeforeCredentialRotation.customerUser.username,
       reason: "Müşteri parola erişimini kaybetti."
-  });
+    });
   assert.equal(secondPasswordReset.status, 200);
   assert.equal(secondPasswordReset.body.data.status, "PLANNED");
   assert.equal(typeof secondPasswordReset.body.data.taskId, "string");
@@ -3427,10 +3432,9 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     /#setup=([A-Za-z0-9_-]{43})&purpose=PASSWORD_RESET/
   )?.[1];
   assert.ok(latestResetToken);
-  assert.equal(new URL(verifiedReset.body.data.whatsappUrl).search, "");
   assert.equal(
-    verifiedReset.body.data.whatsappUrl.includes(verifiedReset.body.data.message),
-    false
+    new URL(verifiedReset.body.data.whatsappUrl).searchParams.get("text"),
+    verifiedReset.body.data.message
   );
   const setupLinkAudit = await prisma.auditLog.findFirst({
     where: {
@@ -3468,26 +3472,22 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({ expectedUpdatedAt });
   assert.equal(replayedMarkSent.status, 409);
 
-  const revokedResetSetup = await request(finalApp)
-    .post("/api/v1/auth/password/setup")
-    .send({
-      token: recoverySetupToken,
-      purpose: "PASSWORD_RESET",
-      newPassword: "eski-link-kullanilamayacak-guvenli-parola"
-    });
+  const revokedResetSetup = await request(finalApp).post("/api/v1/auth/password/setup").send({
+    token: recoverySetupToken,
+    purpose: "PASSWORD_RESET",
+    newPassword: "eski-link-kullanilamayacak-guvenli-parola"
+  });
   assert.equal(revokedResetSetup.status, 410);
   const resetPassword = "reset-sonrasi-yeni-kalici-guvenli-parola";
   const resetSetup = await request(finalApp)
     .post("/api/v1/auth/password/setup")
     .send({ token: latestResetToken, purpose: "PASSWORD_RESET", newPassword: resetPassword });
   assert.equal(resetSetup.status, 200);
-  const replayedResetSetup = await request(finalApp)
-    .post("/api/v1/auth/password/setup")
-    .send({
-      token: latestResetToken,
-      purpose: "PASSWORD_RESET",
-      newPassword: "ikinci-kez-kullanilamayacak-guvenli-parola"
-    });
+  const replayedResetSetup = await request(finalApp).post("/api/v1/auth/password/setup").send({
+    token: latestResetToken,
+    purpose: "PASSWORD_RESET",
+    newPassword: "ikinci-kez-kullanilamayacak-guvenli-parola"
+  });
   assert.equal(replayedResetSetup.status, 410);
   assert.equal(
     await verifyPassword(

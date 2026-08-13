@@ -101,6 +101,11 @@ router.use((_req, res, next) => {
 const emptyQuery = z.object({}).strict();
 const emptyBody = z.object({}).strict();
 const uuidRequest = z.object({ body: emptyBody, query: emptyQuery, params: uuidParamsSchema });
+const verifyMessageRequest = z.object({
+  body: z.object({ activateCustomerNow: z.boolean().optional().default(false) }).strict(),
+  query: emptyQuery,
+  params: uuidParamsSchema
+});
 const markSentRequest = z.object({
   body: z.object({ expectedUpdatedAt: z.string().datetime({ offset: true }) }).strict(),
   query: emptyQuery,
@@ -286,9 +291,15 @@ const throwConcurrentLifecycleError = (error: unknown): never => {
     rawDatabaseCode === "40001" ||
     rawDatabaseCode === "40P01"
   ) {
-    throw new AppError("Kayıt başka bir işlemde güncellendi. Tekrar deneyin.", 409, true, undefined, {
-      code: "LIFECYCLE_STATE_CONFLICT"
-    });
+    throw new AppError(
+      "Kayıt başka bir işlemde güncellendi. Tekrar deneyin.",
+      409,
+      true,
+      undefined,
+      {
+        code: "LIFECYCLE_STATE_CONFLICT"
+      }
+    );
   }
   throw error;
 };
@@ -388,14 +399,14 @@ router.get(
         Promise.all([
           transaction.bookingApplication.count({ where: baseWhere }),
           transaction.bookingApplication.findMany({
-          where: pageWhere,
-          include: {
-            venue: { select: { name: true } },
-            services: true,
-            reviewedBy: { select: { username: true } }
-          },
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          take: pageSize + 1
+            where: pageWhere,
+            include: {
+              venue: { select: { name: true } },
+              services: true,
+              reviewedBy: { select: { username: true } }
+            },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: pageSize + 1
           })
         ]),
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }
@@ -415,7 +426,7 @@ router.get(
     const nextCursor =
       hasNextPage && lastApplication
         ? encodeListCursor({
-          id: lastApplication.id,
+            id: lastApplication.id,
             sortValue: lastApplication.createdAt.toISOString(),
             secondarySortValue: "admin-booking-applications"
           })
@@ -559,12 +570,12 @@ router.post(
           const now = new Date();
           const keepActivePaymentFlow = Boolean(
             current.status === "ONAY_BEKLIYOR" &&
-              current.source === "PUBLIC_FORM" &&
-              current.paymentFlowTokenHash &&
-              current.paymentFlowExpiresAt &&
-              current.paymentFlowExpiresAt > now &&
-              !current.whatsappHandoffAt &&
-              !current.paymentFlowExpiredAt
+            current.source === "PUBLIC_FORM" &&
+            current.paymentFlowTokenHash &&
+            current.paymentFlowExpiresAt &&
+            current.paymentFlowExpiresAt > now &&
+            !current.whatsappHandoffAt &&
+            !current.paymentFlowExpiredAt
           );
           const updated = await transaction.bookingApplication.updateMany({
             where: { id: current.id, deletedAt: null, updatedAt: current.updatedAt },
@@ -621,9 +632,9 @@ router.post(
             const hasHandoffEvidence = Boolean(archived.whatsappHandoffAt);
             const hasUsablePaymentFlow = Boolean(
               archived.paymentFlowTokenHash &&
-                archived.paymentFlowExpiresAt &&
-                archived.paymentFlowExpiresAt > new Date() &&
-                !archived.paymentFlowExpiredAt
+              archived.paymentFlowExpiresAt &&
+              archived.paymentFlowExpiresAt > new Date() &&
+              !archived.paymentFlowExpiredAt
             );
             if (archived.source === "PUBLIC_FORM" && !hasHandoffEvidence && !hasUsablePaymentFlow) {
               throw new AppError(
@@ -1350,7 +1361,9 @@ router.patch(
 
 router.get(
   "/weddings",
-  validateRequest(z.object({ body: emptyBody, query: weddingListQuerySchema, params: z.object({}) })),
+  validateRequest(
+    z.object({ body: emptyBody, query: weddingListQuerySchema, params: z.object({}) })
+  ),
   asyncHandler(async (req, res) => {
     const pageSize = Number(req.query.pageSize);
     const search = typeof req.query.search === "string" ? req.query.search : null;
@@ -1398,31 +1411,31 @@ router.get(
         Promise.all([
           transaction.wedding.count({ where: baseWhere }),
           transaction.wedding.findMany({
-          where: pageWhere,
-          include: {
-            venue: { select: { name: true } },
-            customerUser: {
-              select: { id: true, username: true, activeAt: true, mustChangePassword: true }
-            },
-            delivery: {
-              select: {
-                id: true,
-                status: true,
-                dueDate: true,
-                releasedAt: true,
-                accessExpiresAt: true,
-                revokedAt: true,
-                updatedAt: true,
-                driveUrlCiphertext: true
+            where: pageWhere,
+            include: {
+              venue: { select: { name: true } },
+              customerUser: {
+                select: { id: true, username: true, activeAt: true, mustChangePassword: true }
+              },
+              delivery: {
+                select: {
+                  id: true,
+                  status: true,
+                  dueDate: true,
+                  releasedAt: true,
+                  accessExpiresAt: true,
+                  revokedAt: true,
+                  updatedAt: true,
+                  driveUrlCiphertext: true
+                }
+              },
+              assignments: {
+                include: { staff: true },
+                orderBy: { createdAt: "asc" }
               }
             },
-            assignments: {
-              include: { staff: true },
-              orderBy: { createdAt: "asc" }
-            }
-          },
-          orderBy: [{ startsAt: "desc" }, { id: "desc" }],
-          take: pageSize + 1
+            orderBy: [{ startsAt: "desc" }, { id: "desc" }],
+            take: pageSize + 1
           })
         ]),
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }
@@ -1679,7 +1692,12 @@ router.post(
           }
 
           const claimedWedding = await transaction.wedding.updateMany({
-            where: { id: wedding.id, cancelledAt: null, deletedAt: null, updatedAt: wedding.updatedAt },
+            where: {
+              id: wedding.id,
+              cancelledAt: null,
+              deletedAt: null,
+              updatedAt: wedding.updatedAt
+            },
             data: {
               cancelledAt: now,
               cancellationReason: req.body.reason,
@@ -2006,98 +2024,98 @@ router.post(
     const assignment = await prisma
       .$transaction(
         async (transaction) => {
-        await transaction.$queryRaw`SELECT "id" FROM "staff" WHERE "id" = ${req.body.staffId} FOR UPDATE`;
-        const [wedding, staff] = await Promise.all([
-          transaction.wedding.findUnique({ where: { id: req.params.id } }),
-          transaction.staff.findUnique({ where: { id: req.body.staffId } })
-        ]);
-        if (!wedding || wedding.cancelledAt || wedding.deletedAt)
-          throw new AppError("Düğün kaydı bulunamadı.", 404);
-        if (!staff || !staff.isActive) throw new AppError("Aktif personel bulunamadı.", 404);
-        if (staff.venueId !== wedding.venueId) {
-          throw new AppError(
-            "Personel yalnızca bağlı olduğu salondaki düğüne atanabilir.",
-            409,
-            true,
-            {
-              code: "VENUE_ASSIGNMENT_MISMATCH"
-            }
-          );
-        }
-        if (!staff.specialties.includes(req.body.specialty)) {
-          throw new AppError("Seçilen görev personelin uzmanlıkları arasında değil.", 400);
-        }
+          await transaction.$queryRaw`SELECT "id" FROM "staff" WHERE "id" = ${req.body.staffId} FOR UPDATE`;
+          const [wedding, staff] = await Promise.all([
+            transaction.wedding.findUnique({ where: { id: req.params.id } }),
+            transaction.staff.findUnique({ where: { id: req.body.staffId } })
+          ]);
+          if (!wedding || wedding.cancelledAt || wedding.deletedAt)
+            throw new AppError("Düğün kaydı bulunamadı.", 404);
+          if (!staff || !staff.isActive) throw new AppError("Aktif personel bulunamadı.", 404);
+          if (staff.venueId !== wedding.venueId) {
+            throw new AppError(
+              "Personel yalnızca bağlı olduğu salondaki düğüne atanabilir.",
+              409,
+              true,
+              {
+                code: "VENUE_ASSIGNMENT_MISMATCH"
+              }
+            );
+          }
+          if (!staff.specialties.includes(req.body.specialty)) {
+            throw new AppError("Seçilen görev personelin uzmanlıkları arasında değil.", 400);
+          }
 
-        const conflicts = await transaction.weddingAssignment.findMany({
-          where: {
-            staffId: staff.id,
-            wedding: {
-              id: { not: wedding.id },
-              cancelledAt: null,
-              deletedAt: null,
-              startsAt: { lt: wedding.endsAt },
-              endsAt: { gt: wedding.startsAt }
-            }
-          },
-          select: {
-            id: true,
-            wedding: {
-              select: {
-                ...weddingPiiSelect,
-                startsAt: true,
-                endsAt: true,
-                venue: { select: { name: true } }
+          const conflicts = await transaction.weddingAssignment.findMany({
+            where: {
+              staffId: staff.id,
+              wedding: {
+                id: { not: wedding.id },
+                cancelledAt: null,
+                deletedAt: null,
+                startsAt: { lt: wedding.endsAt },
+                endsAt: { gt: wedding.startsAt }
+              }
+            },
+            select: {
+              id: true,
+              wedding: {
+                select: {
+                  ...weddingPiiSelect,
+                  startsAt: true,
+                  endsAt: true,
+                  venue: { select: { name: true } }
+                }
               }
             }
-          }
-        });
-        if (conflicts.length > 0 && !req.body.allowConflict) {
-          throw new AppError("Personelin bu saatlerde başka bir görevi var.", 409, true, {
-            code: "STAFF_CONFLICT",
-            conflicts: conflicts.map(({ wedding: conflictingWedding }) => {
-              const names = weddingNames(conflictingWedding);
-              return {
-                id: conflictingWedding.id,
-                brideFirstName: names.brideFirstName,
-                groomFirstName: names.groomFirstName,
-                startsAt: conflictingWedding.startsAt,
-                endsAt: conflictingWedding.endsAt,
-                venue: conflictingWedding.venue
-              };
-            })
           });
-        }
+          if (conflicts.length > 0 && !req.body.allowConflict) {
+            throw new AppError("Personelin bu saatlerde başka bir görevi var.", 409, true, {
+              code: "STAFF_CONFLICT",
+              conflicts: conflicts.map(({ wedding: conflictingWedding }) => {
+                const names = weddingNames(conflictingWedding);
+                return {
+                  id: conflictingWedding.id,
+                  brideFirstName: names.brideFirstName,
+                  groomFirstName: names.groomFirstName,
+                  startsAt: conflictingWedding.startsAt,
+                  endsAt: conflictingWedding.endsAt,
+                  venue: conflictingWedding.venue
+                };
+              })
+            });
+          }
 
-        let created;
-        try {
-          created = await transaction.weddingAssignment.create({
-            data: { weddingId: wedding.id, staffId: staff.id, specialty: req.body.specialty },
-            include: { staff: true }
-          });
-        } catch (error) {
-          if (isPrismaError(error, "P2002")) {
-            throw new AppError("Bu personel düğüne zaten atanmış.", 409);
+          let created;
+          try {
+            created = await transaction.weddingAssignment.create({
+              data: { weddingId: wedding.id, staffId: staff.id, specialty: req.body.specialty },
+              include: { staff: true }
+            });
+          } catch (error) {
+            if (isPrismaError(error, "P2002")) {
+              throw new AppError("Bu personel düğüne zaten atanmış.", 409);
+            }
+            throw error;
           }
-          throw error;
-        }
-        await createAudit(transaction, {
-          actorUserId: req.auth!.userId,
-          action: "wedding.assignment.created",
-          targetType: "WeddingAssignment",
-          targetId: created.id,
-          correlationId: req.correlationId,
-           metadata: {
-             weddingId: wedding.id,
-             staffId: staff.id,
-             conflictOverride: conflicts.length > 0,
-             ...(conflicts.length > 0 ? { overrideReason: req.body.overrideReason } : {})
-           }
-        });
-        return {
-          ...created,
-          staff: staffWithDecryptedPii(created.staff),
-          hasConflict: conflicts.length > 0
-        };
+          await createAudit(transaction, {
+            actorUserId: req.auth!.userId,
+            action: "wedding.assignment.created",
+            targetType: "WeddingAssignment",
+            targetId: created.id,
+            correlationId: req.correlationId,
+            metadata: {
+              weddingId: wedding.id,
+              staffId: staff.id,
+              conflictOverride: conflicts.length > 0,
+              ...(conflicts.length > 0 ? { overrideReason: req.body.overrideReason } : {})
+            }
+          });
+          return {
+            ...created,
+            staff: staffWithDecryptedPii(created.staff),
+            hasConflict: conflicts.length > 0
+          };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
       )
@@ -3262,7 +3280,9 @@ catalogRoutes("services", serviceBodySchema);
 
 router.get(
   "/message-tasks",
-  validateRequest(z.object({ body: emptyBody, query: messageTaskQuerySchema, params: z.object({}) })),
+  validateRequest(
+    z.object({ body: emptyBody, query: messageTaskQuerySchema, params: z.object({}) })
+  ),
   asyncHandler(async (req, res) => {
     const pageSize = Number(req.query.pageSize);
     const baseWhere: Prisma.MessageTaskWhereInput = {
@@ -3296,51 +3316,51 @@ router.get(
         Promise.all([
           transaction.messageTask.count({ where: baseWhere }),
           transaction.messageTask.findMany({
-          where: pageWhere,
-          include: {
-            wedding: {
-              select: {
-                id: true,
-                brideFirstName: true,
-                brideLastName: true,
-                bridePhone: true,
-                groomFirstName: true,
-                groomLastName: true,
-                groomPhone: true,
-                primaryEmail: true,
-                note: true,
-                piiCiphertext: true,
-                piiIv: true,
-                piiAuthTag: true,
-                piiKeyId: true,
-                piiEncryptionVersion: true,
-                piiSchemaVersion: true
-              }
+            where: pageWhere,
+            include: {
+              wedding: {
+                select: {
+                  id: true,
+                  brideFirstName: true,
+                  brideLastName: true,
+                  bridePhone: true,
+                  groomFirstName: true,
+                  groomLastName: true,
+                  groomPhone: true,
+                  primaryEmail: true,
+                  note: true,
+                  piiCiphertext: true,
+                  piiIv: true,
+                  piiAuthTag: true,
+                  piiKeyId: true,
+                  piiEncryptionVersion: true,
+                  piiSchemaVersion: true
+                }
+              },
+              application: {
+                select: {
+                  id: true,
+                  referenceCode: true,
+                  brideFirstName: true,
+                  brideLastName: true,
+                  bridePhone: true,
+                  groomFirstName: true,
+                  groomLastName: true,
+                  groomPhone: true,
+                  primaryEmail: true,
+                  note: true,
+                  piiCiphertext: true,
+                  piiIv: true,
+                  piiAuthTag: true,
+                  piiKeyId: true,
+                  piiEncryptionVersion: true,
+                  piiSchemaVersion: true
+                }
+              },
+              sentBy: { select: { username: true } }
             },
-            application: {
-              select: {
-                id: true,
-                referenceCode: true,
-                brideFirstName: true,
-                brideLastName: true,
-                bridePhone: true,
-                groomFirstName: true,
-                groomLastName: true,
-                groomPhone: true,
-                primaryEmail: true,
-                note: true,
-                piiCiphertext: true,
-                piiIv: true,
-                piiAuthTag: true,
-                piiKeyId: true,
-                piiEncryptionVersion: true,
-                piiSchemaVersion: true
-              }
-            },
-            sentBy: { select: { username: true } }
-          },
-          orderBy: [{ dueAt: "asc" }, { id: "asc" }],
-          take: pageSize + 1
+            orderBy: [{ dueAt: "asc" }, { id: "asc" }],
+            take: pageSize + 1
           })
         ]),
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }
@@ -3453,7 +3473,7 @@ const renderMessage = async (
     });
     preparedTokenId = setup.id;
     const setupUrl = createPasswordSetupUrl(setup.token, "ACCOUNT_ACTIVATION");
-    message = `Merhaba ${couple}.\n\nDüğün Ajansım teslimat paneliniz hazır.\nKullanıcı adı: ${wedding.customerUser.username}\nTek kullanımlık parola belirleme bağlantısı: ${setupUrl}\n\nBağlantı yalnız bir kez kullanılabilir.`;
+    message = `Merhaba ${couple}.\n\nDüğün Ajansım müşteri hesabınız aktifleştirilmiştir.\nKullanıcı adı: ${wedding.customerUser.username}\nTek kullanımlık parola belirleme bağlantısı: ${setupUrl}\n\nBağlantı yalnız bir kez kullanılabilir.`;
   } else if (task.kind === "PASSWORD_RESET") {
     if (!wedding) throw new AppError("Parola bağlantısı görevinin düğün kaydı bulunamadı.", 409);
     const setup = await issuePasswordSetupToken(transaction, {
@@ -3522,13 +3542,19 @@ const renderMessage = async (
 const verifyPreparedMessage = async (
   taskId: string,
   adminStepUpVerifiedAt: Date | null,
+  activateCustomerNow: boolean,
   transaction: Prisma.TransactionClient = prisma
 ) => {
   const task = await transaction.messageTask.findUnique({
     where: { id: taskId },
     include: {
       preparedToken: true,
-      wedding: { select: { customerUserId: true } }
+      wedding: {
+        select: {
+          customerUserId: true,
+          customerUser: { select: { activeAt: true } }
+        }
+      }
     }
   });
   if (!task) throw new AppError("Mesaj görevi bulunamadı.", 404);
@@ -3581,6 +3607,28 @@ const verifyPreparedMessage = async (
     throw new AppError("Mesaj görevinin hazırlama kaydı geçersiz.", 409);
   }
 
+  let customerActivatedEarly = false;
+  let activatedCustomerUserId: string | null = null;
+  if (
+    activateCustomerNow &&
+    task.kind === "ACCOUNT_ACTIVATION" &&
+    task.earlyOverrideAt &&
+    task.wedding?.customerUser.activeAt &&
+    task.wedding.customerUser.activeAt > now
+  ) {
+    const activated = await transaction.user.updateMany({
+      where: {
+        id: task.wedding.customerUserId,
+        role: "MUSTERI",
+        status: "ACTIVE",
+        activeAt: { gt: now }
+      },
+      data: { activeAt: now }
+    });
+    customerActivatedEarly = activated.count === 1;
+    if (customerActivatedEarly) activatedCustomerUserId = task.wedding.customerUserId;
+  }
+
   const taskPii = decryptMessageTaskPii(task.id, task);
   const phone = taskPii.recipientPhone.replace(/\D/g, "");
   if (!/^\d{8,15}$/.test(phone)) {
@@ -3601,7 +3649,13 @@ const verifyPreparedMessage = async (
   return {
     task: readyTask,
     message,
-    whatsappUrl: `https://wa.me/${phone}`
+    whatsappUrl: (() => {
+      const url = new URL(`https://wa.me/${phone}`);
+      url.searchParams.set("text", message);
+      return url.href;
+    })(),
+    customerActivatedEarly,
+    activatedCustomerUserId
   };
 };
 
@@ -3647,17 +3701,34 @@ router.post(
 router.post(
   "/message-tasks/:id/verify",
   verifyCsrf,
-  validateRequest(uuidRequest),
+  validateRequest(verifyMessageRequest),
   asyncHandler(async (req, res) => {
-    const verified = await prisma.$transaction((transaction) =>
-      verifyPreparedMessage(req.params.id, req.auth!.adminStepUpVerifiedAt, transaction)
-    );
+    const verified = await prisma.$transaction(async (transaction) => {
+      const result = await verifyPreparedMessage(
+        req.params.id,
+        req.auth!.adminStepUpVerifiedAt,
+        req.body.activateCustomerNow,
+        transaction
+      );
+      if (result.customerActivatedEarly && result.activatedCustomerUserId) {
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "customer.activated_early_for_message",
+          targetType: "User",
+          targetId: result.activatedCustomerUserId,
+          correlationId: req.correlationId,
+          metadata: { messageTaskId: result.task.id }
+        });
+      }
+      return result;
+    });
     res.set("Cache-Control", "no-store");
     res.json({
       success: true,
       data: {
         message: verified.message,
         whatsappUrl: verified.whatsappUrl,
+        customerActivatedEarly: verified.customerActivatedEarly,
         status: verified.task.status,
         expectedUpdatedAt: verified.task.updatedAt.toISOString()
       },
@@ -3812,7 +3883,11 @@ router.post(
       if (!current || current.status !== "READY_TO_SEND") {
         throw new AppError("Mesaj görevi gönderime hazır değil.", 409);
       }
-      if (current.preparedToken && !current.preparedToken.usedAt && !current.preparedToken.revokedAt) {
+      if (
+        current.preparedToken &&
+        !current.preparedToken.usedAt &&
+        !current.preparedToken.revokedAt
+      ) {
         await transaction.passwordSetupToken.update({
           where: { id: current.preparedToken.id },
           data: { revokedAt: now }
@@ -3839,7 +3914,8 @@ router.post(
           lastAttemptAt: now
         }
       });
-      if (updated.count !== 1) throw new AppError("Mesaj görevi başka bir işlemde güncellendi.", 409);
+      if (updated.count !== 1)
+        throw new AppError("Mesaj görevi başka bir işlemde güncellendi.", 409);
       await createAudit(transaction, {
         actorUserId: req.auth!.userId,
         action: "message.failed",
