@@ -23,6 +23,10 @@ import {
 import { assertVenueScheduleAvailable, createAudit } from "../services/booking.service.js";
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import {
+  bookingFingerprintCryptography,
+  serializeBookingFingerprintPayload
+} from "../utils/booking-fingerprint.js";
 import { findBoundedIntervalConflicts } from "../utils/intervalConflicts.js";
 import {
   addCalendarDays,
@@ -693,7 +697,20 @@ router.patch(
                 select: {
                   ...bookingApplicationPiiRecordSelect,
                   updatedAt: true,
-                  piiRevision: true
+                  piiRevision: true,
+                  idempotencyKey: true,
+                  source: true,
+                  primaryContact: true,
+                  venueId: true,
+                  venue: { select: { isPartner: true } },
+                  packageCodeSnapshot: true,
+                  paymentMethod: true,
+                  privacyConsentAt: true,
+                  marketingConsentAt: true,
+                  services: {
+                    select: { codeSnapshot: true },
+                    orderBy: { codeSnapshot: "asc" }
+                  }
                 }
               }
             }
@@ -738,6 +755,35 @@ router.patch(
             { ...applicationPii, note: nextNote },
             current.application.piiRevision + 1
           );
+          const nextApplicationFingerprint = current.application.idempotencyKey
+            ? bookingFingerprintCryptography.create(
+                serializeBookingFingerprintPayload({
+                  source: current.application.source,
+                  brideFirstName: applicationPii.brideFirstName,
+                  brideLastName: applicationPii.brideLastName,
+                  bridePhone: applicationPii.bridePhone,
+                  groomFirstName: applicationPii.groomFirstName,
+                  groomLastName: applicationPii.groomLastName,
+                  groomPhone: applicationPii.groomPhone,
+                  primaryContact: current.application.primaryContact,
+                  primaryEmail: applicationPii.primaryEmail,
+                  startsAt: range.startsAt,
+                  endsAt: range.endsAt,
+                  venueId: current.application.venue?.isPartner
+                    ? current.application.venueId
+                    : null,
+                  customVenueName: current.application.venue?.isPartner
+                    ? null
+                    : applicationPii.customVenueName,
+                  packageCode: current.application.packageCodeSnapshot,
+                  serviceCodes: current.application.services.map((service) => service.codeSnapshot),
+                  paymentMethod: current.application.paymentMethod,
+                  note: nextNote,
+                  privacyConsent: current.application.privacyConsentAt !== null,
+                  marketingConsent: current.application.marketingConsentAt !== null
+                })
+              )
+            : null;
           const claimed = await transaction.wedding.updateMany({
             where: {
               id: current.id,
@@ -764,7 +810,10 @@ router.patch(
             data: {
               weddingStartsAt: range.startsAt,
               weddingEndsAt: range.endsAt,
-              ...nextApplicationPii
+              ...nextApplicationPii,
+              ...(nextApplicationFingerprint
+                ? { idempotencyFingerprint: null, ...nextApplicationFingerprint }
+                : {})
             }
           });
           if (applicationClaimed.count !== 1) {

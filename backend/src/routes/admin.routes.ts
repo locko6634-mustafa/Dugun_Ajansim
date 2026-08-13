@@ -50,6 +50,10 @@ import {
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import {
+  bookingFingerprintCryptography,
+  serializeBookingFingerprintPayload
+} from "../utils/booking-fingerprint.js";
+import {
   createOpaqueToken,
   decryptValue,
   encryptValue,
@@ -2212,7 +2216,7 @@ router.patch(
 
     const venue = await prisma.venue.findUnique({
       where: { id: req.body.venueId },
-      select: { id: true, isActive: true }
+      select: { id: true, isActive: true, isPartner: true, name: true }
     });
     if (!venue) throw new AppError("Salon bulunamadı.", 404);
     if (venue.id !== wedding.venueId && !venue.isActive) {
@@ -2287,6 +2291,7 @@ router.patch(
       wedding.application.id,
       wedding.application
     );
+    const nextCustomVenueName = venue.isPartner ? null : venue.name;
     const namesChanged =
       currentWeddingPii.brideFirstName !== req.body.brideFirstName ||
       currentWeddingPii.brideLastName !== req.body.brideLastName ||
@@ -2327,10 +2332,36 @@ router.patch(
         groomPhone,
         primaryEmail: req.body.primaryEmail,
         note: req.body.note || null,
-        rejectionReason: currentApplicationPii.rejectionReason
+        rejectionReason: currentApplicationPii.rejectionReason,
+        customVenueName: nextCustomVenueName
       },
       wedding.application.piiRevision + 1
     );
+    const nextApplicationFingerprint = wedding.application.idempotencyKey
+      ? bookingFingerprintCryptography.create(
+          serializeBookingFingerprintPayload({
+            source: wedding.application.source,
+            brideFirstName: req.body.brideFirstName,
+            brideLastName: req.body.brideLastName,
+            bridePhone,
+            groomFirstName: req.body.groomFirstName,
+            groomLastName: req.body.groomLastName,
+            groomPhone,
+            primaryContact: req.body.primaryContact,
+            primaryEmail: req.body.primaryEmail,
+            startsAt,
+            endsAt,
+            venueId: venue.isPartner ? venue.id : null,
+            customVenueName: nextCustomVenueName,
+            packageCode: selectedPackage.code,
+            serviceCodes: selectedServices.map((service) => service.code),
+            paymentMethod: wedding.application.paymentMethod,
+            note: req.body.note || null,
+            privacyConsent: wedding.application.privacyConsentAt !== null,
+            marketingConsent: wedding.application.marketingConsentAt !== null
+          })
+        )
+      : null;
 
     let nextUsername: string | undefined;
     let nextPasswordHash: string | undefined;
@@ -2397,6 +2428,9 @@ router.patch(
               },
               data: {
                 ...nextApplicationPii,
+                ...(nextApplicationFingerprint
+                  ? { idempotencyFingerprint: null, ...nextApplicationFingerprint }
+                  : {}),
                 primaryContact: req.body.primaryContact,
                 weddingStartsAt: startsAt,
                 weddingEndsAt: endsAt,

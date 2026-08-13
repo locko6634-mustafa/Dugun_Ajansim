@@ -55,6 +55,7 @@ import { deriveRlsContext } from '../src/utils/asyncHandler.js';
 import { writeAuditLog } from '../src/utils/audit.js';
 import {
   createBookingFingerprintCryptography,
+  bookingFingerprintNeedsRepair,
   serializeBookingFingerprintPayload,
 } from '../src/utils/booking-fingerprint.js';
 import { decryptValue, encryptValue, encryptValueWithKey } from '../src/utils/crypto.js';
@@ -1264,8 +1265,38 @@ test('Idempotency HMAC alan ayrımlı keyring rotasyonu ve exact-key doğrulamas
     marketingConsent: false,
   });
   const legacyEnvelope = oldCryptography.create(canonicalPayload);
+  const activeEnvelope = rotatedCryptography.create(canonicalPayload);
 
   assert.equal(rotatedCryptography.verify(canonicalPayload, legacyEnvelope), true);
+  assert.equal(
+    bookingFingerprintNeedsRepair(canonicalPayload, activeEnvelope, rotatedCryptography),
+    false,
+  );
+  assert.equal(
+    bookingFingerprintNeedsRepair(canonicalPayload, legacyEnvelope, rotatedCryptography),
+    true,
+  );
+  assert.equal(
+    bookingFingerprintNeedsRepair(
+      canonicalPayload,
+      { ...activeEnvelope, idempotencyFingerprintHmac: '00'.repeat(32) },
+      rotatedCryptography,
+    ),
+    true,
+  );
+  assert.equal(
+    bookingFingerprintNeedsRepair(
+      null,
+      {
+        idempotencyFingerprintHmac: null,
+        idempotencyFingerprintKeyId: null,
+        idempotencyFingerprintVersion: null,
+      },
+      rotatedCryptography,
+    ),
+    false,
+  );
+  assert.equal(bookingFingerprintNeedsRepair(null, activeEnvelope, rotatedCryptography), true);
   assert.equal(rotatedCryptography.verify(`${canonicalPayload}tamper`, legacyEnvelope), false);
   assert.equal(
     rotatedCryptography.verify(canonicalPayload, {
@@ -1274,7 +1305,7 @@ test('Idempotency HMAC alan ayrımlı keyring rotasyonu ve exact-key doğrulamas
     }),
     false,
   );
-  assert.equal(rotatedCryptography.create(canonicalPayload).idempotencyFingerprintKeyId, 'new-key');
+  assert.equal(activeEnvelope.idempotencyFingerprintKeyId, 'new-key');
 });
 
 test('Delivery URL rotasyonu legacy fallback ile exact keyId davranışını ayırır', () => {

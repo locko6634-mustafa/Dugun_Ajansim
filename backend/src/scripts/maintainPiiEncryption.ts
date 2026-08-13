@@ -2,6 +2,7 @@ import { env } from "../config/env.config.js";
 import { prisma, runWithRlsContext } from "../config/prisma.js";
 import {
   bookingFingerprintCryptography,
+  bookingFingerprintNeedsRepair,
   serializeBookingFingerprintPayload
 } from "../utils/booking-fingerprint.js";
 import {
@@ -170,74 +171,64 @@ const privateVenueNameMatches = (
 
 const backfillBookings = (batchSize: number) =>
   prisma.$transaction(async (transaction) => {
-    const rows = await transaction.$queryRaw<BookingRow[]>`
-      SELECT
-        b."id", b."brideFirstName", b."brideLastName", b."bridePhone",
-        b."groomFirstName", b."groomLastName", b."groomPhone", b."primaryEmail",
-        b."note", b."rejectionReason", b."piiCiphertext", b."piiIv", b."piiAuthTag",
-        b."piiKeyId", b."piiEncryptionVersion", b."piiSchemaVersion", b."piiRevision",
-        b."primaryEmailBlindIndex", b."bridePhoneBlindIndex", b."groomPhoneBlindIndex",
-        b."piiBlindIndexKeyId", b."piiBlindIndexVersion", b."idempotencyKey",
-        b."idempotencyFingerprint", b."idempotencyFingerprintHmac",
-        b."idempotencyFingerprintKeyId", b."idempotencyFingerprintVersion",
-        b."source"::text AS "source", b."status"::text AS "status",
-        b."primaryContact"::text AS "primaryContact", b."weddingStartsAt", b."weddingEndsAt",
-        b."venueId", v."name" AS "venueName", v."isPartner" AS "venueIsPartner",
-        b."packageCodeSnapshot", b."paymentMethod"::text AS "paymentMethod",
-        b."privacyConsentAt", b."marketingConsentAt"
-      FROM "booking_applications" b
-      LEFT JOIN "venues" v ON v."id" = b."venueId"
-      WHERE b."piiCiphertext" IS NULL
-         OR b."piiKeyId" IS DISTINCT FROM ${env.DATA_ENCRYPTION_ACTIVE_KEY_ID}
-         OR b."piiSchemaVersion" IS DISTINCT FROM ${BOOKING_APPLICATION_PII_SCHEMA_VERSION}
-         OR b."piiBlindIndexKeyId" IS DISTINCT FROM ${piiCryptography.blindIndexKeyId}
-         OR b."piiBlindIndexVersion" IS DISTINCT FROM ${piiCryptography.blindIndexVersion}
-         OR b."primaryEmailBlindIndex" IS NULL
-         OR b."bridePhoneBlindIndex" IS NULL
-         OR b."groomPhoneBlindIndex" IS NULL
-         OR (
-           b."idempotencyKey" IS NULL AND (
-             b."idempotencyFingerprintHmac" IS NOT NULL OR
-             b."idempotencyFingerprintKeyId" IS NOT NULL OR
-             b."idempotencyFingerprintVersion" IS NOT NULL
-           )
-         )
-         OR (
-           b."idempotencyKey" IS NOT NULL AND (
-             b."idempotencyFingerprintHmac" IS NULL OR
-             b."idempotencyFingerprintKeyId" IS DISTINCT FROM ${bookingFingerprintCryptography.activeKeyId} OR
-             b."idempotencyFingerprintVersion" IS DISTINCT FROM 2
-           )
-         )
-      ORDER BY b."id"
-      LIMIT ${batchSize}
-      FOR UPDATE OF b SKIP LOCKED
-    `;
     let updated = 0;
-    for (const row of rows) {
-      const currentPayload = decryptBookingApplicationPii(row.id, row, piiCryptography, "dual");
-      if (!bookingApplicationLegacyPiiMatches(row, currentPayload)) {
-        throw new Error("BookingApplication legacy ve şifreli PII değerleri uyuşmuyor.");
-      }
-      const payload = {
-        ...currentPayload,
-        customVenueName:
-          currentPayload.customVenueName ??
-          (row.venueIsPartner === false ? row.venueName : null)
-      };
-      if (!privateVenueNameMatches(row, payload.customVenueName)) {
-        throw new Error("BookingApplication özel salon adı şifreli PII ile uyuşmuyor.");
-      }
-      const serviceCodes = (
-        await transaction.bookingApplicationService.findMany({
-          where: { applicationId: row.id },
-          select: { codeSnapshot: true },
-          orderBy: { codeSnapshot: "asc" }
-        })
-      ).map((service) => service.codeSnapshot);
-      const fingerprintEnvelope = row.idempotencyKey
-        ? bookingFingerprintCryptography.create(
-            serializeBookingFingerprintPayload({
+    let cursor = "";
+    while (updated < batchSize) {
+      const rows = await transaction.$queryRaw<BookingRow[]>`
+        SELECT
+          b."id", b."brideFirstName", b."brideLastName", b."bridePhone",
+          b."groomFirstName", b."groomLastName", b."groomPhone", b."primaryEmail",
+          b."note", b."rejectionReason", b."piiCiphertext", b."piiIv", b."piiAuthTag",
+          b."piiKeyId", b."piiEncryptionVersion", b."piiSchemaVersion", b."piiRevision",
+          b."primaryEmailBlindIndex", b."bridePhoneBlindIndex", b."groomPhoneBlindIndex",
+          b."piiBlindIndexKeyId", b."piiBlindIndexVersion", b."idempotencyKey",
+          b."idempotencyFingerprint", b."idempotencyFingerprintHmac",
+          b."idempotencyFingerprintKeyId", b."idempotencyFingerprintVersion",
+          b."source"::text AS "source", b."status"::text AS "status",
+          b."primaryContact"::text AS "primaryContact", b."weddingStartsAt", b."weddingEndsAt",
+          b."venueId", v."name" AS "venueName", v."isPartner" AS "venueIsPartner",
+          b."packageCodeSnapshot", b."paymentMethod"::text AS "paymentMethod",
+          b."privacyConsentAt", b."marketingConsentAt"
+        FROM "booking_applications" b
+        LEFT JOIN "venues" v ON v."id" = b."venueId"
+        WHERE b."id" > ${cursor}
+        ORDER BY b."id"
+        LIMIT ${MAX_BATCH_SIZE}
+      `;
+      if (rows.length === 0) break;
+      for (const row of rows) {
+        cursor = row.id;
+        const envelopeNeedsRepair =
+          row.piiCiphertext === null ||
+          row.piiKeyId !== env.DATA_ENCRYPTION_ACTIVE_KEY_ID ||
+          row.piiSchemaVersion !== BOOKING_APPLICATION_PII_SCHEMA_VERSION;
+        let currentPayload: ReturnType<typeof decryptBookingApplicationPii>;
+        try {
+          currentPayload = decryptBookingApplicationPii(row.id, row, piiCryptography, "dual");
+        } catch (error) {
+          if (envelopeNeedsRepair) throw error;
+          continue;
+        }
+        if (!bookingApplicationLegacyPiiMatches(row, currentPayload)) {
+          throw new Error("BookingApplication legacy ve şifreli PII değerleri uyuşmuyor.");
+        }
+        const payload = {
+          ...currentPayload,
+          customVenueName:
+            currentPayload.customVenueName ?? (row.venueIsPartner === false ? row.venueName : null)
+        };
+        if (!privateVenueNameMatches(row, payload.customVenueName)) {
+          throw new Error("BookingApplication özel salon adı şifreli PII ile uyuşmuyor.");
+        }
+        const serviceCodes = (
+          await transaction.bookingApplicationService.findMany({
+            where: { applicationId: row.id },
+            select: { codeSnapshot: true },
+            orderBy: { codeSnapshot: "asc" }
+          })
+        ).map((service) => service.codeSnapshot);
+        const canonicalFingerprintPayload = row.idempotencyKey
+          ? serializeBookingFingerprintPayload({
               source: row.source,
               brideFirstName: payload.brideFirstName,
               brideLastName: payload.brideLastName,
@@ -258,27 +249,58 @@ const backfillBookings = (batchSize: number) =>
               privacyConsent: row.privacyConsentAt !== null,
               marketingConsent: row.marketingConsentAt !== null
             })
-          )
-        : null;
-      const mode =
-        row.piiCiphertext === null || hasBookingLegacyPlaintext(row) ? "dual" : "encrypted";
-      const result = await transaction.bookingApplication.updateMany({
-        where: {
-          id: row.id,
-          piiRevision: row.piiRevision,
-          piiCiphertext: row.piiCiphertext,
-          piiKeyId: row.piiKeyId
-        },
-        data: {
-          ...buildBookingApplicationPiiData(row.id, payload, row.piiRevision + 1, mode),
-          ...(fingerprintEnvelope ?? {
-            idempotencyFingerprintHmac: null,
-            idempotencyFingerprintKeyId: null,
-            idempotencyFingerprintVersion: null
-          })
-        }
-      });
-      updated += result.count;
+          : null;
+        const fingerprintEnvelope = canonicalFingerprintPayload
+          ? bookingFingerprintCryptography.create(canonicalFingerprintPayload)
+          : null;
+        const fingerprintNeedsRepair = bookingFingerprintNeedsRepair(
+          canonicalFingerprintPayload,
+          row
+        );
+        const blindIndexesNeedRepair =
+          row.piiBlindIndexKeyId !== piiCryptography.blindIndexKeyId ||
+          row.piiBlindIndexVersion !== piiCryptography.blindIndexVersion ||
+          row.primaryEmailBlindIndex !==
+            piiCryptography.blindIndex(
+              "BookingApplication.primaryEmail",
+              payload.primaryEmail,
+              "email"
+            ) ||
+          row.bridePhoneBlindIndex !==
+            piiCryptography.blindIndex(
+              "BookingApplication.bridePhone",
+              payload.bridePhone,
+              "phone"
+            ) ||
+          row.groomPhoneBlindIndex !==
+            piiCryptography.blindIndex(
+              "BookingApplication.groomPhone",
+              payload.groomPhone,
+              "phone"
+            );
+        if (!fingerprintNeedsRepair && !blindIndexesNeedRepair && !envelopeNeedsRepair) continue;
+
+        const mode =
+          row.piiCiphertext === null || hasBookingLegacyPlaintext(row) ? "dual" : "encrypted";
+        const result = await transaction.bookingApplication.updateMany({
+          where: {
+            id: row.id,
+            piiRevision: row.piiRevision,
+            piiCiphertext: row.piiCiphertext,
+            piiKeyId: row.piiKeyId
+          },
+          data: {
+            ...buildBookingApplicationPiiData(row.id, payload, row.piiRevision + 1, mode),
+            ...(fingerprintEnvelope ?? {
+              idempotencyFingerprintHmac: null,
+              idempotencyFingerprintKeyId: null,
+              idempotencyFingerprintVersion: null
+            })
+          }
+        });
+        updated += result.count;
+        if (updated >= batchSize) break;
+      }
     }
     return updated;
   });

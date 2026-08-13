@@ -137,5 +137,21 @@ export const bookingFingerprintCryptography = createBookingFingerprintCryptograp
   keyring: parseDataEncryptionKeyring(env.DATA_ENCRYPTION_KEYRING_JSON),
 });
 
+export const bookingFingerprintNeedsRepair = (
+  canonicalPayload: string | null,
+  envelope: {
+    idempotencyFingerprintHmac: string | null;
+    idempotencyFingerprintKeyId: string | null;
+    idempotencyFingerprintVersion: number | null;
+  },
+  cryptography = bookingFingerprintCryptography,
+): boolean =>
+  canonicalPayload === null
+    ? envelope.idempotencyFingerprintHmac !== null ||
+      envelope.idempotencyFingerprintKeyId !== null ||
+      envelope.idempotencyFingerprintVersion !== null
+    : envelope.idempotencyFingerprintKeyId !== cryptography.activeKeyId ||
+      !cryptography.verify(canonicalPayload, envelope);
+
 export const legacyFingerprintMatches = (expected: string | null, candidate: string): boolean =>
   expected !== null && digestMatches(expected, candidate);

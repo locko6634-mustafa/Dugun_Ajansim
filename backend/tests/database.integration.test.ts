@@ -35,6 +35,10 @@ import { addCalendarDays, deliveryEncryptionAad, getIstanbulDate } from "../src/
 import { generateTotpCode, TOTP_PERIOD_SECONDS, totpEncryptionAad } from "../src/utils/totp.js";
 import { TRUSTED_DEVICE_COOKIE_NAME } from "../src/utils/trustedDevice.js";
 import {
+  bookingFingerprintCryptography,
+  serializeBookingFingerprintPayload
+} from "../src/utils/booking-fingerprint.js";
+import {
   decryptBookingApplicationPii,
   decryptMessageTaskPii,
   decryptWeddingPii,
@@ -80,6 +84,40 @@ const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
   assert.deepEqual(Object.keys(wedding.packageSummary as object), ["name"]);
   assert.equal(typeof (wedding.packageSummary as { name: unknown }).name, "string");
   assertNoPiiPersistenceMetadata(wedding);
+};
+
+const assertBookingApplicationFingerprintMatches = async (applicationId: string) => {
+  const application = await prisma.bookingApplication.findUniqueOrThrow({
+    where: { id: applicationId },
+    include: {
+      venue: { select: { isPartner: true } },
+      services: { select: { codeSnapshot: true }, orderBy: { codeSnapshot: "asc" } }
+    }
+  });
+  assert.ok(application.idempotencyKey);
+  const pii = decryptBookingApplicationPii(application.id, application);
+  const canonicalPayload = serializeBookingFingerprintPayload({
+    source: application.source,
+    brideFirstName: pii.brideFirstName,
+    brideLastName: pii.brideLastName,
+    bridePhone: pii.bridePhone,
+    groomFirstName: pii.groomFirstName,
+    groomLastName: pii.groomLastName,
+    groomPhone: pii.groomPhone,
+    primaryContact: application.primaryContact,
+    primaryEmail: pii.primaryEmail,
+    startsAt: application.weddingStartsAt,
+    endsAt: application.weddingEndsAt,
+    venueId: application.venue?.isPartner ? application.venueId : null,
+    customVenueName: application.venue?.isPartner ? null : pii.customVenueName,
+    packageCode: application.packageCodeSnapshot,
+    serviceCodes: application.services.map((service) => service.codeSnapshot),
+    paymentMethod: application.paymentMethod,
+    note: pii.note,
+    privacyConsent: application.privacyConsentAt !== null,
+    marketingConsent: application.marketingConsentAt !== null
+  });
+  assert.equal(bookingFingerprintCryptography.verify(canonicalPayload, application), true);
 };
 
 const assertNoPiiPersistenceMetadata = (value: unknown): void => {
@@ -2592,6 +2630,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     ).note,
     "Salon sorumlusu operasyon notu"
   );
+  await assertBookingApplicationFingerprintMatches(wedding.applicationId);
   const operationsStaff = await request(app)
     .get("/api/v1/operations/staff")
     .set("Cookie", managerCookie);
@@ -2998,6 +3037,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(weddingUpdate.status, 200);
   assert.equal(weddingUpdate.body.data.credentialsRegenerated, false);
   assert.equal(weddingUpdate.body.data.username, wedding.customerUser.username);
+  await assertBookingApplicationFingerprintMatches(wedding.applicationId);
   assert.equal(weddingUpdate.body.data.groomPhone, "+905550001122");
   assertNoPiiPersistenceMetadata(weddingUpdate.body.data);
   const applicationAfterAdminUpdate = await prisma.bookingApplication.findUniqueOrThrow({
