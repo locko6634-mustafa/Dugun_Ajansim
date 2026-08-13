@@ -192,3 +192,9 @@
     line-height: 1.42;
   }
 }
+
+@media (max-width: 320px) {
+  .brand__year {
+    display: none;
+  }
+}

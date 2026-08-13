@@ -168,7 +168,6 @@ const decryptSelectedWeddingPii = (wedding: SelectedWeddingPiiRecord) =>
 const weddingSelectForVenue = (venueId: string) =>
   ({
     ...weddingPiiRecordSelect,
-    venueId: true,
     startsAt: true,
     endsAt: true,
     cancelledAt: true,
@@ -189,7 +188,6 @@ const venueOperationsWeddingDto = (wedding: VenueOperationsWedding) => {
   const pii = decryptSelectedWeddingPii(wedding);
   return {
     id: wedding.id,
-    venueId: wedding.venueId,
     brideFirstName: pii.brideFirstName,
     bridePhone: pii.bridePhone,
     groomFirstName: pii.groomFirstName,

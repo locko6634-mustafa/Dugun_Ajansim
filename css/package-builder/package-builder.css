@@ -170,6 +170,7 @@ button {
   top: var(--header-height);
   z-index: 15;
   display: flex;
+  grid-column: 1 / -1;
   align-items: center;
   justify-content: center;
   min-height: var(--progress-height);

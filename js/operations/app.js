@@ -386,12 +386,6 @@ async function loadWeddings() {
     const isLegacy = Array.isArray(response.data);
     const items = isLegacy ? response.data : response.data?.items;
     if (!Array.isArray(items)) throw new Error("Düğün listesi geçersiz yanıt verdi.");
-    if (items.some((wedding) => wedding?.venueId !== venueId)) {
-      clearVenueScopedUi();
-      throw new Error(
-        "Salon kapsamı dışında düğün verisi alındı; görünüm güvenlik için temizlendi."
-      );
-    }
     const pagination = isLegacy ? null : response.data?.pagination;
     state.weddings = items;
     state.weddingPagination.isLegacy = isLegacy;
@@ -751,19 +745,16 @@ function renderWeddingDetail(wedding) {
 }
 
 async function openWedding(weddingId, returnFocus = null, { showLoading = true } = {}) {
+  const venueId = state.venueId;
   showDialog(weddingDialog, returnFocus, weddingDialog.querySelector(".dialog-close"));
   if (showLoading) detailContainer.innerHTML = empty("Düğün dosyası yükleniyor…");
   try {
+    if (!venueId) throw new Error("Salon oturumu doğrulanmadan veri yüklenemez.");
     const response = await apiRequest(`/operations/weddings/${weddingId}`);
-    if (!state.venueId || response.data?.venueId !== state.venueId) {
-      clearVenueScopedUi();
-      throw new Error(
-        "Salon kapsamı dışında düğün verisi alındı; görünüm güvenlik için temizlendi."
-      );
-    }
+    if (venueId !== state.venueId) return;
     renderWeddingDetail(response.data);
   } catch (error) {
-    detailContainer.innerHTML = empty(error.message);
+    if (venueId === state.venueId) detailContainer.innerHTML = empty(error.message);
   }
 }
 

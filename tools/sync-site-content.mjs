@@ -40,7 +40,7 @@ function renderSeo(page) {
           "@type": "Organization",
           name: content.brand.name,
           description: page.organizationDescription,
-          logo: page.imageUrl,
+          logo: page.logoUrl,
           url: page.canonicalUrl
         },
         null,
