@@ -194,7 +194,15 @@
 }
 
 @media (max-width: 320px) {
+  body {
+    min-width: 0;
+  }
+
   .brand__year {
     display: none;
+  }
+
+  .benefits-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
