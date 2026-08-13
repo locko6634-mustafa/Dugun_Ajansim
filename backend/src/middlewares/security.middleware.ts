@@ -92,7 +92,7 @@ export const configureSecurityMiddleware = (app: Express): void => {
   const globalRateLimitStore = createGlobalRateLimitStore();
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // İstek penceresi: 15 Dakika (milisaniye cinsinden)
-    max: 100, // Belirtilen sürede tek bir IP adresinden yapılabilecek maksimum istek sayısı (100)
+    max: 300, // Belirtilen sürede tek bir IP adresinden yapılabilecek maksimum istek sayısı (300)
     standardHeaders: true, // `RateLimit-*` standart HTTP başlıklarını yanıta ekle
     legacyHeaders: false, // Eskimiş `X-RateLimit-*` başlıklarını devre dışı bırak
     keyGenerator: rateLimitKeyGenerator,

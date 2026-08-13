@@ -2266,9 +2266,9 @@ test('reddedilen çapraz kaynaklı istekler genel API kotasını tüketmez', asy
 
   assert.equal(legitimateResponse.status, 200);
   assert.equal(legitimateResponse.body.success, true);
-  assert.equal(legitimateResponse.headers['ratelimit-remaining'], '99');
+  assert.equal(legitimateResponse.headers['ratelimit-remaining'], '299');
 
-  for (let requestIndex = 0; requestIndex < 99; requestIndex += 1) {
+  for (let requestIndex = 0; requestIndex < 299; requestIndex += 1) {
     const allowedResponse = await request(integrationApp)
       .get('/api/test')
       .set('Origin', 'http://localhost:3000')
