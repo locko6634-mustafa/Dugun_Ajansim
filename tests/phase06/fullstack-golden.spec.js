@@ -689,19 +689,35 @@ test("@phase06 mocksuz telefon ve WhatsApp altın yolu", async ({ page }, testIn
 
     const deliveryId = weddingBody.data.delivery.id;
     identity.otherTargetIds.add(deliveryId);
-    for (const status of ["MONTAJ", "KONTROL", "TESLIME_HAZIR"]) {
-      await responseJson(
-        await authenticatedRequest(admin, "patch", `/api/v1/admin/deliveries/${deliveryId}`, {
-          status,
-          ...(status === "TESLIME_HAZIR"
-            ? { driveUrl: "https://drive.google.com/drive/folders/phase06-safe-fixture" }
-            : {})
-        }),
-        200,
-        `delivery ${status}`,
-        requestIds
-      );
-    }
+    await responseJson(
+      await authenticatedRequest(admin, "patch", `/api/v1/admin/deliveries/${deliveryId}`, {
+        status: "MONTAJ"
+      }),
+      409,
+      "delivery automatic stage rejects manual montage",
+      requestIds
+    );
+    await prisma.$transaction([
+      prisma.delivery.update({ where: { id: deliveryId }, data: { status: "KONTROL" } }),
+      prisma.deliveryStatusHistory.create({
+        data: {
+          deliveryId,
+          fromStatus: "HAZIRLANIYOR",
+          toStatus: "KONTROL",
+          reason: "Phase06 otomatik teslimat fixture'ı"
+        }
+      })
+    ]);
+    const readyDeliveryBody = await responseJson(
+      await authenticatedRequest(admin, "patch", `/api/v1/admin/deliveries/${deliveryId}`, {
+        status: "TESLIME_HAZIR",
+        driveUrl: "https://drive.google.com/drive/folders/phase06-safe-fixture"
+      }),
+      200,
+      "delivery TESLIME_HAZIR",
+      requestIds
+    );
+    expect(readyDeliveryBody.data.allowedTransitions).toEqual([]);
     await responseJson(
       await authenticatedRequest(admin, "post", `/api/v1/admin/deliveries/${deliveryId}/deliver`, {
         sharingConfirmed: true,

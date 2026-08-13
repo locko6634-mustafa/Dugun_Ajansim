@@ -38,11 +38,13 @@ test("kalite workflow'u en az yetki, audit ve immutable action SHA'ları kullan�
     "actions/checkout": "11d5960a326750d5838078e36cf38b85af677262",
     "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020",
     "actions/cache": "0057852bfaa89a56745cba8c7296529d2fc39830",
-    "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "docker/setup-buildx-action": "8d2750c68a42422c14e847fe6c8ac0403b4cbd6f",
+    "docker/build-push-action": "f9f3042f7e2789586610d6e8b85c8f03e5195baf"
   };
   const actionReferences = [
     ...workflow.matchAll(
-      /uses:\s+(actions\/(?:checkout|setup-node|cache|upload-artifact))@([^\s#]+)/g
+      /uses:\s+((?:actions\/(?:checkout|setup-node|cache|upload-artifact)|docker\/(?:setup-buildx-action|build-push-action)))@([^\s#]+)/g
     )
   ];
 
@@ -63,12 +65,37 @@ test("kalite workflow'u en az yetki, audit ve immutable action SHA'ları kullan�
   assert.match(postgresDockerfile, /^COPY --from=patched \/ \/$/m);
   assert.match(postgresDockerfile, /apk add --no-cache "su-exec=0\.3-r0"/);
   assert.match(postgresDockerfile, /rm -f \/usr\/local\/bin\/gosu/);
-  assert.equal(actionReferences.length, 8);
+  assert.equal(actionReferences.length, 14);
 
   for (const [, actionName, sha] of actionReferences) {
     assert.equal(sha, expectedShaByAction[actionName]);
     assert.match(sha, /^[0-9a-f]{40}$/);
   }
+});
+
+test("Phase06 cache kapsamları ve süre ölçümlü aşamalar korunur", () => {
+  const workflow = readProjectFile(".github/workflows/quality.yml");
+  const phase06Script = readProjectFile("tools/run-phase06-quality.ps1");
+
+  assert.match(
+    workflow,
+    /key: phase06-playwright-\$\{\{ runner\.os \}\}-\$\{\{ steps\.phase06-playwright-version\.outputs\.version \}\}/
+  );
+  assert.match(workflow, /if: steps\.phase06-playwright-cache\.outputs\.cache-hit != 'true'/);
+  for (const scope of ["postgres", "migrate", "backend", "frontend"]) {
+    assert.match(workflow, new RegExp(`cache-from: type=gha,scope=phase06-${scope}`));
+    assert.match(workflow, new RegExp(`cache-to: type=gha,mode=max,scope=phase06-${scope}`));
+  }
+  for (const phase of ["boot", "test", "cleanup"]) {
+    assert.match(
+      workflow,
+      new RegExp(`run: \\.\\/tools\\/run-phase06-quality\\.ps1 -Phase ${phase}`)
+    );
+  }
+  assert.match(workflow, /if: always\(\) && steps\.phase06-boot\.outcome != 'skipped'/);
+  assert.match(phase06Script, /ValidateSet\("all", "build", "boot", "test", "cleanup"\)/);
+  assert.match(phase06Script, /PHASE06_TIMING phase=\$name durationSeconds=\$seconds/);
+  assert.match(phase06Script, /GITHUB_STEP_SUMMARY/);
 });
 
 test("ortam varyantları ignore edilirken sentetik fixture ve örnekler izlenebilir kalır", () => {

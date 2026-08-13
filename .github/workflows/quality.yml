@@ -101,11 +101,76 @@ jobs:
       - name: Backend test dependencies
         working-directory: backend
         run: npm ci
+      - name: Resolve Playwright version
+        id: phase06-playwright-version
+        shell: bash
+        run: node -p "'version=' + require('@playwright/test/package.json').version" >> "$GITHUB_OUTPUT"
+      - name: Phase06 Playwright browser cache
+        id: phase06-playwright-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: phase06-playwright-${{ runner.os }}-${{ steps.phase06-playwright-version.outputs.version }}
+      - name: Release browser system dependencies
+        run: npx playwright install-deps chromium webkit firefox
       - name: Release browser matrix
-        run: npx playwright install --with-deps chromium webkit firefox
-      - name: Isolated production-like full-stack quality gate
+        if: steps.phase06-playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium webkit firefox
+      - name: Phase06 BuildKit builder
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Phase06 build · PostgreSQL
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: deploy/postgres/Dockerfile
+          load: true
+          tags: dugun-ajansim-phase06-postgres:${{ github.sha }}
+          cache-from: type=gha,scope=phase06-postgres
+          cache-to: type=gha,mode=max,scope=phase06-postgres
+      - name: Phase06 build · migrate
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: migrate
+          load: true
+          tags: dugun-ajansim-phase06-migrate:${{ github.sha }}
+          cache-from: type=gha,scope=phase06-migrate
+          cache-to: type=gha,mode=max,scope=phase06-migrate
+      - name: Phase06 build · backend
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: runtime
+          build-args: BUILD_REVISION=${{ github.sha }}
+          load: true
+          tags: dugun-ajansim-phase06-backend:${{ github.sha }}
+          cache-from: type=gha,scope=phase06-backend
+          cache-to: type=gha,mode=max,scope=phase06-backend
+      - name: Phase06 build · frontend
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: Dockerfile
+          build-args: |
+            APP_ORIGIN=https://quality.invalid
+            BUILD_REVISION=${{ github.sha }}
+          load: true
+          tags: dugun-ajansim-phase06-frontend:${{ github.sha }}
+          cache-from: type=gha,scope=phase06-frontend
+          cache-to: type=gha,mode=max,scope=phase06-frontend
+      - name: Phase06 boot
+        id: phase06-boot
         shell: pwsh
-        run: ./tools/run-phase06-quality.ps1 -SkipChannels
+        run: ./tools/run-phase06-quality.ps1 -Phase boot
+      - name: Phase06 test
+        shell: pwsh
+        run: ./tools/run-phase06-quality.ps1 -Phase test -SkipChannels
+      - name: Phase06 cleanup
+        if: always() && steps.phase06-boot.outcome != 'skipped'
+        shell: pwsh
+        run: ./tools/run-phase06-quality.ps1 -Phase cleanup
       - name: Failure artifacts
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
