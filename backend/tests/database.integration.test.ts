@@ -2599,8 +2599,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .patch(`/api/v1/montage/deliveries/${wedding.delivery!.id}`)
     .set("Cookie", montageAuthCookie)
     .set("X-CSRF-Token", montageCsrfToken)
-    .send({ driveUrl: "https://drive.google.com/file/d/premature/view" });
-  assert.equal(prematureMontageDelivery.status, 409);
+    .send({ driveUrl: "https://attacker.example/premature" });
+  assert.equal(prematureMontageDelivery.status, 400);
   const secondaryVenue = await prisma.venue.create({
     data: { slug: `other-${marker}`, name: `Diğer Salon ${marker}` }
   });
@@ -3239,7 +3239,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
 
   const phaseFourApp = createApp();
   phaseFourApp.locals.deliveryLinkAccessVerifier = app.locals.deliveryLinkAccessVerifier;
-  const driveUrl = "https://drive.google.com/file/d/integration-test";
+  const driveUrl = "https://we.tl/t-integration-test";
   const invalidDeliveryJump = await request(phaseFourApp)
     .patch(`/api/v1/admin/deliveries/${wedding.delivery!.id}`)
     .set("X-Correlation-ID", correlationId)
@@ -3288,12 +3288,31 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     (await prisma.delivery.findUniqueOrThrow({ where: { id: wedding.delivery!.id } })).status,
     "KONTROL"
   );
+  const manualMontageOverride = await request(phaseFourApp)
+    .patch(`/api/v1/montage/deliveries/${wedding.delivery!.id}`)
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", montageAuthCookie)
+    .set("X-CSRF-Token", montageCsrfToken)
+    .send({ status: "MONTAJ" });
+  assert.equal(manualMontageOverride.status, 200);
+  await runWithRlsContext(
+    { actorRole: "maintenance", purpose: "maintenance.delivery-status" },
+    () =>
+      synchronizeAutomaticDeliveryStatuses(
+        new Date(`${addCalendarDays(updatedWeddingDate, 20)}T09:00:00+03:00`)
+      )
+  );
+  const manuallyControlledDelivery = await prisma.delivery.findUniqueOrThrow({
+    where: { id: wedding.delivery!.id }
+  });
+  assert.equal(manuallyControlledDelivery.status, "MONTAJ");
+  assert.ok(manuallyControlledDelivery.manualStatusOverrideAt);
   const readyTransition = await request(phaseFourApp)
     .patch(`/api/v1/montage/deliveries/${wedding.delivery!.id}`)
     .set("X-Correlation-ID", correlationId)
     .set("Cookie", montageAuthCookie)
     .set("X-CSRF-Token", montageCsrfToken)
-    .send({ driveUrl });
+    .send({ status: "TESLIME_HAZIR", driveUrl });
   assert.equal(readyTransition.status, 200);
   const preparedDelivery = await prisma.delivery.findUniqueOrThrow({
     where: { id: wedding.delivery!.id }
@@ -3307,7 +3326,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       encryptedDelivery.driveUrlIv &&
       encryptedDelivery.driveUrlAuthTag
   );
-  assert.equal(encryptedDelivery.driveUrlCiphertext.includes("drive.google.com"), false);
+  assert.equal(encryptedDelivery.driveUrlCiphertext.includes("we.tl"), false);
   assert.equal(
     decryptValue(
       {
@@ -3343,7 +3362,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .get("/api/v1/customer/delivery")
     .set("Cookie", customerCookie);
   assert.equal(hiddenDelivery.status, 404);
-  assert.equal(JSON.stringify(ownDashboard.body).includes("drive.google.com"), false);
+  assert.equal(JSON.stringify(ownDashboard.body).includes("we.tl"), false);
   const safeAdminWeddings = await request(phaseFourApp)
     .get("/api/v1/admin/weddings")
     .set("Cookie", adminCookie);

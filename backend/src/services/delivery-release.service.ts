@@ -4,7 +4,7 @@ import { createAudit } from "./booking.service.js";
 import { AppError } from "../utils/appError.js";
 import { decryptDeliveryDriveUrl } from "../utils/delivery-crypto.js";
 import {
-  verifyGoogleDriveLinkAccess,
+  verifyDeliveryLinkAccess,
   type DeliveryLinkAccessResult
 } from "../utils/delivery-link-access.js";
 import { buildMessageTaskPiiData, decryptWeddingPii } from "../utils/pii-crypto.js";
@@ -26,7 +26,7 @@ export const releaseDelivery = async ({
   actorUserId,
   correlationId,
   sharingConfirmed,
-  verifyLink = verifyGoogleDriveLinkAccess
+  verifyLink = verifyDeliveryLinkAccess
 }: ReleaseDeliveryInput) => {
   const delivery = await prisma.delivery.findUnique({
     where: { id: deliveryId },
@@ -40,7 +40,7 @@ export const releaseDelivery = async ({
     throw new AppError("Teslimat önce “Teslime Hazır” durumuna alınmalıdır.", 409);
   }
   if (!delivery.driveUrlCiphertext || !delivery.driveUrlIv || !delivery.driveUrlAuthTag) {
-    throw new AppError("Teslim etmeden önce Google Drive bağlantısı kaydedilmelidir.", 409);
+    throw new AppError("Teslim etmeden önce Google Drive veya WeTransfer bağlantısı kaydedilmelidir.", 409);
   }
   const driveUrl = decryptDeliveryDriveUrl(delivery);
   if (!driveUrl) throw new AppError("Teslimat bağlantısı çözülemedi.", 409);

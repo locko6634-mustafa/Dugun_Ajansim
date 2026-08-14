@@ -54,6 +54,7 @@ export const synchronizeAutomaticDeliveryStatuses = async (
   const candidates = await prisma.delivery.findMany({
     where: {
       status: { in: ["HAZIRLANIYOR", "MONTAJ"] },
+      manualStatusOverrideAt: null,
       releasedAt: null,
       wedding: { cancelledAt: null, deletedAt: null }
     },
@@ -76,6 +77,7 @@ export const synchronizeAutomaticDeliveryStatuses = async (
         where: {
           id: delivery.id,
           status: delivery.status,
+          manualStatusOverrideAt: null,
           updatedAt: delivery.updatedAt,
           releasedAt: null,
           wedding: { cancelledAt: null, deletedAt: null }

@@ -233,23 +233,26 @@ export const createTemporaryPasswordExpiry = (ttlHours: number, now = new Date()
 
 export const deliveryEncryptionAad = (deliveryId: string): string => `delivery-url:${deliveryId}`;
 
-export const assertGoogleDriveUrl = (value: string): string => {
+export const assertDeliveryLinkUrl = (value: string): string => {
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    throw new AppError('Geçerli bir Google Drive bağlantısı girin.', 400);
+    throw new AppError('Geçerli bir Google Drive veya WeTransfer bağlantısı girin.', 400);
   }
 
-  const allowedHosts = new Set(['drive.google.com', 'docs.google.com']);
+  const hostname = url.hostname.toLowerCase();
+  const allowedHost =
+    ['drive.google.com', 'docs.google.com', 'we.tl', 'wetransfer.com'].includes(hostname) ||
+    hostname.endsWith('.wetransfer.com');
   if (
     url.protocol !== 'https:' ||
-    !allowedHosts.has(url.hostname.toLowerCase()) ||
+    !allowedHost ||
     url.username ||
     url.password ||
     url.port
   ) {
-    throw new AppError('Yalnızca güvenli Google Drive bağlantıları kabul edilir.', 400);
+    throw new AppError('Yalnızca güvenli Google Drive veya WeTransfer bağlantıları kabul edilir.', 400);
   }
 
   return url.toString();

@@ -2816,7 +2816,7 @@ test("@frontend-smoke oturum acilmis kullanici login.html sayfasina gittiginde o
   expect(page.url()).toContain("musteri-paneli.html");
 });
 
-test("@frontend-smoke @responsive montajcı takvimden Drive bağlantısını doğrulayıp teslim eder", async ({
+test("@frontend-smoke @responsive montajcı durumu yönetip WeTransfer bağlantısını doğrulayarak teslim eder", async ({
   page
 }) => {
   const weddingId = "00000000-0000-4000-8000-000000000071";
@@ -2873,7 +2873,7 @@ test("@frontend-smoke @responsive montajcı takvimden Drive bağlantısını do�
     accessExpiresAt: delivered ? "2026-09-13T09:30:00.000Z" : null,
     updatedAt: "2026-08-14T09:30:00.000Z",
     hasDriveUrl: delivered,
-    driveUrl: delivered ? "https://drive.google.com/file/d/teslim/view" : null
+    driveUrl: delivered ? "https://we.tl/t-teslim" : null
   });
 
   await page.route("**/api/v1/auth/session", (route) =>
@@ -2930,11 +2930,11 @@ test("@frontend-smoke @responsive montajcı takvimden Drive bağlantısını do�
   expect(introBox?.height).toBeLessThan(isMobileViewport ? 230 : 190);
   expect(calendarBox?.y).toBeLessThan(isMobileViewport ? 390 : 400);
   await expect(page.locator(".calendar-event")).toContainText("Ayşe & Mehmet");
-  await expect(page.locator(".calendar-event")).toContainText("Drive bekliyor");
+  await expect(page.locator(".calendar-event")).toContainText("Kontrol Ediliyor");
   await page.locator(".calendar-event").click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading", { name: "Ayşe & Mehmet" })).toBeVisible();
-  await expect(dialog.getByRole("heading", { name: "Drive teslimi" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Teslimat yönetimi" })).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Tüm iş bilgileri" })).toBeVisible();
   await expect(dialog).toContainText("+90 555 123 45 67");
   await expect(dialog).toContainText("Gold Paket");
@@ -2942,12 +2942,13 @@ test("@frontend-smoke @responsive montajcı takvimden Drive bağlantısını do�
   await expect(dialog).toContainText("Deniz Kamera");
   await expect(dialog).toContainText("Giriş klibi siyah-beyaz başlayacak.");
   await expect(dialog.locator('input:not([type="checkbox"])')).toHaveCount(1);
+  await dialog.getByRole("combobox", { name: "Teslimat durumu" }).selectOption("TESLIME_HAZIR");
   const deliveryPosition = await dialog.locator(".delivery-workbench").boundingBox();
   const informationPosition = await dialog.locator(".wedding-information").boundingBox();
   expect(deliveryPosition?.y).toBeLessThan(informationPosition?.y ?? 0);
   await dialog
-    .getByRole("textbox", { name: "Google Drive bağlantısı" })
-    .fill("https://drive.google.com/file/d/teslim/view");
+    .getByRole("textbox", { name: "Google Drive veya WeTransfer bağlantısı" })
+    .fill("https://we.tl/t-teslim");
   await dialog.getByRole("checkbox").check();
   const deliverButton = dialog.getByRole("button", {
     name: "Bağlantıyı doğrula ve teslim et"
@@ -2957,7 +2958,8 @@ test("@frontend-smoke @responsive montajcı takvimden Drive bağlantısını do�
   await expect
     .poll(() => prepareBody)
     .toEqual({
-      driveUrl: "https://drive.google.com/file/d/teslim/view"
+      status: "TESLIME_HAZIR",
+      driveUrl: "https://we.tl/t-teslim"
     });
   await expect
     .poll(() => deliveryBody)

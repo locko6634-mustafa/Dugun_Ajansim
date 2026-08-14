@@ -13,6 +13,7 @@ import {
   parseBookingFormConstraints
 } from "../shared/booking-form-constraints.js";
 import { parseBookingSchedulePolicy } from "../shared/booking-schedule-policy.js";
+import { isAllowedDeliveryLinkUrl } from "../shared/delivery-link.js";
 import {
   ACCOUNT_STATUS_LABELS,
   BOOKING_STATUS_LABELS,
@@ -1368,7 +1369,7 @@ function renderWeddingDetail(wedding) {
             )
             .join(
               ""
-            )}</select><input data-field="dueDate" type="date" aria-label="Teslim tarihi" aria-describedby="delivery-error-${delivery.id}" min="${expectedDeliveryDate}" max="${expectedDeliveryDate}" value="${String(delivery.dueDate).slice(0, 10)}" ${deliveryInputsDisabled ? "disabled" : ""} /><input data-field="driveUrl" type="url" aria-label="Google Drive bağlantısı" aria-describedby="delivery-error-${delivery.id}" pattern="https://(drive\\.google\\.com|docs\\.google\\.com)/.+" placeholder="https://drive.google.com/..." value="${escapeHtml(delivery.driveUrl || "")}" ${deliveryInputsDisabled ? "disabled" : ""} /><button class="mini-button" type="button" data-save-delivery="${delivery.id}" ${deliveryInputsDisabled ? "disabled" : ""}>Kaydet</button><button class="mini-button mini-button--primary" type="button" data-deliver="${delivery.id}" ${deliveryLocked || delivery.status !== "TESLIME_HAZIR" || !delivery.hasDriveUrl ? "disabled" : ""}>Teslim Et</button>${delivery.status === "TESLIM_EDILDI" && !delivery.revokedAt && !deliveryLocked ? `<button class="mini-button mini-button--danger" type="button" data-revoke-delivery="${delivery.id}">Erişimi geri çek</button>` : ""}${delivery.revokedAt ? `<span class="status-dot">Erişim geri çekildi</span>` : ""}<p id="delivery-error-${delivery.id}" class="dialog-message js-delivery-message" role="alert" aria-live="assertive"></p></div>`
+            )}</select><input data-field="dueDate" type="date" aria-label="Teslim tarihi" aria-describedby="delivery-error-${delivery.id}" min="${expectedDeliveryDate}" max="${expectedDeliveryDate}" value="${String(delivery.dueDate).slice(0, 10)}" ${deliveryInputsDisabled ? "disabled" : ""} /><input data-field="driveUrl" type="url" aria-label="Google Drive veya WeTransfer bağlantısı" aria-describedby="delivery-error-${delivery.id}" placeholder="https://drive.google.com/... veya https://we.tl/..." value="${escapeHtml(delivery.driveUrl || "")}" ${deliveryInputsDisabled ? "disabled" : ""} /><button class="mini-button" type="button" data-save-delivery="${delivery.id}" ${deliveryInputsDisabled ? "disabled" : ""}>Kaydet</button><button class="mini-button mini-button--primary" type="button" data-deliver="${delivery.id}" ${deliveryLocked || delivery.status !== "TESLIME_HAZIR" || !delivery.hasDriveUrl ? "disabled" : ""}>Teslim Et</button>${delivery.status === "TESLIM_EDILDI" && !delivery.revokedAt && !deliveryLocked ? `<button class="mini-button mini-button--danger" type="button" data-revoke-delivery="${delivery.id}">Erişimi geri çek</button>` : ""}${delivery.revokedAt ? `<span class="status-dot">Erişim geri çekildi</span>` : ""}<p id="delivery-error-${delivery.id}" class="dialog-message js-delivery-message" role="alert" aria-live="assertive"></p></div>`
         : empty("Teslimat kaydı yok.")
     }</section>
     ${wedding.deletedAt && !wedding.cancelledAt ? `<section class="detail-block wide danger-zone"><h3>Tehlikeli işlemler</h3><p>Kalıcı silme; atamaları, mesaj görevlerini ve teslimat operasyon kayıtlarını geri alınamaz şekilde siler. Denetim kayıtları korunur.</p><button class="mini-button mini-button--danger" type="button" data-delete-wedding="${wedding.id}" data-confirm="${escapeHtml(coupleName(wedding))}">Kalıcı Sil</button></section>` : ""}
@@ -1515,7 +1516,7 @@ async function loadMontageUsers() {
       ? state.montageUsers
           .map(
             (user) =>
-              `<article class="staff-card ${user.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(user.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${user.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[user.status] || user.status)}</span></div><h3>${escapeHtml(user.username)}</h3><p>Tüm düğün bilgileri ve Drive teslim yetkisi</p><small>${user.lastLoginAt ? `Son giriş: ${formatDate(user.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${user.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${user.id}" data-managed-user-role="MONTAJCI">Düzenle</button></footer></article>`
+              `<article class="staff-card ${user.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(user.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${user.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[user.status] || user.status)}</span></div><h3>${escapeHtml(user.username)}</h3><p>Tüm düğün bilgileri ve teslimat bağlantısı yetkisi</p><small>${user.lastLoginAt ? `Son giriş: ${formatDate(user.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${user.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${user.id}" data-managed-user-role="MONTAJCI">Düzenle</button></footer></article>`
           )
           .join("")
       : empty("Henüz montajcı hesabı yok.");
@@ -2284,21 +2285,17 @@ function validateDeliveryRow(row) {
   const driveUrlInput = row.querySelector('[data-field="driveUrl"]');
   if (message) message.textContent = "";
   if (!dueDateInput.reportValidity() || !driveUrlInput.reportValidity()) {
-    if (message) message.textContent = "Teslim tarihi veya Google Drive bağlantısını kontrol edin.";
+    if (message) {
+      message.textContent = "Teslim tarihi veya Google Drive/WeTransfer bağlantısını kontrol edin.";
+    }
     return false;
   }
   if (driveUrlInput.value.trim()) {
     try {
-      const url = new URL(driveUrlInput.value.trim());
-      if (
-        url.protocol !== "https:" ||
-        !["drive.google.com", "docs.google.com"].includes(url.hostname.toLowerCase())
-      ) {
-        throw new Error("invalid");
-      }
+      if (!isAllowedDeliveryLinkUrl(driveUrlInput.value.trim())) throw new Error("invalid");
     } catch {
       driveUrlInput.setCustomValidity(
-        "HTTPS kullanan geçerli bir Google Drive veya Google Docs bağlantısı girin."
+        "HTTPS kullanan geçerli bir Google Drive veya WeTransfer bağlantısı girin."
       );
       driveUrlInput.reportValidity();
       if (message) message.textContent = driveUrlInput.validationMessage;
@@ -2369,7 +2366,7 @@ detailContent.addEventListener("click", async (event) => {
       setMessage("Teslimat bilgileri kaydedildi.", true);
     } else if (deliverButton) {
       const sharingConfirmation = await showCustomPrompt({
-        title: "Drive paylaşımını doğrula",
+        title: "Teslimat bağlantısını doğrula",
         message:
           "Bağlantıyı gizli pencerede açıp 'bağlantıya sahip herkes' erişimini doğrulayın ve ERİŞİMİ DOĞRULADIM yazın.",
         placeholder: "ERİŞİMİ DOĞRULADIM",
@@ -2377,7 +2374,7 @@ detailContent.addEventListener("click", async (event) => {
         required: true
       });
       if (sharingConfirmation !== "ERİŞİMİ DOĞRULADIM") {
-        throw new Error("Teslimat için Drive paylaşım izni doğrulanmalıdır.");
+        throw new Error("Teslimat bağlantısının paylaşım izni doğrulanmalıdır.");
       }
       await apiRequest(`/admin/deliveries/${deliverButton.dataset.deliver}/deliver`, {
         method: "POST",

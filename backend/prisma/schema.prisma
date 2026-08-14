@@ -477,6 +477,7 @@ model Delivery {
   wedding            Wedding                 @relation(fields: [weddingId], references: [id], onDelete: Cascade)
   status             DeliveryStatus          @default(HAZIRLANIYOR)
   dueDate            DateTime                @db.Date
+  manualStatusOverrideAt DateTime?
   driveUrlCiphertext String?
   driveUrlIv         String?
   driveUrlAuthTag    String?

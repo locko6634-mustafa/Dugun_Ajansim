@@ -71,7 +71,7 @@ import {
   runDataRetentionBatch,
 } from '../src/utils/dataRetention.js';
 import { findBoundedIntervalConflicts } from '../src/utils/intervalConflicts.js';
-import { verifyGoogleDriveLinkAccess } from '../src/utils/delivery-link-access.js';
+import { verifyDeliveryLinkAccess } from '../src/utils/delivery-link-access.js';
 import { decodeListCursor, encodeListCursor } from '../src/utils/pagination.js';
 import {
   BOOKING_APPLICATION_PII_SCHEMA_VERSION,
@@ -1595,7 +1595,7 @@ test('backend-unit [pagination] cursor sıralama alanlarını güvenli ve deği�
 });
 
 test('backend-unit [delivery-link] yayın öncesi erişim smoke kontrolü kapalı bağlantıyı reddeder', async () => {
-  const accessible = await verifyGoogleDriveLinkAccess(
+  const accessible = await verifyDeliveryLinkAccess(
     'https://drive.google.com/file/d/demo/view',
     {
       fetchImpl: async () => new Response(null, { status: 200 }),
@@ -1603,12 +1603,32 @@ test('backend-unit [delivery-link] yayın öncesi erişim smoke kontrolü kapal�
   );
   assert.equal(accessible.status, 200);
 
+  const weTransferRedirect = await verifyDeliveryLinkAccess('https://we.tl/t-demo', {
+    fetchImpl: async () =>
+      new Response(null, {
+        status: 302,
+        headers: { location: 'https://wetransfer.com/downloads/demo' },
+      }),
+  });
+  assert.equal(weTransferRedirect.redirectHost, 'wetransfer.com');
+
   await assert.rejects(
-    verifyGoogleDriveLinkAccess('https://drive.google.com/file/d/demo/view', {
+    verifyDeliveryLinkAccess('https://drive.google.com/file/d/demo/view', {
       fetchImpl: async () =>
         new Response(null, {
           status: 302,
           headers: { location: 'https://accounts.google.com/ServiceLogin' },
+        }),
+    }),
+    /anonim erişime açık görünmüyor/,
+  );
+
+  await assert.rejects(
+    verifyDeliveryLinkAccess('https://we.tl/t-demo', {
+      fetchImpl: async () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://drive.google.com/file/d/cross-provider' },
         }),
     }),
     /anonim erişime açık görünmüyor/,
@@ -1625,7 +1645,7 @@ test('backend-unit [delivery-link] yönlendirme allowlist ve servis hata dallar�
   ];
 
   for (const location of allowedRedirects) {
-    const result = await verifyGoogleDriveLinkAccess(sourceUrl, {
+    const result = await verifyDeliveryLinkAccess(sourceUrl, {
       fetchImpl: async () => new Response(null, { status: 302, headers: { location } }),
     });
     assert.equal(result.redirectHost, new URL(location).hostname);
@@ -1658,13 +1678,13 @@ test('backend-unit [delivery-link] yönlendirme allowlist ve servis hata dallar�
 
   for (const { response, statusCode } of rejectedResponses) {
     await assert.rejects(
-      verifyGoogleDriveLinkAccess(sourceUrl, { fetchImpl: async () => response }),
+      verifyDeliveryLinkAccess(sourceUrl, { fetchImpl: async () => response }),
       (error: unknown) => error instanceof AppError && error.statusCode === statusCode,
     );
   }
 
   await assert.rejects(
-    verifyGoogleDriveLinkAccess(sourceUrl, {
+    verifyDeliveryLinkAccess(sourceUrl, {
       fetchImpl: async () => {
         throw new Error('network unavailable');
       },

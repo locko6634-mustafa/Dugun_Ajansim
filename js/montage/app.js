@@ -1,6 +1,7 @@
 import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
 import { DELIVERY_STATUS_LABELS, STAFF_SPECIALTY_LABELS } from "../shared/domain-labels.js";
+import { isAllowedDeliveryLinkUrl } from "../shared/delivery-link.js";
 import { escapeHtml } from "../shared/html.js";
 import {
   APP_LOCALE,
@@ -24,6 +25,7 @@ const calendarMessage = document.querySelector(".js-calendar-message");
 const venueFilter = document.querySelector(".js-venue-filter");
 const dialog = document.querySelector(".js-delivery-dialog");
 const dialogContent = document.querySelector(".js-delivery-content");
+const montageDeliveryStatuses = ["HAZIRLANIYOR", "MONTAJ", "KONTROL", "TESLIME_HAZIR"];
 
 const setMessage = (copy, success = false) => {
   message.textContent = copy;
@@ -103,7 +105,6 @@ const deliveryClass = (delivery) => {
 
 const deliveryCopy = (delivery) => {
   if (!delivery) return "Teslimat kaydı yok";
-  if (delivery.status === "KONTROL") return "Drive bekliyor";
   return DELIVERY_STATUS_LABELS[delivery.status] || delivery.status;
 };
 
@@ -198,38 +199,63 @@ async function loadCalendar(month = state.month, venueId = state.venueId) {
   }
 }
 
-function syncDeliveryButton() {
+function syncDeliveryButtons() {
   const form = dialogContent.querySelector(".js-delivery-form");
   if (!form) return;
   const submit = form.querySelector(".deliver-button");
-  submit.disabled = !form.elements.sharingConfirmed.checked || !form.elements.driveUrl.value.trim();
+  const driveUrl = form.elements.driveUrl.value.trim();
+  submit.disabled =
+    form.elements.status.value !== "TESLIME_HAZIR" ||
+    !form.elements.sharingConfirmed.checked ||
+    !isAllowedDeliveryLinkUrl(driveUrl);
+}
+
+function validateDeliveryLinkInput(form, { required = false } = {}) {
+  const input = form.elements.driveUrl;
+  const value = input.value.trim();
+  input.setCustomValidity("");
+  if ((required && !value) || (value && !isAllowedDeliveryLinkUrl(value))) {
+    input.setCustomValidity(
+      "HTTPS kullanan geçerli bir Google Drive veya WeTransfer bağlantısı girin."
+    );
+    input.reportValidity();
+    return false;
+  }
+  return true;
 }
 
 function renderWeddingDetail(wedding) {
   state.currentWedding = wedding;
   document.querySelector(".js-dialog-title").textContent = couple(wedding);
   const delivery = wedding.delivery;
-  const canDeliver = delivery && ["KONTROL", "TESLIME_HAZIR"].includes(delivery.status);
   const information = renderWeddingInformation(wedding);
-  const status = `<div class="status-banner"><strong>${escapeHtml(deliveryCopy(delivery))}</strong><span>${delivery ? `Son teslim ${escapeHtml(formatDate(delivery.dueDate))}` : "Teslimat oluşturulmamış"}</span></div>`;
+  const status = `<div class="status-banner"><strong>${escapeHtml(deliveryCopy(delivery))}</strong><span>${delivery ? `Son teslim ${escapeHtml(formatDate(delivery.dueDate))}${delivery.isStatusManuallyControlled ? " · Manuel yönetim aktif" : ""}` : "Teslimat oluşturulmamış"}</span></div>`;
   let deliveryAction = "";
   if (!delivery) {
     deliveryAction =
       '<p class="waiting-note">Bu düğün için teslimat kaydı bulunmuyor. Yöneticiyle iletişime geçin.</p>';
   } else if (delivery.status === "TESLIM_EDILDI") {
     deliveryAction = `<p class="delivered-note"><strong>Teslim tamamlandı.</strong><br />Müşteri erişimi ${escapeHtml(formatDate(delivery.releasedAt, true))} tarihinde açıldı.</p>`;
-  } else if (!canDeliver) {
-    deliveryAction =
-      '<p class="waiting-note">Bu iş henüz teslim aşamasında değil. Sistem “Kontrol Ediliyor” durumuna getirdiğinde Drive bağlantısı eklenebilir.</p>';
   } else {
-    deliveryAction = `<form class="delivery-form js-delivery-form"><label>Google Drive bağlantısı<input name="driveUrl" type="url" maxlength="2000" pattern="https://(drive\\.google\\.com|docs\\.google\\.com)/.+" placeholder="https://drive.google.com/..." value="${escapeHtml(delivery.driveUrl || "")}" autocomplete="off" required /><small>Bağlantının “bağlantıya sahip herkes görüntüleyebilir” erişiminde olduğundan emin olun.</small></label><label class="confirm-row"><input name="sharingConfirmed" type="checkbox" required /><span>Drive paylaşım erişimini kontrol ettim ve müşteriye açılmasını onaylıyorum.</span></label><button class="deliver-button" type="submit" disabled>Bağlantıyı doğrula ve teslim et</button><p class="form-message" role="alert" aria-live="assertive"></p></form>`;
+    const statusOptions = montageDeliveryStatuses
+      .map(
+        (statusValue) =>
+          `<option value="${statusValue}" ${delivery.status === statusValue ? "selected" : ""}>${escapeHtml(DELIVERY_STATUS_LABELS[statusValue])}</option>`
+      )
+      .join("");
+    deliveryAction = `<form class="delivery-form js-delivery-form"><label class="delivery-field">Teslimat durumu<select name="status">${statusOptions}</select><small>Seçtiğiniz durum tarih akışından bağımsız kalır ve otomasyon tarafından değiştirilmez.</small></label><label class="delivery-field">Google Drive veya WeTransfer bağlantısı<input name="driveUrl" type="url" maxlength="2000" placeholder="https://drive.google.com/... veya https://we.tl/..." value="${escapeHtml(delivery.driveUrl || "")}" autocomplete="off" /><small>Bağlantının müşterinin oturum açmadan erişebileceği şekilde paylaşıldığından emin olun.</small></label><button class="status-save-button" type="submit">Durumu ve bağlantıyı kaydet</button><label class="confirm-row"><input name="sharingConfirmed" type="checkbox" /><span>Bağlantı erişimini kontrol ettim ve müşteriye açılmasını onaylıyorum.</span></label><button class="deliver-button" type="button" disabled>Bağlantıyı doğrula ve teslim et</button><p class="form-message" role="alert" aria-live="assertive"></p></form>`;
   }
-  dialogContent.innerHTML = `<section class="delivery-workbench" aria-labelledby="delivery-workbench-title"><div class="workbench-heading"><div><p class="eyebrow">Öncelikli işlem</p><h3 id="delivery-workbench-title">Drive teslimi</h3></div><span class="workbench-index">01</span></div>${status}${deliveryAction}</section>${information}`;
+  dialogContent.innerHTML = `<section class="delivery-workbench" aria-labelledby="delivery-workbench-title"><div class="workbench-heading"><div><p class="eyebrow">Öncelikli işlem</p><h3 id="delivery-workbench-title">Teslimat yönetimi</h3></div><span class="workbench-index">01</span></div>${status}${deliveryAction}</section>${information}`;
   const form = dialogContent.querySelector(".js-delivery-form");
   if (!form) return;
-  form.addEventListener("input", syncDeliveryButton);
-  form.addEventListener("change", syncDeliveryButton);
-  form.addEventListener("submit", submitDelivery);
+  form.addEventListener("input", () => {
+    form.elements.driveUrl.setCustomValidity("");
+    syncDeliveryButtons();
+  });
+  form.addEventListener("change", syncDeliveryButtons);
+  form.addEventListener("submit", saveDelivery);
+  form.querySelector(".deliver-button").addEventListener("click", submitDelivery);
+  syncDeliveryButtons();
 }
 
 async function openWedding(weddingId, trigger) {
@@ -244,11 +270,52 @@ async function openWedding(weddingId, trigger) {
   }
 }
 
-async function submitDelivery(event) {
+async function saveDelivery(event) {
   event.preventDefault();
   const form = event.currentTarget;
-  if (!form.reportValidity() || !state.currentWedding?.delivery) return;
-  const submit = form.querySelector(".deliver-button");
+  if (
+    !form.reportValidity() ||
+    !validateDeliveryLinkInput(form) ||
+    !state.currentWedding?.delivery
+  ) {
+    return;
+  }
+  const submit = form.querySelector(".status-save-button");
+  const formMessage = form.querySelector(".form-message");
+  submit.disabled = true;
+  submit.textContent = "Kaydediliyor…";
+  formMessage.textContent = "";
+  try {
+    await apiRequest(`/montage/deliveries/${state.currentWedding.delivery.id}`, {
+      method: "PATCH",
+      body: {
+        status: form.elements.status.value,
+        driveUrl: form.elements.driveUrl.value.trim() || null
+      }
+    });
+    setMessage(`${couple(state.currentWedding)} teslimat bilgileri kaydedildi.`, true);
+    await Promise.all([
+      openWedding(state.currentWedding.id),
+      loadCalendar(state.month, state.venueId)
+    ]);
+  } catch (error) {
+    formMessage.textContent = error.message;
+    submit.disabled = false;
+    submit.textContent = "Durumu ve bağlantıyı kaydet";
+  }
+}
+
+async function submitDelivery(event) {
+  const submit = event.currentTarget;
+  const form = submit.closest("form");
+  if (
+    !state.currentWedding?.delivery ||
+    form.elements.status.value !== "TESLIME_HAZIR" ||
+    !form.elements.sharingConfirmed.checked ||
+    !validateDeliveryLinkInput(form, { required: true })
+  ) {
+    return;
+  }
   const formMessage = form.querySelector(".form-message");
   submit.disabled = true;
   submit.textContent = "Bağlantı doğrulanıyor…";
@@ -256,7 +323,10 @@ async function submitDelivery(event) {
   try {
     await apiRequest(`/montage/deliveries/${state.currentWedding.delivery.id}`, {
       method: "PATCH",
-      body: { driveUrl: form.elements.driveUrl.value.trim() }
+      body: {
+        status: "TESLIME_HAZIR",
+        driveUrl: form.elements.driveUrl.value.trim()
+      }
     });
     await apiRequest(`/montage/deliveries/${state.currentWedding.delivery.id}/deliver`, {
       method: "POST",

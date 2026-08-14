@@ -14,7 +14,12 @@ import { releaseDelivery } from "../services/delivery-release.service.js";
 import { AppError } from "../utils/appError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { buildDeliveryDriveUrlData, decryptDeliveryDriveUrl } from "../utils/delivery-crypto.js";
-import { assertGoogleDriveUrl, atIstanbulTime, getIstanbulDate } from "../utils/domain.js";
+import {
+  assertDeliveryLinkUrl,
+  atIstanbulTime,
+  deliveryStatuses,
+  getIstanbulDate
+} from "../utils/domain.js";
 import { decryptWeddingPii, staffWithDecryptedPii } from "../utils/pii-crypto.js";
 
 const router = Router();
@@ -27,8 +32,22 @@ router.use((_req, res, next) => {
 const emptyQuery = z.object({}).strict();
 const emptyBody = z.object({}).strict();
 const uuidRequest = z.object({ body: emptyBody, query: emptyQuery, params: uuidParamsSchema });
+const montageDeliveryStatusSchema = z.enum([
+  "HAZIRLANIYOR",
+  "MONTAJ",
+  "KONTROL",
+  "TESLIME_HAZIR"
+]);
 const deliveryPrepareRequest = z.object({
-  body: z.object({ driveUrl: z.string().trim().url().max(2_000) }).strict(),
+  body: z
+    .object({
+      status: montageDeliveryStatusSchema.optional(),
+      driveUrl: z.string().trim().url().max(2_000).nullable().optional()
+    })
+    .strict()
+    .refine((body) => Object.hasOwn(body, "status") || Object.hasOwn(body, "driveUrl"), {
+      message: "En az bir teslimat alanı gönderilmelidir."
+    }),
   query: emptyQuery,
   params: uuidParamsSchema
 });
@@ -120,6 +139,7 @@ router.get(
             status: true,
             dueDate: true,
             releasedAt: true,
+            manualStatusOverrideAt: true,
             driveUrlCiphertext: true
           }
         }
@@ -147,7 +167,11 @@ router.get(
             endsAt: safeWedding.endsAt,
             venue: safeWedding.venue,
             delivery: wedding.delivery
-              ? { ...delivery, hasDriveUrl: Boolean(driveUrlCiphertext) }
+              ? {
+                  ...delivery,
+                  hasDriveUrl: Boolean(driveUrlCiphertext),
+                  isStatusManuallyControlled: Boolean(wedding.delivery.manualStatusOverrideAt)
+                }
               : null
           };
         })
@@ -234,6 +258,7 @@ router.get(
               dueDate: wedding.delivery.dueDate,
               releasedAt: wedding.delivery.releasedAt,
               accessExpiresAt: wedding.delivery.accessExpiresAt,
+              isStatusManuallyControlled: Boolean(wedding.delivery.manualStatusOverrideAt),
               updatedAt: wedding.delivery.updatedAt,
               hasDriveUrl: Boolean(driveUrl),
               driveUrl
@@ -260,11 +285,25 @@ router.patch(
     if (delivery.wedding.cancelledAt || delivery.wedding.deletedAt) {
       throw new AppError("İptal edilmiş veya arşivdeki düğünün teslimatı güncellenemez.", 409);
     }
-    if (delivery.status !== "KONTROL" && delivery.status !== "TESLIME_HAZIR") {
-      throw new AppError("Teslimat henüz kontrol aşamasında değil.", 409);
+    if (delivery.status === "TESLIM_EDILDI") {
+      throw new AppError("Teslim edilmiş kayıt bu işlemle değiştirilemez.", 409);
     }
-    const driveUrl = assertGoogleDriveUrl(req.body.driveUrl);
-    const nextStatus = "TESLIME_HAZIR" as const;
+    const hasDriveUrlUpdate = Object.hasOwn(req.body, "driveUrl");
+    const driveUrlData = hasDriveUrlUpdate
+      ? buildDeliveryDriveUrlData(
+          delivery.id,
+          typeof req.body.driveUrl === "string" ? assertDeliveryLinkUrl(req.body.driveUrl) : null
+        )
+      : undefined;
+    const hasStatusUpdate = Object.hasOwn(req.body, "status");
+    const nextStatus = req.body.status ?? delivery.status;
+    const statusChanged = nextStatus !== delivery.status;
+    const transitionDirection = statusChanged
+      ? deliveryStatuses.indexOf(nextStatus) > deliveryStatuses.indexOf(delivery.status)
+        ? "FORWARD"
+        : "BACKWARD"
+      : "UNCHANGED";
+    const manualStatusOverrideAt = hasStatusUpdate ? new Date() : undefined;
     const updated = await prisma.$transaction(async (transaction) => {
       const claimed = await transaction.delivery.updateMany({
         where: {
@@ -275,13 +314,14 @@ router.patch(
         },
         data: {
           status: nextStatus,
-          ...buildDeliveryDriveUrlData(delivery.id, driveUrl)
+          manualStatusOverrideAt,
+          ...(driveUrlData ?? {})
         }
       });
       if (claimed.count !== 1) {
         throw new AppError("Teslimat başka bir işlemde güncellendi.", 409);
       }
-      if (delivery.status !== nextStatus) {
+      if (statusChanged) {
         const history = await transaction.deliveryStatusHistory.createMany({
           data: {
             deliveryId: delivery.id,
@@ -300,9 +340,10 @@ router.patch(
         correlationId: req.correlationId,
         metadata: {
           statusChanged: delivery.status !== nextStatus,
-          transitionDirection: delivery.status === nextStatus ? "UNCHANGED" : "FORWARD",
+          transitionDirection,
           dueDateChanged: false,
-          driveUrlChanged: true,
+          driveUrlChanged: hasDriveUrlUpdate,
+          manualStatusOverrideApplied: hasStatusUpdate,
           actorScope: "montage"
         }
       });
@@ -313,6 +354,7 @@ router.patch(
           status: true,
           dueDate: true,
           releasedAt: true,
+          manualStatusOverrideAt: true,
           updatedAt: true
         }
       });

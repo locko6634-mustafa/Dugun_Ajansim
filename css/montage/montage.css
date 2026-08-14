@@ -708,20 +708,25 @@ select {
   gap: 18px;
 }
 
-.delivery-form > label:first-child {
+.delivery-field {
   display: grid;
   gap: 8px;
   font-size: 12px;
   font-weight: 800;
 }
 
-.delivery-form input[type="url"] {
+.delivery-form input[type="url"],
+.delivery-form select {
   width: 100%;
   min-height: 50px;
   padding: 0 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: white;
+}
+
+.delivery-form select {
+  padding: 0 40px 0 14px;
 }
 
 .confirm-row {
@@ -741,7 +746,8 @@ select {
   accent-color: var(--copper);
 }
 
-.deliver-button {
+.deliver-button,
+.status-save-button {
   min-height: 52px;
   border: 0;
   border-radius: var(--radius-sm);
@@ -749,6 +755,18 @@ select {
   color: white;
   font-weight: 800;
   cursor: pointer;
+}
+
+.status-save-button {
+  border: 1px solid hsl(39 31% 96% / 22%);
+  background: transparent;
+  color: white;
+}
+
+.deliver-button:disabled,
+.status-save-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .delivered-note,

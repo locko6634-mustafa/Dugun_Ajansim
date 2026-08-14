@@ -26,7 +26,7 @@ import {
   addCalendarDays,
   assertDeliveryDueDateWithinSla,
   assertDeliveryStatusTransition,
-  assertGoogleDriveUrl,
+  assertDeliveryLinkUrl,
   assertWeddingStartsInFuture,
   createTemporaryPasswordExpiry,
   createWeddingRange,
@@ -379,14 +379,22 @@ test("parolalar Argon2id ile hashlenir ve hassas değerler AES-GCM ile şifrelen
   assert.throws(() => decryptValue(encrypted, deliveryEncryptionAad("different-delivery-id")));
 });
 
-test("yalnızca HTTPS Google Drive bağlantıları kabul edilir", () => {
+test("yalnızca HTTPS Google Drive ve WeTransfer bağlantıları kabul edilir", () => {
   assert.equal(
-    assertGoogleDriveUrl("https://drive.google.com/file/d/ornek"),
+    assertDeliveryLinkUrl("https://drive.google.com/file/d/ornek"),
     "https://drive.google.com/file/d/ornek"
   );
-  assert.throws(() => assertGoogleDriveUrl("https://attacker.example/file"));
-  assert.throws(() => assertGoogleDriveUrl("http://drive.google.com/file/d/ornek"));
-  assert.throws(() => assertGoogleDriveUrl("https://user@drive.google.com/file/d/ornek"));
+  assert.equal(
+    assertDeliveryLinkUrl("https://we.tl/t-ornek123"),
+    "https://we.tl/t-ornek123"
+  );
+  assert.equal(
+    assertDeliveryLinkUrl("https://www.wetransfer.com/downloads/ornek"),
+    "https://www.wetransfer.com/downloads/ornek"
+  );
+  assert.throws(() => assertDeliveryLinkUrl("https://attacker.example/file"));
+  assert.throws(() => assertDeliveryLinkUrl("http://drive.google.com/file/d/ornek"));
+  assert.throws(() => assertDeliveryLinkUrl("https://user@we.tl/t-ornek123"));
 });
 
 test("admin düğün güncellemesinde çift, iletişim ve gerçek zaman aralığı birlikte doğrulanır", () => {

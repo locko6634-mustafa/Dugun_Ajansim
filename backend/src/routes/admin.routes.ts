@@ -64,7 +64,7 @@ import {
 } from "../utils/crypto.js";
 import { buildDeliveryDriveUrlData, decryptDeliveryDriveUrl } from "../utils/delivery-crypto.js";
 import {
-  assertGoogleDriveUrl,
+  assertDeliveryLinkUrl,
   assertDeliveryDueDateWithinSla,
   assertWeddingStartsInFuture,
   addCalendarDays,
@@ -2921,7 +2921,7 @@ router.patch(
     const driveUrlData = hasDriveUrlUpdate
       ? buildDeliveryDriveUrlData(
           delivery.id,
-          typeof req.body.driveUrl === "string" ? assertGoogleDriveUrl(req.body.driveUrl) : null
+          typeof req.body.driveUrl === "string" ? assertDeliveryLinkUrl(req.body.driveUrl) : null
         )
       : undefined;
     const nextStatus = req.body.status ?? delivery.status;

@@ -1,6 +1,7 @@
 import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
 import { DELIVERY_STATUS_LABELS, DELIVERY_STATUS_ORDER } from "../shared/domain-labels.js";
+import { normalizeDeliveryLinkUrl } from "../shared/delivery-link.js";
 import { APP_TIME_ZONE, formatAppDate } from "../shared/runtime-config.js";
 
 const statusOrder = DELIVERY_STATUS_ORDER;
@@ -20,22 +21,11 @@ const calendarDayInIstanbul = (value) => {
 };
 
 const safeDeliveryUrl = (value) => {
-  let url;
   try {
-    url = new URL(value);
+    return normalizeDeliveryLinkUrl(value);
   } catch {
-    throw new Error("Geçerli bir teslimat bağlantısı alınamadı.");
-  }
-  if (
-    url.protocol !== "https:" ||
-    !["drive.google.com", "docs.google.com"].includes(url.hostname.toLowerCase()) ||
-    url.username ||
-    url.password ||
-    url.port
-  ) {
     throw new Error("Güvenli bir teslimat bağlantısı alınamadı.");
   }
-  return url.href;
 };
 
 function showContent() {
