@@ -1063,6 +1063,29 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await expect(page.getByRole("dialog")).not.toContainText(
     "Aktif düğün arşivlenmeden önce iptal edilmelidir."
   );
+  const detailSectionHeadings = await page
+    .locator(".js-wedding-detail .detail-grid > .detail-block > h3")
+    .allTextContents();
+  expect(detailSectionHeadings.indexOf("Personel dağılımı")).toBeLessThan(
+    detailSectionHeadings.indexOf("Teslimat")
+  );
+  if (isMobile) {
+    const weddingDialog = page.locator(".js-wedding-detail");
+    const weddingSheet = weddingDialog.locator(".sheet-shell");
+    const weddingHeading = weddingDialog.locator(".sheet-heading");
+
+    expect(await weddingSheet.evaluate((sheet) => sheet.scrollWidth <= sheet.clientWidth)).toBe(
+      true
+    );
+    await weddingSheet.evaluate((sheet) => sheet.scrollTo({ top: 500 }));
+    await expect
+      .poll(async () => {
+        const dialogBox = await weddingDialog.boundingBox();
+        const headingBox = await weddingHeading.boundingBox();
+        return Math.abs((headingBox?.y ?? 0) - (dialogBox?.y ?? 0));
+      })
+      .toBeLessThanOrEqual(1);
+  }
   await page.getByRole("button", { name: "PDF oluştur" }).click();
   await expect(page.locator(".js-wedding-print-report")).toContainText("Düğün operasyon föyü");
   await expect(page.locator(".js-wedding-print-report")).toContainText("Mini Paket");

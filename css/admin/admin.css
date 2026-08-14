@@ -3151,11 +3151,49 @@ h6,
     position: sticky;
     z-index: 2;
     top: 0;
-    padding-top: 2px;
+    margin-inline: -16px;
+    padding: max(16px, env(safe-area-inset-top)) 16px 18px;
     background: var(--paper);
   }
 
-  .sheet-shell,
+  .sheet-shell {
+    width: 100%;
+    min-width: 0;
+    padding-top: 0 !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+    overflow-x: hidden !important;
+  }
+
+  .sheet-heading > div:first-child,
+  .js-wedding-detail-content,
+  .detail-grid,
+  .detail-block,
+  .assignment-item > span,
+  .timeline-item > span {
+    min-width: 0;
+  }
+
+  .sheet-heading h2,
+  .assignment-item,
+  .timeline-item {
+    overflow-wrap: anywhere;
+  }
+
+  .delivery-controls > *,
+  .assignment-form > * {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .assignment-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .timeline-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .form-shell {
     padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
   }

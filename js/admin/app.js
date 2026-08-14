@@ -1386,18 +1386,6 @@ function renderWeddingDetail(wedding) {
   <div class="detail-grid">
     <section class="detail-block"><h3>Çift ve iletişim</h3><div class="contact-line"><span>${escapeHtml(wedding.brideFirstName)} ${escapeHtml(wedding.brideLastName)}</span><a href="${safePhoneHref(wedding.bridePhone)}">${escapeHtml(wedding.bridePhone)}</a></div><div class="contact-line"><span>${escapeHtml(wedding.groomFirstName)} ${escapeHtml(wedding.groomLastName)}</span><a href="${safePhoneHref(wedding.groomPhone)}">${escapeHtml(wedding.groomPhone)}</a></div><div class="contact-line"><span>E-posta</span><a href="mailto:${escapeHtml(wedding.primaryEmail)}">${escapeHtml(wedding.primaryEmail)}</a></div></section>
     <section class="detail-block"><h3>Paket</h3>${packageDetail(wedding.packageSummary)}${wedding.note ? `<p>${escapeHtml(wedding.note)}</p>` : ""}</section>
-    <section class="detail-block wide"><h3>Teslimat</h3>${
-      delivery
-        ? `<div class="delivery-controls" data-delivery-row="${delivery.id}"><select data-field="status" aria-label="Teslimat durumu" ${deliveryStatusDisabled ? "disabled" : ""}>${allowedDeliveryStatuses
-            .map(
-              (status) =>
-                `<option value="${escapeHtml(status)}" ${delivery.status === status ? "selected" : ""}>${escapeHtml(STATUS_LABELS[status] || status)}</option>`
-            )
-            .join(
-              ""
-            )}</select><input data-field="dueDate" type="date" aria-label="Teslim tarihi" aria-describedby="delivery-error-${delivery.id}" min="${expectedDeliveryDate}" max="${expectedDeliveryDate}" value="${String(delivery.dueDate).slice(0, 10)}" ${deliveryInputsDisabled ? "disabled" : ""} /><input data-field="driveUrl" type="url" aria-label="Google Drive bağlantısı" aria-describedby="delivery-error-${delivery.id}" pattern="https://(drive\\.google\\.com|docs\\.google\\.com)/.+" placeholder="https://drive.google.com/..." value="${escapeHtml(delivery.driveUrl || "")}" ${deliveryInputsDisabled ? "disabled" : ""} /><button class="mini-button" type="button" data-save-delivery="${delivery.id}" ${deliveryInputsDisabled ? "disabled" : ""}>Kaydet</button><button class="mini-button mini-button--primary" type="button" data-deliver="${delivery.id}" ${deliveryLocked || delivery.status !== "TESLIME_HAZIR" || !delivery.hasDriveUrl ? "disabled" : ""}>Teslim Et</button>${delivery.status === "TESLIM_EDILDI" && !delivery.revokedAt && !deliveryLocked ? `<button class="mini-button mini-button--danger" type="button" data-revoke-delivery="${delivery.id}">Erişimi geri çek</button>` : ""}${delivery.revokedAt ? `<span class="status-dot">Erişim geri çekildi</span>` : ""}<p id="delivery-error-${delivery.id}" class="dialog-message js-delivery-message" role="alert" aria-live="assertive"></p></div>`
-        : empty("Teslimat kaydı yok.")
-    }</section>
     <section class="detail-block wide"><h3>Personel dağılımı</h3><div class="assignment-list">${
       wedding.assignments.length
         ? wedding.assignments
@@ -1419,6 +1407,18 @@ function renderWeddingDetail(wedding) {
               ""
             )}</select><select name="specialty" aria-label="Görev" required><option value="">Görev seçin</option></select><button class="mini-button mini-button--primary" type="submit">Ata</button></form>`
     }<p class="dialog-message js-assignment-message" role="alert" aria-live="assertive"></p></section>
+    <section class="detail-block wide"><h3>Teslimat</h3>${
+      delivery
+        ? `<div class="delivery-controls" data-delivery-row="${delivery.id}"><select data-field="status" aria-label="Teslimat durumu" ${deliveryStatusDisabled ? "disabled" : ""}>${allowedDeliveryStatuses
+            .map(
+              (status) =>
+                `<option value="${escapeHtml(status)}" ${delivery.status === status ? "selected" : ""}>${escapeHtml(STATUS_LABELS[status] || status)}</option>`
+            )
+            .join(
+              ""
+            )}</select><input data-field="dueDate" type="date" aria-label="Teslim tarihi" aria-describedby="delivery-error-${delivery.id}" min="${expectedDeliveryDate}" max="${expectedDeliveryDate}" value="${String(delivery.dueDate).slice(0, 10)}" ${deliveryInputsDisabled ? "disabled" : ""} /><input data-field="driveUrl" type="url" aria-label="Google Drive bağlantısı" aria-describedby="delivery-error-${delivery.id}" pattern="https://(drive\\.google\\.com|docs\\.google\\.com)/.+" placeholder="https://drive.google.com/..." value="${escapeHtml(delivery.driveUrl || "")}" ${deliveryInputsDisabled ? "disabled" : ""} /><button class="mini-button" type="button" data-save-delivery="${delivery.id}" ${deliveryInputsDisabled ? "disabled" : ""}>Kaydet</button><button class="mini-button mini-button--primary" type="button" data-deliver="${delivery.id}" ${deliveryLocked || delivery.status !== "TESLIME_HAZIR" || !delivery.hasDriveUrl ? "disabled" : ""}>Teslim Et</button>${delivery.status === "TESLIM_EDILDI" && !delivery.revokedAt && !deliveryLocked ? `<button class="mini-button mini-button--danger" type="button" data-revoke-delivery="${delivery.id}">Erişimi geri çek</button>` : ""}${delivery.revokedAt ? `<span class="status-dot">Erişim geri çekildi</span>` : ""}<p id="delivery-error-${delivery.id}" class="dialog-message js-delivery-message" role="alert" aria-live="assertive"></p></div>`
+        : empty("Teslimat kaydı yok.")
+    }</section>
     ${wedding.deletedAt && !wedding.cancelledAt ? `<section class="detail-block wide danger-zone"><h3>Tehlikeli işlemler</h3><p>Kalıcı silme; atamaları, mesaj görevlerini ve teslimat operasyon kayıtlarını geri alınamaz şekilde siler. Denetim kayıtları korunur.</p><button class="mini-button mini-button--danger" type="button" data-delete-wedding="${wedding.id}" data-confirm="${escapeHtml(coupleName(wedding))}">Kalıcı Sil</button></section>` : ""}
     <section class="detail-block wide"><h3>Mesaj geçmişi</h3><div class="message-timeline">${
       wedding.messageTasks.length
