@@ -1746,7 +1746,7 @@ const PANEL_TITLES = {
   managers: "Salon sorumluları"
 };
 
-const MANUAL_WEDDING_PANELS = new Set(["overview", "weddings"]);
+const MANUAL_WEDDING_PANELS = new Set(["weddings"]);
 
 async function movePagination(key, direction) {
   const pager = state.pagination[key];

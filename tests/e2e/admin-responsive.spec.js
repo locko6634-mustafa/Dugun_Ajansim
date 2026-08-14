@@ -130,25 +130,8 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await page.goto("/admin.html");
   await expect(page.getByRole("heading", { name: "Günün akışı" })).toBeVisible();
   await expectNoPageOverflow(page);
-  await expectMinimumHeight(page.getByRole("button", { name: "Yeni düğün" }), 48);
+  await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeHidden();
   await expectMinimumHeight(page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }));
-
-  await page.getByRole("button", { name: "Yeni düğün" }).click();
-  const dialog = page.locator(".js-manual-dialog");
-  await expect(dialog).toBeVisible();
-  await expectMinimumHeight(dialog.getByRole("button", { name: "Kapat" }));
-  expect(
-    await dialog.evaluate((element) => element.scrollWidth <= document.documentElement.clientWidth)
-  ).toBe(true);
-  expect(
-    await dialog
-      .locator(".form-grid")
-      .evaluate((element) => element.scrollWidth <= element.clientWidth)
-  ).toBe(true);
-  for (const button of await dialog.locator(".dialog-actions button").all()) {
-    await expectMinimumHeight(button);
-  }
-  await dialog.getByRole("button", { name: "Kapat" }).click();
 
   await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
   await expectMinimumHeight(page.getByRole("button", { name: /Menüyü Kapat/i }));
@@ -227,6 +210,23 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await page.locator('[data-panel="weddings"]').click();
   await expect(page.locator('[data-panel-content="weddings"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Yeni düğün" }).click();
+  const dialog = page.locator(".js-manual-dialog");
+  await expect(dialog).toBeVisible();
+  await expectMinimumHeight(dialog.getByRole("button", { name: "Kapat" }));
+  expect(
+    await dialog.evaluate((element) => element.scrollWidth <= document.documentElement.clientWidth)
+  ).toBe(true);
+  expect(
+    await dialog
+      .locator(".form-grid")
+      .evaluate((element) => element.scrollWidth <= element.clientWidth)
+  ).toBe(true);
+  for (const button of await dialog.locator(".dialog-actions button").all()) {
+    await expectMinimumHeight(button);
+  }
+  await dialog.getByRole("button", { name: "Kapat" }).click();
 
   for (const viewport of [
     { width: 375, height: 812 },
