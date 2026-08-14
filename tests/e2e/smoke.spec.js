@@ -2924,6 +2924,11 @@ test("@frontend-smoke @responsive montajcı takvimden Drive bağlantısını do�
 
   await page.goto("/montajci-paneli.html");
   await expect(page.getByRole("heading", { name: /Düğünü bul/i })).toBeVisible();
+  const introBox = await page.locator(".montage-intro").boundingBox();
+  const calendarBox = await page.locator(".calendar-stage").boundingBox();
+  const isMobileViewport = (page.viewportSize()?.width ?? 0) <= 640;
+  expect(introBox?.height).toBeLessThan(isMobileViewport ? 230 : 190);
+  expect(calendarBox?.y).toBeLessThan(isMobileViewport ? 390 : 400);
   await expect(page.locator(".calendar-event")).toContainText("Ayşe & Mehmet");
   await expect(page.locator(".calendar-event")).toContainText("Drive bekliyor");
   await page.locator(".calendar-event").click();

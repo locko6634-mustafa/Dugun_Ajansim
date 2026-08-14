@@ -150,15 +150,15 @@ select:disabled {
 .montage-main {
   width: min(1500px, 100%);
   margin: 0 auto;
-  padding: clamp(42px, 7vw, 92px) clamp(18px, 5vw, 76px) 90px;
+  padding: clamp(30px, 4vw, 54px) clamp(18px, 5vw, 76px) 90px;
 }
 
 .montage-intro {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(270px, 0.55fr);
   align-items: end;
-  gap: clamp(36px, 8vw, 120px);
-  margin-bottom: clamp(42px, 6vw, 76px);
+  gap: clamp(28px, 6vw, 88px);
+  margin-bottom: clamp(28px, 3vw, 40px);
 }
 
 .eyebrow {
@@ -177,10 +177,10 @@ p {
 }
 
 h1 {
-  max-width: 840px;
+  max-width: 680px;
   margin-bottom: 0;
   font-family: Inter, Manrope, sans-serif;
-  font-size: clamp(42px, 7.3vw, 104px);
+  font-size: clamp(44px, 5vw, 72px);
   font-weight: 500;
   letter-spacing: -0.065em;
   line-height: 0.91;
@@ -768,6 +768,7 @@ select {
 @media (max-width: 900px) {
   .montage-intro {
     grid-template-columns: 1fr;
+    gap: 22px;
   }
 
   .intro-note {
@@ -813,11 +814,23 @@ select {
   }
 
   .montage-main {
-    padding: 42px 14px 70px;
+    padding: 24px 14px 70px;
   }
 
   h1 {
-    font-size: clamp(40px, 14vw, 62px);
+    font-size: clamp(38px, 11.5vw, 48px);
+    line-height: 0.96;
+  }
+
+  .montage-intro {
+    margin-bottom: 26px;
+  }
+
+  .intro-note {
+    gap: 12px;
+    padding-bottom: 0;
+    font-size: 14px;
+    line-height: 1.6;
   }
 
   .calendar-stage {
