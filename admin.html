@@ -562,8 +562,15 @@
               required /></label
           ><label class="wide">Telefon<input name="phone" type="tel" required /></label
           ><label class="wide"
-            >Salon<select class="js-staff-venue" name="venueId" required></select
-          ></label>
+            >Salonlar<select
+              class="js-staff-venues"
+              name="venueIds"
+              multiple
+              size="6"
+              required
+            ></select>
+            <small>Ortak çalışabileceği tüm salonları seçin.</small></label
+          >
           <small class="wide" id="staff-name-help"
             >Ad ve soyad yalnızca harf, boşluk, kesme işareti ve kısa çizgi içerebilir.</small
           >
@@ -633,7 +640,9 @@
               maxlength="40"
               autocomplete="off"
               required /></label
-          ><label class="js-managed-user-venue">Salon<select name="venueId"></select></label
+          ><label class="js-managed-user-venue wide"
+            >Salonlar<select name="venueIds" multiple size="6"></select
+            ><small>Sorumlunun tek panelden yöneteceği tüm salonları seçin.</small></label
           ><label class="wide"
             >Parola <small class="js-managed-user-password-note">En az 15 karakter</small
             ><input

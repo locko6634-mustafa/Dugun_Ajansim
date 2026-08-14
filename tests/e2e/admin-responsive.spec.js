@@ -133,7 +133,8 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
             username: managerCreateBody.username,
             status: managerCreateBody.status,
             mustChangePassword: true,
-            venue: accountVenue
+            venue: accountVenue,
+            venues: [accountVenue]
           }
         })
       });
@@ -278,7 +279,7 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await expect(accountDialog).toBeVisible();
   await expectMinimumHeight(accountDialog.getByRole("button", { name: "Kapat" }));
   await accountDialog.locator('[name="role"]').selectOption("MONTAJCI");
-  await expect(accountDialog.locator('[name="venueId"]')).toBeHidden();
+  await expect(accountDialog.locator('[name="venueIds"]')).toBeHidden();
   await accountDialog.locator('[name="username"]').fill("montaj-ekibi");
   await accountDialog.locator('[name="password"]').fill("Guvenli-Montaj-Parolasi-2026!");
   await accountDialog.getByRole("button", { name: "Kaydet" }).click();
@@ -301,7 +302,7 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
     .toEqual({
       username: "cess-sorumlu",
       password: "Guvenli-Salon-Parolasi-2026!",
-      venueId: accountVenue.id,
+      venueIds: [accountVenue.id],
       status: "ACTIVE"
     });
   await expect(accountDialog).toBeHidden();

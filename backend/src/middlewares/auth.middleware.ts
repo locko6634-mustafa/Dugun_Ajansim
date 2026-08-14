@@ -123,7 +123,11 @@ export const authenticate = asyncHandler(
             mustChangePassword: true,
             temporaryPasswordExpiresAt: true,
             totpEnabledAt: true,
-            venueId: true
+            venueId: true,
+            managedVenueAssignments: {
+              select: { venueId: true },
+              orderBy: { venueId: "asc" }
+            }
           }
         }
       }
@@ -155,6 +159,12 @@ export const authenticate = asyncHandler(
     }
 
     const mfaApplies = isMfaRequiredRole(session.user.role);
+    const venueIds = [
+      ...new Set([
+        ...session.user.managedVenueAssignments.map((assignment) => assignment.venueId),
+        ...(session.user.venueId ? [session.user.venueId] : [])
+      ])
+    ];
     req.auth = {
       userId: session.user.id,
       username: session.user.username,
@@ -168,7 +178,8 @@ export const authenticate = asyncHandler(
         session.user.role,
         session.user.totpEnabledAt !== null
       ),
-      venueId: session.user.venueId
+      venueId: session.user.venueId,
+      venueIds
     };
 
     if (

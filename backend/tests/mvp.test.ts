@@ -65,13 +65,8 @@ test("domain tarih, saat ve teslimat politikaları tek allowlist ile korunur", (
   assert.throws(() => createWeddingRange("2026-08-10", "19:30", "19:30", false));
 
   const startsAt = new Date("2026-08-10T16:30:00.000Z");
-  assert.throws(() =>
-    assertWeddingStartsInFuture(startsAt, new Date("2026-08-10T16:31:00.000Z"))
-  );
-  assert.match(
-    randomReferenceCode(new Date("2026-08-10T21:30:00.000Z")),
-    /^DA-20260811-\d{6}$/
-  );
+  assert.throws(() => assertWeddingStartsInFuture(startsAt, new Date("2026-08-10T16:31:00.000Z")));
+  assert.match(randomReferenceCode(new Date("2026-08-10T21:30:00.000Z")), /^DA-20260811-\d{6}$/);
 
   assert.deepEqual(getAllowedDeliveryTransitions("MONTAJ"), ["HAZIRLANIYOR", "KONTROL"]);
   assert.equal(isDeliveryForwardTransition("HAZIRLANIYOR", "MONTAJ"), true);
@@ -214,20 +209,37 @@ test("kalıcı parola uzunluk ve normalize edilmiş blocklist kurallarını uygu
     false
   );
   assert.equal(strongPasswordSchema.safeParse("DUGUNAJANSIM123").success, false);
-  assert.equal(strongPasswordSchema.safeParse("IlkGiristeDegistirilecekGucluParola").success, false);
+  assert.equal(
+    strongPasswordSchema.safeParse("IlkGiristeDegistirilecekGucluParola").success,
+    false
+  );
   assert.equal(strongPasswordSchema.safeParse("a".repeat(15)).success, false);
   assert.equal(strongPasswordSchema.safeParse("abc".repeat(5)).success, false);
   assert.equal(strongPasswordSchema.safeParse("Guclu!0123456789-Parola").success, false);
   assert.equal(strongPasswordSchema.safeParse("a".repeat(129)).success, false);
-  assert.equal(
-    isPasswordSimilarToUsername("Cess-Sorumlu!Kutuphanesi-2026", "cess-sorumlu"),
-    true
-  );
+  assert.equal(isPasswordSimilarToUsername("Cess-Sorumlu!Kutuphanesi-2026", "cess-sorumlu"), true);
   assert.equal(
     venueManagerBodySchema.safeParse({
       username: "cess-sorumlu",
       password: "Cess-Sorumlu!Kutuphanesi-2026",
       venueId: "11111111-1111-4111-8111-111111111111",
+      status: "ACTIVE"
+    }).success,
+    false
+  );
+  assert.equal(
+    venueManagerBodySchema.safeParse({
+      username: "cess-sorumlu",
+      password: "Guvenli-Yonetici-Parolasi-2026!",
+      venueIds: ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"],
+      status: "ACTIVE"
+    }).success,
+    true
+  );
+  assert.equal(
+    venueManagerBodySchema.safeParse({
+      username: "salon-sorumlusu",
+      password: "Guvenli-Yonetici-Parolasi-2026!",
       status: "ACTIVE"
     }).success,
     false
@@ -384,10 +396,7 @@ test("yalnızca HTTPS Google Drive ve WeTransfer bağlantıları kabul edilir", 
     assertDeliveryLinkUrl("https://drive.google.com/file/d/ornek"),
     "https://drive.google.com/file/d/ornek"
   );
-  assert.equal(
-    assertDeliveryLinkUrl("https://we.tl/t-ornek123"),
-    "https://we.tl/t-ornek123"
-  );
+  assert.equal(assertDeliveryLinkUrl("https://we.tl/t-ornek123"), "https://we.tl/t-ornek123");
   assert.equal(
     assertDeliveryLinkUrl("https://www.wetransfer.com/downloads/ornek"),
     "https://www.wetransfer.com/downloads/ornek"

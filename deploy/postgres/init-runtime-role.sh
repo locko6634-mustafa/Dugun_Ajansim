@@ -129,6 +129,7 @@ WHERE to_regclass('public.auth_sessions') IS NOT NULL \gexec
 SELECT format('GRANT DELETE ON TABLE %I.%I TO %I', 'public', t.tbl, :'runtime_user')
 FROM unnest(ARRAY[
   'packages', 'services', 'staff', 'users',
+  'venue_manager_assignments', 'staff_venue_assignments',
   'booking_applications', 'booking_application_services',
   'weddings', 'wedding_assignments',
   'message_tasks', 'deliveries', 'delivery_status_history',
@@ -151,6 +152,7 @@ FROM unnest(ARRAY[
   'app_wedding_allowed(text)',
   'app_application_allowed(text)',
   'app_delivery_allowed(text)',
+  'app_operations_venue_allowed(text)',
   'public_venue_has_conflict(text,timestamp with time zone,timestamp with time zone,text,text)'
 ]) AS allowed(function_signature)
 WHERE to_regprocedure('public.' || function_signature) IS NOT NULL \gexec

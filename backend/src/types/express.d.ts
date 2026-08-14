@@ -15,6 +15,7 @@ declare global {
         adminStepUpVerifiedAt: Date | null;
         mustEnrollMfa: boolean;
         venueId: string | null;
+        venueIds?: string[];
       };
     }
   }

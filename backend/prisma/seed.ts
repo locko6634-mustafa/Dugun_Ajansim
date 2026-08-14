@@ -25,32 +25,60 @@ const venues = [
     displayOrder: 2
   },
   {
-    slug: "cess-wedding",
-    name: "Cess Wedding",
-    displayName: "Cess",
+    slug: "cess-wedding-park",
+    name: "Cess Wedding Park",
+    displayName: "Cess Wedding Park",
     imagePath: "assets/images/venues/cess.webp",
     displayOrder: 3
   },
   {
-    slug: "yesil-nesil-garden",
-    name: "Yeşil Nesil Garden",
-    displayName: "Yeşil Nesil",
-    imagePath: "assets/images/venues/yesil-nesil.webp",
+    slug: "cess-wedding-orman",
+    name: "Cess Wedding Orman",
+    displayName: "Cess Wedding Orman",
+    imagePath: "assets/images/venues/cess.webp",
     displayOrder: 4
+  },
+  {
+    slug: "yesil-nesil-garden-hayal-bahce",
+    name: "Yeşil Nesil Garden Hayal Bahçe",
+    displayName: "Yeşil Nesil Garden Hayal Bahçe",
+    imagePath: "assets/images/venues/yesil-nesil.webp",
+    displayOrder: 5
+  },
+  {
+    slug: "yesil-nesil-garden-masal-bahce",
+    name: "Yeşil Nesil Garden Masal Bahçe",
+    displayName: "Yeşil Nesil Garden Masal Bahçe",
+    imagePath: "assets/images/venues/yesil-nesil.webp",
+    displayOrder: 6
+  },
+  {
+    slug: "yesil-nesil-garden-kale-bahce",
+    name: "Yeşil Nesil Garden Kale Bahçe",
+    displayName: "Yeşil Nesil Garden Kale Bahçe",
+    imagePath: "assets/images/venues/yesil-nesil.webp",
+    displayOrder: 7
+  },
+  {
+    slug: "yesil-nesil-garden-ruya-bahce",
+    name: "Yeşil Nesil Garden Rüya Bahçe",
+    displayName: "Yeşil Nesil Garden Rüya Bahçe",
+    imagePath: "assets/images/venues/yesil-nesil.webp",
+    displayOrder: 8
   },
   {
     slug: "bella-garden",
     name: "Bella Garden",
     displayName: "Bella",
     imagePath: "assets/images/venues/bella.webp",
-    displayOrder: 5
+    displayOrder: 9
   },
   {
     slug: "talia-garden",
     name: "Talia Garden",
     displayName: "Talia",
     imagePath: "assets/images/venues/talia.webp",
-    displayOrder: 6
+    displayOrder: 10
   }
 ] as const;
 

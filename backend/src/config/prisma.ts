@@ -26,6 +26,7 @@ const transactionStorage = new AsyncLocalStorage<Prisma.TransactionClient>();
 
 const protectedModels = new Set([
   "venue",
+  "venueManagerAssignment",
   "user",
   "authSession",
   "trustedDevice",
@@ -36,6 +37,7 @@ const protectedModels = new Set([
   "bookingApplicationService",
   "wedding",
   "staff",
+  "staffVenueAssignment",
   "weddingAssignment",
   "delivery",
   "deliveryStatusHistory",

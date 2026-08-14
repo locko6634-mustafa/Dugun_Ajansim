@@ -458,23 +458,47 @@ export const weddingUpdateBodySchema = z
     }
   });
 
-export const staffBodySchema = z
+const venueIdsSchema = z
+  .array(z.string().uuid())
+  .min(1)
+  .max(50)
+  .transform((ids) => [...new Set(ids)]);
+
+const staffFieldsSchema = z
   .object({
     firstName: personNameSchema,
     lastName: personNameSchema,
     phone: phoneSchema,
     specialties: z.array(staffSpecialtySchema).min(1).max(7),
-    isActive: z.boolean().default(true),
-    venueId: z.string().uuid()
+    isActive: z.boolean().default(true)
   })
   .strict();
 
-export const staffUpdateBodySchema = staffBodySchema
+export const staffBodySchema = staffFieldsSchema
+  .extend({
+    venueId: z.string().uuid().optional(),
+    venueIds: venueIdsSchema.optional()
+  })
+  .superRefine((value, context) => {
+    if (!value.venueId && !value.venueIds?.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["venueIds"],
+        message: "En az bir salon seçin."
+      });
+    }
+  });
+
+export const staffUpdateBodySchema = staffFieldsSchema
+  .extend({
+    venueId: z.string().uuid().optional(),
+    venueIds: venueIdsSchema.optional()
+  })
   .partial()
   .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
 
-export const venueStaffBodySchema = staffBodySchema.omit({ venueId: true });
-export const venueStaffUpdateBodySchema = venueStaffBodySchema
+export const venueStaffBodySchema = staffFieldsSchema;
+export const venueStaffUpdateBodySchema = staffFieldsSchema
   .partial()
   .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
 
@@ -486,11 +510,21 @@ export const venueManagerBodySchema = z
       .toLowerCase()
       .regex(/^[a-z0-9][a-z0-9._-]{2,39}$/),
     password: strongPasswordSchema,
-    venueId: z.string().uuid(),
+    venueId: z.string().uuid().optional(),
+    venueIds: venueIdsSchema.optional(),
     status: z.enum(["ACTIVE", "DISABLED"]).default("ACTIVE")
   })
   .strict()
-  .superRefine(addUsernamePasswordIssue);
+  .superRefine((value, context) => {
+    addUsernamePasswordIssue(value, context);
+    if (!value.venueId && !value.venueIds?.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["venueIds"],
+        message: "En az bir salon seçin."
+      });
+    }
+  });
 
 export const venueManagerUpdateBodySchema = z
   .object({
@@ -502,6 +536,7 @@ export const venueManagerUpdateBodySchema = z
       .optional(),
     password: strongPasswordSchema.optional(),
     venueId: z.string().uuid().optional(),
+    venueIds: venueIdsSchema.optional(),
     status: z.enum(["ACTIVE", "DISABLED"]).optional()
   })
   .strict()
@@ -571,15 +606,17 @@ export const assignmentBodySchema = z
     }
   });
 
-export const operationalAssignmentBodySchema = assignmentBodySchema.superRefine((value, context) => {
-  if (value.allowConflict) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["allowConflict"],
-      message: "Çakışan atama yalnız yönetici override akışıyla yapılabilir."
-    });
+export const operationalAssignmentBodySchema = assignmentBodySchema.superRefine(
+  (value, context) => {
+    if (value.allowConflict) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["allowConflict"],
+        message: "Çakışan atama yalnız yönetici override akışıyla yapılabilir."
+      });
+    }
   }
-});
+);
 
 export const dashboardQuerySchema = z
   .object({

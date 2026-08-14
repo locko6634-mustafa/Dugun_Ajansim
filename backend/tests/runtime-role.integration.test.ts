@@ -225,7 +225,7 @@ test("RLS enforcement salon, montaj, müşteri, public, auth ve maintenance bağ
       }
     });
     const venues = await Promise.all(
-      ["a", "b"].map((suffix) =>
+      ["a", "b", "c"].map((suffix) =>
         transaction.venue.create({
           data: {
             slug: `rls-${suffix}-${marker}`,
@@ -244,7 +244,12 @@ test("RLS enforcement salon, montaj, müşteri, public, auth ve maintenance bağ
             passwordHash: "synthetic-runtime-role-hash",
             role: "SALON_YETKILISI",
             mustChangePassword: false,
-            venueId: venue.id
+            venueId: venue.id,
+            managedVenueAssignments: {
+              create: (index === 0 ? venues.slice(0, 2) : [venue]).map((managedVenue) => ({
+                venueId: managedVenue.id
+              }))
+            }
           }
         })
       )
@@ -338,7 +343,12 @@ test("RLS enforcement salon, montaj, müşteri, public, auth ve maintenance bağ
           lastName: `Staff${index}`,
           phone: `+90555000002${index}`,
           specialties: ["PHOTOGRAPHY"],
-          venueId: venue.id
+          venueId: venue.id,
+          venueAssignments: {
+            create: (index === 0 ? venues.slice(0, 2) : [venue]).map((staffVenue) => ({
+              venueId: staffVenue.id
+            }))
+          }
         }
       });
       staff.push(staffMember);
@@ -404,12 +414,36 @@ test("RLS enforcement salon, montaj, müşteri, public, auth ve maintenance bağ
     await withRuntimeContext(operationsContext, (transaction) =>
       transaction.wedding.findMany({ select: { id: true }, orderBy: { id: "asc" } })
     ),
-    [{ id: fixture.weddings[0]!.id }]
+    fixture.weddings
+      .slice(0, 2)
+      .map(({ id }) => ({ id }))
+      .sort((left, right) => left.id.localeCompare(right.id))
+  );
+  assert.deepEqual(
+    await withRuntimeContext(operationsContext, (transaction) =>
+      transaction.staffVenueAssignment.findMany({
+        where: { staffId: fixture.staff[0]!.id },
+        select: { venueId: true },
+        orderBy: { venueId: "asc" }
+      })
+    ),
+    fixture.venues
+      .slice(0, 2)
+      .map(({ id }) => ({ venueId: id }))
+      .sort((left, right) => left.venueId.localeCompare(right.venueId))
+  );
+  assert.equal(
+    await withRuntimeContext(operationsContext, (transaction) =>
+      transaction.staffVenueAssignment.deleteMany({
+        where: { staffId: fixture.staff[0]!.id }
+      })
+    ).then(({ count }) => count),
+    0
   );
   assert.equal(
     await withRuntimeContext(operationsContext, (transaction) =>
       transaction.staff.updateMany({
-        where: { id: fixture.staff[1]!.id },
+        where: { id: fixture.staff[2]!.id },
         data: { firstName: "Forbidden" }
       })
     ).then(({ count }) => count),
@@ -433,9 +467,15 @@ test("RLS enforcement salon, montaj, müşteri, public, auth ve maintenance bağ
     await withRuntimeContext(montageContext, (transaction) => transaction.delivery.count()),
     fixture.deliveries.length
   );
-  assert.equal(
-    await withRuntimeContext(montageContext, (transaction) => transaction.venue.count()),
-    fixture.venues.length
+  assert.deepEqual(
+    await withRuntimeContext(montageContext, (transaction) =>
+      transaction.venue.findMany({
+        where: { id: { in: fixture.venues.map(({ id }) => id) } },
+        select: { id: true },
+        orderBy: { id: "asc" }
+      })
+    ),
+    fixture.venues.map(({ id }) => ({ id })).sort((left, right) => left.id.localeCompare(right.id))
   );
   assert.equal(
     await withRuntimeContext(montageContext, (transaction) => transaction.staff.count()),
@@ -589,7 +629,7 @@ test("RLS enforcement salon, montaj, müşteri, public, auth ve maintenance bağ
       (transaction) =>
         transaction.wedding.count({ where: { id: { in: fixture.weddings.map(({ id }) => id) } } })
     ),
-    2
+    fixture.weddings.length
   );
   assert.equal(
     await withRuntimeContext(
@@ -606,6 +646,6 @@ test("RLS enforcement salon, montaj, müşteri, public, auth ve maintenance bağ
       (transaction) =>
         transaction.wedding.count({ where: { id: { in: fixture.weddings.map(({ id }) => id) } } })
     ),
-    2
+    fixture.weddings.length
   );
 });

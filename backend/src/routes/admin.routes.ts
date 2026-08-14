@@ -108,6 +108,16 @@ router.use((_req, res, next) => {
 const emptyQuery = z.object({}).strict();
 const emptyBody = z.object({}).strict();
 const uuidRequest = z.object({ body: emptyBody, query: emptyQuery, params: uuidParamsSchema });
+const venueIdsFromBody = (body: { venueId?: string; venueIds?: string[] }): string[] => [
+  ...new Set([...(body.venueIds ?? []), ...(body.venueId ? [body.venueId] : [])])
+];
+const assertVenuesExist = async (
+  transaction: Prisma.TransactionClient,
+  venueIds: string[]
+): Promise<void> => {
+  const count = await transaction.venue.count({ where: { id: { in: venueIds } } });
+  if (count !== venueIds.length) throw new AppError("Salonlardan biri bulunamadı.", 404);
+};
 const verifyMessageRequest = z.object({
   body: z.object({ activateCustomerNow: z.boolean().optional().default(false) }).strict(),
   query: emptyQuery,
@@ -1009,6 +1019,10 @@ router.get(
     const staff = await prisma.staff.findMany({
       include: {
         venue: { select: { id: true, name: true } },
+        venueAssignments: {
+          select: { venueId: true, venue: { select: { id: true, name: true } } },
+          orderBy: { venue: { name: "asc" } }
+        },
         assignments: {
           where: { wedding: { cancelledAt: null, deletedAt: null, endsAt: { gt: new Date() } } },
           select: {
@@ -1028,8 +1042,9 @@ router.get(
       }
     });
     const safeStaff = sortStaffByStatusAndName(
-      staff.map(({ assignments, ...member }) => ({
+      staff.map(({ assignments, venueAssignments, ...member }) => ({
         ...staffWithDecryptedPii(member),
+        venues: venueAssignments.map((assignment) => assignment.venue),
         assignments: assignments.map(({ wedding, ...assignment }) => {
           const names = weddingNames(wedding);
           return {
@@ -1058,8 +1073,10 @@ router.post(
       .$transaction(async (transaction) => {
         const staffId = randomUUID();
         const normalizedPhone = normalizePhone(req.body.phone);
+        const venueIds = venueIdsFromBody(req.body);
+        await assertVenuesExist(transaction, venueIds);
         await assertActiveStaffPhoneAvailable(transaction, {
-          venueId: req.body.venueId,
+          venueIds,
           phone: normalizedPhone,
           isActive: req.body.isActive
         });
@@ -1077,7 +1094,14 @@ router.post(
             ),
             specialties: [...new Set(req.body.specialties)] as StaffSpecialty[],
             isActive: req.body.isActive,
-            venueId: req.body.venueId
+            venueId: venueIds[0]!,
+            venueAssignments: { create: venueIds.map((venueId) => ({ venueId })) }
+          },
+          include: {
+            venue: { select: { id: true, name: true } },
+            venueAssignments: {
+              select: { venueId: true, venue: { select: { id: true, name: true } } }
+            }
           }
         });
         await createAudit(transaction, {
@@ -1108,12 +1132,25 @@ router.patch(
   asyncHandler(async (req, res) => {
     try {
       const staff = await prisma.$transaction(async (transaction) => {
-        const current = await transaction.staff.findUnique({ where: { id: req.params.id } });
+        const current = await transaction.staff.findUnique({
+          where: { id: req.params.id },
+          include: { venueAssignments: { select: { venueId: true } } }
+        });
         if (!current) throw new AppError("Personel bulunamadı.", 404);
         const currentPii = staffWithDecryptedPii(current);
         const normalizedPhone = req.body.phone ? normalizePhone(req.body.phone) : currentPii.phone;
+        const nextVenueIds =
+          req.body.venueId || req.body.venueIds
+            ? venueIdsFromBody(req.body)
+            : [
+                ...new Set([
+                  ...current.venueAssignments.map((assignment) => assignment.venueId),
+                  current.venueId
+                ])
+              ];
+        await assertVenuesExist(transaction, nextVenueIds);
         await assertActiveStaffPhoneAvailable(transaction, {
-          venueId: req.body.venueId ?? current.venueId,
+          venueIds: nextVenueIds,
           phone: normalizedPhone,
           isActive: req.body.isActive ?? current.isActive,
           excludeStaffId: current.id
@@ -1134,7 +1171,21 @@ router.patch(
               ? { specialties: [...new Set(req.body.specialties)] as StaffSpecialty[] }
               : {}),
             ...(req.body.isActive === undefined ? {} : { isActive: req.body.isActive }),
-            ...(req.body.venueId ? { venueId: req.body.venueId } : {})
+            ...(req.body.venueId || req.body.venueIds
+              ? {
+                  venueId: nextVenueIds[0]!,
+                  venueAssignments: {
+                    deleteMany: {},
+                    create: nextVenueIds.map((venueId) => ({ venueId }))
+                  }
+                }
+              : {})
+          },
+          include: {
+            venue: { select: { id: true, name: true } },
+            venueAssignments: {
+              select: { venueId: true, venue: { select: { id: true, name: true } } }
+            }
           }
         });
         await createAudit(transaction, {
@@ -1225,11 +1276,22 @@ router.get(
         mustChangePassword: true,
         lastLoginAt: true,
         createdAt: true,
-        venue: { select: { id: true, name: true } }
+        venue: { select: { id: true, name: true } },
+        managedVenueAssignments: {
+          select: { venue: { select: { id: true, name: true } } },
+          orderBy: { venue: { name: "asc" } }
+        }
       },
       orderBy: [{ status: "asc" }, { username: "asc" }]
     });
-    res.json({ success: true, data: managers, correlationId: req.correlationId });
+    res.json({
+      success: true,
+      data: managers.map(({ managedVenueAssignments, ...manager }) => ({
+        ...manager,
+        venues: managedVenueAssignments.map((assignment) => assignment.venue)
+      })),
+      correlationId: req.correlationId
+    });
   })
 );
 
@@ -1241,21 +1303,21 @@ router.post(
     z.object({ body: venueManagerBodySchema, query: emptyQuery, params: z.object({}) })
   ),
   asyncHandler(async (req, res) => {
-    const venue = await prisma.venue.findUnique({
-      where: { id: req.body.venueId },
-      select: { id: true }
-    });
-    if (!venue) throw new AppError("Salon bulunamadı.", 404);
+    const venueIds = venueIdsFromBody(req.body);
     try {
       const passwordHash = await hashPassword(req.body.password);
       const manager = await prisma.$transaction(async (transaction) => {
+        await assertVenuesExist(transaction, venueIds);
         const created = await transaction.user.create({
           data: {
             username: req.body.username,
             passwordHash,
             role: "SALON_YETKILISI",
             status: req.body.status,
-            venueId: req.body.venueId,
+            venueId: venueIds[0]!,
+            managedVenueAssignments: {
+              create: venueIds.map((venueId) => ({ venueId }))
+            },
             mustChangePassword: true,
             temporaryPasswordExpiresAt: createTemporaryPasswordExpiry(
               env.TEMPORARY_PASSWORD_TTL_HOURS
@@ -1266,7 +1328,11 @@ router.post(
             username: true,
             status: true,
             mustChangePassword: true,
-            venue: { select: { id: true, name: true } }
+            venue: { select: { id: true, name: true } },
+            managedVenueAssignments: {
+              select: { venue: { select: { id: true, name: true } } },
+              orderBy: { venue: { name: "asc" } }
+            }
           }
         });
         await createAudit(transaction, {
@@ -1275,9 +1341,13 @@ router.post(
           targetType: "User",
           targetId: created.id,
           correlationId: req.correlationId,
-          metadata: { venueId: req.body.venueId }
+          metadata: { venueIds }
         });
-        return created;
+        const { managedVenueAssignments, ...safeManager } = created;
+        return {
+          ...safeManager,
+          venues: managedVenueAssignments.map((assignment) => assignment.venue)
+        };
       });
       res.status(201).json({ success: true, data: manager, correlationId: req.correlationId });
     } catch (error) {
@@ -1296,20 +1366,24 @@ router.patch(
     z.object({ body: venueManagerUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
   asyncHandler(async (req, res) => {
-    if (req.body.venueId) {
-      const venue = await prisma.venue.findUnique({
-        where: { id: req.body.venueId },
-        select: { id: true }
-      });
-      if (!venue) throw new AppError("Salon bulunamadı.", 404);
-    }
     const passwordHash = req.body.password ? await hashPassword(req.body.password) : undefined;
     try {
       const manager = await prisma.$transaction(async (transaction) => {
         const current = await transaction.user.findFirst({
-          where: { id: req.params.id, role: "SALON_YETKILISI" }
+          where: { id: req.params.id, role: "SALON_YETKILISI" },
+          include: { managedVenueAssignments: { select: { venueId: true } } }
         });
         if (!current) throw new AppError("Salon sorumlusu bulunamadı.", 404);
+        const venueScopeChanged = Boolean(req.body.venueId || req.body.venueIds);
+        const venueIds = venueScopeChanged
+          ? venueIdsFromBody(req.body)
+          : [
+              ...new Set([
+                ...current.managedVenueAssignments.map((assignment) => assignment.venueId),
+                ...(current.venueId ? [current.venueId] : [])
+              ])
+            ];
+        if (venueScopeChanged) await assertVenuesExist(transaction, venueIds);
         if (
           req.body.password &&
           isPasswordSimilarToUsername(req.body.password, req.body.username ?? current.username)
@@ -1320,7 +1394,15 @@ router.patch(
           where: { id: current.id },
           data: {
             ...(req.body.username ? { username: req.body.username } : {}),
-            ...(req.body.venueId ? { venueId: req.body.venueId } : {}),
+            ...(venueScopeChanged
+              ? {
+                  venueId: venueIds[0]!,
+                  managedVenueAssignments: {
+                    deleteMany: {},
+                    create: venueIds.map((venueId) => ({ venueId }))
+                  }
+                }
+              : {}),
             ...(req.body.status ? { status: req.body.status } : {}),
             ...(passwordHash
               ? {
@@ -1338,10 +1420,14 @@ router.patch(
             username: true,
             status: true,
             mustChangePassword: true,
-            venue: { select: { id: true, name: true } }
+            venue: { select: { id: true, name: true } },
+            managedVenueAssignments: {
+              select: { venue: { select: { id: true, name: true } } },
+              orderBy: { venue: { name: "asc" } }
+            }
           }
         });
-        if (passwordHash || req.body.status === "DISABLED" || req.body.venueId) {
+        if (passwordHash || req.body.status === "DISABLED" || venueScopeChanged) {
           await transaction.authSession.updateMany({
             where: { userId: current.id, revokedAt: null },
             data: { revokedAt: new Date() }
@@ -1358,12 +1444,16 @@ router.patch(
           targetId: updated.id,
           correlationId: req.correlationId,
           metadata: {
-            venueId: updated.venue?.id,
+            venueIds,
             passwordReset: Boolean(passwordHash),
             status: updated.status
           }
         });
-        return updated;
+        const { managedVenueAssignments, ...safeManager } = updated;
+        return {
+          ...safeManager,
+          venues: managedVenueAssignments.map((assignment) => assignment.venue)
+        };
       });
       res.json({ success: true, data: manager, correlationId: req.correlationId });
     } catch (error) {
@@ -2197,12 +2287,18 @@ router.post(
           await transaction.$queryRaw`SELECT "id" FROM "staff" WHERE "id" = ${req.body.staffId} FOR UPDATE`;
           const [wedding, staff] = await Promise.all([
             transaction.wedding.findUnique({ where: { id: req.params.id } }),
-            transaction.staff.findUnique({ where: { id: req.body.staffId } })
+            transaction.staff.findUnique({
+              where: { id: req.body.staffId },
+              include: { venueAssignments: { select: { venueId: true } } }
+            })
           ]);
           if (!wedding || wedding.cancelledAt || wedding.deletedAt)
             throw new AppError("Düğün kaydı bulunamadı.", 404);
           if (!staff || !staff.isActive) throw new AppError("Aktif personel bulunamadı.", 404);
-          if (staff.venueId !== wedding.venueId) {
+          if (
+            staff.venueId !== wedding.venueId &&
+            !staff.venueAssignments.some((assignment) => assignment.venueId === wedding.venueId)
+          ) {
             throw new AppError(
               "Personel yalnızca bağlı olduğu salondaki düğüne atanabilir.",
               409,
@@ -2548,7 +2644,12 @@ router.patch(
               const incompatibleAssignments = await transaction.weddingAssignment.count({
                 where: {
                   weddingId: wedding.id,
-                  staff: { venueId: { not: req.body.venueId } }
+                  staff: {
+                    AND: [
+                      { venueId: { not: req.body.venueId } },
+                      { venueAssignments: { none: { venueId: req.body.venueId } } }
+                    ]
+                  }
                 }
               });
               if (incompatibleAssignments > 0) {
@@ -3319,9 +3420,11 @@ router.delete(
 
         const referenceCounts = await Promise.all([
           transaction.user.count({ where: { venueId: id } }),
+          transaction.venueManagerAssignment.count({ where: { venueId: id } }),
           transaction.bookingApplication.count({ where: { venueId: id } }),
           transaction.wedding.count({ where: { venueId: id } }),
-          transaction.staff.count({ where: { venueId: id } })
+          transaction.staff.count({ where: { venueId: id } }),
+          transaction.staffVenueAssignment.count({ where: { venueId: id } })
         ]);
         const isReferenced = referenceCounts.some((count) => count > 0);
         const result = isReferenced

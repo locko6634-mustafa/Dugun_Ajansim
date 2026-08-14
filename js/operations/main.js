@@ -19,6 +19,8 @@ const PANEL_TITLES = {
 };
 const state = {
   venueId: null,
+  venueIds: [],
+  venueScopeKey: "",
   dashboard: null,
   weekStart: "",
   dashboardReady: false,
@@ -101,8 +103,14 @@ function syncDateNavigation() {
   document.querySelector(".js-calendar")?.setAttribute("aria-busy", String(state.calendarLoading));
 }
 
-function clearVenueScopedUi(nextVenueId = null) {
-  state.venueId = nextVenueId;
+function venueScopeKey(venueIds) {
+  return [...new Set(venueIds)].sort().join(":");
+}
+
+function clearVenueScopedUi(nextVenueIds = []) {
+  state.venueIds = [...new Set(nextVenueIds)];
+  state.venueId = state.venueIds[0] || null;
+  state.venueScopeKey = venueScopeKey(state.venueIds);
   state.dashboard = null;
   state.weekStart = "";
   state.dashboardReady = false;
@@ -130,7 +138,10 @@ function clearVenueScopedUi(nextVenueId = null) {
 }
 
 function assertVenuePayload(data) {
-  if (!state.venueId || data?.venue?.id !== state.venueId) {
+  const payloadVenueIds = Array.isArray(data?.venues)
+    ? data.venues.map((venue) => venue.id)
+    : [data?.venue?.id].filter(Boolean);
+  if (!state.venueScopeKey || venueScopeKey(payloadVenueIds) !== state.venueScopeKey) {
     clearVenueScopedUi();
     throw new Error(
       "Salon oturumu değişti. Veriler güvenlik için temizlendi; yeniden giriş yapın."
@@ -145,8 +156,11 @@ async function ensureSession() {
       window.location.replace("login.html");
       return false;
     }
-    if (typeof response.data.venueId !== "string") throw new Error("Salon kapsamı bulunamadı.");
-    if (state.venueId !== response.data.venueId) clearVenueScopedUi(response.data.venueId);
+    const venueIds = Array.isArray(response.data.venueIds)
+      ? response.data.venueIds
+      : [response.data.venueId].filter((venueId) => typeof venueId === "string");
+    if (!venueIds.length) throw new Error("Salon kapsamı bulunamadı.");
+    if (state.venueScopeKey !== venueScopeKey(venueIds)) clearVenueScopedUi(venueIds);
     document.querySelector(".js-username").textContent = response.data.username;
     document.querySelector(".js-user-initial").textContent =
       response.data.username[0].toUpperCase();
@@ -171,11 +185,12 @@ function crew(assignments) {
 
 function renderDashboard(data) {
   assertVenuePayload(data);
+  const venues = Array.isArray(data.venues) ? data.venues : [data.venue];
   state.dashboard = data;
   state.weekStart = data.weekStart;
   state.dashboardReady = true;
   document.querySelectorAll(".js-venue-name").forEach((node) => {
-    node.textContent = data.venue.name;
+    node.textContent = venues.map((venue) => venue.name).join(" · ");
   });
   Object.entries(data.metrics).forEach(([key, value]) => {
     const node = document.querySelector(`[data-metric="${key}"]`);
@@ -186,10 +201,10 @@ function renderDashboard(data) {
     ? data.todayWeddings
         .map(
           (wedding) =>
-            `<article class="event-card"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><div><strong>${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length} personel atandı</small><div class="crew-line">${crew(wedding.assignments)}</div></div><button type="button" data-open-wedding="${wedding.id}">Görüntüle ve personel ata</button></article>`
+            `<article class="event-card"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><div><strong>${escapeHtml(couple(wedding))}</strong><small>${escapeHtml(wedding.venue.name)} · ${wedding.assignments.length} personel atandı</small><div class="crew-line">${crew(wedding.assignments)}</div></div><button type="button" data-open-wedding="${wedding.id}">Görüntüle ve personel ata</button></article>`
         )
         .join("")
-    : empty("Bugün salonunuzda planlı düğün yok.");
+    : empty("Bugün salonlarınızda planlı düğün yok.");
   document.querySelector(".js-idle-staff").innerHTML = data.idleStaff.length
     ? data.idleStaff
         .map((staff) => `<span>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</span>`)
@@ -214,7 +229,7 @@ function renderDashboard(data) {
       return `<article class="week-day ${day === data.today ? "is-today" : ""}"><header><span>${new Intl.DateTimeFormat(APP_LOCALE, { weekday: "short" }).format(date)}</span><b>${date.getUTCDate()}</b></header>${dayWeddings
         .map(
           (wedding) =>
-            `<button class="week-item" type="button" data-open-wedding="${wedding.id}"><strong>${formatAppTime(wedding.startsAt)} · ${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length} kişilik ekip</small></button>`
+            `<button class="week-item" type="button" data-open-wedding="${wedding.id}"><strong>${formatAppTime(wedding.startsAt)} · ${escapeHtml(couple(wedding))}</strong><small>${escapeHtml(wedding.venue.name)} · ${wedding.assignments.length} kişilik ekip</small></button>`
         )
         .join("")}</article>`;
     })
@@ -273,7 +288,7 @@ function renderCalendar(data) {
       return `<article class="calendar-day ${outside ? "is-outside" : ""} ${events.length ? "" : "is-empty"} ${day === data.today ? "is-today" : ""}"><div class="calendar-day__head"><span class="calendar-day__number">${date.getUTCDate()}</span><span class="calendar-day__weekday">${escapeHtml(weekday)}</span></div><div class="calendar-events">${events
         .map(
           (wedding) =>
-            `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${wedding.id}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
+            `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${wedding.id}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(couple(wedding))}</strong><small>${escapeHtml(wedding.venue.name)} · ${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
         )
         .join("")}</div></article>`;
     })
@@ -346,7 +361,7 @@ function renderWeddings() {
     ? rows
         .map((wedding) => {
           const date = new Date(wedding.startsAt);
-          return `<article class="wedding-card"><div class="date-tile"><strong>${new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, day: "2-digit" }).format(date)}</strong><small>${new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, month: "short" }).format(date)}</small></div><div><strong>${escapeHtml(couple(wedding))}</strong><p>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</p></div><div class="crew-line">${crew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${wedding.id}">Ayrıntılar</button></article>`;
+          return `<article class="wedding-card"><div class="date-tile"><strong>${new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, day: "2-digit" }).format(date)}</strong><small>${new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, month: "short" }).format(date)}</small></div><div><strong>${escapeHtml(couple(wedding))}</strong><p>${escapeHtml(wedding.venue.name)} · ${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</p></div><div class="crew-line">${crew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${wedding.id}">Ayrıntılar</button></article>`;
         })
         .join("")
     : empty(term ? "Aramanızla eşleşen düğün yok." : "Planlanmış düğün yok.");
@@ -354,8 +369,8 @@ function renderWeddings() {
 }
 
 async function loadWeddings() {
-  const venueId = state.venueId;
-  if (!venueId) throw new Error("Salon oturumu doğrulanmadan veri yüklenemez.");
+  const scopeKey = state.venueScopeKey;
+  if (!scopeKey) throw new Error("Salon oturumu doğrulanmadan veri yüklenemez.");
   const term = weddingSearchTerm();
   if (term.length === 1) {
     state.weddingRequestId += 1;
@@ -377,7 +392,7 @@ async function loadWeddings() {
 
   try {
     const response = await apiRequest(`/operations/weddings?${query.toString()}`);
-    if (requestId !== state.weddingRequestId || venueId !== state.venueId) return;
+    if (requestId !== state.weddingRequestId || scopeKey !== state.venueScopeKey) return;
     const isLegacy = Array.isArray(response.data);
     const items = isLegacy ? response.data : response.data?.items;
     if (!Array.isArray(items)) throw new Error("Düğün listesi geçersiz yanıt verdi.");
@@ -436,7 +451,9 @@ function populateVenueFilter() {
   const currentValue = select.value;
   const venues = new Map();
   (state.staff || []).forEach((staff) => {
-    if (staff.venue?.id && staff.venue?.name) {
+    if (Array.isArray(staff.venues)) {
+      staff.venues.forEach((venue) => venues.set(venue.id, venue.name));
+    } else if (staff.venue?.id && staff.venue?.name) {
       venues.set(staff.venue.id, staff.venue.name);
     } else if (staff.venueId) {
       venues.set(staff.venueId, staff.venueName || "Salon");
@@ -461,27 +478,36 @@ function renderStaff() {
     const matchesTerm = `${staff.firstName} ${staff.lastName} ${staff.phone}`
       .toLocaleLowerCase(APP_LOCALE)
       .includes(term);
-    const matchesVenue = !venueId || staff.venueId === venueId || staff.venue?.id === venueId;
+    const matchesVenue =
+      !venueId ||
+      staff.venues?.some((venue) => venue.id === venueId) ||
+      staff.venueId === venueId ||
+      staff.venue?.id === venueId;
     return matchesTerm && matchesVenue;
   });
   document.querySelector(".js-staff").innerHTML = rows.length
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span></footer></article>`
         )
         .join("")
     : empty("Personel bulunamadı.");
 }
 
 async function loadStaff() {
-  const venueId = state.venueId;
-  if (!venueId) throw new Error("Salon oturumu doğrulanmadan veri yüklenemez.");
+  const scopeKey = state.venueScopeKey;
+  if (!scopeKey) throw new Error("Salon oturumu doğrulanmadan veri yüklenemez.");
   const response = await apiRequest("/operations/staff");
-  if (venueId !== state.venueId) return;
+  if (scopeKey !== state.venueScopeKey) return;
+  const allowedVenueIds = new Set(state.venueIds);
   if (
     !Array.isArray(response.data) ||
-    response.data.some((staff) => staff.venue?.id && staff.venue.id !== venueId)
+    response.data.some((staff) =>
+      (staff.venues || [staff.venue].filter(Boolean)).some(
+        (venue) => !allowedVenueIds.has(venue.id)
+      )
+    )
   ) {
     clearVenueScopedUi();
     throw new Error("Salon kapsamı dışında veri alındı; görünüm güvenlik için temizlendi.");
@@ -726,6 +752,7 @@ function renderWeddingDetail(wedding) {
     </section>
     <section class="detail-card wide">
       <p class="section-index">Tarih, saat ve not</p>
+      <strong>${escapeHtml(wedding.venue?.name || "Salon belirtilmedi")}</strong><br>
       <strong>${escapeHtml(formatDate(wedding.startsAt))}</strong><br>
       <span>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</span>
       <p>${escapeHtml(wedding.note || "Takvim notu yok.")}</p>
@@ -739,24 +766,24 @@ function renderWeddingDetail(wedding) {
 }
 
 async function openWedding(weddingId, returnFocus = null, { showLoading = true } = {}) {
-  const venueId = state.venueId;
+  const scopeKey = state.venueScopeKey;
   showDialog(weddingDialog, returnFocus, weddingDialog.querySelector(".dialog-close"));
   state.currentWedding = null;
   weddingPdfButton.disabled = true;
   if (showLoading) detailContainer.innerHTML = empty("Düğün dosyası yükleniyor…");
   try {
-    if (!venueId) throw new Error("Salon oturumu doğrulanmadan veri yüklenemez.");
+    if (!scopeKey) throw new Error("Salon oturumu doğrulanmadan veri yüklenemez.");
     const response = await apiRequest(`/operations/weddings/${weddingId}`);
-    if (venueId !== state.venueId) return;
+    if (scopeKey !== state.venueScopeKey) return;
     renderWeddingDetail(response.data);
   } catch (error) {
-    if (venueId === state.venueId) detailContainer.innerHTML = empty(error.message);
+    if (scopeKey === state.venueScopeKey) detailContainer.innerHTML = empty(error.message);
   }
 }
 
 weddingPdfButton.addEventListener("click", () => {
   if (!state.currentWedding) return;
-  printWeddingReport(state.currentWedding, { venueName: state.dashboard?.venue?.name });
+  printWeddingReport(state.currentWedding, { venueName: state.currentWedding.venue?.name });
 });
 
 const loaders = {

@@ -74,6 +74,7 @@ const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
     assert.equal(field in wedding, false, `Operasyon düğün yanıtı ${field} alanını içermemeli.`);
   }
   assert.equal(typeof wedding.id, "string");
+  assert.equal(typeof (wedding.venue as { name?: unknown } | undefined)?.name, "string");
   assert.equal(typeof wedding.brideFirstName, "string");
   assert.equal(typeof wedding.brideLastName, "string");
   assert.equal(typeof wedding.bridePhone, "string");
@@ -2458,7 +2459,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       firstName: "Deniz",
       lastName: "Kamera",
       phone: "05551112233",
-      venueId: venue.id,
+      venueIds: [venue.id, secondVenue.id],
       specialties: ["PHOTOGRAPHY", "VIDEO"],
       isActive: true
     });
@@ -2487,10 +2488,14 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({
       username: `sorumlu-${marker}`,
       password: "Manager-Test-2026!",
-      venueId: venue.id,
+      venueIds: [venue.id, secondVenue.id],
       status: "ACTIVE"
     });
   assert.equal(createdManager.status, 201);
+  assert.deepEqual(
+    createdManager.body.data.venues.map((managedVenue: { id: string }) => managedVenue.id).sort(),
+    [venue.id, secondVenue.id].sort()
+  );
   managerId = createdManager.body.data.id as string;
   await prisma.user.update({
     where: { id: managerId },
@@ -2512,6 +2517,14 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
   const managerCookie = `${env.SESSION_COOKIE_NAME}=${managerToken}`;
   const managerAuthCookie = `${managerCookie}; ${CSRF_COOKIE_NAME}=${managerCsrfToken}`;
+  const managerSession = await request(app)
+    .get("/api/v1/auth/session")
+    .set("Cookie", managerCookie);
+  assert.equal(managerSession.status, 200);
+  assert.deepEqual(
+    [...managerSession.body.data.venueIds].sort(),
+    [venue.id, secondVenue.id].sort()
+  );
   const createdMontageUser = await request(app)
     .post("/api/v1/admin/montage-users")
     .set("X-Correlation-ID", correlationId)
@@ -2643,6 +2656,12 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", managerCookie);
   assert.equal(venueOperationsDashboard.status, 200);
   assert.equal(venueOperationsDashboard.body.data.venue.id, venue.id);
+  assert.deepEqual(
+    venueOperationsDashboard.body.data.venues
+      .map((managedVenue: { id: string }) => managedVenue.id)
+      .sort(),
+    [venue.id, secondVenue.id].sort()
+  );
   for (const dashboardWedding of [
     ...venueOperationsDashboard.body.data.todayWeddings,
     ...venueOperationsDashboard.body.data.weekWeddings
@@ -2667,6 +2686,11 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.ok(
     venueOperationsWeddings.body.data.items.some(
       (operationsWedding: { id: string }) => operationsWedding.id === wedding.id
+    )
+  );
+  assert.ok(
+    venueOperationsWeddings.body.data.items.some(
+      (operationsWedding: { id: string }) => operationsWedding.id === secondApproval.weddingId
     )
   );
   for (const operationsWedding of venueOperationsWeddings.body.data.items) {
@@ -2764,6 +2788,20 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({ firstName: "Eksik", lastName: "Uzmanlık", phone: "05551112244", specialties: [] });
   assert.equal(invalidStaff.status, 400);
 
+  const sharedStaffCrossVenueAssignment = await request(app)
+    .post(`/api/v1/admin/weddings/${secondApproval.weddingId}/assignments`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({
+      staffId: createdStaff.body.data.id,
+      specialty: "VIDEO",
+      allowConflict: false
+    });
+  assert.equal(sharedStaffCrossVenueAssignment.status, 201);
+  await prisma.weddingAssignment.delete({
+    where: { id: sharedStaffCrossVenueAssignment.body.data.id as string }
+  });
+
   const assignmentRaceApp = createApp();
   const assignmentAttempts = await Promise.all(
     Array.from({ length: 2 }, () =>
@@ -2776,18 +2814,6 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     )
   );
   assert.deepEqual(assignmentAttempts.map((response) => response.status).sort(), [201, 409]);
-
-  const rejectedCrossVenueAssignment = await request(app)
-    .post(`/api/v1/admin/weddings/${secondApproval.weddingId}/assignments`)
-    .set("Cookie", adminAuthCookie)
-    .set("X-CSRF-Token", adminCsrfToken)
-    .send({
-      staffId: createdStaff.body.data.id,
-      specialty: "VIDEO",
-      allowConflict: false
-    });
-  assert.equal(rejectedCrossVenueAssignment.status, 409);
-  assert.equal(rejectedCrossVenueAssignment.body.errors.code, "VENUE_ASSIGNMENT_MISMATCH");
 
   const operationsDashboard = await request(app)
     .get(`/api/v1/admin/dashboard?weekStart=${weddingDate}`)
@@ -2906,6 +2932,19 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
 
   const publicVenues = await request(app).get("/api/v1/venues");
   assert.equal(publicVenues.status, 200);
+  const publicVenueNames = new Set(
+    publicVenues.body.data.map((item: { name: string }) => item.name)
+  );
+  for (const expectedVenueName of [
+    "Cess Wedding Park",
+    "Cess Wedding Orman",
+    "Yeşil Nesil Garden Hayal Bahçe",
+    "Yeşil Nesil Garden Masal Bahçe",
+    "Yeşil Nesil Garden Kale Bahçe",
+    "Yeşil Nesil Garden Rüya Bahçe"
+  ]) {
+    assert.equal(publicVenueNames.has(expectedVenueName), true);
+  }
   assert.deepEqual(
     publicVenues.body.data.find((item: { id: string }) => item.id === routeVenueId),
     {
@@ -3098,7 +3137,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(adminScheduleConflict.status, 409);
   assert.equal(adminScheduleConflict.body.errors.code, "VENUE_SCHEDULE_CONFLICT");
 
-  const adminVenueAssignmentMismatch = await request(app)
+  const adminSharedStaffVenueMove = await request(app)
     .patch(`/api/v1/admin/weddings/${wedding.id}`)
     .set("X-Correlation-ID", correlationId)
     .set("Cookie", adminAuthCookie)
@@ -3123,8 +3162,11 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       ),
       note: currentWeddingPiiForAdmin.note ?? ""
     });
-  assert.equal(adminVenueAssignmentMismatch.status, 409);
-  assert.equal(adminVenueAssignmentMismatch.body.errors.code, "VENUE_ASSIGNMENT_MISMATCH");
+  assert.equal(adminSharedStaffVenueMove.status, 200);
+  assert.equal(
+    (await prisma.wedding.findUniqueOrThrow({ where: { id: wedding.id } })).venueId,
+    secondVenue.id
+  );
 
   const weddingUpdate = await request(app)
     .patch(`/api/v1/admin/weddings/${wedding.id}`)

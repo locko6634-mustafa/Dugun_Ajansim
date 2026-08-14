@@ -1424,14 +1424,21 @@ async function ensureVenues() {
   const options = state.venues
     .map((venue) => `<option value="${escapeHtml(venue.id)}">${escapeHtml(venue.name)}</option>`)
     .join("");
-  document.querySelector(".js-staff-venue").innerHTML = options;
-  managedUserForm.elements.venueId.innerHTML = options;
+  document.querySelector(".js-staff-venues").innerHTML = options;
+  managedUserForm.elements.venueIds.innerHTML = options;
   const filterVenueSelect = document.querySelector(".js-staff-venue-filter");
   if (filterVenueSelect) {
     const currentValue = filterVenueSelect.value;
     filterVenueSelect.innerHTML = `<option value="">Tüm salonlar</option>${options}`;
     filterVenueSelect.value = currentValue;
   }
+}
+
+function selectVenueOptions(select, venueIds) {
+  const selected = new Set(venueIds);
+  [...select.options].forEach((option) => {
+    option.selected = selected.has(option.value);
+  });
 }
 
 function renderStaff() {
@@ -1447,7 +1454,11 @@ function renderStaff() {
       .toLocaleLowerCase(APP_LOCALE)
       .includes(term);
     const matchesSpecialty = !specialty || staff.specialties.includes(specialty);
-    const matchesVenue = !venueId || staff.venueId === venueId || staff.venue?.id === venueId;
+    const matchesVenue =
+      !venueId ||
+      staff.venues?.some((venue) => venue.id === venueId) ||
+      staff.venueId === venueId ||
+      staff.venue?.id === venueId;
     const matchesActive =
       active === "all" || (active === "active" ? staff.isActive : !staff.isActive);
     return matchesTerm && matchesSpecialty && matchesVenue && matchesActive;
@@ -1456,7 +1467,7 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" data-confirm="${escapeHtml(`${staff.firstName} ${staff.lastName}`)}">Sil</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" data-confirm="${escapeHtml(`${staff.firstName} ${staff.lastName}`)}">Sil</button></footer></article>`
         )
         .join("")
     : empty("Filtreye uyan personel yok.");
@@ -1470,7 +1481,11 @@ async function openStaffForm(staff = null) {
   staffForm.elements.lastName.value = staff?.lastName || "";
   staffForm.elements.phone.value = staff?.phone || "";
   staffForm.elements.isActive.checked = staff?.isActive ?? true;
-  staffForm.elements.venueId.value = staff?.venueId || state.venues[0]?.id || "";
+  selectVenueOptions(
+    staffForm.elements.venueIds,
+    staff?.venues?.map((venue) => venue.id) ||
+      [staff?.venueId || state.venues[0]?.id].filter(Boolean)
+  );
   document.querySelector(".js-staff-form-title").textContent = staff
     ? "Personeli düzenle"
     : "Personel ekle";
@@ -1496,7 +1511,7 @@ async function loadManagers() {
       ? state.managers
           .map(
             (manager) =>
-              `<article class="staff-card ${manager.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(manager.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${manager.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[manager.status] || manager.status)}</span></div><h3>${escapeHtml(manager.username)}</h3><p>${escapeHtml(manager.venue?.name || "Salon atanmamış")}</p><small>${manager.lastLoginAt ? `Son giriş: ${formatDate(manager.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${manager.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${manager.id}" data-managed-user-role="SALON_YETKILISI">Düzenle</button></footer></article>`
+              `<article class="staff-card ${manager.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(manager.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${manager.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[manager.status] || manager.status)}</span></div><h3>${escapeHtml(manager.username)}</h3><p>${escapeHtml(manager.venues?.map((venue) => venue.name).join(" · ") || manager.venue?.name || "Salon atanmamış")}</p><small>${manager.lastLoginAt ? `Son giriş: ${formatDate(manager.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${manager.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${manager.id}" data-managed-user-role="SALON_YETKILISI">Düzenle</button></footer></article>`
           )
           .join("")
       : empty("Henüz salon sorumlusu hesabı yok.");
@@ -1534,8 +1549,8 @@ function syncManagedUserRole() {
   const isMontageUser = role === "MONTAJCI";
   const venueField = managedUserForm.querySelector(".js-managed-user-venue");
   venueField.hidden = isMontageUser;
-  managedUserForm.elements.venueId.required = !isMontageUser;
-  if (isMontageUser) managedUserForm.elements.venueId.value = "";
+  managedUserForm.elements.venueIds.required = !isMontageUser;
+  if (isMontageUser) selectVenueOptions(managedUserForm.elements.venueIds, []);
 }
 
 async function openManagedUserForm(user = null, role = "SALON_YETKILISI") {
@@ -1546,7 +1561,11 @@ async function openManagedUserForm(user = null, role = "SALON_YETKILISI") {
   managedUserForm.elements.role.value = role;
   managedUserForm.elements.role.disabled = Boolean(user);
   managedUserForm.elements.username.value = user?.username || "";
-  managedUserForm.elements.venueId.value = user?.venue?.id || state.venues[0]?.id || "";
+  selectVenueOptions(
+    managedUserForm.elements.venueIds,
+    user?.venues?.map((venue) => venue.id) ||
+      [user?.venue?.id || state.venues[0]?.id].filter(Boolean)
+  );
   managedUserForm.elements.isActive.checked = user?.status !== "DISABLED";
   managedUserForm.elements.password.required = !user;
   document.querySelector(".js-managed-user-password-note").textContent = user
@@ -2654,7 +2673,7 @@ staffForm.addEventListener("submit", async (event) => {
     phone: data.get("phone"),
     specialties: data.getAll("specialties"),
     isActive: data.has("isActive"),
-    venueId: data.get("venueId")
+    venueIds: data.getAll("venueIds")
   };
   specialtyError.hidden = body.specialties.length > 0;
   if (!body.specialties.length) {
@@ -2705,7 +2724,7 @@ managedUserForm.addEventListener("submit", async (event) => {
   const body = {
     username: data.get("username"),
     status: data.has("isActive") ? "ACTIVE" : "DISABLED",
-    ...(!isMontageUser ? { venueId: data.get("venueId") } : {}),
+    ...(!isMontageUser ? { venueIds: data.getAll("venueIds") } : {}),
     ...(data.get("password") ? { password: data.get("password") } : {})
   };
   const endpoint = isMontageUser ? "/admin/montage-users" : "/admin/venue-managers";

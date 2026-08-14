@@ -2643,7 +2643,7 @@ test("@frontend-smoke basarili cikis giris durumunu sonlandirip ana sayfaya yonl
   await expect(page).toHaveURL(/\/index\.html$/);
 });
 
-test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yonetir", async ({
+test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek panelde yonetir", async ({
   page
 }) => {
   await page.addInitScript(() => {
@@ -2655,6 +2655,11 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   const venueId = "de305d54-75b4-431b-adb2-eb6b9e546014";
+  const secondVenueId = "de305d54-75b4-431b-adb2-eb6b9e546015";
+  const venues = [
+    { id: venueId, name: "Cess Wedding Park" },
+    { id: secondVenueId, name: "Cess Wedding Orman" }
+  ];
   const staffId = "2bb5d7fd-232f-4a96-a56a-92d93b669f21";
   const wedding = {
     id: "6ae9f9e6-6217-4b6c-91ea-251be3bb6fc1",
@@ -2669,16 +2674,24 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
     startsAt: "2026-08-10T17:00:00.000Z",
     endsAt: "2026-08-10T23:00:00.000Z",
     note: "Giriş çekimi 18.30",
-    venue: { id: venueId, name: "Cess Wedding" },
+    venue: venues[0],
     packageSummary: { name: "Mini Paket", services: [{ name: "Drone çekimi" }] },
     paymentTotalCents: 2_250_000,
     paymentDepositCents: 300_000,
     paymentReceivedCents: 750_000,
     assignments: []
   };
+  const secondWedding = {
+    ...wedding,
+    id: "6ae9f9e6-6217-4b6c-91ea-251be3bb6fc2",
+    brideFirstName: "Zeynep",
+    groomFirstName: "Emre",
+    venue: venues[1]
+  };
   const staff = {
     id: staffId,
     venueId,
+    venues,
     firstName: "Cem",
     lastName: "Arslan",
     phone: "+905551110101",
@@ -2696,7 +2709,8 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
           role: "SALON_YETKILISI",
           mustChangePassword: false,
           username: "cess-sorumlu",
-          venueId
+          venueId,
+          venueIds: [venueId, secondVenueId]
         }
       })
     })
@@ -2707,13 +2721,14 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
       body: JSON.stringify({
         success: true,
         data: {
-          venue: { id: venueId, name: "Cess Wedding" },
+          venue: venues[0],
+          venues,
           today: "2026-08-10",
           weekStart: "2026-08-10",
           weekEnd: "2026-08-16",
-          metrics: { todayWeddings: 1, weekWeddings: 1, activeStaff: 1, unassignedWeddings: 1 },
-          todayWeddings: [wedding],
-          weekWeddings: [wedding],
+          metrics: { todayWeddings: 2, weekWeddings: 2, activeStaff: 1, unassignedWeddings: 2 },
+          todayWeddings: [wedding, secondWedding],
+          weekWeddings: [wedding, secondWedding],
           idleStaff: [staff],
           conflicts: []
         }
@@ -2726,10 +2741,11 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
       body: JSON.stringify({
         success: true,
         data: {
-          venue: { id: venueId, name: "Cess Wedding" },
+          venue: venues[0],
+          venues,
           month: "2026-08",
           today: "2026-08-10",
-          weddings: [wedding]
+          weddings: [wedding, secondWedding]
         }
       })
     })
@@ -2759,9 +2775,10 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
   });
 
   await page.goto("/operasyon-paneli.html");
-  await expect(page.locator(".js-venue-name")).toContainText("Cess Wedding");
+  await expect(page.locator(".js-venue-name").first()).toContainText("Cess Wedding Park");
+  await expect(page.locator(".js-venue-name").first()).toContainText("Cess Wedding Orman");
   await expect(page.getByRole("button", { name: /Düğün Planı/i })).toHaveCount(0);
-  await page.getByRole("button", { name: "Görüntüle ve personel ata" }).click();
+  await page.getByRole("button", { name: "Görüntüle ve personel ata" }).first().click();
   const weddingDialog = page.getByRole("dialog");
   await expect(weddingDialog.getByRole("heading", { name: "Ayşe & Mehmet" })).toBeVisible();
   await expect(weddingDialog).toContainText("Ayşe Yılmaz");
@@ -2783,7 +2800,9 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
   await expect.poll(() => assignmentCalls).toBe(1);
   await page.locator(".js-wedding-dialog [data-close-dialog]").click();
   await clickPanel(page, "calendar", true);
-  await expect(page.locator(".calendar-event")).toContainText("Ayşe & Mehmet");
+  await expect(page.locator(".calendar-event").first()).toContainText("Ayşe & Mehmet");
+  await expect(page.locator(".js-calendar")).toContainText("Cess Wedding Park");
+  await expect(page.locator(".js-calendar")).toContainText("Cess Wedding Orman");
   await clickPanel(page, "staff", true);
   await expect(page.locator(".js-staff")).toContainText("Cem Arslan");
   await expect(page.locator(".js-add-staff, [data-edit-staff], [data-toggle-staff]")).toHaveCount(

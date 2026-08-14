@@ -206,6 +206,10 @@ router.post(
         mustChangePassword: true,
         temporaryPasswordExpiresAt: true,
         venueId: true,
+        managedVenueAssignments: {
+          select: { venueId: true },
+          orderBy: { venueId: 'asc' },
+        },
         totpSecretCiphertext: true,
         totpSecretIv: true,
         totpSecretAuthTag: true,
@@ -378,6 +382,12 @@ router.post(
         mfaVerified: mfaApplies,
         mustEnrollMfa,
         venueId: user.venueId,
+        venueIds: [
+          ...new Set([
+            ...user.managedVenueAssignments.map((assignment) => assignment.venueId),
+            ...(user.venueId ? [user.venueId] : []),
+          ]),
+        ],
       },
       correlationId: req.correlationId,
     });
@@ -548,6 +558,7 @@ router.get(
         mfaVerified: req.auth!.mfaVerified,
         mustEnrollMfa: req.auth!.mustEnrollMfa,
         venueId: req.auth!.venueId,
+        venueIds: req.auth!.venueIds,
       },
       correlationId: req.correlationId,
     });

@@ -100,21 +100,23 @@ model SystemHealth {
 }
 
 model Venue {
-  id           String               @id @default(uuid())
-  slug         String               @unique
-  name         String               @unique
-  displayName  String?
-  imagePath    String?
-  displayOrder Int                  @default(0)
-  isFeatured   Boolean              @default(false)
-  isActive     Boolean              @default(true)
-  isPartner    Boolean              @default(true)
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  managers     User[]
-  applications BookingApplication[]
-  weddings     Wedding[]
-  staff        Staff[]
+  id                 String                   @id @default(uuid())
+  slug               String                   @unique
+  name               String                   @unique
+  displayName        String?
+  imagePath          String?
+  displayOrder       Int                      @default(0)
+  isFeatured         Boolean                  @default(false)
+  isActive           Boolean                  @default(true)
+  isPartner          Boolean                  @default(true)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  managers           User[]
+  managerAssignments VenueManagerAssignment[]
+  applications       BookingApplication[]
+  weddings           Wedding[]
+  staff              Staff[]
+  staffAssignments   StaffVenueAssignment[]
 
   @@index([isActive, name])
   @@index([isActive, isPartner, isFeatured, displayOrder])
@@ -122,11 +124,11 @@ model Venue {
 }
 
 model User {
-  id                         String                  @id @default(uuid())
-  username                   String                  @unique
+  id                         String                   @id @default(uuid())
+  username                   String                   @unique
   passwordHash               String
   role                       UserRole
-  status                     UserStatus              @default(ACTIVE)
+  status                     UserStatus               @default(ACTIVE)
   mustChangePassword         Boolean
   temporaryPasswordExpiresAt DateTime?
   activeAt                   DateTime?
@@ -140,29 +142,42 @@ model User {
   totpEnabledAt              DateTime?
   totpLastUsedStep           BigInt?
   venueId                    String?
-  venue                      Venue?                  @relation(fields: [venueId], references: [id], onDelete: SetNull)
-  createdAt                  DateTime                @default(now())
-  updatedAt                  DateTime                @updatedAt
+  venue                      Venue?                   @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  managedVenueAssignments    VenueManagerAssignment[]
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
   sessions                   AuthSession[]
   trustedDevices             TrustedDevice[]
-  customerWedding            Wedding?                @relation("CustomerWedding")
-  reviewedBookings           BookingApplication[]    @relation("BookingReviewer")
+  customerWedding            Wedding?                 @relation("CustomerWedding")
+  reviewedBookings           BookingApplication[]     @relation("BookingReviewer")
   auditLogs                  AuditLog[]
   deliveryHistory            DeliveryStatusHistory[]
-  revokedDeliveries          Delivery[]              @relation("DeliveryRevokedBy")
-  cancelledWeddings          Wedding[]               @relation("WeddingCancelledBy")
-  reinstatedWeddings         Wedding[]               @relation("WeddingReinstatedBy")
-  sentMessages               MessageTask[]           @relation("MessageSender")
-  earlyOverriddenMessages    MessageTask[]           @relation("MessageEarlyOverrideBy")
-  cancelledMessages          MessageTask[]           @relation("MessageCancelledBy")
-  archivedApplications       BookingApplication[]    @relation("ApplicationArchivedBy")
-  archivedWeddings           Wedding[]               @relation("WeddingArchivedBy")
-  passwordSetupTokens        PasswordSetupToken[]    @relation("PasswordSetupTokenUser")
-  issuedPasswordSetupTokens  PasswordSetupToken[]    @relation("PasswordSetupTokenIssuer")
+  revokedDeliveries          Delivery[]               @relation("DeliveryRevokedBy")
+  cancelledWeddings          Wedding[]                @relation("WeddingCancelledBy")
+  reinstatedWeddings         Wedding[]                @relation("WeddingReinstatedBy")
+  sentMessages               MessageTask[]            @relation("MessageSender")
+  earlyOverriddenMessages    MessageTask[]            @relation("MessageEarlyOverrideBy")
+  cancelledMessages          MessageTask[]            @relation("MessageCancelledBy")
+  archivedApplications       BookingApplication[]     @relation("ApplicationArchivedBy")
+  archivedWeddings           Wedding[]                @relation("WeddingArchivedBy")
+  passwordSetupTokens        PasswordSetupToken[]     @relation("PasswordSetupTokenUser")
+  issuedPasswordSetupTokens  PasswordSetupToken[]     @relation("PasswordSetupTokenIssuer")
 
   @@index([role, status])
   @@index([venueId])
   @@map("users")
+}
+
+model VenueManagerAssignment {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  venueId   String
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+
+  @@id([userId, venueId])
+  @@index([venueId, userId])
+  @@map("venue_manager_assignments")
 }
 
 model AuthSession {
@@ -428,7 +443,7 @@ model Wedding {
 }
 
 model Staff {
-  id                   String              @id @default(uuid())
+  id                   String                 @id @default(uuid())
   firstName            String?
   lastName             String?
   phone                String?
@@ -438,21 +453,34 @@ model Staff {
   piiKeyId             String?
   piiEncryptionVersion Int?
   piiSchemaVersion     Int?
-  piiRevision          Int                 @default(0)
-  phoneBlindIndex      String?             @db.Char(64)
+  piiRevision          Int                    @default(0)
+  phoneBlindIndex      String?                @db.Char(64)
   piiBlindIndexKeyId   String?
   piiBlindIndexVersion Int?
   specialties          StaffSpecialty[]
-  isActive             Boolean             @default(true)
+  isActive             Boolean                @default(true)
   venueId              String
-  venue                Venue               @relation(fields: [venueId], references: [id], onDelete: Restrict)
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
+  venue                Venue                  @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  venueAssignments     StaffVenueAssignment[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
   assignments          WeddingAssignment[]
 
   @@index([isActive])
   @@index([venueId, isActive])
   @@map("staff")
+}
+
+model StaffVenueAssignment {
+  staffId   String
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  venueId   String
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+
+  @@id([staffId, venueId])
+  @@index([venueId, staffId])
+  @@map("staff_venue_assignments")
 }
 
 model WeddingAssignment {
@@ -472,26 +500,26 @@ model WeddingAssignment {
 }
 
 model Delivery {
-  id                 String                  @id @default(uuid())
-  weddingId          String                  @unique
-  wedding            Wedding                 @relation(fields: [weddingId], references: [id], onDelete: Cascade)
-  status             DeliveryStatus          @default(HAZIRLANIYOR)
-  dueDate            DateTime                @db.Date
+  id                     String                  @id @default(uuid())
+  weddingId              String                  @unique
+  wedding                Wedding                 @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  status                 DeliveryStatus          @default(HAZIRLANIYOR)
+  dueDate                DateTime                @db.Date
   manualStatusOverrideAt DateTime?
-  driveUrlCiphertext String?
-  driveUrlIv         String?
-  driveUrlAuthTag    String?
-  driveUrlKeyId      String?
-  encryptionVersion  Int                     @default(2)
-  releasedAt         DateTime?
-  accessExpiresAt    DateTime?
-  revokedAt          DateTime?
-  revokedById        String?
-  revokedBy          User?                   @relation("DeliveryRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
-  revocationReason   String?
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  history            DeliveryStatusHistory[]
+  driveUrlCiphertext     String?
+  driveUrlIv             String?
+  driveUrlAuthTag        String?
+  driveUrlKeyId          String?
+  encryptionVersion      Int                     @default(2)
+  releasedAt             DateTime?
+  accessExpiresAt        DateTime?
+  revokedAt              DateTime?
+  revokedById            String?
+  revokedBy              User?                   @relation("DeliveryRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+  revocationReason       String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  history                DeliveryStatusHistory[]
 
   @@index([status, dueDate])
   @@index([revokedById])
