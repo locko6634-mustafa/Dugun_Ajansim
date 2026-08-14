@@ -3218,7 +3218,54 @@ h6,
   }
 
   .form-shell {
+    width: 100%;
+    min-width: 0;
+    padding-top: 0 !important;
     padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+    overflow-x: hidden !important;
+  }
+
+  .js-wedding-form > .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 8px;
+    margin-top: 16px;
+  }
+
+  .js-wedding-form > .form-grid > .wide,
+  .js-wedding-form > .form-grid > label:has([name="bridePhone"]),
+  .js-wedding-form > .form-grid > label:has([name="groomPhone"]),
+  .js-wedding-form > .form-grid > label:has([name="primaryContact"]),
+  .js-wedding-form > .form-grid > label:has([name="primaryEmail"]),
+  .js-wedding-form > .form-grid > label:has([name="weddingDate"]) {
+    grid-column: 1 / -1;
+  }
+
+  .js-wedding-form .form-grid label {
+    min-width: 0;
+    gap: 5px;
+  }
+
+  .js-wedding-form .form-grid input,
+  .js-wedding-form .form-grid select,
+  .js-wedding-form .form-grid textarea {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 10px;
+  }
+
+  .js-wedding-form .specialty-choices {
+    min-width: 0;
+    padding: 12px;
+  }
+
+  .js-wedding-form .wedding-service-choices > div,
+  .js-wedding-form .wedding-payment-fields .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .js-wedding-form .wedding-payment-fields .form-grid {
+    margin-top: 6px;
   }
 
   .dialog-actions {

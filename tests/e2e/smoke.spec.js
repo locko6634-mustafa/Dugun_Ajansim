@@ -1129,13 +1129,47 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await page.getByRole("button", { name: "Düğün bilgilerini düzenle" }).click();
   await expect(page.getByRole("heading", { name: "Bilgileri güncelle" })).toBeVisible();
   if (isMobile) {
-    const serviceLabels = page.locator(".js-wedding-services label");
+    const weddingEditDialog = page.locator(".js-wedding-dialog");
+    const weddingEditForm = weddingEditDialog.locator(".js-wedding-form");
+    const weddingEditHeading = weddingEditDialog.locator(".sheet-heading");
+    const serviceLabels = weddingEditDialog.locator(".js-wedding-services label");
+    const paymentFields = weddingEditDialog.locator(".wedding-payment-fields");
+    const paymentLabels = paymentFields.locator("label");
+
     await expect(serviceLabels).toHaveCount(2);
     expect(
       await serviceLabels.evaluateAll((labels) =>
         labels.every((label) => label.scrollWidth <= label.clientWidth)
       )
     ).toBe(true);
+    expect(
+      await serviceLabels.evaluateAll(
+        (labels) =>
+          Math.abs(labels[0].getBoundingClientRect().top - labels[1].getBoundingClientRect().top) <=
+          1
+      )
+    ).toBe(true);
+    expect(await paymentFields.evaluate((field) => field.scrollWidth <= field.clientWidth)).toBe(
+      true
+    );
+    await expect(paymentLabels).toHaveCount(4);
+    expect(
+      await paymentLabels.evaluateAll(
+        (labels) =>
+          Math.abs(labels[0].getBoundingClientRect().top - labels[1].getBoundingClientRect().top) <=
+            1 &&
+          Math.abs(labels[2].getBoundingClientRect().top - labels[3].getBoundingClientRect().top) <=
+            1
+      )
+    ).toBe(true);
+    await weddingEditForm.evaluate((form) => form.scrollTo({ top: 500 }));
+    await expect
+      .poll(async () => {
+        const dialogBox = await weddingEditDialog.boundingBox();
+        const headingBox = await weddingEditHeading.boundingBox();
+        return Math.abs((headingBox?.y ?? 0) - (dialogBox?.y ?? 0));
+      })
+      .toBeLessThanOrEqual(1);
   }
   await page.locator('.js-wedding-form input[name="brideLastName"]').fill("Kaya");
   await page.locator('.js-wedding-form select[name="packageCode"]').selectOption("hikaye");

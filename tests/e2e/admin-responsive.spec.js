@@ -235,6 +235,16 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
       .locator(".form-grid")
       .evaluate((element) => element.scrollWidth <= element.clientWidth)
   ).toBe(true);
+  const formShell = dialog.locator(".form-shell");
+  const formHeading = dialog.locator(".sheet-heading");
+  await formShell.evaluate((element) => element.scrollTo({ top: 500 }));
+  await expect
+    .poll(async () => {
+      const dialogBox = await dialog.boundingBox();
+      const headingBox = await formHeading.boundingBox();
+      return Math.abs((headingBox?.y ?? 0) - (dialogBox?.y ?? 0));
+    })
+    .toBeLessThanOrEqual(1);
   for (const button of await dialog.locator(".dialog-actions button").all()) {
     await expectMinimumHeight(button);
   }
