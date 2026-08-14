@@ -1077,10 +1077,19 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     const weddingDialog = page.locator(".js-wedding-detail");
     const weddingSheet = weddingDialog.locator(".sheet-shell");
     const weddingHeading = weddingDialog.locator(".sheet-heading");
+    const compactActionButtons = weddingDialog.getByRole("button", {
+      name: /Düğün bilgilerini düzenle|Müşteri parolasını sıfırla|Düğünü iptal et/
+    });
 
     expect(await weddingSheet.evaluate((sheet) => sheet.scrollWidth <= sheet.clientWidth)).toBe(
       true
     );
+    await expect(weddingDialog.locator(".detail-hero__meta")).toBeHidden();
+    expect(
+      await compactActionButtons.evaluateAll((buttons) =>
+        buttons.every((button) => button.getBoundingClientRect().height <= 52)
+      )
+    ).toBe(true);
     await weddingSheet.evaluate((sheet) => sheet.scrollTo({ top: 500 }));
     await expect
       .poll(async () => {

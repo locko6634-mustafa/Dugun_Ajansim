@@ -3125,6 +3125,24 @@ h6,
     width: 100%;
   }
 
+  .js-wedding-detail .detail-hero__meta {
+    display: none;
+  }
+
+  .js-wedding-detail .detail-actions {
+    gap: 6px;
+    margin-top: 0;
+  }
+
+  .js-wedding-detail .detail-actions > button {
+    flex: 1 1 92px;
+    min-width: 0;
+    min-height: 36px;
+    padding: 6px 8px;
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
   .data-row__actions > button,
   .detail-actions > button,
   .app-detail-footer-actions > button {
