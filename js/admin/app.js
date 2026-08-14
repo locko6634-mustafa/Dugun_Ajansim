@@ -1425,7 +1425,7 @@ async function ensureVenues() {
     .map((venue) => `<option value="${escapeHtml(venue.id)}">${escapeHtml(venue.name)}</option>`)
     .join("");
   document.querySelector(".js-staff-venues").innerHTML = options;
-  managedUserForm.elements.venueIds.innerHTML = options;
+  renderManagedVenueChoices();
   const filterVenueSelect = document.querySelector(".js-staff-venue-filter");
   if (filterVenueSelect) {
     const currentValue = filterVenueSelect.value;
@@ -1439,6 +1439,79 @@ function selectVenueOptions(select, venueIds) {
   [...select.options].forEach((option) => {
     option.selected = selected.has(option.value);
   });
+}
+
+function managedVenueInputs() {
+  return [...managedUserForm.querySelectorAll('input[name="venueIds"]')];
+}
+
+function selectedManagedVenueIds() {
+  return managedVenueInputs()
+    .filter((input) => input.checked)
+    .map((input) => input.value);
+}
+
+function updateManagedVenueSummary() {
+  const selectedIds = new Set(selectedManagedVenueIds());
+  const selectedVenues = state.venues.filter((venue) => selectedIds.has(venue.id));
+  const count = managedUserForm.querySelector(".js-managed-user-venue-count");
+  const selected = managedUserForm.querySelector(".js-managed-user-venue-selected");
+  count.textContent = `${selectedVenues.length} salon seçili`;
+  selected.innerHTML = selectedVenues
+    .map(
+      (venue) =>
+        `<button type="button" data-remove-managed-venue="${escapeHtml(venue.id)}" aria-label="${escapeHtml(`${venue.name} salonunu çıkar`)}">${escapeHtml(venue.name)} <span aria-hidden="true">×</span></button>`
+    )
+    .join("");
+}
+
+function setManagedVenueSelection(venueIds) {
+  const selected = new Set(venueIds);
+  managedVenueInputs().forEach((input) => {
+    input.checked = selected.has(input.value);
+  });
+  updateManagedVenueSummary();
+  managedUserForm.querySelector(".js-managed-user-venue").setAttribute("aria-invalid", "false");
+  managedUserForm.querySelector(".js-managed-user-venues-error").textContent = "";
+}
+
+function renderManagedVenueChoices() {
+  const selectedIds = selectedManagedVenueIds();
+  const container = managedUserForm.querySelector(".js-managed-user-venues");
+  container.innerHTML = state.venues
+    .map(
+      (venue) =>
+        `<label class="venue-picker__choice"><input type="checkbox" name="venueIds" value="${escapeHtml(venue.id)}"><span>${escapeHtml(venue.name)}</span></label>`
+    )
+    .join("");
+  setManagedVenueSelection(selectedIds);
+}
+
+function filterManagedVenueChoices() {
+  const search = managedUserForm.querySelector(".js-managed-user-venue-search");
+  const term = search.value.trim().toLocaleLowerCase(APP_LOCALE);
+  let visibleCount = 0;
+  managedUserForm.querySelectorAll(".venue-picker__choice").forEach((choice) => {
+    const matches = choice.textContent.toLocaleLowerCase(APP_LOCALE).includes(term);
+    choice.hidden = !matches;
+    if (matches) visibleCount += 1;
+  });
+  managedUserForm.querySelector(".js-managed-user-venue-empty").hidden = visibleCount > 0;
+}
+
+function validateManagedVenueSelection() {
+  const valid = selectedManagedVenueIds().length > 0;
+  const field = managedUserForm.querySelector(".js-managed-user-venue");
+  const error = managedUserForm.querySelector(".js-managed-user-venues-error");
+  field.setAttribute("aria-invalid", String(!valid));
+  error.textContent = valid ? "" : "En az bir salon seçin.";
+  if (!valid) {
+    const search = managedUserForm.querySelector(".js-managed-user-venue-search");
+    search.value = "";
+    filterManagedVenueChoices();
+    managedVenueInputs()[0]?.focus();
+  }
+  return valid;
 }
 
 function renderStaff() {
@@ -1549,8 +1622,10 @@ function syncManagedUserRole() {
   const isMontageUser = role === "MONTAJCI";
   const venueField = managedUserForm.querySelector(".js-managed-user-venue");
   venueField.hidden = isMontageUser;
-  managedUserForm.elements.venueIds.required = !isMontageUser;
-  if (isMontageUser) selectVenueOptions(managedUserForm.elements.venueIds, []);
+  if (isMontageUser) setManagedVenueSelection([]);
+  else if (!selectedManagedVenueIds().length && state.venues[0]) {
+    setManagedVenueSelection([state.venues[0].id]);
+  }
 }
 
 async function openManagedUserForm(user = null, role = "SALON_YETKILISI") {
@@ -1561,11 +1636,12 @@ async function openManagedUserForm(user = null, role = "SALON_YETKILISI") {
   managedUserForm.elements.role.value = role;
   managedUserForm.elements.role.disabled = Boolean(user);
   managedUserForm.elements.username.value = user?.username || "";
-  selectVenueOptions(
-    managedUserForm.elements.venueIds,
+  setManagedVenueSelection(
     user?.venues?.map((venue) => venue.id) ||
       [user?.venue?.id || state.venues[0]?.id].filter(Boolean)
   );
+  managedUserForm.querySelector(".js-managed-user-venue-search").value = "";
+  filterManagedVenueChoices();
   managedUserForm.elements.isActive.checked = user?.status !== "DISABLED";
   managedUserForm.elements.password.required = !user;
   document.querySelector(".js-managed-user-password-note").textContent = user
@@ -2711,6 +2787,26 @@ document.querySelector('[data-panel-content="accounts"]').addEventListener("clic
   if (user) void openManagedUserForm(user, role);
 });
 managedUserForm.elements.role.addEventListener("change", syncManagedUserRole);
+managedUserForm
+  .querySelector(".js-managed-user-venue-search")
+  .addEventListener("input", filterManagedVenueChoices);
+managedUserForm.querySelector(".js-managed-user-venues").addEventListener("change", (event) => {
+  if (event.target.name !== "venueIds") return;
+  updateManagedVenueSummary();
+  validateManagedVenueSelection();
+});
+managedUserForm
+  .querySelector(".js-managed-user-venue-selected")
+  .addEventListener("click", (event) => {
+    const button = event.target.closest("[data-remove-managed-venue]");
+    if (!button) return;
+    const input = managedVenueInputs().find(
+      (candidate) => candidate.value === button.dataset.removeManagedVenue
+    );
+    if (input) input.checked = false;
+    updateManagedVenueSummary();
+    validateManagedVenueSelection();
+  });
 managedUserForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
   button.addEventListener("click", () => managedUserDialog.close());
 });
@@ -2721,10 +2817,11 @@ managedUserForm.addEventListener("submit", async (event) => {
   const managedUserId = data.get("managedUserId");
   const role = managedUserForm.dataset.role || data.get("role");
   const isMontageUser = role === "MONTAJCI";
+  if (!isMontageUser && !validateManagedVenueSelection()) return;
   const body = {
     username: data.get("username"),
     status: data.has("isActive") ? "ACTIVE" : "DISABLED",
-    ...(!isMontageUser ? { venueIds: data.getAll("venueIds") } : {}),
+    ...(!isMontageUser ? { venueIds: selectedManagedVenueIds() } : {}),
     ...(data.get("password") ? { password: data.get("password") } : {})
   };
   const endpoint = isMontageUser ? "/admin/montage-users" : "/admin/venue-managers";

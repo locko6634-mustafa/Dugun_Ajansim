@@ -2700,6 +2700,7 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
     assignments: []
   };
   let assignmentCalls = 0;
+  let staffUpdateBody = null;
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -2756,6 +2757,14 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
       body: JSON.stringify({ success: true, data: [staff] })
     })
   );
+  await page.route(`**/api/v1/operations/staff/${staffId}`, async (route) => {
+    staffUpdateBody = route.request().postDataJSON();
+    Object.assign(staff, staffUpdateBody);
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: staff })
+    });
+  });
   await page.route(`**/api/v1/operations/weddings/${wedding.id}`, (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -2805,9 +2814,15 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
   await expect(page.locator(".js-calendar")).toContainText("Cess Wedding Orman");
   await clickPanel(page, "staff", true);
   await expect(page.locator(".js-staff")).toContainText("Cem Arslan");
-  await expect(page.locator(".js-add-staff, [data-edit-staff], [data-toggle-staff]")).toHaveCount(
-    0
-  );
+  await expect(page.locator(".js-add-staff, [data-toggle-staff]")).toHaveCount(0);
+  await page.getByRole("button", { name: "Cem Arslan personelini düzenle" }).click();
+  const staffDialog = page.locator(".js-staff-dialog");
+  await expect(staffDialog.getByRole("heading", { name: "Personeli düzenle" })).toBeVisible();
+  await staffDialog.locator('[name="firstName"]').fill("Cemal");
+  await staffDialog.getByRole("button", { name: "Kaydet" }).click();
+  await expect.poll(() => staffUpdateBody?.firstName).toBe("Cemal");
+  await expect(staffDialog).toBeHidden();
+  await expect(page.locator(".js-staff")).toContainText("Cemal Arslan");
   expect(pageErrors).toEqual([]);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth

@@ -56,9 +56,15 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   let venueCreateBody = null;
   let montageCreateBody = null;
   let managerCreateBody = null;
+  let managerUpdateBody = null;
+  let storedManager = null;
   const accountVenue = {
     id: "00000000-0000-4000-8000-000000000091",
-    name: "Cess Wedding"
+    name: "Cess Wedding Park"
+  };
+  const secondAccountVenue = {
+    id: "00000000-0000-4000-8000-000000000092",
+    name: "Cess Wedding Orman"
   };
   await page.setViewportSize({ width: 320, height: 568 });
   await page.route("**/api/v1/auth/session", (route) =>
@@ -123,31 +129,43 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await page.route("**/api/v1/admin/venue-managers**", async (route) => {
     if (route.request().method() === "POST") {
       managerCreateBody = route.request().postDataJSON();
+      storedManager = {
+        id: "00000000-0000-4000-8000-000000000098",
+        username: managerCreateBody.username,
+        status: managerCreateBody.status,
+        mustChangePassword: true,
+        venue: secondAccountVenue,
+        venues: [secondAccountVenue]
+      };
       return route.fulfill({
         status: 201,
         contentType: "application/json",
-        body: JSON.stringify({
-          success: true,
-          data: {
-            id: "00000000-0000-4000-8000-000000000098",
-            username: managerCreateBody.username,
-            status: managerCreateBody.status,
-            mustChangePassword: true,
-            venue: accountVenue,
-            venues: [accountVenue]
-          }
-        })
+        body: JSON.stringify({ success: true, data: storedManager })
+      });
+    }
+    if (route.request().method() === "PATCH") {
+      managerUpdateBody = route.request().postDataJSON();
+      storedManager = {
+        ...storedManager,
+        username: managerUpdateBody.username,
+        status: managerUpdateBody.status,
+        venue: accountVenue,
+        venues: [accountVenue, secondAccountVenue]
+      };
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: storedManager })
       });
     }
     return route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ success: true, data: [] })
+      body: JSON.stringify({ success: true, data: storedManager ? [storedManager] : [] })
     });
   });
   await page.route("**/api/v1/venues", (route) =>
     route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ success: true, data: [accountVenue] })
+      body: JSON.stringify({ success: true, data: [accountVenue, secondAccountVenue] })
     })
   );
   await page.route("**/api/v1/catalog", (route) =>
@@ -279,7 +297,7 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await expect(accountDialog).toBeVisible();
   await expectMinimumHeight(accountDialog.getByRole("button", { name: "Kapat" }));
   await accountDialog.locator('[name="role"]').selectOption("MONTAJCI");
-  await expect(accountDialog.locator('[name="venueIds"]')).toBeHidden();
+  await expect(accountDialog.locator(".js-managed-user-venue")).toBeHidden();
   await accountDialog.locator('[name="username"]').fill("montaj-ekibi");
   await accountDialog.locator('[name="password"]').fill("Guvenli-Montaj-Parolasi-2026!");
   await accountDialog.getByRole("button", { name: "Kaydet" }).click();
@@ -294,6 +312,24 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
 
   await page.getByRole("button", { name: "+ Kullanıcı hesabı" }).click();
   await expect(accountDialog.locator('[name="role"]')).toHaveValue("SALON_YETKILISI");
+  const venuePicker = accountDialog.locator(".js-managed-user-venue");
+  await expect(venuePicker).toBeVisible();
+  await expect(venuePicker.locator(".js-managed-user-venue-count")).toHaveText("1 salon seçili");
+  await expectMinimumHeight(venuePicker.locator(".js-managed-user-venue-search"));
+  const parkChoice = venuePicker.locator(".venue-picker__choice").filter({
+    hasText: accountVenue.name
+  });
+  const forestChoice = venuePicker.locator(".venue-picker__choice").filter({
+    hasText: secondAccountVenue.name
+  });
+  await expectMinimumHeight(parkChoice);
+  await expectMinimumHeight(forestChoice);
+  await expect(parkChoice.locator('input[name="venueIds"]')).toBeChecked();
+  await forestChoice.locator('input[name="venueIds"]').check();
+  await expect(venuePicker.locator(".js-managed-user-venue-count")).toHaveText("2 salon seçili");
+  await venuePicker.getByRole("button", { name: `${accountVenue.name} salonunu çıkar` }).click();
+  await expect(parkChoice.locator('input[name="venueIds"]')).not.toBeChecked();
+  await expect(venuePicker.locator(".js-managed-user-venue-count")).toHaveText("1 salon seçili");
   await accountDialog.locator('[name="username"]').fill("cess-sorumlu");
   await accountDialog.locator('[name="password"]').fill("Guvenli-Salon-Parolasi-2026!");
   await accountDialog.getByRole("button", { name: "Kaydet" }).click();
@@ -302,7 +338,23 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
     .toEqual({
       username: "cess-sorumlu",
       password: "Guvenli-Salon-Parolasi-2026!",
-      venueIds: [accountVenue.id],
+      venueIds: [secondAccountVenue.id],
+      status: "ACTIVE"
+    });
+  await expect(accountDialog).toBeHidden();
+  await page.locator(".js-managers").getByRole("button", { name: "Düzenle" }).click();
+  await expect(
+    accountDialog.getByRole("heading", { name: "Salon sorumlusu hesabını düzenle" })
+  ).toBeVisible();
+  await expect(forestChoice.locator('input[name="venueIds"]')).toBeChecked();
+  await expect(parkChoice.locator('input[name="venueIds"]')).not.toBeChecked();
+  await parkChoice.locator('input[name="venueIds"]').check();
+  await accountDialog.getByRole("button", { name: "Kaydet" }).click();
+  await expect
+    .poll(() => managerUpdateBody)
+    .toEqual({
+      username: "cess-sorumlu",
+      venueIds: [accountVenue.id, secondAccountVenue.id],
       status: "ACTIVE"
     });
   await expect(accountDialog).toBeHidden();

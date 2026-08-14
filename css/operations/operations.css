@@ -628,6 +628,10 @@ p {
   border-top: 1px solid var(--line);
   font-size: 10px;
 }
+.staff-card footer .mini-button {
+  min-height: 44px;
+  margin-left: auto;
+}
 dialog {
   width: min(720px, calc(100% - 28px));
   max-height: calc(100vh - 28px);

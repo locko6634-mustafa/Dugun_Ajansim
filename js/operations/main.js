@@ -489,7 +489,7 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini düzenle`)}">Düzenle</button></footer></article>`
         )
         .join("")
     : empty("Personel bulunamadı.");
@@ -859,26 +859,9 @@ document.querySelector(".js-staff-venue-filter")?.addEventListener("change", ren
 document.querySelector(".js-add-staff")?.addEventListener("click", () => openStaffForm());
 document.querySelector(".js-staff").addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit-staff]");
-  const toggle = event.target.closest("[data-toggle-staff]");
-  if (edit) return;
-  if (toggle) {
-    const idleLabel = toggle.textContent;
-    toggle.disabled = true;
-    toggle.textContent = "Güncelleniyor…";
-    void apiRequest(`/operations/staff/${toggle.dataset.toggleStaff}`, {
-      method: "PATCH",
-      body: { isActive: toggle.dataset.active !== "true" }
-    })
-      .then(() => loadStaff())
-      .then(() => setMessage("Personel durumu güncellendi.", true))
-      .catch((error) => {
-        if (toggle.isConnected) {
-          toggle.disabled = false;
-          toggle.textContent = idleLabel;
-        }
-        setMessage(error.message);
-      });
-  }
+  if (!edit) return;
+  const staff = state.staff.find((item) => item.id === edit.dataset.editStaff);
+  if (staff) openStaffForm(staff, edit);
 });
 staffForm
   .querySelectorAll('[value="cancel"]')

@@ -443,6 +443,15 @@ test("RLS enforcement salon, montaj, müşteri, public, auth ve maintenance bağ
   assert.equal(
     await withRuntimeContext(operationsContext, (transaction) =>
       transaction.staff.updateMany({
+        where: { id: fixture.staff[0]!.id },
+        data: { isActive: false }
+      })
+    ).then(({ count }) => count),
+    1
+  );
+  assert.equal(
+    await withRuntimeContext(operationsContext, (transaction) =>
+      transaction.staff.updateMany({
         where: { id: fixture.staff[2]!.id },
         data: { firstName: "Forbidden" }
       })

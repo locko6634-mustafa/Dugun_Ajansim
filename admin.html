@@ -639,11 +639,43 @@
               minlength="3"
               maxlength="40"
               autocomplete="off"
-              required /></label
-          ><label class="js-managed-user-venue wide"
-            >Salonlar<select name="venueIds" multiple size="6"></select
-            ><small>Sorumlunun tek panelden yöneteceği tüm salonları seçin.</small></label
-          ><label class="wide"
+              required
+          /></label>
+          <fieldset
+            class="js-managed-user-venue venue-picker wide"
+            aria-describedby="managed-user-venues-help managed-user-venues-error"
+          >
+            <legend>Salonlar</legend>
+            <div class="venue-picker__toolbar">
+              <input
+                class="venue-picker__search js-managed-user-venue-search"
+                type="search"
+                placeholder="Salon ara"
+                aria-label="Salonlarda ara"
+                autocomplete="off"
+              />
+              <strong class="venue-picker__count js-managed-user-venue-count" aria-live="polite"
+                >0 salon seçili</strong
+              >
+            </div>
+            <div
+              class="venue-picker__selected js-managed-user-venue-selected"
+              aria-label="Seçili salonlar"
+            ></div>
+            <div class="venue-picker__list js-managed-user-venues"></div>
+            <p class="venue-picker__empty js-managed-user-venue-empty" hidden>
+              Aramanızla eşleşen salon yok.
+            </p>
+            <small id="managed-user-venues-help"
+              >Sorumlunun tek panelden yöneteceği tüm salonları işaretleyin.</small
+            >
+            <span
+              class="field-error js-managed-user-venues-error"
+              id="managed-user-venues-error"
+              aria-live="assertive"
+            ></span>
+          </fieldset>
+          <label class="wide"
             >Parola <small class="js-managed-user-password-note">En az 15 karakter</small
             ><input
               name="password"
