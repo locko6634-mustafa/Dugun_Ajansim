@@ -1009,9 +1009,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await expect(page.locator(".js-badge-weddings")).toHaveText("1");
   await expect(page.locator(".js-connection-text")).toHaveText("Sistem bağlı");
   await expect(page.locator(".js-last-data-time")).toContainText("Son veri");
-  await expect(page.locator(".js-upcoming-deliveries")).toContainText(
-    "Teslime 2 gün kaldı. Lütfen Google Drive linkini girin."
-  );
+  await expect(page.getByRole("heading", { name: "Yaklaşan teslimatlar" })).toHaveCount(0);
   await expect(page.locator('.js-staff-form input[name="firstName"]')).toHaveAttribute(
     "maxlength",
     "80"

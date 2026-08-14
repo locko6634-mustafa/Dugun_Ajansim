@@ -765,17 +765,6 @@ function renderDashboard() {
         )
         .join("")
     : empty("Çakışan personel ataması yok.");
-  document.querySelector(".js-upcoming-deliveries").innerHTML = data.upcomingDeliveries.length
-    ? data.upcomingDeliveries
-        .map((delivery) => {
-          const reminderDays = delivery.driveLinkReminderDays;
-          const reminder = Number.isInteger(reminderDays)
-            ? `<small class="delivery-card__warning">${reminderDays === 0 ? "Teslim bugün." : `Teslime ${reminderDays} gün kaldı.`} Lütfen Google Drive linkini girin.</small>`
-            : "";
-          return `<button class="delivery-card text-button ${reminder ? "is-warning" : ""}" type="button" data-open-wedding="${escapeHtml(delivery.wedding.id)}"><strong>${escapeHtml(delivery.wedding.brideFirstName)} &amp; ${escapeHtml(delivery.wedding.groomFirstName)}</strong><span>${formatDate(delivery.dueDate)} · ${escapeHtml(STATUS_LABELS[delivery.status])}</span>${reminder}</button>`;
-        })
-        .join("")
-    : empty("Yaklaşan teslimat yok.");
   renderWeek();
 }
 
