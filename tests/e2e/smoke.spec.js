@@ -1038,7 +1038,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     "page"
   );
   await expect(page.locator('[data-metric="todayWeddings"]')).toHaveText("1");
-  await expect(page.locator(".js-badge-weddings")).toHaveText("1");
+  await expect(page.locator('[data-panel="weddings"]')).toHaveCount(0);
   await expect(page.locator(".js-connection-text")).toHaveText("Sistem bağlı");
   await expect(page.locator(".js-last-data-time")).toContainText("Son veri");
   await expect(page.getByRole("heading", { name: "Yaklaşan teslimatlar" })).toHaveCount(0);
@@ -1054,15 +1054,13 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     "maxlength",
     "2000"
   );
-  await clickPanel(page, "weddings");
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Düğünler ve teslimatlar" })
-  ).toBeVisible();
-  await expect(page.locator('.admin-nav [data-panel="weddings"]')).toHaveAttribute(
+  await clickPanel(page, "calendar");
+  await expect(page.getByRole("heading", { level: 1, name: "Salon takvimi" })).toBeVisible();
+  await expect(page.locator('.admin-nav [data-panel="calendar"]')).toHaveAttribute(
     "aria-current",
     "page"
   );
-  await page.getByRole("button", { name: "Ayrıntılar" }).click();
+  await page.locator(`[data-open-wedding="${wedding.id}"]`).first().click();
   await expect(
     page.getByRole("dialog").getByRole("heading", { name: "Ayşe Yılmaz & Mehmet Demir" })
   ).toBeVisible();

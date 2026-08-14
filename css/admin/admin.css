@@ -768,6 +768,16 @@ button:disabled {
   margin-top: 12px;
 }
 
+.calendar-heading__intro {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+}
+
+.calendar-heading__intro .primary-button {
+  flex: 0 0 auto;
+}
+
 .venue-switcher {
   display: flex;
   gap: 8px;
@@ -3029,25 +3039,38 @@ h6,
     flex-direction: column !important;
   }
 
-  .plan-controls {
+  .calendar-heading__intro {
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .calendar-heading__intro .primary-button {
+    min-height: 44px;
+    padding-inline: 12px;
+    white-space: nowrap;
+  }
+
+  .calendar-heading .plan-controls {
     display: grid;
     width: 100%;
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    grid-template-columns: minmax(0, 1fr) 44px minmax(58px, auto) 44px;
   }
 
-  .calendar-view-switcher {
-    grid-column: 1 / -1;
+  .calendar-heading .calendar-view-switcher {
+    min-width: 0;
   }
 
-  .calendar-view-switcher button {
+  .calendar-heading .calendar-view-switcher button {
     flex: 1;
-    min-height: 38px;
-  }
-
-  .plan-controls .mini-button {
     min-width: 0;
     min-height: 44px;
-    padding-inline: 8px;
+    padding-inline: 7px;
+  }
+
+  .calendar-heading .plan-controls .mini-button {
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: 6px;
   }
 
   .admin-main .availability-filters select,

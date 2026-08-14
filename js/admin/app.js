@@ -85,7 +85,6 @@ const state = {
   calendarView: "month",
   calendarFocusDate: "",
   calendarShowPast: false,
-  weddings: [],
   staff: [],
   managers: [],
   venues: [],
@@ -100,7 +99,6 @@ const state = {
   openedMessageTaskIds: new Set(),
   pagination: {
     applications: createPaginationState(),
-    weddings: createPaginationState(),
     messages: createPaginationState()
   }
 };
@@ -1274,63 +1272,6 @@ function renderApplicationDetailModal(item) {
   if (closeBtn) closeBtn.addEventListener("click", () => appDetailDialog.close());
 }
 
-async function loadWeddings() {
-  const container = document.querySelector(".js-weddings");
-  const pager = state.pagination.weddings;
-  container.innerHTML = empty("Düğünler yükleniyor…");
-  try {
-    const status = document.querySelector(".js-wedding-status").value;
-    const search = document.querySelector(".js-wedding-search").value.trim();
-    const query = new window.URLSearchParams();
-    if (status === "ARCHIVED") query.set("includeArchived", "true");
-    else if (status) query.set("deliveryStatus", status);
-    if (search.length >= 2) query.set("search", search);
-    if (pager.cursor) query.set("cursor", pager.cursor);
-    const response = await apiRequest(`/admin/weddings${query.size ? `?${query}` : ""}`);
-    state.weddings = unpackPaginatedList("weddings", response.data);
-    markDataSuccess();
-    renderWeddings();
-  } catch (error) {
-    container.innerHTML = empty(error.message);
-  }
-}
-
-function renderWeddings() {
-  const term = document
-    .querySelector(".js-wedding-search")
-    .value.trim()
-    .toLocaleLowerCase(APP_LOCALE);
-  const status = document.querySelector(".js-wedding-status").value;
-  const rows = state.pagination.weddings.isLegacy
-    ? state.weddings.filter((wedding) => {
-        const haystack =
-          `${coupleName(wedding)} ${wedding.bridePhone} ${wedding.groomPhone} ${wedding.venue.name}`.toLocaleLowerCase(
-            APP_LOCALE
-          );
-        return (
-          (!term || haystack.includes(term)) &&
-          (!status || status === "ARCHIVED" || wedding.delivery?.status === status)
-        );
-      })
-    : state.weddings;
-  document.querySelector(".js-weddings").innerHTML = rows.length
-    ? rows
-        .map((wedding) => {
-          const date = new Date(wedding.startsAt);
-          const day = new Intl.DateTimeFormat(APP_LOCALE, {
-            day: "2-digit",
-            timeZone: APP_TIME_ZONE
-          }).format(date);
-          const month = new Intl.DateTimeFormat(APP_LOCALE, {
-            month: "short",
-            timeZone: APP_TIME_ZONE
-          }).format(date);
-          return `<article class="wedding-card"><div class="date-tile"><strong>${day}</strong><small>${escapeHtml(month)}</small></div><div><strong>${escapeHtml(coupleName(wedding))}</strong><p>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</p></div><div class="crew-line">${renderCrew(wedding.assignments)}</div><button class="mini-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}">Ayrıntılar</button></article>`;
-        })
-        .join("")
-    : empty("Filtreye uyan düğün bulunamadı.");
-}
-
 function packageDetail(summary = {}) {
   const services = Array.isArray(summary.services) ? summary.services : [];
   return `<strong>${escapeHtml(summary.name || "Paket bilgisi yok")}</strong><small>${escapeHtml(summary.code || "")} ${summary.totalPriceCents ? `· ${escapeHtml(formatMoney(summary.totalPriceCents))}` : ""}</small>${
@@ -1762,7 +1703,6 @@ const panelLoaders = {
   overview: () => loadDashboard(),
   calendar: () => loadCalendar(),
   applications: loadApplications,
-  weddings: loadWeddings,
   staff: loadStaff,
   managers: loadManagers,
   messages: loadMessages,
@@ -1773,14 +1713,11 @@ const PANEL_TITLES = {
   overview: "Günün akışı",
   calendar: "Salon takvimi",
   applications: "Paket başvuruları",
-  weddings: "Düğünler ve teslimatlar",
   staff: "Personeller",
   messages: "Mesaj geçmişi",
   catalog: "Katalog yönetimi",
   managers: "Salon sorumluları"
 };
-
-const MANUAL_WEDDING_PANELS = new Set(["weddings"]);
 
 async function movePagination(key, direction) {
   const pager = state.pagination[key];
@@ -1813,8 +1750,6 @@ function activatePanel(name) {
   });
   const panelTitle = document.querySelector(".js-panel-title");
   if (panelTitle) panelTitle.textContent = PANEL_TITLES[name] || "Yönetim";
-  const manualWeddingButton = document.querySelector(".js-open-manual");
-  if (manualWeddingButton) manualWeddingButton.hidden = !MANUAL_WEDDING_PANELS.has(name);
   document.querySelectorAll("[data-panel-content]").forEach((panel) => {
     const active = panel.dataset.panelContent === name;
     panel.hidden = !active;
@@ -2200,20 +2135,6 @@ async function handleApplicationAction(event) {
   }
 }
 
-let weddingSearchTimer = null;
-document.querySelector(".js-wedding-search").addEventListener("input", () => {
-  renderWeddings();
-  window.clearTimeout(weddingSearchTimer);
-  weddingSearchTimer = window.setTimeout(() => {
-    resetPagination("weddings");
-    void loadWeddings();
-  }, 250);
-});
-document.querySelector(".js-wedding-status").addEventListener("change", () => {
-  resetPagination("weddings");
-  void loadWeddings();
-});
-
 document
   .querySelectorAll(".js-message-kind-filter, .js-message-status-filter")
   .forEach((select) => {
@@ -2309,7 +2230,7 @@ detailContent.addEventListener("submit", async (event) => {
     await Promise.all([
       openWeddingDetail(state.currentWedding.id),
       loadDashboard(),
-      loadWeddings()
+      loadCalendar()
     ]);
   } catch (error) {
     if (formMessage) formMessage.textContent = formErrorMessage(form, error);
@@ -2585,7 +2506,7 @@ detailContent.addEventListener("click", async (event) => {
     await Promise.all([
       openWeddingDetail(state.currentWedding.id),
       loadDashboard(),
-      loadWeddings()
+      loadCalendar()
     ]);
   } catch (error) {
     if (removeButton) removeButton.disabled = false;
@@ -3387,7 +3308,7 @@ weddingForm.addEventListener("submit", async (event) => {
         : "Düğün bilgileri güncellendi.",
       true
     );
-    await Promise.all([openWeddingDetail(weddingId), loadWeddings(), loadDashboard()]);
+    await Promise.all([openWeddingDetail(weddingId), loadCalendar(), loadDashboard()]);
   } catch (error) {
     weddingForm.querySelector(".dialog-message").textContent = formErrorMessage(weddingForm, error);
   } finally {
@@ -3531,11 +3452,5 @@ function updateNavBadges(metrics) {
     } else {
       msgBadge.hidden = true;
     }
-  }
-  const weddingBadge = document.querySelector(".js-badge-weddings");
-  if (weddingBadge) {
-    const count = Number(metrics.todayWeddings || 0);
-    weddingBadge.textContent = String(count);
-    weddingBadge.hidden = count === 0;
   }
 }

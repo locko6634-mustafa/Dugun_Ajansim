@@ -70,6 +70,21 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
       body: JSON.stringify({ success: true, data: dashboard })
     })
   );
+  await page.route("**/api/v1/admin/calendar**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          month: "2026-08",
+          today: "2026-08-10",
+          venues: [],
+          selectedVenue: null,
+          weddings: []
+        }
+      })
+    })
+  );
   await page.route("**/api/v1/admin/catalog-form-constraints", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -200,9 +215,12 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await expect(page.locator('[data-panel-content="staff"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeHidden();
 
+  await expect(page.locator('[data-panel="weddings"]')).toHaveCount(0);
+  await expect(page.locator('[data-panel-content="weddings"]')).toHaveCount(0);
+
   await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
-  await page.locator('[data-panel="weddings"]').click();
-  await expect(page.locator('[data-panel-content="weddings"]')).toBeVisible();
+  await page.locator('[data-panel="calendar"]').click();
+  await expect(page.locator('[data-panel-content="calendar"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeVisible();
 
   await page.getByRole("button", { name: "Yeni düğün" }).click();
@@ -229,5 +247,9 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
     await page.setViewportSize(viewport);
     await expectNoPageOverflow(page);
     await expectMinimumHeight(page.getByRole("button", { name: "Yeni düğün" }));
+    const controls = page.locator(".calendar-heading .plan-controls");
+    expect(await controls.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true
+    );
   }
 });

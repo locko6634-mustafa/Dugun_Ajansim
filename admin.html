@@ -50,15 +50,12 @@
           <button type="button" data-panel="applications">
             <span>03</span> Başvurular <span class="nav-badge js-badge-applications" hidden>0</span>
           </button>
-          <button type="button" data-panel="weddings">
-            <span>04</span> Düğünler <span class="nav-badge js-badge-weddings" hidden>0</span>
-          </button>
-          <button type="button" data-panel="staff"><span>05</span> Personeller</button>
+          <button type="button" data-panel="staff"><span>04</span> Personeller</button>
           <button type="button" data-panel="messages">
-            <span>06</span> Mesajlar <span class="nav-badge js-badge-messages" hidden>0</span>
+            <span>05</span> Mesajlar <span class="nav-badge js-badge-messages" hidden>0</span>
           </button>
-          <button type="button" data-panel="catalog"><span>07</span> Katalog</button>
-          <button type="button" data-panel="managers"><span>08</span> Salon Sorumluları</button>
+          <button type="button" data-panel="catalog"><span>06</span> Katalog</button>
+          <button type="button" data-panel="managers"><span>07</span> Salon Sorumluları</button>
         </nav>
         <div class="admin-sidebar__footer">
           <span
@@ -101,17 +98,6 @@
               <p class="kicker js-current-date">İstanbul</p>
               <h1 class="js-panel-title">Günün akışı</h1>
             </div>
-          </div>
-          <div class="topbar-actions">
-            <button
-              class="primary-button js-open-manual"
-              type="button"
-              hidden
-              disabled
-              title="Form koşulları yükleniyor"
-            >
-              + Yeni düğün
-            </button>
           </div>
         </header>
         <p class="global-message" role="status" aria-live="polite"></p>
@@ -233,9 +219,19 @@
 
         <section class="admin-panel" data-panel-content="calendar" hidden>
           <div class="section-heading calendar-heading">
-            <div>
-              <p class="section-index">Salon bazlı plan</p>
-              <h2 class="js-calendar-label">Aylık takvim</h2>
+            <div class="calendar-heading__intro">
+              <div>
+                <p class="section-index">Salon bazlı plan</p>
+                <h2 class="js-calendar-label">Aylık takvim</h2>
+              </div>
+              <button
+                class="primary-button js-open-manual"
+                type="button"
+                disabled
+                title="Form koşulları yükleniyor"
+              >
+                + Yeni düğün
+              </button>
             </div>
             <div class="plan-controls">
               <div class="calendar-view-switcher" role="group" aria-label="Takvim görünümü">
@@ -310,41 +306,6 @@
             </button>
             <small class="js-applications-pagination-summary" aria-live="polite"></small>
             <button class="mini-button" type="button" data-pagination-next="applications">
-              Sonraki →
-            </button>
-          </nav>
-        </section>
-
-        <section class="admin-panel" data-panel-content="weddings" hidden>
-          <div class="section-heading">
-            <div>
-              <p class="section-index">Tüm operasyon</p>
-              <h2>Düğünler ve teslimatlar</h2>
-            </div>
-            <div class="filter-bar">
-              <input
-                class="js-wedding-search"
-                type="search"
-                placeholder="Salon, referans veya tam telefon ara"
-                aria-label="Salon, referans veya tam telefonla düğün ara"
-              /><select class="js-wedding-status" aria-label="Teslimat durumuna göre filtrele">
-                <option value="">Tüm durumlar</option>
-                <option value="HAZIRLANIYOR">Hazırlanıyor</option>
-                <option value="MONTAJ">Montaj</option>
-                <option value="KONTROL">Kontrol</option>
-                <option value="TESLIME_HAZIR">Teslime hazır</option>
-                <option value="TESLIM_EDILDI">Teslim edildi</option>
-                <option value="ARCHIVED">Arşiv</option>
-              </select>
-            </div>
-          </div>
-          <div class="wedding-list js-weddings"></div>
-          <nav class="plan-controls js-weddings-pagination" aria-label="Düğün sayfaları" hidden>
-            <button class="mini-button" type="button" data-pagination-prev="weddings">
-              ← Önceki
-            </button>
-            <small class="js-weddings-pagination-summary" aria-live="polite"></small>
-            <button class="mini-button" type="button" data-pagination-next="weddings">
               Sonraki →
             </button>
           </nav>
