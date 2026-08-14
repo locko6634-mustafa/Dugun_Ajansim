@@ -44,7 +44,7 @@ test("@frontend-smoke paket oluşturucu eksik API alanlarını yerel katalogdan 
             earliestTime: "00:00",
             latestTime: "23:30",
             stepMinutes: 30,
-            allowNextDay: true
+            allowNextDay: false
           },
           packages: [
             {

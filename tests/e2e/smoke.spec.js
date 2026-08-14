@@ -32,7 +32,7 @@ const defaultBookingSchedulePolicy = Object.freeze({
   earliestTime: "00:00",
   latestTime: "23:30",
   stepMinutes: 30,
-  allowNextDay: true
+  allowNextDay: false
 });
 const defaultAdminCatalogFormConstraints = Object.freeze({
   code: { minLength: 1, maxLength: 80, pattern: "^[a-z0-9-]+$" },
@@ -501,13 +501,12 @@ test("@frontend-smoke paket formu çift, saat ve salon alanlarını backend kata
   await expect(endTimePicker.locator('[data-time-value="02:00"]')).toHaveCount(1);
   await expect(endTimePicker.locator("[data-time-value]")).toHaveCount(48);
   await page.keyboard.press("Escape");
+  await expect(page.locator('input[name="endsNextDay"]')).toHaveCount(0);
   await selectWeddingTime(page, "start", "20:00");
-  await selectWeddingTime(page, "end", "02:00");
-  await page.locator('input[name="endsNextDay"]').check();
-  await expect(page.locator('input[name="endTime"]')).not.toHaveAttribute("aria-invalid", "true");
   await selectWeddingTime(page, "end", "19:00");
-  await page.locator('input[name="endsNextDay"]').uncheck();
   await expect(page.locator('input[name="endTime"]')).toHaveAttribute("aria-invalid", "true");
+  await selectWeddingTime(page, "end", "22:00");
+  await expect(page.locator('input[name="endTime"]')).not.toHaveAttribute("aria-invalid", "true");
 });
 
 test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkili API verisiyle açılır", async ({

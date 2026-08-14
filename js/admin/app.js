@@ -445,7 +445,6 @@ function syncScheduleFields(form) {
   const dateInput = form.elements.namedItem("weddingDate");
   const startInput = form.elements.namedItem("startTime");
   const endInput = form.elements.namedItem("endTime");
-  const nextDayInput = form.elements.namedItem("endsNextDay");
   if (!(dateInput instanceof window.HTMLInputElement)) return;
 
   const today = datePartInIstanbul(new Date());
@@ -475,10 +474,6 @@ function syncScheduleFields(form) {
       roundedMinutes % 60
     ).padStart(2, "0")}`;
     startInput.min = rounded > policy.earliestTime ? rounded : policy.earliestTime;
-  }
-  if (nextDayInput instanceof window.HTMLInputElement) {
-    nextDayInput.disabled = !policy.allowNextDay;
-    if (!policy.allowNextDay) nextDayInput.checked = false;
   }
 }
 
@@ -3179,7 +3174,7 @@ manualForm.addEventListener("submit", async (event) => {
         weddingDate: data.get("weddingDate"),
         startTime: data.get("startTime"),
         endTime: data.get("endTime"),
-        endsNextDay: data.has("endsNextDay"),
+        endsNextDay: false,
         venueId: data.get("venueId"),
         packageCode: data.get("packageCode"),
         serviceCodes: data.getAll("serviceCodes"),
@@ -3254,8 +3249,6 @@ async function openWeddingEditor(wedding) {
   Object.entries(values).forEach(([name, value]) => {
     weddingForm.elements.namedItem(name).value = value;
   });
-  weddingForm.elements.endsNextDay.checked =
-    datePartInIstanbul(wedding.startsAt) !== datePartInIstanbul(wedding.endsAt);
   weddingForm.querySelector(".dialog-message").textContent = "";
   weddingForm.dataset.originalPackageCode = currentPackage.code || "";
   weddingForm.dataset.originalWeddingDate = values.weddingDate;
@@ -3336,7 +3329,7 @@ weddingForm.addEventListener("submit", async (event) => {
           weddingDate: data.get("weddingDate"),
           startTime: data.get("startTime"),
           endTime: data.get("endTime"),
-          endsNextDay: data.has("endsNextDay"),
+          endsNextDay: false,
           venueId: data.get("venueId"),
           packageCode: data.get("packageCode"),
           serviceCodes: data.getAll("serviceCodes"),

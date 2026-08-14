@@ -686,7 +686,6 @@ function renderWeddingDetail(wedding) {
   weddingPdfButton.disabled = false;
   document.querySelector(".js-detail-title").textContent = couple(wedding);
   const startDate = dateKey(wedding.startsAt);
-  const endDate = dateKey(wedding.endsAt);
   const locked = isWeddingReadOnly(wedding);
   const disabled = locked ? ' disabled aria-disabled="true"' : "";
   const lockedMessage = wedding.deletedAt
@@ -727,9 +726,6 @@ function renderWeddingDetail(wedding) {
         <label>Bitiş
           <input name="endTime" type="time" value="${inputTime(wedding.endsAt)}" step="1800" aria-describedby="schedule-end-error" required${disabled}>
           <span class="field-error" id="schedule-end-error" data-field-error="endTime" aria-live="polite"></span>
-        </label>
-        <label class="switch-row">
-          <input name="endsNextDay" type="checkbox" ${startDate !== endDate ? "checked" : ""}${disabled}> Bitiş ertesi gün
         </label>
         <label class="wide">Operasyon notu
           <textarea name="note" aria-describedby="schedule-note-error"${disabled}>${escapeHtml(wedding.note || "")}</textarea>
@@ -943,7 +939,7 @@ detailContainer.addEventListener("submit", async (event) => {
           weddingDate: data.get("weddingDate"),
           startTime: data.get("startTime"),
           endTime: data.get("endTime"),
-          endsNextDay: data.has("endsNextDay"),
+          endsNextDay: false,
           note: data.get("note")
         }
       });

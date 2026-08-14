@@ -111,7 +111,7 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
             earliestTime: "00:00",
             latestTime: "23:30",
             stepMinutes: 30,
-            allowNextDay: true
+            allowNextDay: false
           }
         }
       })

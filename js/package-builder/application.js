@@ -846,7 +846,7 @@ function getBookingRequestBody() {
     weddingDate: state.customer.weddingDate,
     startTime: state.customer.startTime,
     endTime: state.customer.endTime,
-    endsNextDay: Boolean(state.customer.endsNextDay),
+    endsNextDay: false,
     venueId: isCustomVenueSelected() ? undefined : state.customer.venueId,
     customVenueName: isCustomVenueSelected() ? state.customer.customVenueName?.trim() : undefined,
     packageCode: state.base,
@@ -1116,9 +1116,6 @@ const customVenueField = document.querySelector(".js-custom-venue-field");
 const weddingDateInput = document.querySelector(".js-wedding-date");
 const startTimeInput = checkoutForm ? checkoutForm.querySelector('input[name="startTime"]') : null;
 const endTimeInput = checkoutForm ? checkoutForm.querySelector('input[name="endTime"]') : null;
-const endsNextDayCheckbox = checkoutForm
-  ? checkoutForm.querySelector('input[name="endsNextDay"]')
-  : null;
 const dateHint = document.querySelector(".js-date-hint");
 const availabilityBanner = document.querySelector(".js-availability-banner");
 const datePicker = document.querySelector(".js-date-picker");
@@ -1323,10 +1320,10 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closePickers();
 });
 
-const timeToMinutes = (timeStr, isNextDay = false) => {
+const timeToMinutes = (timeStr) => {
   if (!timeStr) return 0;
   const [h, m] = timeStr.split(":").map(Number);
-  return h * 60 + m + (isNextDay ? 24 * 60 : 0);
+  return h * 60 + m;
 };
 
 async function fetchVenueAvailability() {
@@ -1426,10 +1423,6 @@ function updateVenueDependentFields() {
         .querySelector(".picker-trigger")
         .classList.remove("is-selected");
     }
-    if (endsNextDayCheckbox) {
-      endsNextDayCheckbox.checked = false;
-      endsNextDayCheckbox.disabled = true;
-    }
   }
   hasVenueOccupancy = false;
   if (availabilityBanner) availabilityBanner.hidden = true;
@@ -1465,13 +1458,6 @@ function validateTimeSlots() {
   if (!startTimeInput || !endTimeInput) return true;
   const startTime = startTimeInput.value;
   const endTime = endTimeInput.value;
-  const endsNextDay = Boolean(endsNextDayCheckbox?.checked);
-
-  if (endsNextDay && !state.bookingSchedulePolicy?.allowNextDay) {
-    setFieldValidity(endTimeInput, false, "Bitiş saati ertesi güne taşınamaz.");
-    return false;
-  }
-
   if (!startTime || !endTime) {
     setFieldValidity(startTimeInput, true);
     setFieldValidity(endTimeInput, true);
@@ -1479,7 +1465,7 @@ function validateTimeSlots() {
   }
 
   const newStart = timeToMinutes(startTime);
-  const newEnd = timeToMinutes(endTime, endsNextDay);
+  const newEnd = timeToMinutes(endTime);
 
   if (newEnd <= newStart) {
     setFieldValidity(endTimeInput, false, "Bitiş saati başlangıç saatinden sonra olmalıdır.");
@@ -1511,10 +1497,6 @@ if (weddingDateInput) {
     const hasDate = Boolean(weddingDateInput.value);
     if (startTimeInput) setPickerDisabled(startTimeInput, !hasDate);
     if (endTimeInput) setPickerDisabled(endTimeInput, !hasDate);
-    if (endsNextDayCheckbox) {
-      endsNextDayCheckbox.disabled = !hasDate || !state.bookingSchedulePolicy?.allowNextDay;
-      if (!state.bookingSchedulePolicy?.allowNextDay) endsNextDayCheckbox.checked = false;
-    }
 
     if (hasDate) {
       if (isCustomVenueSelected()) {
@@ -1538,10 +1520,6 @@ if (endTimeInput) {
   endTimeInput.addEventListener("input", validateTimeSlots);
   endTimeInput.addEventListener("change", validateTimeSlots);
 }
-if (endsNextDayCheckbox) {
-  endsNextDayCheckbox.addEventListener("change", validateTimeSlots);
-}
-
 checkoutForm.addEventListener("input", (event) => {
   if (!builderRequestStatus?.hidden) setBuilderRequestStatus("");
   if (phoneInputs.includes(event.target)) validatePhone(event.target);
@@ -1942,8 +1920,7 @@ function restoreFormFieldValues(data) {
     ...data,
     venueId: data.customVenueName ? CUSTOM_VENUE_VALUE : data.venueId,
     privacyConsent: data.privacyConsent,
-    marketingConsent: data.marketingConsent,
-    endsNextDay: data.endsNextDay
+    marketingConsent: data.marketingConsent
   };
   checkoutForm.querySelectorAll("[name]").forEach((field) => {
     const value = values[field.name];
@@ -2003,7 +1980,6 @@ function applyRestoredPaymentFlow(data) {
     weddingDate: data.weddingDate,
     startTime: data.startTime,
     endTime: data.endTime,
-    endsNextDay: data.endsNextDay,
     venueId: data.customVenueName ? CUSTOM_VENUE_VALUE : data.venueId,
     customVenueName: data.customVenueName,
     note: data.note,

@@ -780,8 +780,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     primaryEmail: `bir-${marker}@example.com`,
     weddingDate,
     startTime: "20:00",
-    endTime: "02:00",
-    endsNextDay: true,
+    endTime: "23:00",
+    endsNextDay: false,
     venueId: venue.id,
     packageCode: packageRecord.code,
     serviceCodes: [],
@@ -2400,8 +2400,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       primaryEmail: secondWeddingBeforeCredentialRotation.primaryEmail,
       weddingDate: getIstanbulDate(secondWeddingBeforeCredentialRotation.startsAt),
       startTime: "20:00",
-      endTime: "02:00",
-      endsNextDay: true,
+      endTime: "23:00",
+      endsNextDay: false,
       venueId: secondWeddingBeforeCredentialRotation.venueId,
       packageCode: (secondWeddingBeforeCredentialRotation.packageSummary as { code: string }).code,
       serviceCodes: (
@@ -2599,8 +2599,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({
       weddingDate: addCalendarDays(weddingDate, 2),
       startTime: "20:00",
-      endTime: "02:00",
-      endsNextDay: true,
+      endTime: "23:00",
+      endsNextDay: false,
       note: "Çakışan salon sorumlusu güncellemesi"
     });
   assert.equal(operationsScheduleConflict.status, 409);
@@ -2613,8 +2613,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({
       weddingDate,
       startTime: "20:00",
-      endTime: "02:00",
-      endsNextDay: true,
+      endTime: "23:00",
+      endsNextDay: false,
       note: "Salon sorumlusu operasyon notu"
     });
   assert.equal(operationsWeddingUpdate.status, 200);
@@ -2981,8 +2981,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       primaryEmail: currentWeddingPiiForAdmin.primaryEmail,
       weddingDate,
       startTime: "20:00",
-      endTime: "02:00",
-      endsNextDay: true,
+      endTime: "23:00",
+      endsNextDay: false,
       venueId: secondVenue.id,
       packageCode: (wedding.packageSummary as { code: string }).code,
       serviceCodes: (wedding.packageSummary as { services: Array<{ code: string }> }).services.map(
@@ -3009,8 +3009,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       primaryEmail: currentWeddingPiiForAdmin.primaryEmail,
       weddingDate: updatedWeddingDate,
       startTime: "20:00",
-      endTime: "02:00",
-      endsNextDay: true,
+      endTime: "23:00",
+      endsNextDay: false,
       venueId: secondVenue.id,
       packageCode: (wedding.packageSummary as { code: string }).code,
       serviceCodes: (wedding.packageSummary as { services: Array<{ code: string }> }).services.map(
@@ -3037,8 +3037,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       primaryEmail: currentWeddingPiiForAdmin.primaryEmail,
       weddingDate: updatedWeddingDate,
       startTime: "20:00",
-      endTime: "02:00",
-      endsNextDay: true,
+      endTime: "23:00",
+      endsNextDay: false,
       venueId: wedding.venueId,
       packageCode: (wedding.packageSummary as { code: string }).code,
       serviceCodes: (wedding.packageSummary as { services: Array<{ code: string }> }).services.map(

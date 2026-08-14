@@ -45,10 +45,11 @@ import {
 const test: typeof nodeTest = ((name: string, ...args: unknown[]) =>
   nodeTest(`[backend-unit] ${name}`, ...(args as [never]))) as typeof nodeTest;
 
-test("gece yarısını aşan düğün aralığı İstanbul saatine göre oluşturulur", () => {
-  const range = createWeddingRange("2026-08-10", "20:00", "02:00", true);
+test("düğün aralığı yalnız aynı gün için İstanbul saatine göre oluşturulur", () => {
+  const range = createWeddingRange("2026-08-10", "20:00", "23:00", false);
   assert.equal(range.startsAt.toISOString(), "2026-08-10T17:00:00.000Z");
-  assert.equal(range.endsAt.toISOString(), "2026-08-10T23:00:00.000Z");
+  assert.equal(range.endsAt.toISOString(), "2026-08-10T20:00:00.000Z");
+  assert.throws(() => createWeddingRange("2026-08-10", "20:00", "02:00", true));
   assert.throws(() => createWeddingRange("2026-08-10", "20:00", "19:00", false));
 });
 
@@ -57,7 +58,7 @@ test("domain tarih, saat ve teslimat politikaları tek allowlist ile korunur", (
     earliestTime: "00:00",
     latestTime: "23:30",
     stepMinutes: 30,
-    allowNextDay: true
+    allowNextDay: false
   });
   assert.throws(() => createWeddingRange("2026-08-10", "19:15", "23:30", false));
   assert.doesNotThrow(() => createWeddingRange("2026-08-10", "19:30", "23:30", false));
@@ -264,8 +265,8 @@ test("fiyat istemciden alınmaz ve ödeme kuralı backend hesabıyla uygulanır"
     primaryEmail: "ayse@example.com",
     weddingDate: "2026-08-10",
     startTime: "19:00",
-    endTime: "01:00",
-    endsNextDay: true,
+    endTime: "23:00",
+    endsNextDay: false,
     venueId: "de305d54-75b4-431b-adb2-eb6b9e546014",
     packageCode: "mini",
     serviceCodes: ["video"],
@@ -356,12 +357,12 @@ test("admin katalog sınırları backend doğrulama şemasıyla aynı kaynaktan 
   );
 });
 
-test("public düğün saati politikası tam günü ve gece yarısı geçişini destekler", () => {
+test("public düğün saati politikası yalnız aynı gün bitişini destekler", () => {
   assert.deepEqual(bookingSchedulePolicy, {
     earliestTime: "00:00",
     latestTime: "23:30",
     stepMinutes: 30,
-    allowNextDay: true
+    allowNextDay: false
   });
 });
 
@@ -400,8 +401,8 @@ test("admin düğün güncellemesinde çift, iletişim ve gerçek zaman aralığ
     primaryEmail: "ayse@example.com",
     weddingDate: "2026-08-10",
     startTime: "19:00",
-    endTime: "01:00",
-    endsNextDay: true,
+    endTime: "23:00",
+    endsNextDay: false,
     venueId: "de305d54-75b4-431b-adb2-eb6b9e546014",
     packageCode: "mini",
     serviceCodes: ["drone"],

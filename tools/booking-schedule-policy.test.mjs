@@ -9,7 +9,7 @@ const fullDayPolicy = Object.freeze({
   earliestTime: "00:00",
   latestTime: "23:30",
   stepMinutes: 30,
-  allowNextDay: true
+  allowNextDay: false
 });
 
 test("düğün saati politikası tam gün slotlarını katalog sözleşmesinden üretir", () => {
