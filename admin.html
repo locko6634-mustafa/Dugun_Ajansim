@@ -46,20 +46,19 @@
           <button class="is-active" type="button" data-panel="overview" aria-current="page">
             <span>01</span> Genel Bakış
           </button>
-          <button type="button" data-panel="plan"><span>02</span> Haftalık Plan</button>
-          <button type="button" data-panel="calendar"><span>03</span> Salon Takvimi</button>
+          <button type="button" data-panel="calendar"><span>02</span> Salon Takvimi</button>
           <button type="button" data-panel="applications">
-            <span>04</span> Başvurular <span class="nav-badge js-badge-applications" hidden>0</span>
+            <span>03</span> Başvurular <span class="nav-badge js-badge-applications" hidden>0</span>
           </button>
           <button type="button" data-panel="weddings">
-            <span>05</span> Düğünler <span class="nav-badge js-badge-weddings" hidden>0</span>
+            <span>04</span> Düğünler <span class="nav-badge js-badge-weddings" hidden>0</span>
           </button>
-          <button type="button" data-panel="staff"><span>06</span> Personeller</button>
+          <button type="button" data-panel="staff"><span>05</span> Personeller</button>
           <button type="button" data-panel="messages">
-            <span>07</span> Mesajlar <span class="nav-badge js-badge-messages" hidden>0</span>
+            <span>06</span> Mesajlar <span class="nav-badge js-badge-messages" hidden>0</span>
           </button>
-          <button type="button" data-panel="catalog"><span>08</span> Katalog</button>
-          <button type="button" data-panel="managers"><span>09</span> Salon Sorumluları</button>
+          <button type="button" data-panel="catalog"><span>07</span> Katalog</button>
+          <button type="button" data-panel="managers"><span>08</span> Salon Sorumluları</button>
         </nav>
         <div class="admin-sidebar__footer">
           <span
@@ -230,36 +229,6 @@
               </section>
             </aside>
           </div>
-        </section>
-
-        <section class="admin-panel" data-panel-content="plan" hidden>
-          <div class="section-heading plan-heading">
-            <div>
-              <p class="section-index">Haftalık operasyon</p>
-              <h2 class="js-week-label">Haftalık plan</h2>
-            </div>
-            <div class="plan-controls">
-              <button
-                class="mini-button"
-                type="button"
-                data-week-move="-7"
-                aria-label="Önceki hafta"
-                disabled
-              >
-                ←</button
-              ><button class="mini-button" type="button" data-week-today disabled>Bugün</button
-              ><button
-                class="mini-button"
-                type="button"
-                data-week-move="7"
-                aria-label="Sonraki hafta"
-                disabled
-              >
-                →
-              </button>
-            </div>
-          </div>
-          <div class="week-ribbon js-week-days" aria-live="polite"></div>
         </section>
 
         <section class="admin-panel" data-panel-content="calendar" hidden>

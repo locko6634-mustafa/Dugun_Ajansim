@@ -76,7 +76,6 @@ const createPaginationState = () => ({
 const state = {
   dashboard: null,
   dashboardStatus: "idle",
-  weekStart: "",
   availabilityDate: "",
   availabilityVenueId: "",
   calendar: null,
@@ -765,54 +764,17 @@ function renderDashboard() {
         )
         .join("")
     : empty("Çakışan personel ataması yok.");
-  renderWeek();
 }
 
-function renderWeek() {
-  const data = state.dashboard;
-  const startLabel = formatDate(`${data.weekStart}T00:00:00.000Z`);
-  const endLabel = formatDate(`${data.weekEnd}T00:00:00.000Z`);
-  document.querySelector(".js-week-label").textContent = `${startLabel} — ${endLabel}`;
-  document.querySelector(".js-week-days").innerHTML = Array.from({ length: 7 }, (_, index) => {
-    const date = addDays(data.weekStart, index);
-    const weddings = data.weekWeddings.filter(
-      (wedding) => datePartInIstanbul(wedding.startsAt) === date
-    );
-    const dateValue = new Date(`${date}T12:00:00.000Z`);
-    const weekday = new Intl.DateTimeFormat(APP_LOCALE, {
-      weekday: "short",
-      timeZone: "UTC"
-    }).format(dateValue);
-    const day = new Intl.DateTimeFormat(APP_LOCALE, {
-      day: "numeric",
-      month: "short",
-      timeZone: "UTC"
-    }).format(dateValue);
-    return `<section class="day-column ${date === data.today ? "is-today" : ""}"><div class="day-head"><strong>${escapeHtml(day)}</strong><span>${escapeHtml(weekday)}</span></div><div class="day-events">${
-      weddings.length
-        ? weddings
-            .map(
-              (wedding) =>
-                `<button class="day-event text-button ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${escapeHtml(wedding.venue.name)} · ${wedding.assignments.length} kişi</small></button>`
-            )
-            .join("")
-        : '<p class="empty-state">Plan yok</p>'
-    }</div></section>`;
-  }).join("");
-}
-
-async function loadDashboard(weekStart = state.weekStart) {
+async function loadDashboard() {
   state.dashboardStatus = "loading";
   syncCalendarNavigation();
   const query = new window.URLSearchParams();
-  if (weekStart) query.set("weekStart", weekStart);
   if (state.availabilityDate) query.set("availabilityDate", state.availabilityDate);
   if (state.availabilityVenueId) query.set("venueId", state.availabilityVenueId);
   try {
     const response = await apiRequest(`/admin/dashboard${query.size ? `?${query}` : ""}`);
-    if (!isIsoDate(response.data?.weekStart)) throw new Error("Hafta bilgisi doğrulanamadı.");
     state.dashboard = response.data;
-    state.weekStart = response.data.weekStart;
     state.availabilityDate = response.data.availabilityDate;
     state.dashboardStatus = "ready";
     renderDashboard();
@@ -920,11 +882,7 @@ async function loadCalendar(month = state.calendarMonth, venueId = state.calenda
 }
 
 function syncCalendarNavigation() {
-  const weekEnabled = state.dashboardStatus === "ready" && isIsoDate(state.weekStart);
   const monthEnabled = state.calendarStatus === "ready" && isIsoMonth(state.calendarMonth);
-  document.querySelectorAll("[data-week-move], [data-week-today]").forEach((button) => {
-    button.disabled = !weekEnabled;
-  });
   document.querySelectorAll("[data-month-move], [data-month-today]").forEach((button) => {
     button.disabled = !monthEnabled;
   });
@@ -1713,7 +1671,6 @@ async function loadCatalogAdmin() {
 
 const panelLoaders = {
   overview: () => loadDashboard(),
-  plan: () => loadDashboard(),
   calendar: () => loadCalendar(),
   applications: loadApplications,
   weddings: loadWeddings,
@@ -1725,7 +1682,6 @@ const panelLoaders = {
 
 const PANEL_TITLES = {
   overview: "Günün akışı",
-  plan: "Haftalık plan",
   calendar: "Salon takvimi",
   applications: "Paket başvuruları",
   weddings: "Düğünler ve teslimatlar",
@@ -1814,19 +1770,6 @@ if (appDetailDialog) {
     if (event.target === appDetailDialog) appDetailDialog.close();
   });
 }
-
-document.querySelectorAll("[data-week-move]").forEach((button) => {
-  button.addEventListener("click", () => {
-    if (state.dashboardStatus !== "ready") return;
-    const target = addDays(state.weekStart, Number(button.dataset.weekMove));
-    if (target) void loadDashboard(target).catch((error) => setMessage(error.message));
-  });
-});
-document.querySelector("[data-week-today]").addEventListener("click", () => {
-  if (state.dashboardStatus !== "ready") return;
-  state.weekStart = "";
-  void loadDashboard().catch((error) => setMessage(error.message));
-});
 
 const availabilityDatePicker = document.querySelector(".js-availability-date-picker");
 const availabilityDateInput = document.querySelector(".js-availability-date");

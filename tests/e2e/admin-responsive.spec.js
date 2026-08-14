@@ -138,14 +138,8 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await expectMinimumHeight(page.locator('.admin-nav [data-panel="overview"]'));
   await page.getByRole("button", { name: /Menüyü Kapat/i }).click();
 
-  await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
-  await page.locator('[data-panel="plan"]').click();
-  await expect(page.locator('[data-panel-content="plan"]')).toBeVisible();
-  await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeHidden();
-  await expectNoPageOverflow(page);
-  for (const button of await page.locator(".plan-heading .plan-controls button").all()) {
-    await expectMinimumHeight(button);
-  }
+  await expect(page.locator('[data-panel="plan"]')).toHaveCount(0);
+  await expect(page.locator('[data-panel-content="plan"]')).toHaveCount(0);
 
   await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
   await page.locator('[data-panel="catalog"]').click();

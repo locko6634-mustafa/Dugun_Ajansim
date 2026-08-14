@@ -735,74 +735,9 @@ button:disabled {
   line-height: 1.45;
 }
 
-.plan-heading {
-  margin-top: 12px;
-}
 .plan-controls {
   display: flex;
   gap: 7px;
-}
-.week-ribbon {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(150px, 1fr));
-  gap: 8px;
-  overflow-x: auto;
-  padding: 4px 2px 14px;
-  scroll-snap-type: x mandatory;
-}
-.day-column {
-  min-height: 430px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  scroll-snap-align: start;
-}
-.day-column.is-today {
-  border-color: var(--olive);
-  box-shadow: inset 0 4px 0 var(--olive);
-}
-.day-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--line);
-}
-.day-head strong {
-  font-family: Inter, Manrope, sans-serif;
-  font-size: 25px;
-  font-weight: 400;
-}
-.day-head span {
-  color: var(--ink-soft);
-  font-size: 10px;
-  text-transform: uppercase;
-}
-.day-events {
-  display: grid;
-  gap: 9px;
-  margin-top: 12px;
-}
-.day-event {
-  padding: 12px;
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  cursor: pointer;
-}
-.day-event time,
-.day-event small {
-  display: block;
-  color: var(--ink-soft);
-  font-size: 9px;
-}
-.day-event strong {
-  display: block;
-  margin: 5px 0;
-  font-size: 11px;
-}
-.day-event.is-unassigned {
-  border-left: 3px solid var(--clay);
 }
 .calendar-heading {
   margin-top: 12px;
@@ -1692,10 +1627,6 @@ body.sidebar-open {
   .filter-bar input {
     min-width: 180px;
   }
-  .week-ribbon {
-    grid-template-columns: repeat(7, minmax(76vw, 1fr));
-  }
-
   .calendar-shell {
     overflow: visible;
     border: 0;
@@ -1756,9 +1687,6 @@ body.sidebar-open {
 
   .calendar-day__weekday {
     display: block;
-  }
-  .day-column {
-    min-height: 330px;
   }
   .catalog-layout {
     grid-template-columns: 1fr;
@@ -1833,13 +1761,6 @@ body.sidebar-open {
   }
   .delivery-strip {
     padding: 18px;
-  }
-  .plan-heading {
-    flex-direction: row !important;
-    align-items: center !important;
-  }
-  .plan-heading h2 {
-    font-size: 25px;
   }
   .wedding-list,
   .data-surface {
@@ -2666,8 +2587,7 @@ h6,
   }
 
   .admin-main .section-heading h2,
-  .admin-main .section-heading.compact h2,
-  .admin-main .plan-heading h2 {
+  .admin-main .section-heading.compact h2 {
     font-size: clamp(22px, 6.5vw, 25px);
     line-height: 1.12;
   }
@@ -2726,38 +2646,6 @@ h6,
 
   .admin-main .delivery-card {
     padding: 12px;
-  }
-
-  .admin-main .week-ribbon {
-    padding-bottom: 10px;
-  }
-
-  .admin-main .day-column {
-    min-height: 260px;
-    padding: 14px;
-  }
-
-  .admin-main .day-head {
-    padding-bottom: 10px;
-  }
-
-  .admin-main .day-head strong {
-    font-size: 22px;
-  }
-
-  .admin-main .day-head span,
-  .admin-main .day-event time,
-  .admin-main .day-event small {
-    font-size: 10px;
-  }
-
-  .admin-main .day-event {
-    padding: 10px;
-  }
-
-  .admin-main .day-event strong {
-    margin: 4px 0;
-    font-size: 12px;
   }
 
   .admin-main .venue-switcher {
@@ -3079,7 +2967,6 @@ h6,
     min-height: 48px;
   }
 
-  .plan-heading,
   .calendar-heading {
     align-items: stretch !important;
     flex-direction: column !important;
@@ -3114,7 +3001,6 @@ h6,
 
   .admin-main .compact-card,
   .admin-main .delivery-card,
-  .admin-main .day-event,
   .admin-main .calendar-event,
   .admin-main .contact-link,
   .admin-main .staff-card .staff-phone {
