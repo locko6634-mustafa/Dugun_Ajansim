@@ -972,22 +972,20 @@ router.get(
     });
     const selectedVenue = req.query.venueId
       ? venues.find((venue) => venue.id === String(req.query.venueId))
-      : (venues.find((venue) => venue.isActive) ?? venues[0]);
+      : null;
     if (req.query.venueId && !selectedVenue) throw new AppError("Salon bulunamadı.", 404);
 
-    const weddings = selectedVenue
-      ? await prisma.wedding.findMany({
-          where: {
-            venueId: selectedVenue.id,
-            cancelledAt: null,
-            deletedAt: null,
-            startsAt: { lt: monthEnd },
-            endsAt: { gt: monthStart }
-          },
-          include: dashboardWeddingInclude,
-          orderBy: { startsAt: "asc" }
-        })
-      : [];
+    const weddings = await prisma.wedding.findMany({
+      where: {
+        ...(selectedVenue ? { venueId: selectedVenue.id } : {}),
+        cancelledAt: null,
+        deletedAt: null,
+        startsAt: { lt: monthEnd },
+        endsAt: { gt: monthStart }
+      },
+      include: dashboardWeddingInclude,
+      orderBy: { startsAt: "asc" }
+    });
 
     res.json({
       success: true,

@@ -2717,6 +2717,18 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     true
   );
 
+  const allVenuesCalendar = await request(app)
+    .get(`/api/v1/admin/calendar?month=${weddingDate.slice(0, 7)}`)
+    .set("Cookie", adminCookie);
+  assert.equal(allVenuesCalendar.status, 200);
+  assert.equal(allVenuesCalendar.body.data.selectedVenue, null);
+  assert.ok(
+    allVenuesCalendar.body.data.weddings.some(
+      (calendarWedding: { id: string }) => calendarWedding.id === wedding.id
+    )
+  );
+  assert.ok(allVenuesCalendar.body.data.weddings.length >= venueCalendar.body.data.weddings.length);
+
   const invalidCalendarMonth = await request(app)
     .get("/api/v1/admin/calendar?month=2026-13")
     .set("Cookie", adminCookie);

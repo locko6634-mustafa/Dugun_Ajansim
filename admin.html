@@ -238,6 +238,12 @@
               <h2 class="js-calendar-label">Aylık takvim</h2>
             </div>
             <div class="plan-controls">
+              <div class="calendar-view-switcher" role="group" aria-label="Takvim görünümü">
+                <button type="button" data-calendar-view="month" aria-pressed="true">Aylık</button>
+                <button type="button" data-calendar-view="week" aria-pressed="false">
+                  Haftalık
+                </button>
+              </div>
               <button
                 class="mini-button"
                 type="button"
@@ -264,6 +270,10 @@
             role="tablist"
             aria-label="Salon takvimleri"
           ></div>
+          <label class="calendar-history-toggle" hidden>
+            <input class="js-calendar-show-past" type="checkbox" />
+            <span>Geçmiş düğünleri göster</span>
+          </label>
           <div class="calendar-shell">
             <div class="calendar-weekdays" aria-hidden="true">
               <span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span

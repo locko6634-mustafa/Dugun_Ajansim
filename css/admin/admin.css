@@ -737,7 +737,32 @@ button:disabled {
 
 .plan-controls {
   display: flex;
+  align-items: center;
   gap: 7px;
+}
+.calendar-view-switcher {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+}
+
+.calendar-view-switcher button {
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.calendar-view-switcher button[aria-pressed="true"] {
+  background: var(--ink);
+  color: white;
 }
 .calendar-heading {
   margin-top: 12px;
@@ -778,6 +803,10 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.calendar-history-toggle {
+  display: none;
+}
+
 .calendar-shell {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -807,6 +836,10 @@ button:disabled {
 
 .month-calendar {
   overflow-x: auto;
+}
+
+.month-calendar.is-week-view .calendar-day {
+  min-height: 260px;
 }
 
 .calendar-day {
@@ -1637,6 +1670,25 @@ body.sidebar-open {
     display: none;
   }
 
+  .calendar-history-toggle:not([hidden]) {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    gap: 10px;
+    margin: -4px 0 12px;
+    color: var(--ink-soft);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .calendar-history-toggle input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--olive);
+  }
+
   .month-calendar {
     display: grid;
     grid-template-columns: 1fr;
@@ -1661,6 +1713,11 @@ body.sidebar-open {
   .calendar-day.is-empty,
   .calendar-day.is-outside {
     display: none;
+  }
+
+  .month-calendar.is-week-view .calendar-day.is-empty,
+  .month-calendar.is-week-view .calendar-day.is-outside {
+    display: grid;
   }
 
   .calendar-day__head {
@@ -2976,6 +3033,15 @@ h6,
     display: grid;
     width: 100%;
     grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+
+  .calendar-view-switcher {
+    grid-column: 1 / -1;
+  }
+
+  .calendar-view-switcher button {
+    flex: 1;
+    min-height: 38px;
   }
 
   .plan-controls .mini-button {

@@ -82,6 +82,9 @@ const state = {
   calendarStatus: "idle",
   calendarMonth: "",
   calendarVenueId: "",
+  calendarView: "month",
+  calendarFocusDate: "",
+  calendarShowPast: false,
   weddings: [],
   staff: [],
   managers: [],
@@ -801,40 +804,101 @@ function calendarEventsByDate(weddings) {
   return byDate;
 }
 
-function renderCalendar() {
-  const data = state.calendar;
-  if (!data || !isIsoMonth(data.month)) return;
-  const venueContainer = document.querySelector(".js-calendar-venues");
-  venueContainer.innerHTML = data.venues.length
-    ? data.venues
-        .map(
-          (venue) =>
-            `<button class="${venue.isActive ? "" : "is-passive"}" type="button" role="tab" aria-selected="${venue.id === data.selectedVenue?.id}" data-calendar-venue="${escapeHtml(venue.id)}">${escapeHtml(venue.name)}</button>`
-        )
-        .join("")
-    : empty("Kayıtlı salon bulunmuyor.");
+function calendarWeekStart(date) {
+  if (!isIsoDate(date)) return null;
+  const value = new Date(`${date}T12:00:00.000Z`);
+  return addDays(date, -((value.getUTCDay() + 6) % 7));
+}
 
+function calendarRange(data) {
+  if (state.calendarView === "week") {
+    const weekStart = calendarWeekStart(state.calendarFocusDate || `${data.month}-01`);
+    return { start: weekStart, count: 7 };
+  }
   const monthDate = new Date(`${data.month}-01T12:00:00.000Z`);
-  document.querySelector(".js-calendar-label").textContent = `${new Intl.DateTimeFormat(
-    APP_LOCALE,
-    {
-      month: "long",
-      year: "numeric",
-      timeZone: "UTC"
-    }
-  ).format(monthDate)} · ${data.selectedVenue?.name || "Salon yok"}`;
-
   const year = monthDate.getUTCFullYear();
   const monthIndex = monthDate.getUTCMonth();
   const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
   const leadingDays = (monthDate.getUTCDay() + 6) % 7;
-  const cellCount = leadingDays + daysInMonth <= 35 ? 35 : 42;
-  const gridStart = addDays(`${data.month}-01`, -leadingDays);
+  return {
+    start: addDays(`${data.month}-01`, -leadingDays),
+    count: leadingDays + daysInMonth <= 35 ? 35 : 42
+  };
+}
+
+function calendarHeading(data) {
+  const venueName = data.selectedVenue?.name || "Tüm Salonlar";
+  if (state.calendarView === "month") {
+    return `${new Intl.DateTimeFormat(APP_LOCALE, {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC"
+    }).format(new Date(`${data.month}-01T12:00:00.000Z`))} · ${venueName}`;
+  }
+  const weekStart = calendarWeekStart(state.calendarFocusDate || `${data.month}-01`);
+  const weekEnd = addDays(weekStart, 6);
+  const startDate = new Date(`${weekStart}T12:00:00.000Z`);
+  const endDate = new Date(`${weekEnd}T12:00:00.000Z`);
+  const startLabel = new Intl.DateTimeFormat(APP_LOCALE, {
+    day: "numeric",
+    month: startDate.getUTCMonth() === endDate.getUTCMonth() ? undefined : "long",
+    timeZone: "UTC"
+  }).format(startDate);
+  const endLabel = new Intl.DateTimeFormat(APP_LOCALE, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(endDate);
+  return `${startLabel}–${endLabel} · ${venueName}`;
+}
+
+function shouldHidePastCalendarEvents(data) {
+  return (
+    window.matchMedia("(max-width: 900px)").matches &&
+    state.calendarView === "month" &&
+    isIsoDate(data.today) &&
+    data.month === data.today.slice(0, 7) &&
+    !state.calendarShowPast
+  );
+}
+
+function renderCalendar() {
+  const data = state.calendar;
+  if (!data || !isIsoMonth(data.month)) return;
+  const venueContainer = document.querySelector(".js-calendar-venues");
+  venueContainer.innerHTML = [
+    '<button type="button" role="tab" aria-selected="' +
+      String(!data.selectedVenue) +
+      '" data-calendar-venue="">Tüm Salonlar</button>',
+    ...data.venues.map(
+      (venue) =>
+        `<button class="${venue.isActive ? "" : "is-passive"}" type="button" role="tab" aria-selected="${venue.id === data.selectedVenue?.id}" data-calendar-venue="${escapeHtml(venue.id)}">${escapeHtml(venue.name)}</button>`
+    )
+  ].join("");
+
+  document.querySelector(".js-calendar-label").textContent = calendarHeading(data);
+  document.querySelectorAll("[data-calendar-view]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.calendarView === state.calendarView));
+  });
+  document
+    .querySelector(".js-month-calendar")
+    .classList.toggle("is-week-view", state.calendarView === "week");
+  const historyToggle = document.querySelector(".calendar-history-toggle");
+  const historyCheckbox = document.querySelector(".js-calendar-show-past");
+  const isCurrentMonth = isIsoDate(data.today) && data.month === data.today.slice(0, 7);
+  historyToggle.hidden = state.calendarView !== "month" || !isCurrentMonth;
+  historyCheckbox.checked = state.calendarShowPast;
+
+  const range = calendarRange(data);
   const byDate = calendarEventsByDate(data.weddings);
-  const cells = Array.from({ length: cellCount }, (_, index) => {
-    const date = addDays(gridStart, index);
+  const hidePastEvents = shouldHidePastCalendarEvents(data);
+  let visibleEventCount = 0;
+  const cells = Array.from({ length: range.count }, (_, index) => {
+    const date = addDays(range.start, index);
     const dateValue = new Date(`${date}T12:00:00.000Z`);
-    const events = byDate.get(date) || [];
+    const events = hidePastEvents && date < data.today ? [] : byDate.get(date) || [];
+    visibleEventCount += events.length;
     const outside = date.slice(0, 7) !== data.month;
     const weekday = new Intl.DateTimeFormat(APP_LOCALE, {
       weekday: "short",
@@ -843,18 +907,22 @@ function renderCalendar() {
     return `<section class="calendar-day ${outside ? "is-outside" : ""} ${events.length ? "" : "is-empty"} ${date === data.today ? "is-today" : ""}" aria-label="${escapeHtml(formatDate(`${date}T00:00:00.000Z`))}"><div class="calendar-day__head"><span class="calendar-day__number">${dateValue.getUTCDate()}</span><span class="calendar-day__weekday">${escapeHtml(weekday)}</span></div><div class="calendar-events">${events
       .map(
         (wedding) =>
-          `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
+          `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${data.selectedVenue ? "" : `${escapeHtml(wedding.venue.name)} · `}${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
       )
       .join("")}</div></section>`;
   }).join("");
   document.querySelector(".js-month-calendar").innerHTML = `${cells}${
-    data.weddings.length
+    visibleEventCount
       ? ""
-      : '<p class="calendar-mobile-empty empty-state">Bu salonda seçilen ay için düğün yok.</p>'
+      : `<p class="calendar-mobile-empty empty-state">${hidePastEvents && data.weddings.length ? "Geçmiş düğünler gizli. Görmek için yukarıdaki seçeneği açın." : `Seçilen ${state.calendarView === "week" ? "hafta" : "ay"} için düğün yok.`}</p>`
   }`;
 }
 
-async function loadCalendar(month = state.calendarMonth, venueId = state.calendarVenueId) {
+async function loadCalendar(
+  month = state.calendarMonth,
+  venueId = state.calendarVenueId,
+  focusDate = state.calendarFocusDate
+) {
   const calendarContainer = document.querySelector(".js-month-calendar");
   state.calendarStatus = "loading";
   syncCalendarNavigation();
@@ -868,6 +936,12 @@ async function loadCalendar(month = state.calendarMonth, venueId = state.calenda
     state.calendar = response.data;
     state.calendarMonth = response.data.month;
     state.calendarVenueId = response.data.selectedVenue?.id || "";
+    state.calendarFocusDate =
+      isIsoDate(focusDate) && focusDate.slice(0, 7) === response.data.month
+        ? focusDate
+        : response.data.today?.slice(0, 7) === response.data.month
+          ? response.data.today
+          : `${response.data.month}-01`;
     state.calendarStatus = "ready";
     renderCalendar();
     markDataSuccess();
@@ -886,6 +960,16 @@ function syncCalendarNavigation() {
   document.querySelectorAll("[data-month-move], [data-month-today]").forEach((button) => {
     button.disabled = !monthEnabled;
   });
+  document.querySelectorAll("[data-calendar-view]").forEach((button) => {
+    button.disabled = !monthEnabled;
+  });
+  const previous = document.querySelector('[data-month-move="-1"]');
+  const next = document.querySelector('[data-month-move="1"]');
+  const today = document.querySelector("[data-month-today]");
+  const period = state.calendarView === "week" ? "hafta" : "ay";
+  previous.setAttribute("aria-label", `Önceki ${period}`);
+  next.setAttribute("aria-label", `Sonraki ${period}`);
+  today.textContent = state.calendarView === "week" ? "Bu hafta" : "Bu ay";
 }
 
 async function loadApplications() {
@@ -1938,9 +2022,36 @@ document.querySelector(".js-calendar-venues").addEventListener("click", (event) 
     );
   }
 });
+document.querySelectorAll("[data-calendar-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    if (state.calendarStatus !== "ready" || button.dataset.calendarView === state.calendarView)
+      return;
+    state.calendarView = button.dataset.calendarView;
+    renderCalendar();
+    syncCalendarNavigation();
+  });
+});
+document.querySelector(".js-calendar-show-past").addEventListener("change", (event) => {
+  state.calendarShowPast = event.target.checked;
+  renderCalendar();
+});
 document.querySelectorAll("[data-month-move]").forEach((button) => {
   button.addEventListener("click", () => {
     if (state.calendarStatus !== "ready") return;
+    if (state.calendarView === "week") {
+      const focusDate = addDays(state.calendarFocusDate, Number(button.dataset.monthMove) * 7);
+      if (!focusDate) return;
+      const targetMonth = focusDate.slice(0, 7);
+      if (targetMonth === state.calendarMonth) {
+        state.calendarFocusDate = focusDate;
+        renderCalendar();
+      } else {
+        void loadCalendar(targetMonth, state.calendarVenueId, focusDate).catch((error) =>
+          setMessage(error.message)
+        );
+      }
+      return;
+    }
     const target = addMonths(state.calendarMonth, Number(button.dataset.monthMove));
     if (target) {
       void loadCalendar(target, state.calendarVenueId).catch((error) => setMessage(error.message));
@@ -1950,7 +2061,8 @@ document.querySelectorAll("[data-month-move]").forEach((button) => {
 document.querySelector("[data-month-today]").addEventListener("click", () => {
   if (state.calendarStatus !== "ready") return;
   state.calendarMonth = "";
-  void loadCalendar("", state.calendarVenueId).catch((error) => setMessage(error.message));
+  state.calendarFocusDate = "";
+  void loadCalendar("", state.calendarVenueId, "").catch((error) => setMessage(error.message));
 });
 
 document.querySelector(".js-application-search").addEventListener("submit", (event) => {

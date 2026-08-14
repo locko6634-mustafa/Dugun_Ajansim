@@ -620,6 +620,24 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       driveUrl: null
     }
   };
+  const pastCalendarWedding = {
+    ...wedding,
+    id: "7be9f9e6-6217-4b6c-91ea-251be3bb6fc2",
+    brideFirstName: "Elif",
+    groomFirstName: "Can",
+    startsAt: "2026-08-04T17:00:00.000Z",
+    endsAt: "2026-08-04T20:00:00.000Z"
+  };
+  const previousMonthWedding = {
+    ...wedding,
+    id: "8ce9f9e6-6217-4b6c-91ea-251be3bb6fc3",
+    venueId: "a430c729-e45a-4ce9-9c98-62a94d2b8581",
+    brideFirstName: "Derya",
+    groomFirstName: "Bora",
+    startsAt: "2026-07-18T17:00:00.000Z",
+    endsAt: "2026-07-18T20:00:00.000Z",
+    venue: { id: "a430c729-e45a-4ce9-9c98-62a94d2b8581", name: "Bella Garden" }
+  };
   const activationTask = {
     id: "a530bd2d-222d-4d22-86dc-7487fcd3f151",
     kind: "ACCOUNT_ACTIVATION",
@@ -683,12 +701,19 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await page.route("**/api/v1/admin/calendar**", (route) => {
     lastCalendarUrl = route.request().url();
     const url = new URL(lastCalendarUrl);
-    const selectedVenueId = url.searchParams.get("venueId") || wedding.venueId;
+    const selectedVenueId = url.searchParams.get("venueId");
     const month = url.searchParams.get("month") || "2026-08";
-    const selectedVenue =
-      selectedVenueId === wedding.venueId
+    const selectedVenue = selectedVenueId
+      ? selectedVenueId === wedding.venueId
         ? { id: wedding.venueId, name: "Cess Wedding", isActive: true }
-        : { id: secondVenueId, name: "Bella Garden", isActive: true };
+        : { id: secondVenueId, name: "Bella Garden", isActive: true }
+      : null;
+    const weddings =
+      month === "2026-08" && (!selectedVenueId || selectedVenueId === wedding.venueId)
+        ? [pastCalendarWedding, wedding]
+        : month === "2026-07" && (!selectedVenueId || selectedVenueId === secondVenueId)
+          ? [previousMonthWedding]
+          : [];
     return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -701,7 +726,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
             { id: secondVenueId, name: "Bella Garden", isActive: true }
           ],
           selectedVenue,
-          weddings: selectedVenueId === wedding.venueId && month === "2026-08" ? [wedding] : []
+          weddings
         }
       })
     });
@@ -1103,13 +1128,41 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   messageStatus = "PLANNED";
   messageUpdatedAt = "2026-08-10T10:00:00.000Z";
   await clickPanel(page, "calendar");
-  await expect(page.getByRole("heading", { name: "Ağustos 2026 · Cess Wedding" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ağustos 2026 · Tüm Salonlar" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Tüm Salonlar" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  await expect(page.locator(".js-calendar-venues [role=tab]").first()).toHaveText("Tüm Salonlar");
   await expect(page.getByRole("button", { name: /Ayşe & Mehmet/ }).first()).toBeVisible();
+  const pastCalendarEvent = page.getByRole("button", { name: /Elif & Can/ });
+  const historyToggle = page.getByRole("checkbox", { name: "Geçmiş düğünleri göster" });
+  if (isMobile) {
+    await expect(pastCalendarEvent).toHaveCount(0);
+    await expect(historyToggle).toBeVisible();
+    await expect(historyToggle).not.toBeChecked();
+    await historyToggle.check();
+    await expect(pastCalendarEvent).toBeVisible();
+    await historyToggle.uncheck();
+    await expect(pastCalendarEvent).toHaveCount(0);
+  } else {
+    await expect(pastCalendarEvent).toBeVisible();
+    await expect(historyToggle).toBeHidden();
+  }
+  await page.getByRole("button", { name: "Haftalık" }).click();
+  await expect(
+    page.getByRole("heading", { name: "10–16 Ağustos 2026 · Tüm Salonlar" })
+  ).toBeVisible();
+  await expect(page.locator(".calendar-day:visible")).toHaveCount(7);
+  await expect(page.getByRole("button", { name: "Önceki hafta" })).toBeVisible();
+  await page.getByRole("button", { name: "Aylık" }).click();
   await page.getByRole("tab", { name: "Bella Garden" }).click();
   await expect.poll(() => lastCalendarUrl).toContain(`venueId=${secondVenueId}`);
   await expect(page.getByRole("heading", { name: "Ağustos 2026 · Bella Garden" })).toBeVisible();
   await page.getByRole("button", { name: "Önceki ay" }).click();
   await expect.poll(() => lastCalendarUrl).toContain("month=2026-07");
+  await expect(page.getByRole("button", { name: /Derya & Bora/ })).toBeVisible();
+  await expect(historyToggle).toBeHidden();
   await clickPanel(page, "messages");
   await page.getByRole("button", { name: "Hazırla" }).click();
   await completeAdminStepUp(page);
