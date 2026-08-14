@@ -1163,6 +1163,17 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     );
     await expect(paymentLabels).toHaveCount(4);
     expect(
+      await paymentLabels.evaluateAll((labels) =>
+        labels.every((label) => {
+          const input = label.querySelector("input");
+          return (
+            getComputedStyle(label).display === "grid" &&
+            input.getBoundingClientRect().width >= label.getBoundingClientRect().width - 1
+          );
+        })
+      )
+    ).toBe(true);
+    expect(
       await paymentLabels.evaluateAll(
         (labels) =>
           Math.abs(labels[0].getBoundingClientRect().top - labels[1].getBoundingClientRect().top) <=

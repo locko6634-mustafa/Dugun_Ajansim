@@ -3286,6 +3286,17 @@ h6,
     margin-top: 6px;
   }
 
+  .js-wedding-form .wedding-payment-fields label {
+    display: grid;
+    align-items: stretch;
+    justify-content: stretch;
+    width: 100%;
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+    grid-auto-flow: row;
+  }
+
   .dialog-actions {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
