@@ -2633,7 +2633,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       wedding.id,
       await prisma.wedding.findUniqueOrThrow({ where: { id: wedding.id } })
     ).note,
-    null
+    applicationInput.note
   );
   await assertBookingApplicationFingerprintMatches(wedding.applicationId);
   const operationsStaff = await request(app)
