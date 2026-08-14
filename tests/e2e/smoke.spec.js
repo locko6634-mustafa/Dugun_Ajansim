@@ -1071,6 +1071,8 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await page.emulateMedia({ media: "print" });
   await expect(page.locator(".js-wedding-print-report")).toBeVisible();
   await expect(page.locator(".admin-shell")).toBeHidden();
+  const pdf = await page.pdf({ format: "A4", printBackground: true });
+  expect(pdf.toString("latin1").match(/\/Type\s*\/Page\b/g)).toHaveLength(1);
   await page.emulateMedia({ media: "screen" });
   await expect(page.getByRole("button", { name: "Müşteri MFA'sını sıfırla" })).toHaveCount(0);
   await page.getByRole("button", { name: "Müşteri hesabını aktifleştir" }).click();
