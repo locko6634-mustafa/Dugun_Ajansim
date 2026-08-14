@@ -23,7 +23,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     homeBootstrap,
     packageBuilderApplication,
     packageBuilderPage,
-    customerPanelApplication
+    customerPanelApplication,
+    deliveryLink
   ] = await Promise.all([
     readProjectFile("backend/Dockerfile"),
     readProjectFile("Dockerfile"),
@@ -42,7 +43,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
     readProjectFile("js/home/bootstrap.js"),
     readProjectFile("js/package-builder/application.js"),
     readProjectFile("paketini-olustur.html"),
-    readProjectFile("js/customer-panel/app.js")
+    readProjectFile("js/customer-panel/app.js"),
+    readProjectFile("js/shared/delivery-link.js")
   ]);
 
   expect(backendDockerfile).toContain("FROM build AS migrate");
@@ -180,7 +182,13 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(packageBuilderPage).toContain('name="companyWebsite"');
   expect(packageBuilderApplication).not.toContain("paymentFlowKey:");
   expect(packageBuilderApplication).not.toContain('"Payment-Flow-Key"');
-  expect(customerPanelApplication).toContain('["drive.google.com", "docs.google.com"]');
+  expect(customerPanelApplication).toContain(
+    'import { normalizeDeliveryLinkUrl } from "../shared/delivery-link.js"'
+  );
+  expect(deliveryLink).toContain(
+    '["drive.google.com", "docs.google.com", "we.tl", "wetransfer.com"]'
+  );
+  expect(deliveryLink).toContain('normalized.endsWith(".wetransfer.com")');
 
   expect(exampleEnv).toMatch(/^POSTGRES_PASSWORD=$/m);
   expect(exampleEnv).toMatch(/^POSTGRES_RUNTIME_USER=dugun_runtime$/m);
