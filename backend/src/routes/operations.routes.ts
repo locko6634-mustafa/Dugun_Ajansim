@@ -197,19 +197,26 @@ const venueOperationsWeddingDto = (wedding: VenueOperationsWedding) => {
   const pii = decryptSelectedWeddingPii(wedding);
   return {
     id: wedding.id,
+    brideFirstName: pii.brideFirstName,
+    brideLastName: pii.brideLastName,
+    bridePhone: pii.bridePhone,
+    groomFirstName: pii.groomFirstName,
+    groomLastName: pii.groomLastName,
+    groomPhone: pii.groomPhone,
+    primaryEmail: pii.primaryEmail,
     startsAt: wedding.startsAt,
     endsAt: wedding.endsAt,
     cancelledAt: wedding.cancelledAt,
     deletedAt: wedding.deletedAt,
+    packageSummary: wedding.packageSummary,
+    paymentTotalCents: wedding.paymentTotalCents,
+    paymentDepositCents: wedding.paymentDepositCents,
+    paymentReceivedCents: wedding.paymentReceivedCents,
+    paymentRemainingCents: Math.max(wedding.paymentTotalCents - wedding.paymentReceivedCents, 0),
     note: pii.note,
     assignments: wedding.assignments.map((assignment) => ({
-      id: assignment.id,
-      staffId: assignment.staffId,
-      specialty: assignment.specialty,
-      staff: (() => {
-        const staff = staffWithDecryptedPii(assignment.staff);
-        return { id: staff.id, firstName: staff.firstName, lastName: staff.lastName };
-      })()
+      ...assignment,
+      staff: staffWithDecryptedPii(assignment.staff)
     }))
   };
 };
@@ -651,15 +658,7 @@ router.get(
       data: {
         ...venueOperationsWeddingDto(wedding),
         availableStaff: sortStaffByName(
-          availableStaff.map((member) => {
-            const staff = staffWithDecryptedPii(member);
-            return {
-              id: staff.id,
-              firstName: staff.firstName,
-              lastName: staff.lastName,
-              specialties: staff.specialties
-            };
-          })
+          availableStaff.map((member) => staffWithDecryptedPii(member))
         )
       },
       correlationId: req.correlationId

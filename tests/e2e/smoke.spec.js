@@ -2665,11 +2665,12 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
     groomFirstName: "Mehmet",
     groomLastName: "Demir",
     groomPhone: "+905559876543",
+    primaryEmail: "ayse.mehmet@example.com",
     startsAt: "2026-08-10T17:00:00.000Z",
     endsAt: "2026-08-10T23:00:00.000Z",
     note: "Giriş çekimi 18.30",
     venue: { id: venueId, name: "Cess Wedding" },
-    packageSummary: { name: "Mini Paket" },
+    packageSummary: { name: "Mini Paket", services: [{ name: "Drone çekimi" }] },
     paymentTotalCents: 2_250_000,
     paymentDepositCents: 300_000,
     paymentReceivedCents: 750_000,
@@ -2760,19 +2761,29 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
   await page.goto("/operasyon-paneli.html");
   await expect(page.locator(".js-venue-name")).toContainText("Cess Wedding");
   await expect(page.getByRole("button", { name: /Düğün Planı/i })).toHaveCount(0);
-  await page.getByRole("button", { name: "Personel ata" }).click();
+  await page.getByRole("button", { name: "Görüntüle ve personel ata" }).click();
   const weddingDialog = page.getByRole("dialog");
-  await expect(weddingDialog.getByRole("heading", { name: "Takvim ayrıntısı" })).toBeVisible();
+  await expect(weddingDialog.getByRole("heading", { name: "Ayşe & Mehmet" })).toBeVisible();
+  await expect(weddingDialog).toContainText("Ayşe Yılmaz");
+  await expect(weddingDialog).toContainText("Mehmet Demir");
+  await expect(weddingDialog).toContainText("ayse.mehmet@example.com");
+  await expect(weddingDialog).toContainText("Mini Paket");
+  await expect(weddingDialog).toContainText("Drone çekimi");
+  await expect(weddingDialog).toContainText("Ödeme detayları");
   await expect(weddingDialog).toContainText("Giriş çekimi 18.30");
   await expect(weddingDialog.locator(".js-schedule-form")).toHaveCount(0);
-  await expect(weddingDialog).not.toContainText("Ödeme detayları");
+  await weddingDialog.getByRole("button", { name: "PDF oluştur" }).click();
+  await expect(page.locator(".js-wedding-print-report")).toContainText("Ayşe Yılmaz");
+  await expect(page.locator(".js-wedding-print-report")).toContainText("Mehmet Demir");
+  await expect(page.locator(".js-wedding-print-report")).toContainText("Drone çekimi");
+  expect(await page.evaluate(() => window.__weddingPrintCalls)).toBe(1);
   await weddingDialog.locator('[name="staffId"]').selectOption(staffId);
   await weddingDialog.locator('[name="specialty"]').selectOption("PHOTOGRAPHY");
   await weddingDialog.getByRole("button", { name: "Ata" }).click();
   await expect.poll(() => assignmentCalls).toBe(1);
   await page.locator(".js-wedding-dialog [data-close-dialog]").click();
   await clickPanel(page, "calendar", true);
-  await expect(page.locator(".calendar-event")).toContainText("Giriş çekimi 18.30");
+  await expect(page.locator(".calendar-event")).toContainText("Ayşe & Mehmet");
   await clickPanel(page, "staff", true);
   await expect(page.locator(".js-staff")).toContainText("Cem Arslan");
   await expect(page.locator(".js-add-staff, [data-edit-staff], [data-toggle-staff]")).toHaveCount(

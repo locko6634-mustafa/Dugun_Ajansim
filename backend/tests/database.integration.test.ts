@@ -66,16 +66,6 @@ const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
     "applicationId",
     "customerUserId",
     "primaryContact",
-    "primaryEmail",
-    "brideFirstName",
-    "bridePhone",
-    "groomFirstName",
-    "groomPhone",
-    "packageSummary",
-    "paymentTotalCents",
-    "paymentDepositCents",
-    "paymentReceivedCents",
-    "paymentRemainingCents",
     "venueId",
     "deletedById",
     "createdAt",
@@ -84,11 +74,23 @@ const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
     assert.equal(field in wedding, false, `Operasyon düğün yanıtı ${field} alanını içermemeli.`);
   }
   assert.equal(typeof wedding.id, "string");
+  assert.equal(typeof wedding.brideFirstName, "string");
+  assert.equal(typeof wedding.brideLastName, "string");
+  assert.equal(typeof wedding.bridePhone, "string");
+  assert.equal(typeof wedding.groomFirstName, "string");
+  assert.equal(typeof wedding.groomLastName, "string");
+  assert.equal(typeof wedding.groomPhone, "string");
+  assert.equal(typeof wedding.primaryEmail, "string");
   assert.equal(typeof wedding.startsAt, "string");
   assert.equal(typeof wedding.endsAt, "string");
   assert.ok(wedding.note === null || typeof wedding.note === "string");
   assert.ok(wedding.cancelledAt === null || typeof wedding.cancelledAt === "string");
   assert.ok(wedding.deletedAt === null || typeof wedding.deletedAt === "string");
+  assert.equal(typeof wedding.packageSummary, "object");
+  assert.equal(typeof wedding.paymentTotalCents, "number");
+  assert.equal(typeof wedding.paymentDepositCents, "number");
+  assert.equal(typeof wedding.paymentReceivedCents, "number");
+  assert.equal(typeof wedding.paymentRemainingCents, "number");
   assert.ok(Array.isArray(wedding.assignments));
   assertNoPiiPersistenceMetadata(wedding);
 };
