@@ -5,6 +5,7 @@ import {
   APP_LOCALE,
   APP_TIME_ZONE,
   OPERATIONS_CITY,
+  formatAppCurrency,
   formatAppTime
 } from "../shared/runtime-config.js";
 import { escapeHtml } from "../shared/html.js";
@@ -68,6 +69,8 @@ const formatDate = (value, withTime = false) =>
         ...(withTime ? { timeStyle: "short" } : {})
       }).format(new Date(value))
     : "—";
+const formatMoney = (cents) =>
+  formatAppCurrency(Number(cents || 0) / 100, { maximumFractionDigits: 0 });
 const dateKey = (value) => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIME_ZONE,
@@ -700,6 +703,10 @@ function renderWeddingDetail(wedding) {
     )
     .join("");
   const assignments = wedding.assignments || [];
+  const paymentTotalCents = Number(
+    wedding.paymentTotalCents ?? wedding.packageSummary?.totalPriceCents ?? 0
+  );
+  const paymentReceivedCents = Number(wedding.paymentReceivedCents || 0);
   detailContainer.innerHTML = `<div class="detail-grid">
     ${locked ? `<section class="detail-card wide"><p class="dialog-message">${escapeHtml(lockedMessage)}</p></section>` : ""}
     <section class="detail-card">
@@ -711,6 +718,13 @@ function renderWeddingDetail(wedding) {
       <p class="section-index">Paket</p>
       <strong>${escapeHtml(wedding.packageSummary?.name || "Paket belirtilmedi")}</strong>
       <p>${escapeHtml(wedding.note || "Operasyon notu yok.")}</p>
+    </section>
+    <section class="detail-card wide">
+      <p class="section-index">Ödeme detayları</p>
+      <strong>Toplam: ${escapeHtml(formatMoney(paymentTotalCents))}</strong><br>
+      <span>Kapora: ${escapeHtml(formatMoney(wedding.paymentDepositCents))}</span><br>
+      <span>Alınan: ${escapeHtml(formatMoney(paymentReceivedCents))}</span><br>
+      <span>Kalan: ${escapeHtml(formatMoney(Math.max(paymentTotalCents - paymentReceivedCents, 0)))}</span>
     </section>
     <section class="detail-card wide">
       <p class="section-index">Takvim düzenle</p>

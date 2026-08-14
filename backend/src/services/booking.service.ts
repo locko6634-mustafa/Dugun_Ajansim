@@ -1457,6 +1457,10 @@ export const approveBookingApplication = async (
                   priceCents: service.priceCents
                 }))
               },
+              paymentTotalCents: application.totalPriceCents,
+              paymentDepositCents:
+                application.paymentMethod === "DEPOSIT" ? application.payableNowCents : 0,
+              paymentReceivedCents: 0,
               delivery: {
                 create: {
                   dueDate,

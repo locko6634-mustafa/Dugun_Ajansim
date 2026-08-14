@@ -1561,6 +1561,10 @@ router.get(
       success: true,
       data: {
         ...safeWedding,
+        paymentRemainingCents: Math.max(
+          safeWedding.paymentTotalCents - safeWedding.paymentReceivedCents,
+          0
+        ),
         assignments: wedding.assignments.map((assignment) => ({
           ...assignment,
           staff: staffWithDecryptedPii(assignment.staff)
@@ -2272,6 +2276,15 @@ router.patch(
           priceCents: service.priceCents
         }))
     };
+    const paymentTotalCents = req.body.paymentTotalCents ?? wedding.paymentTotalCents;
+    const paymentDepositCents = req.body.paymentDepositCents ?? wedding.paymentDepositCents;
+    const paymentReceivedCents = req.body.paymentReceivedCents ?? wedding.paymentReceivedCents;
+    if (paymentDepositCents > paymentTotalCents) {
+      throw new AppError("Kapora toplam tutarı aşamaz.", 400);
+    }
+    if (paymentReceivedCents > paymentTotalCents) {
+      throw new AppError("Alınan tutar toplam tutarı aşamaz.", 400);
+    }
 
     const bridePhone = normalizePhone(req.body.bridePhone);
     const groomPhone = normalizePhone(req.body.groomPhone);
@@ -2411,7 +2424,10 @@ router.patch(
                 startsAt,
                 endsAt,
                 venueId: req.body.venueId,
-                packageSummary
+                packageSummary,
+                paymentTotalCents,
+                paymentDepositCents,
+                paymentReceivedCents
               }
             });
             if (claimedWedding.count !== 1) {
@@ -2664,6 +2680,10 @@ router.patch(
                 servicesChanged:
                   currentServiceCodes.size !== uniqueServiceCodes.length ||
                   uniqueServiceCodes.some((code) => !currentServiceCodes.has(code)),
+                paymentChanged:
+                  paymentTotalCents !== wedding.paymentTotalCents ||
+                  paymentDepositCents !== wedding.paymentDepositCents ||
+                  paymentReceivedCents !== wedding.paymentReceivedCents,
                 credentialsRegenerated: regenerateCredentials
               }
             });
@@ -2709,6 +2729,10 @@ router.patch(
       success: true,
       data: {
         ...weddingWithDecryptedPii(updated),
+        paymentRemainingCents: Math.max(
+          updated.paymentTotalCents - updated.paymentReceivedCents,
+          0
+        ),
         credentialsRegenerated: regenerateCredentials,
         username: nextUsername ?? updated.customerUser.username
       },

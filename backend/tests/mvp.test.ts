@@ -406,13 +406,29 @@ test("admin düğün güncellemesinde çift, iletişim ve gerçek zaman aralığ
     venueId: "de305d54-75b4-431b-adb2-eb6b9e546014",
     packageCode: "mini",
     serviceCodes: ["drone"],
+    paymentTotalCents: 2_500_000,
+    paymentDepositCents: 300_000,
+    paymentReceivedCents: 900_000,
     note: ""
   });
   assert.equal(parsed.weddingDate, "2026-08-10");
+  assert.equal(parsed.paymentTotalCents! - parsed.paymentReceivedCents!, 1_600_000);
   assert.throws(() =>
     weddingUpdateBodySchema.parse({
       ...parsed,
       primaryEmail: "gecersiz"
+    })
+  );
+  assert.throws(() =>
+    weddingUpdateBodySchema.parse({
+      ...parsed,
+      paymentReceivedCents: 2_500_001
+    })
+  );
+  assert.throws(() =>
+    weddingUpdateBodySchema.parse({
+      ...parsed,
+      paymentDepositCents: 2_500_001
     })
   );
 });

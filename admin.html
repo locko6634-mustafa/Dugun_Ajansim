@@ -747,6 +747,39 @@
             <legend>Ek hizmetler</legend>
             <div class="js-wedding-services"></div>
           </fieldset>
+          <fieldset class="wide specialty-choices wedding-payment-fields">
+            <legend>Ödeme detayları</legend>
+            <div class="form-grid">
+              <label
+                >Toplam tutar (₺)<input
+                  name="paymentTotal"
+                  type="number"
+                  min="0"
+                  max="10000000"
+                  step="0.01"
+                  required
+              /></label>
+              <label
+                >Kapora (₺)<input
+                  name="paymentDeposit"
+                  type="number"
+                  min="0"
+                  max="10000000"
+                  step="0.01"
+                  required
+              /></label>
+              <label
+                >Alınan para (₺)<input
+                  name="paymentReceived"
+                  type="number"
+                  min="0"
+                  max="10000000"
+                  step="0.01"
+                  required
+              /></label>
+              <label>Kalan para (₺)<input name="paymentRemaining" type="text" readonly /></label>
+            </div>
+          </fieldset>
           <label class="wide">Not<textarea name="note" rows="3" maxlength="2000"></textarea></label>
         </div>
         <p id="wedding-form-message" class="dialog-message" role="status" aria-live="polite"></p>

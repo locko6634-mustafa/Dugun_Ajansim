@@ -2739,6 +2739,13 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", adminCookie);
   assert.equal(weddingDetail.status, 200);
   assert.equal(weddingDetail.body.data.assignments.length, 1);
+  assert.equal(typeof weddingDetail.body.data.paymentTotalCents, "number");
+  assert.equal(typeof weddingDetail.body.data.paymentDepositCents, "number");
+  assert.equal(weddingDetail.body.data.paymentReceivedCents, 0);
+  assert.equal(
+    weddingDetail.body.data.paymentRemainingCents,
+    weddingDetail.body.data.paymentTotalCents
+  );
   assert.equal(
     JSON.stringify(weddingDetail.body.data.messageTasks).includes("secretCiphertext"),
     false
@@ -3044,6 +3051,9 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       serviceCodes: (wedding.packageSummary as { services: Array<{ code: string }> }).services.map(
         (service) => service.code
       ),
+      paymentTotalCents: 2_500_000,
+      paymentDepositCents: 300_000,
+      paymentReceivedCents: 900_000,
       note: currentWeddingPiiForAdmin.note ?? ""
     });
   assert.equal(weddingUpdate.status, 200);
@@ -3051,6 +3061,10 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(weddingUpdate.body.data.username, wedding.customerUser.username);
   await assertBookingApplicationFingerprintMatches(wedding.applicationId);
   assert.equal(weddingUpdate.body.data.groomPhone, "+905550001122");
+  assert.equal(weddingUpdate.body.data.paymentTotalCents, 2_500_000);
+  assert.equal(weddingUpdate.body.data.paymentDepositCents, 300_000);
+  assert.equal(weddingUpdate.body.data.paymentReceivedCents, 900_000);
+  assert.equal(weddingUpdate.body.data.paymentRemainingCents, 1_600_000);
   assertNoPiiPersistenceMetadata(weddingUpdate.body.data);
   const applicationAfterAdminUpdate = await prisma.bookingApplication.findUniqueOrThrow({
     where: { id: wedding.applicationId }

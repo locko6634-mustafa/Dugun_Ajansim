@@ -177,6 +177,9 @@ const weddingSelectForVenue = (venueId: string) =>
     cancelledAt: true,
     deletedAt: true,
     packageSummary: true,
+    paymentTotalCents: true,
+    paymentDepositCents: true,
+    paymentReceivedCents: true,
     assignments: {
       where: { staff: { venueId } },
       include: { staff: true },
@@ -209,6 +212,10 @@ const venueOperationsWeddingDto = (wedding: VenueOperationsWedding) => {
           ? wedding.packageSummary.name
           : null
     },
+    paymentTotalCents: wedding.paymentTotalCents,
+    paymentDepositCents: wedding.paymentDepositCents,
+    paymentReceivedCents: wedding.paymentReceivedCents,
+    paymentRemainingCents: Math.max(wedding.paymentTotalCents - wedding.paymentReceivedCents, 0),
     note: pii.note,
     assignments: wedding.assignments.map((assignment) => ({
       ...assignment,

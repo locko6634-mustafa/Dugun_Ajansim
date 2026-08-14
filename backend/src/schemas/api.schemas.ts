@@ -427,9 +427,36 @@ export const weddingUpdateBodySchema = z
     venueId: z.string().uuid(),
     packageCode: codeSchema,
     serviceCodes: z.array(codeSchema).max(20),
+    paymentTotalCents: z.number().int().min(0).max(1_000_000_000).optional(),
+    paymentDepositCents: z.number().int().min(0).max(1_000_000_000).optional(),
+    paymentReceivedCents: z.number().int().min(0).max(1_000_000_000).optional(),
     note: z.string().trim().max(2_000).optional().or(z.literal(""))
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.paymentTotalCents !== undefined &&
+      value.paymentDepositCents !== undefined &&
+      value.paymentDepositCents > value.paymentTotalCents
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["paymentDepositCents"],
+        message: "Kapora toplam tutarı aşamaz."
+      });
+    }
+    if (
+      value.paymentTotalCents !== undefined &&
+      value.paymentReceivedCents !== undefined &&
+      value.paymentReceivedCents > value.paymentTotalCents
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["paymentReceivedCents"],
+        message: "Alınan tutar toplam tutarı aşamaz."
+      });
+    }
+  });
 
 export const staffBodySchema = z
   .object({

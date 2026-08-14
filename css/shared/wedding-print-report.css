@@ -251,7 +251,10 @@
   }
 
   .wedding-print-totals > div {
-    padding: 4mm;
+    padding: 2.2mm 3mm;
+  }
+
+  .wedding-print-totals > div:first-child {
     border-top: 0;
   }
 

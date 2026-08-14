@@ -108,8 +108,11 @@ export function weddingPrintMarkup(wedding, { venueName = "" } = {}) {
   const resolvedVenueName = venueName || wedding.venue?.name || "Salon bilgisi yok";
   const email = typeof wedding.primaryEmail === "string" ? wedding.primaryEmail.trim() : "";
   const note = typeof wedding.note === "string" ? wedding.note.trim() : "";
-  const totalPriceCents = Number(packageSummary.totalPriceCents);
+  const totalPriceCents = Number(wedding.paymentTotalCents ?? packageSummary.totalPriceCents);
   const hasTotal = Number.isFinite(totalPriceCents);
+  const depositCents = Number(wedding.paymentDepositCents || 0);
+  const receivedCents = Number(wedding.paymentReceivedCents || 0);
+  const remainingCents = hasTotal ? Math.max(totalPriceCents - receivedCents, 0) : null;
 
   return `<div class="wedding-print-page">
     <header class="wedding-print-header">
@@ -140,6 +143,9 @@ export function weddingPrintMarkup(wedding, { venueName = "" } = {}) {
       </div>
       <dl class="wedding-print-totals">
         <div><dt>Toplam tutar</dt><dd>${hasTotal ? escapeHtml(formatMoney(totalPriceCents)) : "Kayıtlı değil"}</dd></div>
+        <div><dt>Kapora</dt><dd>${escapeHtml(formatMoney(depositCents))}</dd></div>
+        <div><dt>Alınan para</dt><dd>${escapeHtml(formatMoney(receivedCents))}</dd></div>
+        <div><dt>Kalan para</dt><dd>${remainingCents === null ? "Kayıtlı değil" : escapeHtml(formatMoney(remainingCents))}</dd></div>
       </dl>
     </section>
 

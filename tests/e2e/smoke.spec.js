@@ -607,6 +607,9 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       totalPriceCents: 2_250_000,
       services: [{ code: "baski", name: "Ek Baskı", priceCents: 250_000 }]
     },
+    paymentTotalCents: 2_250_000,
+    paymentDepositCents: 300_000,
+    paymentReceivedCents: 750_000,
     assignments: [],
     customerUser: {
       id: "40c66ad5-b87a-4f0b-a4fa-1f3562329387",
@@ -1008,6 +1011,9 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     expect(body.brideLastName).toBe("Kaya");
     expect(body.packageCode).toBe("hikaye");
     expect(body.serviceCodes).toEqual(["drone"]);
+    expect(body.paymentTotalCents).toBe(2_400_000);
+    expect(body.paymentDepositCents).toBe(300_000);
+    expect(body.paymentReceivedCents).toBe(900_000);
     expect(body.note).toContain("Paket değiştirildi: Mini Paket → Hikâye Paketi.");
     expect(body.note).toContain("Ek hizmet çıkarıldı: Ek Baskı.");
     expect(body.note).toContain("Ek hizmet eklendi: Drone Çekimi.");
@@ -1091,6 +1097,8 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await expect(page.locator(".js-wedding-print-report")).toContainText("Mini Paket");
   await expect(page.locator(".js-wedding-print-report")).toContainText("Cess Wedding");
   await expect(page.locator(".js-wedding-print-report")).toContainText("₺22.500,00");
+  await expect(page.locator(".js-wedding-print-report")).toContainText("₺7.500,00");
+  await expect(page.locator(".js-wedding-print-report")).toContainText("₺15.000,00");
   expect(await page.evaluate(() => window.__weddingPrintCalls)).toBe(1);
   expect(await page.evaluate(() => window.__weddingPrintTitles)).toEqual([
     "10 ağustos 2026 pazartesi akşam"
@@ -1135,6 +1143,11 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await page.locator('.js-wedding-form select[name="packageCode"]').selectOption("hikaye");
   await page.locator('.js-wedding-form input[value="baski"]').uncheck();
   await page.locator('.js-wedding-form input[value="drone"]').check();
+  await page.locator('.js-wedding-form input[name="paymentTotal"]').fill("24000");
+  await page.locator('.js-wedding-form input[name="paymentReceived"]').fill("9000");
+  await expect(page.locator('.js-wedding-form input[name="paymentRemaining"]')).toHaveValue(
+    "15000.00"
+  );
   await expect(page.locator('.js-wedding-form textarea[name="note"]')).toHaveValue(
     /Ek hizmet eklendi: Drone Çekimi\./
   );
@@ -2605,6 +2618,9 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
     note: "Giriş çekimi 18.30",
     venue: { id: venueId, name: "Cess Wedding" },
     packageSummary: { name: "Mini Paket" },
+    paymentTotalCents: 2_250_000,
+    paymentDepositCents: 300_000,
+    paymentReceivedCents: 750_000,
     assignments: []
   };
   const staff = {
@@ -2689,6 +2705,7 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
   await page.getByRole("button", { name: "PDF oluştur" }).click();
   await expect(page.locator(".js-wedding-print-report")).toContainText("Giriş çekimi 18.30");
   await expect(page.locator(".js-wedding-print-report")).toContainText("Cess Wedding");
+  await expect(page.locator(".js-wedding-print-report")).toContainText("₺15.000,00");
   expect(await page.evaluate(() => window.__weddingPrintCalls)).toBe(1);
   await page.locator(".js-wedding-dialog [data-close-dialog]").click();
   await clickPanel(page, "calendar", true);

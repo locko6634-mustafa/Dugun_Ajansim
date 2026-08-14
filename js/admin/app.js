@@ -313,6 +313,9 @@ const formatDate = (value, includeTime = false) =>
 const formatMoney = (cents) =>
   formatAppCurrency(Number(cents || 0) / 100, { maximumFractionDigits: 0 });
 
+const centsToMoneyInput = (cents) => (Number(cents || 0) / 100).toFixed(2);
+const moneyInputToCents = (value) => Math.round(Number(value || 0) * 100);
+
 const datePartInIstanbul = (value) =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIME_ZONE,
@@ -1380,12 +1383,19 @@ function renderWeddingDetail(wedding) {
   const assignedIds = new Set(wedding.assignments.map((assignment) => assignment.staffId));
   const available = wedding.availableStaff.filter((staff) => !assignedIds.has(staff.id));
   const expectedDeliveryDate = addDays(datePartInIstanbul(wedding.startsAt), 21);
+  const paymentTotalCents = Number(
+    wedding.paymentTotalCents ?? wedding.packageSummary?.totalPriceCents ?? 0
+  );
+  const paymentDepositCents = Number(wedding.paymentDepositCents || 0);
+  const paymentReceivedCents = Number(wedding.paymentReceivedCents || 0);
+  const paymentRemainingCents = Math.max(paymentTotalCents - paymentReceivedCents, 0);
   document.querySelector(".js-detail-title").textContent = coupleName(wedding);
   weddingPdfButton.disabled = false;
   detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(wedding.cancelledAt ? "İptal edildi" : STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span>${wedding.cancelledAt && wedding.cancellationReason ? `<small>İptal nedeni: ${escapeHtml(wedding.cancellationReason)}</small>` : ""}</div><div class="detail-actions">${renderWeddingLifecycleActions(wedding)}</div></section>
   <div class="detail-grid">
     <section class="detail-block"><h3>Çift ve iletişim</h3><div class="contact-line"><span>${escapeHtml(wedding.brideFirstName)} ${escapeHtml(wedding.brideLastName)}</span><a href="${safePhoneHref(wedding.bridePhone)}">${escapeHtml(wedding.bridePhone)}</a></div><div class="contact-line"><span>${escapeHtml(wedding.groomFirstName)} ${escapeHtml(wedding.groomLastName)}</span><a href="${safePhoneHref(wedding.groomPhone)}">${escapeHtml(wedding.groomPhone)}</a></div><div class="contact-line"><span>E-posta</span><a href="mailto:${escapeHtml(wedding.primaryEmail)}">${escapeHtml(wedding.primaryEmail)}</a></div></section>
     <section class="detail-block"><h3>Paket</h3>${packageDetail(wedding.packageSummary)}${wedding.note ? `<p>${escapeHtml(wedding.note)}</p>` : ""}</section>
+    <section class="detail-block wide"><h3>Ödeme detayları</h3><div class="contact-line"><span>Toplam tutar</span><strong>${escapeHtml(formatMoney(paymentTotalCents))}</strong></div><div class="contact-line"><span>Kapora</span><strong>${escapeHtml(formatMoney(paymentDepositCents))}</strong></div><div class="contact-line"><span>Alınan para</span><strong>${escapeHtml(formatMoney(paymentReceivedCents))}</strong></div><div class="contact-line"><span>Kalan para</span><strong>${escapeHtml(formatMoney(paymentRemainingCents))}</strong></div></section>
     <section class="detail-block wide"><h3>Personel dağılımı</h3><div class="assignment-list">${
       wedding.assignments.length
         ? wedding.assignments
@@ -3244,6 +3254,11 @@ async function openWeddingEditor(wedding) {
     startTime: timePartInIstanbul(wedding.startsAt),
     endTime: timePartInIstanbul(wedding.endsAt),
     venueId: wedding.venueId,
+    paymentTotal: centsToMoneyInput(
+      wedding.paymentTotalCents ?? currentPackage.totalPriceCents ?? 0
+    ),
+    paymentDeposit: centsToMoneyInput(wedding.paymentDepositCents),
+    paymentReceived: centsToMoneyInput(wedding.paymentReceivedCents),
     note: wedding.note || ""
   };
   Object.entries(values).forEach(([name, value]) => {
@@ -3257,8 +3272,25 @@ async function openWeddingEditor(wedding) {
     currentServices.map(({ code, name }) => ({ code, name }))
   );
   weddingForm.dataset.generatedNote = "";
+  syncWeddingPaymentFields();
   syncScheduleFields(weddingForm);
   openManagedDialog(weddingDialog);
+}
+
+function syncWeddingPaymentFields() {
+  const total = Number(weddingForm.elements.paymentTotal.value || 0);
+  const deposit = weddingForm.elements.paymentDeposit;
+  const received = weddingForm.elements.paymentReceived;
+  deposit.setCustomValidity(
+    Number(deposit.value || 0) > total ? "Kapora toplam tutarı aşamaz." : ""
+  );
+  received.setCustomValidity(
+    Number(received.value || 0) > total ? "Alınan para toplam tutarı aşamaz." : ""
+  );
+  weddingForm.elements.paymentRemaining.value = Math.max(
+    total - Number(received.value || 0),
+    0
+  ).toFixed(2);
 }
 
 function updateWeddingChangeNote() {
@@ -3299,6 +3331,12 @@ weddingForm.addEventListener("change", (event) => {
   }
 });
 
+weddingForm.addEventListener("input", (event) => {
+  if (["paymentTotal", "paymentDeposit", "paymentReceived"].includes(event.target.name)) {
+    syncWeddingPaymentFields();
+  }
+});
+
 weddingForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
   button.addEventListener("click", () => weddingDialog.close());
 });
@@ -3333,6 +3371,9 @@ weddingForm.addEventListener("submit", async (event) => {
           venueId: data.get("venueId"),
           packageCode: data.get("packageCode"),
           serviceCodes: data.getAll("serviceCodes"),
+          paymentTotalCents: moneyInputToCents(data.get("paymentTotal")),
+          paymentDepositCents: moneyInputToCents(data.get("paymentDeposit")),
+          paymentReceivedCents: moneyInputToCents(data.get("paymentReceived")),
           note: data.get("note") || undefined
         }
       },

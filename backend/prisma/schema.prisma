@@ -393,6 +393,9 @@ model Wedding {
   venueId                String
   venue                  Venue               @relation(fields: [venueId], references: [id], onDelete: Restrict)
   packageSummary         Json
+  paymentTotalCents      Int                 @default(0)
+  paymentDepositCents    Int                 @default(0)
+  paymentReceivedCents   Int                 @default(0)
   note                   String?
   cancelledAt            DateTime?
   cancellationReason     String?
