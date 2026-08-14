@@ -1212,7 +1212,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(wedding.customerUser.temporaryPasswordExpiresAt, null);
   assert.equal(wedding.customerUser.mustChangePassword, true);
   assert.ok(wedding.customerUser.activeAt);
-  assert.equal(wedding.endsAt.toISOString(), `${weddingDate}T23:00:00.000Z`);
+  assert.equal(wedding.endsAt.toISOString(), `${weddingDate}T20:00:00.000Z`);
   assert.equal(
     wedding.delivery?.dueDate.toISOString().slice(0, 10),
     addCalendarDays(weddingDate, 21)
