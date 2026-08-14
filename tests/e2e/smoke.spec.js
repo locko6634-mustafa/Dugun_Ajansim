@@ -1058,6 +1058,9 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await expect(
     page.getByRole("dialog").getByRole("heading", { name: "Ayşe Yılmaz & Mehmet Demir" })
   ).toBeVisible();
+  await expect(page.getByRole("dialog")).not.toContainText(
+    "Aktif düğün arşivlenmeden önce iptal edilmelidir."
+  );
   await page.getByRole("button", { name: "PDF oluştur" }).click();
   await expect(page.locator(".js-wedding-print-report")).toContainText("Düğün operasyon föyü");
   await expect(page.locator(".js-wedding-print-report")).toContainText("Mini Paket");

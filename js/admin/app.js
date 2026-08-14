@@ -1363,7 +1363,7 @@ function renderWeddingLifecycleActions(wedding) {
       : "";
   const commonActions = `${activationAction}<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}" data-confirm="${escapeHtml(wedding.customerUser.username)}">Müşteri parolasını sıfırla</button>`;
   if (new Date(wedding.endsAt).valueOf() > Date.now()) {
-    return `${commonActions}<button class="secondary-button" type="button" data-cancel-wedding="${wedding.id}">Düğünü iptal et</button><small>Aktif düğün arşivlenmeden önce iptal edilmelidir.</small>`;
+    return `${commonActions}<button class="secondary-button" type="button" data-cancel-wedding="${wedding.id}">Düğünü iptal et</button>`;
   }
   return `${commonActions}<button class="secondary-button" type="button" data-archive-wedding="${wedding.id}">Arşivle</button>`;
 }
