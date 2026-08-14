@@ -1,6 +1,6 @@
 import { Prisma, type StaffSpecialty } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
 import {
@@ -61,6 +61,8 @@ const uuidRequest = z.object({ body: emptyBody, query: emptyQuery, params: uuidP
 const assignmentParamsSchema = z
   .object({ id: z.string().uuid(), assignmentId: z.string().uuid() })
   .strict();
+const denySalonManagement: RequestHandler = (_req, _res, next) =>
+  next(new AppError("Salon sorumlusu yalnızca personel atamalarını yönetebilir.", 403));
 
 const staffPhoneConflictError = (error: unknown): never => {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -195,31 +197,19 @@ const venueOperationsWeddingDto = (wedding: VenueOperationsWedding) => {
   const pii = decryptSelectedWeddingPii(wedding);
   return {
     id: wedding.id,
-    brideFirstName: pii.brideFirstName,
-    bridePhone: pii.bridePhone,
-    groomFirstName: pii.groomFirstName,
-    groomPhone: pii.groomPhone,
     startsAt: wedding.startsAt,
     endsAt: wedding.endsAt,
     cancelledAt: wedding.cancelledAt,
     deletedAt: wedding.deletedAt,
-    packageSummary: {
-      name:
-        wedding.packageSummary &&
-        typeof wedding.packageSummary === "object" &&
-        !Array.isArray(wedding.packageSummary) &&
-        typeof wedding.packageSummary.name === "string"
-          ? wedding.packageSummary.name
-          : null
-    },
-    paymentTotalCents: wedding.paymentTotalCents,
-    paymentDepositCents: wedding.paymentDepositCents,
-    paymentReceivedCents: wedding.paymentReceivedCents,
-    paymentRemainingCents: Math.max(wedding.paymentTotalCents - wedding.paymentReceivedCents, 0),
     note: pii.note,
     assignments: wedding.assignments.map((assignment) => ({
-      ...assignment,
-      staff: staffWithDecryptedPii(assignment.staff)
+      id: assignment.id,
+      staffId: assignment.staffId,
+      specialty: assignment.specialty,
+      staff: (() => {
+        const staff = staffWithDecryptedPii(assignment.staff);
+        return { id: staff.id, firstName: staff.firstName, lastName: staff.lastName };
+      })()
     }))
   };
 };
@@ -427,6 +417,7 @@ router.get(
 
 router.post(
   "/staff",
+  denySalonManagement,
   verifyCsrf,
   validateRequest(
     z.object({ body: venueStaffBodySchema, query: emptyQuery, params: z.object({}) })
@@ -476,6 +467,7 @@ router.post(
 
 router.patch(
   "/staff/:id",
+  denySalonManagement,
   verifyCsrf,
   validateRequest(
     z.object({ body: venueStaffUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema })
@@ -659,7 +651,15 @@ router.get(
       data: {
         ...venueOperationsWeddingDto(wedding),
         availableStaff: sortStaffByName(
-          availableStaff.map((member) => staffWithDecryptedPii(member))
+          availableStaff.map((member) => {
+            const staff = staffWithDecryptedPii(member);
+            return {
+              id: staff.id,
+              firstName: staff.firstName,
+              lastName: staff.lastName,
+              specialties: staff.specialties
+            };
+          })
         )
       },
       correlationId: req.correlationId
@@ -669,6 +669,7 @@ router.get(
 
 router.patch(
   "/weddings/:id",
+  denySalonManagement,
   verifyCsrf,
   validateRequest(
     z.object({

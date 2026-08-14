@@ -2685,6 +2685,7 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
     isActive: true,
     assignments: []
   };
+  let assignmentCalls = 0;
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -2747,27 +2748,36 @@ test("@frontend-smoke salon sorumlusu yalniz kendi salon takvimi ve ekibini yone
       })
     })
   );
+  await page.route(`**/api/v1/operations/weddings/${wedding.id}/assignments`, (route) => {
+    assignmentCalls += 1;
+    return route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { id: "new-assignment" } })
+    });
+  });
 
   await page.goto("/operasyon-paneli.html");
   await expect(page.locator(".js-venue-name")).toContainText("Cess Wedding");
-  await page.getByRole("button", { name: "Planla" }).click();
-  await expect(
-    page.getByRole("dialog").getByRole("heading", { name: "Ayşe & Mehmet" })
-  ).toBeVisible();
-  await page.getByRole("button", { name: "PDF oluştur" }).click();
-  await expect(page.locator(".js-wedding-print-report")).toContainText("Giriş çekimi 18.30");
-  await expect(page.locator(".js-wedding-print-report")).toContainText("Cess Wedding");
-  await expect(page.locator(".js-wedding-print-report")).toContainText("₺15.000,00");
-  expect(await page.evaluate(() => window.__weddingPrintCalls)).toBe(1);
+  await expect(page.getByRole("button", { name: /Düğün Planı/i })).toHaveCount(0);
+  await page.getByRole("button", { name: "Personel ata" }).click();
+  const weddingDialog = page.getByRole("dialog");
+  await expect(weddingDialog.getByRole("heading", { name: "Takvim ayrıntısı" })).toBeVisible();
+  await expect(weddingDialog).toContainText("Giriş çekimi 18.30");
+  await expect(weddingDialog.locator(".js-schedule-form")).toHaveCount(0);
+  await expect(weddingDialog).not.toContainText("Ödeme detayları");
+  await weddingDialog.locator('[name="staffId"]').selectOption(staffId);
+  await weddingDialog.locator('[name="specialty"]').selectOption("PHOTOGRAPHY");
+  await weddingDialog.getByRole("button", { name: "Ata" }).click();
+  await expect.poll(() => assignmentCalls).toBe(1);
   await page.locator(".js-wedding-dialog [data-close-dialog]").click();
   await clickPanel(page, "calendar", true);
-  await expect(page.locator(".calendar-event")).toContainText("Ayşe & Mehmet");
+  await expect(page.locator(".calendar-event")).toContainText("Giriş çekimi 18.30");
   await clickPanel(page, "staff", true);
   await expect(page.locator(".js-staff")).toContainText("Cem Arslan");
-  await page.locator(".js-add-staff").click();
-  await expect(page.locator(".js-staff-dialog")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.locator(".js-staff-dialog")).toBeHidden();
+  await expect(page.locator(".js-add-staff, [data-edit-staff], [data-toggle-staff]")).toHaveCount(
+    0
+  );
   expect(pageErrors).toEqual([]);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth

@@ -48,11 +48,7 @@
             <span>01</span> Bugünün Akışı
           </button>
           <button type="button" data-panel="calendar"><span>02</span> Salon Takvimi</button>
-          <button type="button" data-panel="weddings">
-            <span>03</span> Düğün Planı
-            <span class="nav-badge js-badge-ops-weddings" hidden>0</span>
-          </button>
-          <button type="button" data-panel="staff"><span>04</span> Ekibim</button>
+          <button type="button" data-panel="staff"><span>03</span> Ekibim</button>
         </nav>
         <footer>
           <span class="connection"><i></i> Salon verileri bağlı</span
@@ -177,40 +173,6 @@
           </div>
         </section>
 
-        <section class="ops-panel" data-panel-content="weddings" hidden>
-          <div class="section-heading">
-            <div>
-              <p class="section-index">Operasyon dosyaları</p>
-              <h2>Düğün planı</h2>
-            </div>
-            <div class="heading-actions">
-              <input
-                class="search-input js-wedding-search"
-                type="search"
-                placeholder="Referans veya tam telefon ara"
-                aria-label="Referans veya tam telefonla düğün ara"
-                aria-describedby="wedding-search-help"
-              />
-              <button class="secondary-button js-wedding-search-reset" type="button" disabled>
-                Temizle
-              </button>
-            </div>
-          </div>
-          <small id="wedding-search-help"
-            >Referans kodu için en az 2 karakter veya tam telefon yazın.</small
-          >
-          <div class="wedding-list js-weddings"></div>
-          <nav class="dialog-actions js-wedding-pagination" aria-label="Düğün listesi sayfaları">
-            <button class="secondary-button" type="button" data-wedding-page="previous" disabled>
-              Önceki
-            </button>
-            <span class="js-wedding-page-summary" aria-live="polite">1. sayfa</span>
-            <button class="secondary-button" type="button" data-wedding-page="next" disabled>
-              Sonraki
-            </button>
-          </nav>
-        </section>
-
         <section class="ops-panel" data-panel-content="staff" hidden>
           <div class="section-heading">
             <div>
@@ -228,7 +190,6 @@
                   <option value="">Tüm salonlar</option>
                 </select>
               </div>
-              <button class="primary-button js-add-staff" type="button">+ Personel ekle</button>
             </div>
           </div>
           <div class="staff-grid js-staff"></div>
@@ -240,28 +201,10 @@
       <div class="dialog-shell">
         <div class="dialog-heading">
           <div>
-            <p class="section-index">Düğün dosyası</p>
-            <h2 id="wedding-dialog-title" class="js-detail-title">Yükleniyor</h2>
+            <p class="section-index">Salt okunur takvim kaydı</p>
+            <h2 id="wedding-dialog-title" class="js-detail-title">Takvim ayrıntısı</h2>
           </div>
           <div class="wedding-detail-heading-actions">
-            <button
-              class="primary-button wedding-pdf-button js-create-wedding-pdf"
-              type="button"
-              disabled
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M6 2.75h8l4 4v14.5H6zM14 2.75v4h4M9 12h6M9 16h6" />
-              </svg>
-              <span>PDF oluştur</span>
-            </button>
             <button class="dialog-close" type="button" data-close-dialog aria-label="Kapat">
               ×
             </button>

@@ -5,17 +5,14 @@ import {
   APP_LOCALE,
   APP_TIME_ZONE,
   OPERATIONS_CITY,
-  formatAppCurrency,
   formatAppTime
 } from "../shared/runtime-config.js";
 import { escapeHtml } from "../shared/html.js";
-import { printWeddingReport } from "../shared/wedding-print-report.js";
 
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
 const PANEL_TITLES = {
   overview: "Bugünün akışı",
   calendar: "Salon takvimi",
-  weddings: "Düğün planı",
   staff: "Salon ekibi"
 };
 const state = {
@@ -47,7 +44,6 @@ const state = {
 const message = document.querySelector(".global-message");
 const weddingDialog = document.querySelector(".js-wedding-dialog");
 const detailContainer = document.querySelector(".js-wedding-detail");
-const weddingPdfButton = document.querySelector(".js-create-wedding-pdf");
 const staffDialog = document.querySelector(".js-staff-dialog");
 const staffForm = document.querySelector(".js-staff-form");
 const weddingSearchInput = document.querySelector(".js-wedding-search");
@@ -69,8 +65,6 @@ const formatDate = (value, withTime = false) =>
         ...(withTime ? { timeStyle: "short" } : {})
       }).format(new Date(value))
     : "—";
-const formatMoney = (cents) =>
-  formatAppCurrency(Number(cents || 0) / 100, { maximumFractionDigits: 0 });
 const dateKey = (value) => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIME_ZONE,
@@ -80,15 +74,6 @@ const dateKey = (value) => {
   }).formatToParts(new Date(value));
   const get = (type) => parts.find((part) => part.type === type)?.value;
   return `${get("year")}-${get("month")}-${get("day")}`;
-};
-const inputTime = (value) => {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: APP_TIME_ZONE,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23"
-  }).formatToParts(new Date(value));
-  return `${parts.find((part) => part.type === "hour")?.value}:${parts.find((part) => part.type === "minute")?.value}`;
 };
 const addDays = (date, days) => {
   const probe = new Date(`${date}T12:00:00.000Z`);
@@ -196,7 +181,7 @@ function renderDashboard(data) {
     ? data.todayWeddings
         .map(
           (wedding) =>
-            `<article class="event-card"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><div><strong>${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length} personel atandı</small><div class="crew-line">${crew(wedding.assignments)}</div></div><button type="button" data-open-wedding="${wedding.id}">Planla</button></article>`
+            `<article class="event-card"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><div><strong>${escapeHtml(wedding.note || "Takvim notu yok")}</strong><small>${wedding.assignments.length} personel atandı</small><div class="crew-line">${crew(wedding.assignments)}</div></div><button type="button" data-open-wedding="${wedding.id}">Personel ata</button></article>`
         )
         .join("")
     : empty("Bugün salonunuzda planlı düğün yok.");
@@ -209,7 +194,7 @@ function renderDashboard(data) {
     ? data.conflicts
         .map(
           (conflict) =>
-            `<p><strong>${escapeHtml(conflict.staff.firstName)} ${escapeHtml(conflict.staff.lastName)}</strong><br><small>${escapeHtml(couple(conflict.firstWedding))} / ${escapeHtml(couple(conflict.secondWedding))}</small></p>`
+            `<p><strong>${escapeHtml(conflict.staff.firstName)} ${escapeHtml(conflict.staff.lastName)}</strong><br><small>${formatAppTime(conflict.firstWedding.startsAt)}–${formatAppTime(conflict.firstWedding.endsAt)} / ${formatAppTime(conflict.secondWedding.startsAt)}–${formatAppTime(conflict.secondWedding.endsAt)}</small></p>`
         )
         .join("")
     : empty("Personel çakışması yok.");
@@ -224,7 +209,7 @@ function renderDashboard(data) {
       return `<article class="week-day ${day === data.today ? "is-today" : ""}"><header><span>${new Intl.DateTimeFormat(APP_LOCALE, { weekday: "short" }).format(date)}</span><b>${date.getUTCDate()}</b></header>${dayWeddings
         .map(
           (wedding) =>
-            `<button class="week-item" type="button" data-open-wedding="${wedding.id}"><strong>${formatAppTime(wedding.startsAt)} · ${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length} kişilik ekip</small></button>`
+            `<button class="week-item" type="button" data-open-wedding="${wedding.id}"><strong>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</strong><small>${escapeHtml(wedding.note || "Takvim notu yok")} · ${wedding.assignments.length} kişilik ekip</small></button>`
         )
         .join("")}</article>`;
     })
@@ -283,7 +268,7 @@ function renderCalendar(data) {
       return `<article class="calendar-day ${outside ? "is-outside" : ""} ${events.length ? "" : "is-empty"} ${day === data.today ? "is-today" : ""}"><div class="calendar-day__head"><span class="calendar-day__number">${date.getUTCDate()}</span><span class="calendar-day__weekday">${escapeHtml(weekday)}</span></div><div class="calendar-events">${events
         .map(
           (wedding) =>
-            `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${wedding.id}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(couple(wedding))}</strong><small>${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
+            `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${wedding.id}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(wedding.note || "Takvim notu yok")}</strong><small>${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
         )
         .join("")}</div></article>`;
     })
@@ -478,7 +463,7 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span></footer></article>`
         )
         .join("")
     : empty("Personel bulunamadı.");
@@ -686,11 +671,8 @@ function isWeddingReadOnly(wedding) {
 
 function renderWeddingDetail(wedding) {
   state.currentWedding = wedding;
-  weddingPdfButton.disabled = false;
-  document.querySelector(".js-detail-title").textContent = couple(wedding);
-  const startDate = dateKey(wedding.startsAt);
+  document.querySelector(".js-detail-title").textContent = "Takvim ayrıntısı";
   const locked = isWeddingReadOnly(wedding);
-  const disabled = locked ? ' disabled aria-disabled="true"' : "";
   const lockedMessage = wedding.deletedAt
     ? "Bu düğün arşivli olduğu için operasyon kontrolleri kapalıdır."
     : wedding.cancelledAt
@@ -703,51 +685,13 @@ function renderWeddingDetail(wedding) {
     )
     .join("");
   const assignments = wedding.assignments || [];
-  const paymentTotalCents = Number(
-    wedding.paymentTotalCents ?? wedding.packageSummary?.totalPriceCents ?? 0
-  );
-  const paymentReceivedCents = Number(wedding.paymentReceivedCents || 0);
   detailContainer.innerHTML = `<div class="detail-grid">
     ${locked ? `<section class="detail-card wide"><p class="dialog-message">${escapeHtml(lockedMessage)}</p></section>` : ""}
-    <section class="detail-card">
-      <p class="section-index">İletişim</p>
-      <strong>${escapeHtml(wedding.brideFirstName)}: ${escapeHtml(wedding.bridePhone)}</strong><br>
-      <strong>${escapeHtml(wedding.groomFirstName)}: ${escapeHtml(wedding.groomPhone)}</strong>
-    </section>
-    <section class="detail-card">
-      <p class="section-index">Paket</p>
-      <strong>${escapeHtml(wedding.packageSummary?.name || "Paket belirtilmedi")}</strong>
-      <p>${escapeHtml(wedding.note || "Operasyon notu yok.")}</p>
-    </section>
     <section class="detail-card wide">
-      <p class="section-index">Ödeme detayları</p>
-      <strong>Toplam: ${escapeHtml(formatMoney(paymentTotalCents))}</strong><br>
-      <span>Kapora: ${escapeHtml(formatMoney(wedding.paymentDepositCents))}</span><br>
-      <span>Alınan: ${escapeHtml(formatMoney(paymentReceivedCents))}</span><br>
-      <span>Kalan: ${escapeHtml(formatMoney(Math.max(paymentTotalCents - paymentReceivedCents, 0)))}</span>
-    </section>
-    <section class="detail-card wide">
-      <p class="section-index">Takvim düzenle</p>
-      <form class="form-grid js-schedule-form">
-        <label>Tarih
-          <input name="weddingDate" type="date" value="${startDate}" aria-describedby="schedule-date-error" required${disabled}>
-          <span class="field-error" id="schedule-date-error" data-field-error="weddingDate" aria-live="polite"></span>
-        </label>
-        <label>Başlangıç
-          <input name="startTime" type="time" value="${inputTime(wedding.startsAt)}" step="1800" aria-describedby="schedule-start-error" required${disabled}>
-          <span class="field-error" id="schedule-start-error" data-field-error="startTime" aria-live="polite"></span>
-        </label>
-        <label>Bitiş
-          <input name="endTime" type="time" value="${inputTime(wedding.endsAt)}" step="1800" aria-describedby="schedule-end-error" required${disabled}>
-          <span class="field-error" id="schedule-end-error" data-field-error="endTime" aria-live="polite"></span>
-        </label>
-        <label class="wide">Operasyon notu
-          <textarea name="note" aria-describedby="schedule-note-error"${disabled}>${escapeHtml(wedding.note || "")}</textarea>
-          <span class="field-error" id="schedule-note-error" data-field-error="note" aria-live="polite"></span>
-        </label>
-        <p class="dialog-message wide js-form-message" role="alert" aria-live="assertive"></p>
-        <button class="primary-button wide" type="submit"${disabled}>Takvimi güncelle</button>
-      </form>
+      <p class="section-index">Tarih, saat ve not</p>
+      <strong>${escapeHtml(formatDate(wedding.startsAt))}</strong><br>
+      <span>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</span>
+      <p>${escapeHtml(wedding.note || "Takvim notu yok.")}</p>
     </section>
     <section class="detail-card wide">
       <p class="section-index">Görevli ekip</p>
@@ -761,7 +705,6 @@ async function openWedding(weddingId, returnFocus = null, { showLoading = true }
   const venueId = state.venueId;
   showDialog(weddingDialog, returnFocus, weddingDialog.querySelector(".dialog-close"));
   state.currentWedding = null;
-  weddingPdfButton.disabled = true;
   if (showLoading) detailContainer.innerHTML = empty("Düğün dosyası yükleniyor…");
   try {
     if (!venueId) throw new Error("Salon oturumu doğrulanmadan veri yüklenemez.");
@@ -772,11 +715,6 @@ async function openWedding(weddingId, returnFocus = null, { showLoading = true }
     if (venueId === state.venueId) detailContainer.innerHTML = empty(error.message);
   }
 }
-
-weddingPdfButton.addEventListener("click", () => {
-  if (!state.currentWedding) return;
-  printWeddingReport(state.currentWedding, { venueName: state.dashboard?.venue?.name });
-});
 
 const loaders = {
   overview: loadDashboard,
@@ -820,7 +758,7 @@ document
   .querySelector("[data-close-dialog]")
   .addEventListener("click", () => closeDialog(weddingDialog));
 let weddingSearchTimer = null;
-weddingSearchInput.addEventListener("input", () => {
+weddingSearchInput?.addEventListener("input", () => {
   window.clearTimeout(weddingSearchTimer);
   state.weddingRequestId += 1;
   resetWeddingPagination();
@@ -834,30 +772,26 @@ weddingSearchInput.addEventListener("input", () => {
     250
   );
 });
-document.querySelector(".js-wedding-search-reset").addEventListener("click", () => {
+document.querySelector(".js-wedding-search-reset")?.addEventListener("click", () => {
   window.clearTimeout(weddingSearchTimer);
   state.weddingRequestId += 1;
   weddingSearchInput.value = "";
   resetWeddingPagination();
   void loadWeddings().catch((error) => setMessage(error.message));
 });
-weddingPagination.addEventListener("click", (event) => {
+weddingPagination?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-wedding-page]");
   if (!button) return;
   void moveWeddingPage(button.dataset.weddingPage).catch((error) => setMessage(error.message));
 });
 document.querySelector(".js-staff-search").addEventListener("input", renderStaff);
 document.querySelector(".js-staff-venue-filter")?.addEventListener("change", renderStaff);
-document.querySelector(".js-add-staff").addEventListener("click", () => openStaffForm());
+document.querySelector(".js-add-staff")?.addEventListener("click", () => openStaffForm());
 document.querySelector(".js-staff").addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit-staff]");
   const toggle = event.target.closest("[data-toggle-staff]");
-  if (edit)
-    openStaffForm(
-      state.staff.find((staff) => staff.id === edit.dataset.editStaff),
-      edit
-    );
-  else if (toggle) {
+  if (edit) return;
+  if (toggle) {
     const idleLabel = toggle.textContent;
     toggle.disabled = true;
     toggle.textContent = "Güncelleniyor…";
@@ -946,19 +880,7 @@ detailContainer.addEventListener("submit", async (event) => {
   setFormBusy(form, true, form.matches(".js-schedule-form") ? "Güncelleniyor…" : "Atanıyor…");
   setDialogBusy(weddingDialog, true);
   try {
-    if (form.matches(".js-schedule-form")) {
-      await apiRequest(`/operations/weddings/${state.currentWedding.id}`, {
-        method: "PATCH",
-        body: {
-          weddingDate: data.get("weddingDate"),
-          startTime: data.get("startTime"),
-          endTime: data.get("endTime"),
-          endsNextDay: false,
-          note: data.get("note")
-        }
-      });
-      setMessage("Düğün takvimi güncellendi.", true);
-    } else if (form.matches(".js-assignment-form")) {
+    if (form.matches(".js-assignment-form")) {
       await apiRequest(`/operations/weddings/${state.currentWedding.id}/assignments`, {
         method: "POST",
         body: {

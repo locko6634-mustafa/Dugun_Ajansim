@@ -67,6 +67,15 @@ const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
     "customerUserId",
     "primaryContact",
     "primaryEmail",
+    "brideFirstName",
+    "bridePhone",
+    "groomFirstName",
+    "groomPhone",
+    "packageSummary",
+    "paymentTotalCents",
+    "paymentDepositCents",
+    "paymentReceivedCents",
+    "paymentRemainingCents",
     "venueId",
     "deletedById",
     "createdAt",
@@ -75,14 +84,12 @@ const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
     assert.equal(field in wedding, false, `Operasyon düğün yanıtı ${field} alanını içermemeli.`);
   }
   assert.equal(typeof wedding.id, "string");
-  assert.equal(typeof wedding.brideFirstName, "string");
-  assert.equal(typeof wedding.bridePhone, "string");
-  assert.equal(typeof wedding.groomFirstName, "string");
-  assert.equal(typeof wedding.groomPhone, "string");
+  assert.equal(typeof wedding.startsAt, "string");
+  assert.equal(typeof wedding.endsAt, "string");
+  assert.ok(wedding.note === null || typeof wedding.note === "string");
   assert.ok(wedding.cancelledAt === null || typeof wedding.cancelledAt === "string");
   assert.ok(wedding.deletedAt === null || typeof wedding.deletedAt === "string");
-  assert.deepEqual(Object.keys(wedding.packageSummary as object), ["name"]);
-  assert.equal(typeof (wedding.packageSummary as { name: unknown }).name, "string");
+  assert.ok(Array.isArray(wedding.assignments));
   assertNoPiiPersistenceMetadata(wedding);
 };
 
@@ -2603,8 +2610,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       endsNextDay: false,
       note: "Çakışan salon sorumlusu güncellemesi"
     });
-  assert.equal(operationsScheduleConflict.status, 409);
-  assert.equal(operationsScheduleConflict.body.errors.code, "VENUE_SCHEDULE_CONFLICT");
+  assert.equal(operationsScheduleConflict.status, 403);
   const operationsWeddingUpdate = await request(app)
     .patch(`/api/v1/operations/weddings/${wedding.id}`)
     .set("X-Correlation-ID", correlationId)
@@ -2617,8 +2623,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       endsNextDay: false,
       note: "Salon sorumlusu operasyon notu"
     });
-  assert.equal(operationsWeddingUpdate.status, 200);
-  assertOperationsWeddingContract(operationsWeddingUpdate.body.data);
+  assert.equal(operationsWeddingUpdate.status, 403);
   const applicationAfterOperationsUpdate = await prisma.bookingApplication.findUniqueOrThrow({
     where: { id: wedding.applicationId }
   });
@@ -2628,7 +2633,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       wedding.id,
       await prisma.wedding.findUniqueOrThrow({ where: { id: wedding.id } })
     ).note,
-    "Salon sorumlusu operasyon notu"
+    null
   );
   await assertBookingApplicationFingerprintMatches(wedding.applicationId);
   const operationsStaff = await request(app)
@@ -2651,13 +2656,13 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", managerAuthCookie)
     .set("X-CSRF-Token", managerCsrfToken)
     .send({ firstName: "Denizcan" });
-  assert.equal(updatedOwnStaff.status, 200);
+  assert.equal(updatedOwnStaff.status, 403);
   const rejectedForeignStaff = await request(app)
     .patch(`/api/v1/operations/staff/${foreignStaff.id}`)
     .set("Cookie", managerAuthCookie)
     .set("X-CSRF-Token", managerCsrfToken)
     .send({ firstName: "Erişilmemeli" });
-  assert.equal(rejectedForeignStaff.status, 404);
+  assert.equal(rejectedForeignStaff.status, 403);
 
   const invalidStaff = await request(app)
     .post("/api/v1/admin/staff")
