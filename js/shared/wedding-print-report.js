@@ -13,6 +13,18 @@ const timeFormatter = new Intl.DateTimeFormat(APP_LOCALE, {
   hour: "2-digit",
   minute: "2-digit"
 });
+const fileNameDateFormatter = new Intl.DateTimeFormat(APP_LOCALE, {
+  timeZone: APP_TIME_ZONE,
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  weekday: "long"
+});
+const fileNameHourFormatter = new Intl.DateTimeFormat(APP_LOCALE, {
+  timeZone: APP_TIME_ZONE,
+  hour: "2-digit",
+  hourCycle: "h23"
+});
 const moneyFormatter = new Intl.NumberFormat(APP_LOCALE, {
   style: "currency",
   currency: "TRY",
@@ -41,6 +53,16 @@ function formatTime(value) {
 function formatMoney(cents) {
   const amount = Number(cents);
   return Number.isFinite(amount) ? moneyFormatter.format(amount / 100) : "—";
+}
+
+export function weddingPdfFileName(startsAt) {
+  const date = new Date(startsAt);
+  if (Number.isNaN(date.valueOf())) return "dugun operasyon foyu";
+  const hour = Number(
+    fileNameHourFormatter.formatToParts(date).find((part) => part.type === "hour")?.value
+  );
+  const period = hour >= 18 ? "akşam" : "gündüz";
+  return `${fileNameDateFormatter.format(date).toLocaleLowerCase(APP_LOCALE)} ${period}`;
 }
 
 function renderPerson(title, firstName, lastName, phone) {
@@ -153,8 +175,7 @@ export function printWeddingReport(wedding, options = {}) {
   const report = reportContainer();
   report.innerHTML = weddingPrintMarkup(wedding, options);
   const previousTitle = document.title;
-  const date = String(wedding.startsAt || "dugun").slice(0, 10);
-  document.title = `dugun-operasyon-foyu-${date}`;
+  document.title = weddingPdfFileName(wedding.startsAt);
   try {
     window.print();
   } finally {

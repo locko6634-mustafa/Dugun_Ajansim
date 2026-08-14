@@ -518,8 +518,10 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     window.__adminWindowOpenUrls = [];
     window.__copiedAdminMessages = [];
     window.__weddingPrintCalls = 0;
+    window.__weddingPrintTitles = [];
     window.print = () => {
       window.__weddingPrintCalls += 1;
+      window.__weddingPrintTitles.push(document.title);
     };
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -1067,6 +1069,14 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await expect(page.locator(".js-wedding-print-report")).toContainText("Cess Wedding");
   await expect(page.locator(".js-wedding-print-report")).toContainText("₺22.500,00");
   expect(await page.evaluate(() => window.__weddingPrintCalls)).toBe(1);
+  expect(await page.evaluate(() => window.__weddingPrintTitles)).toEqual([
+    "10 ağustos 2026 pazartesi akşam"
+  ]);
+  const daytimePdfName = await page.evaluate(async () => {
+    const { weddingPdfFileName } = await import("/js/shared/wedding-print-report.js");
+    return weddingPdfFileName("2026-08-10T14:59:00.000Z");
+  });
+  expect(daytimePdfName).toBe("10 ağustos 2026 pazartesi gündüz");
   expect(adminStepUpBodies).toHaveLength(0);
   await page.emulateMedia({ media: "print" });
   await expect(page.locator(".js-wedding-print-report")).toBeVisible();
