@@ -9,7 +9,8 @@ const basePrisma = new PrismaClient({
   log: env.NODE_ENV === "development" ? ["query", "error", "warn"] : []
 });
 
-export type RlsActorRole = "admin" | "operations" | "customer" | "public" | "auth" | "maintenance";
+export type RlsActorRole =
+  "admin" | "operations" | "montage" | "customer" | "public" | "auth" | "maintenance";
 
 export type RlsSecurityContext = {
   actorRole: RlsActorRole;

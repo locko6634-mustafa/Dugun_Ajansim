@@ -508,6 +508,34 @@ export const venueManagerUpdateBodySchema = z
   .superRefine(addUsernamePasswordIssue)
   .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
 
+export const montageUserBodySchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9][a-z0-9._-]{2,39}$/),
+    password: strongPasswordSchema,
+    status: z.enum(["ACTIVE", "DISABLED"]).default("ACTIVE")
+  })
+  .strict()
+  .superRefine(addUsernamePasswordIssue);
+
+export const montageUserUpdateBodySchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9][a-z0-9._-]{2,39}$/)
+      .optional(),
+    password: strongPasswordSchema.optional(),
+    status: z.enum(["ACTIVE", "DISABLED"]).optional()
+  })
+  .strict()
+  .superRefine(addUsernamePasswordIssue)
+  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+
 export const operationalWeddingUpdateBodySchema = z
   .object({
     weddingDate: dateSchema,

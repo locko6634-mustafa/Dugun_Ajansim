@@ -54,6 +54,12 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   page
 }) => {
   let venueCreateBody = null;
+  let montageCreateBody = null;
+  let managerCreateBody = null;
+  const accountVenue = {
+    id: "00000000-0000-4000-8000-000000000091",
+    name: "Cess Wedding"
+  };
   await page.setViewportSize({ width: 320, height: 568 });
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
@@ -91,10 +97,56 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
       body: JSON.stringify({ success: true, data: catalogFormConstraints })
     })
   );
+  await page.route("**/api/v1/admin/montage-users**", async (route) => {
+    if (route.request().method() === "POST") {
+      montageCreateBody = route.request().postDataJSON();
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: "00000000-0000-4000-8000-000000000099",
+            username: montageCreateBody.username,
+            status: montageCreateBody.status,
+            mustChangePassword: true,
+            lastLoginAt: null
+          }
+        })
+      });
+    }
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] })
+    });
+  });
+  await page.route("**/api/v1/admin/venue-managers**", async (route) => {
+    if (route.request().method() === "POST") {
+      managerCreateBody = route.request().postDataJSON();
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: "00000000-0000-4000-8000-000000000098",
+            username: managerCreateBody.username,
+            status: managerCreateBody.status,
+            mustChangePassword: true,
+            venue: accountVenue
+          }
+        })
+      });
+    }
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] })
+    });
+  });
   await page.route("**/api/v1/venues", (route) =>
     route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ success: true, data: [] })
+      body: JSON.stringify({ success: true, data: [accountVenue] })
     })
   );
   await page.route("**/api/v1/catalog", (route) =>
@@ -214,6 +266,45 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await page.locator('[data-panel="staff"]').click();
   await expect(page.locator('[data-panel-content="staff"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeHidden();
+
+  await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
+  await page.locator('[data-panel="accounts"]').click();
+  await expect(page.locator('[data-panel-content="accounts"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Salon sorumluları" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Montajcılar" })).toBeVisible();
+  await page.getByRole("button", { name: "+ Kullanıcı hesabı" }).click();
+  const accountDialog = page.locator(".js-managed-user-dialog");
+  await expect(accountDialog).toBeVisible();
+  await expectMinimumHeight(accountDialog.getByRole("button", { name: "Kapat" }));
+  await accountDialog.locator('[name="role"]').selectOption("MONTAJCI");
+  await expect(accountDialog.locator('[name="venueId"]')).toBeHidden();
+  await accountDialog.locator('[name="username"]').fill("montaj-ekibi");
+  await accountDialog.locator('[name="password"]').fill("Guvenli-Montaj-Parolasi-2026!");
+  await accountDialog.getByRole("button", { name: "Kaydet" }).click();
+  await expect
+    .poll(() => montageCreateBody)
+    .toEqual({
+      username: "montaj-ekibi",
+      password: "Guvenli-Montaj-Parolasi-2026!",
+      status: "ACTIVE"
+    });
+  await expect(accountDialog).toBeHidden();
+
+  await page.getByRole("button", { name: "+ Kullanıcı hesabı" }).click();
+  await expect(accountDialog.locator('[name="role"]')).toHaveValue("SALON_YETKILISI");
+  await accountDialog.locator('[name="username"]').fill("cess-sorumlu");
+  await accountDialog.locator('[name="password"]').fill("Guvenli-Salon-Parolasi-2026!");
+  await accountDialog.getByRole("button", { name: "Kaydet" }).click();
+  await expect
+    .poll(() => managerCreateBody)
+    .toEqual({
+      username: "cess-sorumlu",
+      password: "Guvenli-Salon-Parolasi-2026!",
+      venueId: accountVenue.id,
+      status: "ACTIVE"
+    });
+  await expect(accountDialog).toBeHidden();
 
   await expect(page.locator('[data-panel="weddings"]')).toHaveCount(0);
   await expect(page.locator('[data-panel-content="weddings"]')).toHaveCount(0);

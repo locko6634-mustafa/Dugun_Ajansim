@@ -23,7 +23,7 @@ after(async () => {
 });
 
 type RuntimeContext = {
-  actorRole: "admin" | "operations" | "customer" | "public" | "auth" | "maintenance";
+  actorRole: "admin" | "operations" | "montage" | "customer" | "public" | "auth" | "maintenance";
   actorUserId?: string;
   venueId?: string;
   purpose: string;
@@ -171,6 +171,7 @@ test("admin dışı HTTP bağlamları audit kaydı ekler ancak kaydı okuyamaz",
   const actorContexts: RuntimeContext[] = [
     { actorRole: "auth", purpose: "http.auth" },
     { actorRole: "operations", purpose: "http.operations" },
+    { actorRole: "montage", purpose: "http.montage" },
     { actorRole: "customer", purpose: "http.customer" },
     { actorRole: "public", purpose: "http.public" }
   ];
@@ -211,7 +212,7 @@ test("admin dışı HTTP bağlamları audit kaydı ekler ancak kaydı okuyamaz",
   );
 });
 
-test("RLS enforcement salon, müşteri, public, auth ve maintenance bağlamlarını ayırır", async (context) => {
+test("RLS enforcement salon, montaj, müşteri, public, auth ve maintenance bağlamlarını ayırır", async (context) => {
   const marker = randomUUID();
   const startsAt = new Date("2026-09-20T15:00:00Z");
   const endsAt = new Date("2026-09-20T18:00:00Z");
@@ -260,10 +261,19 @@ test("RLS enforcement salon, müşteri, public, auth ve maintenance bağlamları
         })
       )
     );
+    const montageUser = await transaction.user.create({
+      data: {
+        username: `rls-montage-${marker}`,
+        passwordHash: "synthetic-runtime-role-hash",
+        role: "MONTAJCI",
+        mustChangePassword: false
+      }
+    });
     const applications = [];
     const weddings = [];
     const deliveries = [];
     const staff = [];
+    const assignments = [];
     for (const [index, venue] of venues.entries()) {
       const application = await transaction.bookingApplication.create({
         data: {
@@ -322,14 +332,22 @@ test("RLS enforcement salon, müşteri, public, auth ve maintenance bağlamları
           }
         })
       );
-      staff.push(
-        await transaction.staff.create({
+      const staffMember = await transaction.staff.create({
+        data: {
+          firstName: "Rls",
+          lastName: `Staff${index}`,
+          phone: `+90555000002${index}`,
+          specialties: ["PHOTOGRAPHY"],
+          venueId: venue.id
+        }
+      });
+      staff.push(staffMember);
+      assignments.push(
+        await transaction.weddingAssignment.create({
           data: {
-            firstName: "Rls",
-            lastName: `Staff${index}`,
-            phone: `+90555000002${index}`,
-            specialties: ["PHOTOGRAPHY"],
-            venueId: venue.id
+            weddingId: wedding.id,
+            staffId: staffMember.id,
+            specialty: "PHOTOGRAPHY"
           }
         })
       );
@@ -338,11 +356,13 @@ test("RLS enforcement salon, müşteri, public, auth ve maintenance bağlamları
       packageRecord,
       venues,
       managers,
+      montageUser,
       customers,
       applications,
       weddings,
       deliveries,
-      staff
+      staff,
+      assignments
     };
   });
 
@@ -361,7 +381,9 @@ test("RLS enforcement salon, müşteri, public, auth ve maintenance bağlamları
     });
     await ownerPrisma.user.deleteMany({
       where: {
-        id: { in: [...fixture.managers, ...fixture.customers].map(({ id }) => id) }
+        id: {
+          in: [...fixture.managers, fixture.montageUser, ...fixture.customers].map(({ id }) => id)
+        }
       }
     });
     await ownerPrisma.package.deleteMany({ where: { id: fixture.packageRecord.id } });
@@ -390,6 +412,108 @@ test("RLS enforcement salon, müşteri, public, auth ve maintenance bağlamları
         where: { id: fixture.staff[1]!.id },
         data: { firstName: "Forbidden" }
       })
+    ).then(({ count }) => count),
+    0
+  );
+
+  const montageContext: RuntimeContext = {
+    actorRole: "montage",
+    actorUserId: fixture.montageUser.id,
+    purpose: "http.montage"
+  };
+  assert.deepEqual(
+    await withRuntimeContext(montageContext, (transaction) =>
+      transaction.wedding.findMany({ select: { id: true }, orderBy: { id: "asc" } })
+    ),
+    fixture.weddings
+      .map(({ id }) => ({ id }))
+      .sort((left, right) => left.id.localeCompare(right.id))
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) => transaction.delivery.count()),
+    fixture.deliveries.length
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) => transaction.venue.count()),
+    fixture.venues.length
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) => transaction.staff.count()),
+    fixture.staff.length
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) =>
+      transaction.weddingAssignment.count()
+    ),
+    fixture.assignments.length
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) =>
+      transaction.bookingApplication.count()
+    ),
+    0
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) => transaction.user.count()),
+    1
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) =>
+      transaction.wedding.updateMany({
+        where: { id: fixture.weddings[0]!.id },
+        data: { startsAt: new Date("2026-09-21T15:00:00Z") }
+      })
+    ).then(({ count }) => count),
+    0
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) =>
+      transaction.staff.updateMany({
+        where: { id: fixture.staff[0]!.id },
+        data: { firstName: "Forbidden" }
+      })
+    ).then(({ count }) => count),
+    0
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) =>
+      transaction.weddingAssignment.deleteMany({
+        where: { id: fixture.assignments[0]!.id }
+      })
+    ).then(({ count }) => count),
+    0
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) =>
+      transaction.delivery.updateMany({
+        where: { id: fixture.deliveries[0]!.id },
+        data: { status: "KONTROL" }
+      })
+    ).then(({ count }) => count),
+    1
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) =>
+      transaction.deliveryStatusHistory.createMany({
+        data: {
+          deliveryId: fixture.deliveries[0]!.id,
+          fromStatus: "HAZIRLANIYOR",
+          toStatus: "KONTROL",
+          actorUserId: fixture.montageUser.id
+        }
+      })
+    ).then(({ count }) => count),
+    1
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) =>
+      transaction.deliveryStatusHistory.count()
+    ),
+    0
+  );
+  assert.equal(
+    await withRuntimeContext(montageContext, (transaction) =>
+      transaction.delivery.deleteMany({ where: { id: fixture.deliveries[0]!.id } })
     ).then(({ count }) => count),
     0
   );

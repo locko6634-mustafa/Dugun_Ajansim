@@ -2815,3 +2815,165 @@ test("@frontend-smoke oturum acilmis kullanici login.html sayfasina gittiginde o
   await page.waitForURL("**/musteri-paneli.html");
   expect(page.url()).toContain("musteri-paneli.html");
 });
+
+test("@frontend-smoke @responsive montajcı takvimden Drive bağlantısını doğrulayıp teslim eder", async ({
+  page
+}) => {
+  const weddingId = "00000000-0000-4000-8000-000000000071";
+  const deliveryId = "00000000-0000-4000-8000-000000000072";
+  const venueId = "00000000-0000-4000-8000-000000000073";
+  let delivered = false;
+  let prepareBody = null;
+  let deliveryBody = null;
+  const wedding = {
+    id: weddingId,
+    brideFirstName: "Ayşe",
+    brideLastName: "Yılmaz",
+    bridePhone: "+90 555 123 45 67",
+    groomFirstName: "Mehmet",
+    groomLastName: "Demir",
+    groomPhone: "+90 555 987 65 43",
+    primaryContact: "GELIN",
+    primaryEmail: "ayse.mehmet@example.com",
+    startsAt: "2026-08-18T17:00:00.000Z",
+    endsAt: "2026-08-18T20:00:00.000Z",
+    venue: { id: venueId, name: "Cess Wedding" },
+    packageSummary: {
+      code: "gold",
+      name: "Gold Paket",
+      services: [{ code: "drone", name: "Drone Çekimi", priceCents: 150000 }]
+    },
+    paymentTotalCents: 2000000,
+    paymentDepositCents: 500000,
+    paymentReceivedCents: 750000,
+    paymentRemainingCents: 1250000,
+    note: "Giriş klibi siyah-beyaz başlayacak.",
+    assignments: [
+      {
+        id: "00000000-0000-4000-8000-000000000074",
+        specialty: "VIDEO",
+        createdAt: "2026-08-10T09:00:00.000Z",
+        staff: {
+          id: "00000000-0000-4000-8000-000000000075",
+          firstName: "Deniz",
+          lastName: "Kamera",
+          phone: "+90 555 111 22 33",
+          specialties: ["VIDEO"]
+        }
+      }
+    ],
+    createdAt: "2026-08-01T09:00:00.000Z",
+    updatedAt: "2026-08-12T12:00:00.000Z"
+  };
+  const delivery = () => ({
+    id: deliveryId,
+    status: delivered ? "TESLIM_EDILDI" : "KONTROL",
+    dueDate: "2026-09-08T00:00:00.000Z",
+    releasedAt: delivered ? "2026-08-14T09:30:00.000Z" : null,
+    accessExpiresAt: delivered ? "2026-09-13T09:30:00.000Z" : null,
+    updatedAt: "2026-08-14T09:30:00.000Z",
+    hasDriveUrl: delivered,
+    driveUrl: delivered ? "https://drive.google.com/file/d/teslim/view" : null
+  });
+
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { role: "MONTAJCI", mustChangePassword: false, username: "montaj-ekibi" }
+      })
+    })
+  );
+  await page.route("**/api/v1/montage/calendar**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          month: "2026-08",
+          today: "2026-08-14",
+          venues: [wedding.venue],
+          selectedVenue: null,
+          weddings: [{ ...wedding, delivery: delivery() }]
+        }
+      })
+    })
+  );
+  await page.route(`**/api/v1/montage/weddings/${weddingId}`, (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { ...wedding, delivery: delivery() } })
+    })
+  );
+  await page.route(`**/api/v1/montage/deliveries/${deliveryId}`, async (route) => {
+    prepareBody = route.request().postDataJSON();
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { ...delivery(), status: "TESLIME_HAZIR" } })
+    });
+  });
+  await page.route(`**/api/v1/montage/deliveries/${deliveryId}/deliver`, async (route) => {
+    deliveryBody = route.request().postDataJSON();
+    delivered = true;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: delivery() })
+    });
+  });
+
+  await page.goto("/montajci-paneli.html");
+  await expect(page.getByRole("heading", { name: /Düğünü bul/i })).toBeVisible();
+  await expect(page.locator(".calendar-event")).toContainText("Ayşe & Mehmet");
+  await expect(page.locator(".calendar-event")).toContainText("Drive bekliyor");
+  await page.locator(".calendar-event").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "Ayşe & Mehmet" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Drive teslimi" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Tüm iş bilgileri" })).toBeVisible();
+  await expect(dialog).toContainText("+90 555 123 45 67");
+  await expect(dialog).toContainText("Gold Paket");
+  await expect(dialog).toContainText("Ödeme");
+  await expect(dialog).toContainText("Deniz Kamera");
+  await expect(dialog).toContainText("Giriş klibi siyah-beyaz başlayacak.");
+  await expect(dialog.locator('input:not([type="checkbox"])')).toHaveCount(1);
+  const deliveryPosition = await dialog.locator(".delivery-workbench").boundingBox();
+  const informationPosition = await dialog.locator(".wedding-information").boundingBox();
+  expect(deliveryPosition?.y).toBeLessThan(informationPosition?.y ?? 0);
+  await dialog
+    .getByRole("textbox", { name: "Google Drive bağlantısı" })
+    .fill("https://drive.google.com/file/d/teslim/view");
+  await dialog.getByRole("checkbox").check();
+  const deliverButton = dialog.getByRole("button", {
+    name: "Bağlantıyı doğrula ve teslim et"
+  });
+  await expect(deliverButton).toBeEnabled();
+  await deliverButton.click();
+  await expect
+    .poll(() => prepareBody)
+    .toEqual({
+      driveUrl: "https://drive.google.com/file/d/teslim/view"
+    });
+  await expect
+    .poll(() => deliveryBody)
+    .toEqual({
+      sharingConfirmed: true,
+      sharingConfirmation: "ERİŞİMİ DOĞRULADIM"
+    });
+  await expect(dialog).toContainText("Teslim tamamlandı");
+  await expect(page.locator(".calendar-event")).toContainText("Teslim Edildi");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    )
+  ).toBe(true);
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await expect(page.locator(".calendar-event")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    )
+  ).toBe(true);
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
+});

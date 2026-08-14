@@ -15,6 +15,7 @@ import authRoutes from './routes/auth.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import customerRoutes from './routes/customer.routes.js';
 import operationsRoutes from './routes/operations.routes.js';
+import montageRoutes from './routes/montage.routes.js';
 // Özel hata sınıfımızı içe aktar
 import { AppError } from './utils/appError.js';
 import { attachRequestContext } from './middlewares/requestContext.middleware.js';
@@ -32,6 +33,7 @@ const registerApplicationRoutes: RouteRegistrar = (application) => {
   application.use('/api/v1/admin', adminRoutes);
   application.use('/api/v1/customer', customerRoutes);
   application.use('/api/v1/operations', operationsRoutes);
+  application.use('/api/v1/montage', montageRoutes);
 };
 
 // Express uygulamasını oluşturan ve tüm middleware/rotaları bağlayan ana fabrika fonksiyonu

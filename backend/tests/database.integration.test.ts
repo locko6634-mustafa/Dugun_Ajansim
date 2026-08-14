@@ -718,6 +718,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   const secondaryVenueIds: string[] = [];
   let adminId: string | undefined;
   let managerId: string | undefined;
+  let montageUserId: string | undefined;
   const staffIds: string[] = [];
   let assignmentScopeTriggerDisabled = false;
 
@@ -744,6 +745,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     await prisma.bookingApplication.deleteMany({ where: { id: { in: applicationIds } } });
     await prisma.package.deleteMany({ where: { code: { contains: marker } } });
     if (managerId) await prisma.user.deleteMany({ where: { id: managerId } });
+    if (montageUserId) await prisma.user.deleteMany({ where: { id: montageUserId } });
     if (secondaryVenueIds.length > 0) {
       await prisma.venue.deleteMany({ where: { id: { in: secondaryVenueIds } } });
     }
@@ -2510,6 +2512,95 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
   const managerCookie = `${env.SESSION_COOKIE_NAME}=${managerToken}`;
   const managerAuthCookie = `${managerCookie}; ${CSRF_COOKIE_NAME}=${managerCsrfToken}`;
+  const createdMontageUser = await request(app)
+    .post("/api/v1/admin/montage-users")
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({
+      username: `montaj-${marker}`,
+      password: "Montaj-Test-Guvenli-2026!",
+      status: "ACTIVE"
+    });
+  assert.equal(createdMontageUser.status, 201);
+  montageUserId = createdMontageUser.body.data.id as string;
+  const storedMontageUser = await prisma.user.findUniqueOrThrow({
+    where: { id: montageUserId }
+  });
+  assert.equal(storedMontageUser.role, "MONTAJCI");
+  assert.equal(storedMontageUser.venueId, null);
+  await prisma.user.update({
+    where: { id: montageUserId },
+    data: {
+      mustChangePassword: false,
+      temporaryPasswordExpiresAt: null,
+      passwordChangedAt: new Date()
+    }
+  });
+  const montageToken = `${marker}-montage-token`;
+  const montageCsrfToken = `${marker}-montage-csrf`;
+  await prisma.authSession.create({
+    data: {
+      tokenHash: hashToken(montageToken),
+      csrfTokenHash: hashToken(montageCsrfToken),
+      userId: montageUserId,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000)
+    }
+  });
+  const montageCookie = `${env.SESSION_COOKIE_NAME}=${montageToken}`;
+  const montageAuthCookie = `${montageCookie}; ${CSRF_COOKIE_NAME}=${montageCsrfToken}`;
+  const montageCalendar = await request(app)
+    .get(`/api/v1/montage/calendar?month=${weddingDate.slice(0, 7)}`)
+    .set("Cookie", montageCookie);
+  assert.equal(montageCalendar.status, 200);
+  const montageCalendarWedding = montageCalendar.body.data.weddings.find(
+    (item: { id: string }) => item.id === wedding.id
+  );
+  assert.ok(montageCalendarWedding);
+  assert.deepEqual(
+    Object.keys(montageCalendarWedding).sort(),
+    ["brideFirstName", "delivery", "endsAt", "groomFirstName", "id", "startsAt", "venue"].sort()
+  );
+  const montageDetail = await request(app)
+    .get(`/api/v1/montage/weddings/${wedding.id}`)
+    .set("Cookie", montageCookie);
+  assert.equal(montageDetail.status, 200);
+  assert.equal(montageDetail.body.data.brideFirstName, "Ayşe");
+  assert.equal(montageDetail.body.data.brideLastName, "Yılmaz");
+  assert.equal(montageDetail.body.data.bridePhone, "+905551234567");
+  assert.equal(montageDetail.body.data.groomLastName, "Demir");
+  assert.equal(montageDetail.body.data.groomPhone, "+905559876543");
+  assert.equal(montageDetail.body.data.primaryEmail, applicationInput.primaryEmail);
+  assert.equal(montageDetail.body.data.note, applicationInput.note);
+  assert.equal(montageDetail.body.data.packageSummary.name, packageRecord.name);
+  assert.equal(typeof montageDetail.body.data.paymentTotalCents, "number");
+  assert.equal(typeof montageDetail.body.data.paymentRemainingCents, "number");
+  assert.ok(Array.isArray(montageDetail.body.data.assignments));
+  assert.equal("piiCiphertext" in montageDetail.body.data, false);
+  assert.equal(
+    (
+      await request(app)
+        .patch(`/api/v1/montage/weddings/${wedding.id}`)
+        .set("Cookie", montageAuthCookie)
+        .set("X-CSRF-Token", montageCsrfToken)
+        .send({ note: "Montajcı değiştirememeli" })
+    ).status,
+    404
+  );
+  assert.equal(
+    (await request(app).get("/api/v1/admin/venue-managers").set("Cookie", montageCookie)).status,
+    403
+  );
+  assert.equal(
+    (await request(app).get("/api/v1/operations/staff").set("Cookie", montageCookie)).status,
+    403
+  );
+  const prematureMontageDelivery = await request(app)
+    .patch(`/api/v1/montage/deliveries/${wedding.delivery!.id}`)
+    .set("Cookie", montageAuthCookie)
+    .set("X-CSRF-Token", montageCsrfToken)
+    .send({ driveUrl: "https://drive.google.com/file/d/premature/view" });
+  assert.equal(prematureMontageDelivery.status, 409);
   const secondaryVenue = await prisma.venue.create({
     data: { slug: `other-${marker}`, name: `Diğer Salon ${marker}` }
   });
@@ -3198,11 +3289,11 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     "KONTROL"
   );
   const readyTransition = await request(phaseFourApp)
-    .patch(`/api/v1/admin/deliveries/${wedding.delivery!.id}`)
+    .patch(`/api/v1/montage/deliveries/${wedding.delivery!.id}`)
     .set("X-Correlation-ID", correlationId)
-    .set("Cookie", adminAuthCookie)
-    .set("X-CSRF-Token", adminCsrfToken)
-    .send({ status: "TESLIME_HAZIR", driveUrl });
+    .set("Cookie", montageAuthCookie)
+    .set("X-CSRF-Token", montageCsrfToken)
+    .send({ driveUrl });
   assert.equal(readyTransition.status, 200);
   const preparedDelivery = await prisma.delivery.findUniqueOrThrow({
     where: { id: wedding.delivery!.id }
@@ -3274,10 +3365,10 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(unconfirmedDelivery.status, 400);
   const concurrentDeliveries = await Promise.all([
     request(phaseFourApp)
-      .post(`/api/v1/admin/deliveries/${wedding.delivery!.id}/deliver`)
+      .post(`/api/v1/montage/deliveries/${wedding.delivery!.id}/deliver`)
       .set("X-Correlation-ID", correlationId)
-      .set("Cookie", adminAuthCookie)
-      .set("X-CSRF-Token", adminCsrfToken)
+      .set("Cookie", montageAuthCookie)
+      .set("X-CSRF-Token", montageCsrfToken)
       .send({ sharingConfirmed: true, sharingConfirmation: "ERİŞİMİ DOĞRULADIM" }),
     request(phaseFourApp)
       .post(`/api/v1/admin/deliveries/${wedding.delivery!.id}/deliver`)

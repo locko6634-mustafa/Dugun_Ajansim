@@ -4,6 +4,7 @@ export const ROLE_PANEL_CONFIG = Object.freeze({
     url: "operasyon-paneli.html",
     label: "Salon Sorumlusu Paneli"
   }),
+  MONTAJCI: Object.freeze({ url: "montajci-paneli.html", label: "Montajcı Paneli" }),
   MUSTERI: Object.freeze({ url: "musteri-paneli.html", label: "Müşteri Paneli" })
 });
 

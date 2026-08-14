@@ -55,7 +55,7 @@
             <span>05</span> Mesajlar <span class="nav-badge js-badge-messages" hidden>0</span>
           </button>
           <button type="button" data-panel="catalog"><span>06</span> Katalog</button>
-          <button type="button" data-panel="managers"><span>07</span> Salon Sorumluları</button>
+          <button type="button" data-panel="accounts"><span>07</span> Kullanıcı Hesapları</button>
         </nav>
         <div class="admin-sidebar__footer">
           <span
@@ -375,16 +375,42 @@
           </nav>
         </section>
 
-        <section class="admin-panel" data-panel-content="managers" hidden>
+        <section class="admin-panel" data-panel-content="accounts" hidden>
           <div class="section-heading">
             <div>
               <p class="section-index">Yetki yönetimi</p>
-              <h2>Salon sorumluları</h2>
+              <h2>Operasyon kullanıcıları</h2>
             </div>
-            <button class="primary-button js-add-manager" type="button">+ Sorumlu hesabı</button>
+            <button class="primary-button js-add-managed-user" type="button">
+              + Kullanıcı hesabı
+            </button>
           </div>
-          <p>Her hesap yalnızca bağlı olduğu salonun takvimini ve personelini yönetebilir.</p>
-          <div class="staff-grid js-managers"></div>
+          <p>
+            Salon sorumlusu ve montajcı hesaplarını tek noktadan oluşturun, düzenleyin ve erişim
+            durumlarını yönetin.
+          </p>
+          <div class="account-groups">
+            <section class="account-group" aria-labelledby="venue-manager-group-title">
+              <header>
+                <div>
+                  <span class="account-role-badge">Salon operasyonu</span>
+                  <h3 id="venue-manager-group-title">Salon sorumluları</h3>
+                </div>
+                <small>Bağlı salonun takvim ve personel yönetimi</small>
+              </header>
+              <div class="staff-grid js-managers"></div>
+            </section>
+            <section class="account-group" aria-labelledby="montage-user-group-title">
+              <header>
+                <div>
+                  <span class="account-role-badge account-role-badge--montage">Teslimat</span>
+                  <h3 id="montage-user-group-title">Montajcılar</h3>
+                </div>
+                <small>Tüm düğün bilgilerini görüntüleme ve Drive teslimi</small>
+              </header>
+              <div class="staff-grid js-montage-users"></div>
+            </section>
+          </div>
         </section>
 
         <section class="admin-panel" data-panel-content="catalog" hidden>
@@ -576,21 +602,29 @@
       </form>
     </dialog>
 
-    <dialog class="form-dialog js-manager-dialog" aria-labelledby="manager-form-title">
+    <dialog class="form-dialog js-managed-user-dialog" aria-labelledby="managed-user-form-title">
       <form
-        class="form-shell js-manager-form"
+        class="form-shell js-managed-user-form"
         method="dialog"
-        aria-describedby="manager-form-message"
+        aria-describedby="managed-user-form-message"
       >
         <div class="sheet-heading">
           <div>
-            <p class="section-index">Salon hesabı</p>
-            <h2 id="manager-form-title" class="js-manager-form-title">Sorumlu hesabı ekle</h2>
+            <p class="section-index">Operasyon hesabı</p>
+            <h2 id="managed-user-form-title" class="js-managed-user-form-title">
+              Kullanıcı hesabı ekle
+            </h2>
           </div>
           <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
         </div>
-        <input name="managerId" type="hidden" />
+        <input name="managedUserId" type="hidden" />
         <div class="form-grid">
+          <label class="wide"
+            >Rol<select name="role" required>
+              <option value="SALON_YETKILISI">Salon sorumlusu</option>
+              <option value="MONTAJCI">Montajcı</option>
+            </select></label
+          >
           <label
             >Kullanıcı adı<input
               name="username"
@@ -599,9 +633,9 @@
               maxlength="40"
               autocomplete="off"
               required /></label
-          ><label>Salon<select class="js-manager-venue" name="venueId" required></select></label
+          ><label class="js-managed-user-venue">Salon<select name="venueId"></select></label
           ><label class="wide"
-            >Parola <small class="js-manager-password-note">En az 15 karakter</small
+            >Parola <small class="js-managed-user-password-note">En az 15 karakter</small
             ><input
               name="password"
               type="password"
@@ -613,7 +647,12 @@
             ><input name="isActive" type="checkbox" checked /> Aktif hesap</label
           >
         </div>
-        <p id="manager-form-message" class="dialog-message" role="status" aria-live="polite"></p>
+        <p
+          id="managed-user-form-message"
+          class="dialog-message"
+          role="status"
+          aria-live="polite"
+        ></p>
         <div class="dialog-actions">
           <button class="secondary-button" type="button" value="cancel">Vazgeç</button
           ><button class="primary-button" type="submit">Kaydet</button>

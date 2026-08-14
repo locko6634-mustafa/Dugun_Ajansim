@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#18211f" />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <title>Montaj Teslim Paneli | Düğünajansım</title>
+    <link rel="stylesheet" href="css/shared/fonts.css" />
+    <link rel="stylesheet" href="css/montage/montage.css" />
+    <script type="module" src="js/montage/app.js"></script>
+  </head>
+  <body>
+    <header class="montage-header" aria-label="Montajcı hesabı">
+      <a class="montage-brand" href="index.html" aria-label="Düğünajansım ana sayfa">
+        <span>DA</span>
+        <span><strong>Düğünajansım</strong><small>Montaj teslim masası</small></span>
+      </a>
+      <div class="account-area">
+        <span class="account-mark js-user-initial" aria-hidden="true">M</span>
+        <span><small>Montajcı</small><strong class="js-username">—</strong></span>
+        <button class="logout-button js-logout" type="button">Güvenli çıkış</button>
+      </div>
+    </header>
+
+    <main class="montage-main">
+      <section class="montage-intro" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">Teslimat takvimi</p>
+          <h1 id="page-title">Düğünü bul.<br />Bağlantıyı teslim et.</h1>
+        </div>
+        <div class="intro-note">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <p>
+            Yalnızca Drive bağlantısı hazır olan işi açın, erişimi doğrulayın ve müşteriye teslim
+            edin.
+          </p>
+        </div>
+      </section>
+
+      <p class="global-message" role="status" aria-live="polite"></p>
+
+      <section class="calendar-stage" aria-labelledby="calendar-title">
+        <header class="calendar-toolbar" aria-label="Takvim araçları">
+          <div>
+            <p class="eyebrow">Planlanan düğünler</p>
+            <h2 id="calendar-title" class="js-calendar-title">Takvim yükleniyor</h2>
+          </div>
+          <div class="calendar-actions">
+            <label>
+              <span>Salon</span>
+              <select class="js-venue-filter" aria-label="Salona göre filtrele">
+                <option value="">Tüm salonlar</option>
+              </select>
+            </label>
+            <div class="month-actions" aria-label="Takvim ayı">
+              <button type="button" data-month-move="-1" aria-label="Önceki ay">←</button>
+              <button type="button" data-month-today>Bu ay</button>
+              <button type="button" data-month-move="1" aria-label="Sonraki ay">→</button>
+            </div>
+          </div>
+        </header>
+
+        <div class="calendar-legend" aria-label="Teslimat durumları">
+          <span><i class="is-waiting"></i> Hazırlık sürüyor</span>
+          <span><i class="is-ready"></i> Teslim edilebilir</span>
+          <span><i class="is-delivered"></i> Teslim edildi</span>
+        </div>
+        <div class="calendar-weekdays" aria-hidden="true">
+          <span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span
+          ><span>Cmt</span><span>Paz</span>
+        </div>
+        <div class="montage-calendar js-calendar" aria-live="polite" aria-busy="true"></div>
+        <p class="calendar-message js-calendar-message" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <dialog class="delivery-dialog js-delivery-dialog" aria-labelledby="delivery-dialog-title">
+      <div class="delivery-sheet">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">Drive teslimi</p>
+            <h2 id="delivery-dialog-title" class="js-dialog-title">Düğün teslimatı</h2>
+          </div>
+          <button class="dialog-close" type="button" data-close-dialog aria-label="Kapat">×</button>
+        </div>
+        <div class="js-delivery-content"></div>
+      </div>
+    </dialog>
+  </body>
+</html>

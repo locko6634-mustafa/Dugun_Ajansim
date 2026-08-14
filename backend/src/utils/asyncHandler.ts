@@ -18,7 +18,9 @@ export const deriveRlsContext = (
       ? "admin"
       : req.auth.role === "SALON_YETKILISI"
         ? "operations"
-        : "customer"
+        : req.auth.role === "MONTAJCI"
+          ? "montage"
+          : "customer"
     : (options.unauthenticatedActorRole ?? (req.baseUrl.includes("/auth") ? "auth" : "public"));
   const routeApplicationId = /\/booking-applications\/([0-9a-f-]{36})(?:\/|\?|$)/i.exec(
     req.originalUrl

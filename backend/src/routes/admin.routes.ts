@@ -24,6 +24,8 @@ import {
   isPasswordSimilarToUsername,
   lifecycleReasonBodySchema,
   messageTaskQuerySchema,
+  montageUserBodySchema,
+  montageUserUpdateBodySchema,
   packageBodySchema,
   permanentDeleteBodySchema,
   rejectBookingBodySchema,
@@ -61,7 +63,6 @@ import {
   hashToken
 } from "../utils/crypto.js";
 import { buildDeliveryDriveUrlData, decryptDeliveryDriveUrl } from "../utils/delivery-crypto.js";
-import { verifyGoogleDriveLinkAccess } from "../utils/delivery-link-access.js";
 import {
   assertGoogleDriveUrl,
   assertDeliveryDueDateWithinSla,
@@ -95,6 +96,7 @@ import { createPasswordSetupUrl, issuePasswordSetupToken } from "../utils/passwo
 import { findBoundedIntervalConflicts } from "../utils/intervalConflicts.js";
 import { decodeListCursor, encodeListCursor, listPaginationMeta } from "../utils/pagination.js";
 import { assertActiveStaffPhoneAvailable } from "../utils/staff-policy.js";
+import { releaseDelivery } from "../services/delivery-release.service.js";
 
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole("ADMIN"));
@@ -143,7 +145,6 @@ const deliveryReleaseRequest = z.object({
 });
 
 const messagePreparationAad = (taskId: string): string => `message-preparation:${taskId}`;
-const deliveryAccessTtlMs = 30 * 24 * 60 * 60 * 1_000;
 const passwordSetupTokenFromMessage = (message: string): string | null =>
   message.match(/#setup=([A-Za-z0-9_-]{43})(?:&|$)/)?.[1] ?? null;
 
@@ -1368,6 +1369,156 @@ router.patch(
     } catch (error) {
       if (isPrismaError(error, "P2002"))
         throw new AppError("Bu kullanıcı adı zaten kullanılıyor.", 409);
+      throw error;
+    }
+  })
+);
+
+router.get(
+  "/montage-users",
+  validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
+  asyncHandler(async (req, res) => {
+    const users = await prisma.user.findMany({
+      where: { role: "MONTAJCI" },
+      select: {
+        id: true,
+        username: true,
+        status: true,
+        mustChangePassword: true,
+        lastLoginAt: true,
+        createdAt: true
+      },
+      orderBy: [{ status: "asc" }, { username: "asc" }]
+    });
+    res.json({ success: true, data: users, correlationId: req.correlationId });
+  })
+);
+
+router.post(
+  "/montage-users",
+  verifyCsrf,
+  requireRecentAdminStepUp,
+  validateRequest(
+    z.object({ body: montageUserBodySchema, query: emptyQuery, params: z.object({}) })
+  ),
+  asyncHandler(async (req, res) => {
+    try {
+      const passwordHash = await hashPassword(req.body.password);
+      const user = await prisma.$transaction(async (transaction) => {
+        const created = await transaction.user.create({
+          data: {
+            username: req.body.username,
+            passwordHash,
+            role: "MONTAJCI",
+            status: req.body.status,
+            mustChangePassword: true,
+            temporaryPasswordExpiresAt: createTemporaryPasswordExpiry(
+              env.TEMPORARY_PASSWORD_TTL_HOURS
+            )
+          },
+          select: {
+            id: true,
+            username: true,
+            status: true,
+            mustChangePassword: true,
+            lastLoginAt: true,
+            createdAt: true
+          }
+        });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "montage_user.created",
+          targetType: "User",
+          targetId: created.id,
+          correlationId: req.correlationId,
+          metadata: { status: created.status }
+        });
+        return created;
+      });
+      res.status(201).json({ success: true, data: user, correlationId: req.correlationId });
+    } catch (error) {
+      if (isPrismaError(error, "P2002")) {
+        throw new AppError("Bu kullanıcı adı zaten kullanılıyor.", 409);
+      }
+      throw error;
+    }
+  })
+);
+
+router.patch(
+  "/montage-users/:id",
+  verifyCsrf,
+  requireRecentAdminStepUp,
+  validateRequest(
+    z.object({ body: montageUserUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema })
+  ),
+  asyncHandler(async (req, res) => {
+    try {
+      const user = await prisma.$transaction(async (transaction) => {
+        const current = await transaction.user.findFirst({
+          where: { id: req.params.id, role: "MONTAJCI" }
+        });
+        if (!current) throw new AppError("Montajcı hesabı bulunamadı.", 404);
+        if (
+          req.body.password &&
+          isPasswordSimilarToUsername(req.body.password, req.body.username ?? current.username)
+        ) {
+          throw new AppError("Parola kullanıcı adına benzememelidir.", 400);
+        }
+        const passwordHash = req.body.password ? await hashPassword(req.body.password) : undefined;
+        const updated = await transaction.user.update({
+          where: { id: current.id },
+          data: {
+            ...(req.body.username ? { username: req.body.username } : {}),
+            ...(req.body.status ? { status: req.body.status } : {}),
+            ...(passwordHash
+              ? {
+                  passwordHash,
+                  mustChangePassword: true,
+                  passwordChangedAt: null,
+                  temporaryPasswordExpiresAt: createTemporaryPasswordExpiry(
+                    env.TEMPORARY_PASSWORD_TTL_HOURS
+                  )
+                }
+              : {})
+          },
+          select: {
+            id: true,
+            username: true,
+            status: true,
+            mustChangePassword: true,
+            lastLoginAt: true,
+            createdAt: true
+          }
+        });
+        if (passwordHash || req.body.status) {
+          await transaction.authSession.updateMany({
+            where: { userId: current.id, revokedAt: null },
+            data: { revokedAt: new Date() }
+          });
+          await transaction.trustedDevice.updateMany({
+            where: { userId: current.id, revokedAt: null },
+            data: { revokedAt: new Date() }
+          });
+        }
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "montage_user.updated",
+          targetType: "User",
+          targetId: updated.id,
+          correlationId: req.correlationId,
+          metadata: {
+            passwordReset: Boolean(passwordHash),
+            status: updated.status
+          }
+        });
+        return updated;
+      });
+      res.json({ success: true, data: user, correlationId: req.correlationId });
+    } catch (error) {
+      if (isPrismaError(error, "P2002")) {
+        throw new AppError("Bu kullanıcı adı zaten kullanılıyor.", 409);
+      }
       throw error;
     }
   })
@@ -2856,152 +3007,12 @@ router.post(
   verifyCsrf,
   validateRequest(deliveryReleaseRequest),
   asyncHandler(async (req, res) => {
-    const delivery = await prisma.delivery.findUnique({
-      where: { id: req.params.id },
-      include: { wedding: true }
-    });
-    if (!delivery) throw new AppError("Teslimat kaydı bulunamadı.", 404);
-    if (delivery.wedding.cancelledAt || delivery.wedding.deletedAt) {
-      throw new AppError("İptal edilmiş veya arşivdeki düğünün teslimatı yayınlanamaz.", 409);
-    }
-    if (delivery.status !== "TESLIME_HAZIR") {
-      throw new AppError("Teslimat önce “Teslime Hazır” durumuna alınmalıdır.", 409);
-    }
-    if (!delivery.driveUrlCiphertext || !delivery.driveUrlIv || !delivery.driveUrlAuthTag) {
-      throw new AppError("Teslim etmeden önce Google Drive bağlantısı kaydedilmelidir.", 409);
-    }
-    const driveUrl = decryptDeliveryDriveUrl(delivery);
-    if (!driveUrl) throw new AppError("Teslimat bağlantısı çözülemedi.", 409);
-    const verifyLink = req.app.locals.deliveryLinkAccessVerifier ?? verifyGoogleDriveLinkAccess;
-    const linkAccess = await verifyLink(driveUrl);
-
-    const now = new Date();
-    const accessExpiresAt = new Date(now.valueOf() + deliveryAccessTtlMs);
-    const updated = await prisma.$transaction(async (transaction) => {
-      await transaction.$queryRaw`
-        SELECT "id" FROM "weddings"
-        WHERE "id" = ${delivery.weddingId}
-        FOR UPDATE
-      `;
-      const currentWedding = await transaction.wedding.findUniqueOrThrow({
-        where: { id: delivery.weddingId }
-      });
-      if (currentWedding.cancelledAt || currentWedding.deletedAt) {
-        throw new AppError("İptal edilmiş veya arşivdeki düğünün teslimatı yayınlanamaz.", 409);
-      }
-      const currentWeddingPii = decryptWeddingPii(currentWedding.id, currentWedding);
-      const recipientPhone =
-        currentWedding.primaryContact === "GELIN"
-          ? currentWeddingPii.bridePhone
-          : currentWeddingPii.groomPhone;
-      const claimed = await transaction.delivery.updateMany({
-        where: {
-          id: delivery.id,
-          status: "TESLIME_HAZIR",
-          releasedAt: null,
-          updatedAt: delivery.updatedAt
-        },
-        data: {
-          status: "TESLIM_EDILDI",
-          releasedAt: now,
-          accessExpiresAt,
-          revokedAt: null,
-          revokedById: null,
-          revocationReason: null
-        }
-      });
-      if (claimed.count !== 1) {
-        throw new AppError("Teslimat başka bir işlemde güncellendi.", 409);
-      }
-      await transaction.deliveryStatusHistory.create({
-        data: {
-          deliveryId: delivery.id,
-          fromStatus: delivery.status,
-          toStatus: "TESLIM_EDILDI",
-          actorUserId: req.auth!.userId
-        }
-      });
-      const existingDeliveryTask = await transaction.messageTask.findUnique({
-        where: {
-          weddingId_kind: {
-            weddingId: delivery.weddingId,
-            kind: "DELIVERY_READY"
-          }
-        }
-      });
-      if (existingDeliveryTask) {
-        await transaction.messageTask.update({
-          where: {
-            id: existingDeliveryTask.id,
-            piiRevision: existingDeliveryTask.piiRevision
-          },
-          data: {
-            ...buildMessageTaskPiiData(
-              existingDeliveryTask.id,
-              { recipientPhone },
-              existingDeliveryTask.piiRevision + 1
-            ),
-            status: "PLANNED",
-            preparedAt: null,
-            readyAt: null,
-            failedAt: null,
-            failureReason: null,
-            nextAttemptAt: null,
-            attemptCount: 0,
-            lastAttemptAt: null,
-            preparedTokenId: null,
-            preparedMessageCiphertext: null,
-            preparedMessageIv: null,
-            preparedMessageAuthTag: null,
-            earlyOverrideAt: null,
-            earlyOverrideReason: null,
-            earlyOverrideById: null,
-            cancelledAt: null,
-            cancelledReason: null,
-            cancelledById: null,
-            dueAt: now,
-            sentAt: null,
-            sentById: null
-          }
-        });
-      } else {
-        const deliveryTaskId = randomUUID();
-        await transaction.messageTask.create({
-          data: {
-            id: deliveryTaskId,
-            weddingId: delivery.weddingId,
-            kind: "DELIVERY_READY",
-            dueAt: now,
-            ...buildMessageTaskPiiData(deliveryTaskId, { recipientPhone }, 1)
-          }
-        });
-      }
-      await createAudit(transaction, {
-        actorUserId: req.auth!.userId,
-        action: "delivery.released",
-        targetType: "Delivery",
-        targetId: delivery.id,
-        correlationId: req.correlationId,
-        metadata: {
-          sharingConfirmed: req.body.sharingConfirmed,
-          sharingConfirmation: "verified_by_operator",
-          accessExpiresAt,
-          linkSmokeStatus: linkAccess.status,
-          redirectHost: linkAccess.redirectHost
-        }
-      });
-      return transaction.delivery.findUniqueOrThrow({
-        where: { id: delivery.id },
-        select: {
-          id: true,
-          status: true,
-          dueDate: true,
-          releasedAt: true,
-          accessExpiresAt: true,
-          revokedAt: true,
-          updatedAt: true
-        }
-      });
+    const updated = await releaseDelivery({
+      deliveryId: req.params.id,
+      actorUserId: req.auth!.userId,
+      correlationId: req.correlationId,
+      sharingConfirmed: req.body.sharingConfirmed,
+      verifyLink: req.app.locals.deliveryLinkAccessVerifier
     });
 
     res.json({

@@ -38,7 +38,12 @@ import {
   isTemporaryPasswordExpired,
   sessionCookieOptions,
 } from '../src/middlewares/auth.middleware.js';
-import { adminStepUpBodySchema, permanentDeleteBodySchema } from '../src/schemas/api.schemas.js';
+import {
+  adminStepUpBodySchema,
+  montageUserBodySchema,
+  montageUserUpdateBodySchema,
+  permanentDeleteBodySchema,
+} from '../src/schemas/api.schemas.js';
 import { createGlobalErrorHandler } from '../src/middlewares/error.middleware.js';
 import { hashRateLimitKey } from '../src/middlewares/databaseRateLimitStore.js';
 import {
@@ -243,6 +248,37 @@ authTest('oturum bootstrap RLS bağlamı yalnız açık authenticate seçeneğiy
   });
   assert.equal(authenticatedContext.actorRole, 'admin');
   assert.equal(authenticatedContext.actorUserId, protectedRequest.auth.userId);
+
+  protectedRequest.auth.role = 'MONTAJCI';
+  assert.equal(deriveRlsContext(protectedRequest).actorRole, 'montage');
+});
+
+authTest('montajcı hesap gövdeleri rol dışındaki alanları ve zayıf parolaları reddeder', () => {
+  assert.deepEqual(
+    montageUserBodySchema.parse({
+      username: 'montaj-ekibi',
+      password: 'Guvenli-Montaj-Parolasi-2026!',
+      status: 'ACTIVE',
+    }),
+    {
+      username: 'montaj-ekibi',
+      password: 'Guvenli-Montaj-Parolasi-2026!',
+      status: 'ACTIVE',
+    },
+  );
+  assert.equal(
+    montageUserBodySchema.safeParse({
+      username: 'montaj-ekibi',
+      password: 'kisa',
+      venueId: randomUUID(),
+    }).success,
+    false,
+  );
+  assert.equal(montageUserUpdateBodySchema.safeParse({}).success, false);
+  assert.equal(
+    montageUserUpdateBodySchema.safeParse({ status: 'DISABLED', role: 'ADMIN' }).success,
+    false,
+  );
 });
 
 test('audit yazıcısı tek satır insert sonucunu zorunlu tutar ve skipDuplicates kullanmaz', async () => {

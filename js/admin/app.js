@@ -87,6 +87,7 @@ const state = {
   calendarShowPast: false,
   staff: [],
   managers: [],
+  montageUsers: [],
   venues: [],
   catalogVenues: [],
   packages: [],
@@ -145,8 +146,8 @@ const appDetailTitle = document.querySelector(".js-app-detail-title");
 const appDetailContent = document.querySelector(".js-app-detail-content");
 const staffDialog = document.querySelector(".js-staff-dialog");
 const staffForm = document.querySelector(".js-staff-form");
-const managerDialog = document.querySelector(".js-manager-dialog");
-const managerForm = document.querySelector(".js-manager-form");
+const managedUserDialog = document.querySelector(".js-managed-user-dialog");
+const managedUserForm = document.querySelector(".js-managed-user-form");
 const manualDialog = document.querySelector(".js-manual-dialog");
 const manualForm = document.querySelector(".js-manual-form");
 const weddingDialog = document.querySelector(".js-wedding-dialog");
@@ -1423,7 +1424,7 @@ async function ensureVenues() {
     .map((venue) => `<option value="${escapeHtml(venue.id)}">${escapeHtml(venue.name)}</option>`)
     .join("");
   document.querySelector(".js-staff-venue").innerHTML = options;
-  document.querySelector(".js-manager-venue").innerHTML = options;
+  managedUserForm.elements.venueId.innerHTML = options;
   const filterVenueSelect = document.querySelector(".js-staff-venue-filter");
   if (filterVenueSelect) {
     const currentValue = filterVenueSelect.value;
@@ -1494,7 +1495,7 @@ async function loadManagers() {
       ? state.managers
           .map(
             (manager) =>
-              `<article class="staff-card ${manager.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(manager.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${manager.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[manager.status] || manager.status)}</span></div><h3>${escapeHtml(manager.username)}</h3><p>${escapeHtml(manager.venue?.name || "Salon atanmamış")}</p><small>${manager.lastLoginAt ? `Son giriş: ${formatDate(manager.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${manager.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-manager="${manager.id}">Düzenle</button></footer></article>`
+              `<article class="staff-card ${manager.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(manager.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${manager.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[manager.status] || manager.status)}</span></div><h3>${escapeHtml(manager.username)}</h3><p>${escapeHtml(manager.venue?.name || "Salon atanmamış")}</p><small>${manager.lastLoginAt ? `Son giriş: ${formatDate(manager.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${manager.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${manager.id}" data-managed-user-role="SALON_YETKILISI">Düzenle</button></footer></article>`
           )
           .join("")
       : empty("Henüz salon sorumlusu hesabı yok.");
@@ -1503,22 +1504,60 @@ async function loadManagers() {
   }
 }
 
-async function openManagerForm(manager = null) {
+async function loadMontageUsers() {
+  const container = document.querySelector(".js-montage-users");
+  container.innerHTML = empty("Montajcı hesapları yükleniyor…");
+  try {
+    const response = await apiRequest("/admin/montage-users");
+    state.montageUsers = response.data;
+    markDataSuccess();
+    container.innerHTML = state.montageUsers.length
+      ? state.montageUsers
+          .map(
+            (user) =>
+              `<article class="staff-card ${user.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(user.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${user.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[user.status] || user.status)}</span></div><h3>${escapeHtml(user.username)}</h3><p>Tüm düğün bilgileri ve Drive teslim yetkisi</p><small>${user.lastLoginAt ? `Son giriş: ${formatDate(user.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${user.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${user.id}" data-managed-user-role="MONTAJCI">Düzenle</button></footer></article>`
+          )
+          .join("")
+      : empty("Henüz montajcı hesabı yok.");
+  } catch (error) {
+    container.innerHTML = empty(error.message);
+  }
+}
+
+async function loadManagedUsers() {
+  await Promise.all([loadManagers(), loadMontageUsers()]);
+}
+
+function syncManagedUserRole() {
+  const role = managedUserForm.dataset.role || managedUserForm.elements.role.value;
+  const isMontageUser = role === "MONTAJCI";
+  const venueField = managedUserForm.querySelector(".js-managed-user-venue");
+  venueField.hidden = isMontageUser;
+  managedUserForm.elements.venueId.required = !isMontageUser;
+  if (isMontageUser) managedUserForm.elements.venueId.value = "";
+}
+
+async function openManagedUserForm(user = null, role = "SALON_YETKILISI") {
   await ensureVenues();
-  managerForm.reset();
-  managerForm.elements.managerId.value = manager?.id || "";
-  managerForm.elements.username.value = manager?.username || "";
-  managerForm.elements.venueId.value = manager?.venue?.id || state.venues[0]?.id || "";
-  managerForm.elements.isActive.checked = manager?.status !== "DISABLED";
-  managerForm.elements.password.required = !manager;
-  document.querySelector(".js-manager-password-note").textContent = manager
+  managedUserForm.reset();
+  managedUserForm.dataset.role = user ? role : "";
+  managedUserForm.elements.managedUserId.value = user?.id || "";
+  managedUserForm.elements.role.value = role;
+  managedUserForm.elements.role.disabled = Boolean(user);
+  managedUserForm.elements.username.value = user?.username || "";
+  managedUserForm.elements.venueId.value = user?.venue?.id || state.venues[0]?.id || "";
+  managedUserForm.elements.isActive.checked = user?.status !== "DISABLED";
+  managedUserForm.elements.password.required = !user;
+  document.querySelector(".js-managed-user-password-note").textContent = user
     ? "Değişmeyecekse boş bırakın"
     : "En az 15 karakter";
-  document.querySelector(".js-manager-form-title").textContent = manager
-    ? "Sorumlu hesabını düzenle"
-    : "Sorumlu hesabı ekle";
-  managerForm.querySelector(".dialog-message").textContent = "";
-  openManagedDialog(managerDialog);
+  const roleLabel = role === "MONTAJCI" ? "Montajcı" : "Salon sorumlusu";
+  document.querySelector(".js-managed-user-form-title").textContent = user
+    ? `${roleLabel} hesabını düzenle`
+    : "Kullanıcı hesabı ekle";
+  managedUserForm.querySelector(".dialog-message").textContent = "";
+  syncManagedUserRole();
+  openManagedDialog(managedUserDialog);
 }
 
 function renderMessageActions(task) {
@@ -1704,7 +1743,7 @@ const panelLoaders = {
   calendar: () => loadCalendar(),
   applications: loadApplications,
   staff: loadStaff,
-  managers: loadManagers,
+  accounts: loadManagedUsers,
   messages: loadMessages,
   catalog: loadCatalogAdmin
 };
@@ -1716,7 +1755,7 @@ const PANEL_TITLES = {
   staff: "Personeller",
   messages: "Mesaj geçmişi",
   catalog: "Katalog yönetimi",
-  managers: "Salon sorumluları"
+  accounts: "Kullanıcı hesapları"
 };
 
 async function movePagination(key, direction) {
@@ -2644,47 +2683,53 @@ staffForm.addEventListener("submit", async (event) => {
   }
 });
 
-document.querySelector(".js-add-manager").addEventListener("click", () => void openManagerForm());
-document.querySelector(".js-managers").addEventListener("click", (event) => {
-  const button = event.target.closest("[data-edit-manager]");
-  if (button)
-    void openManagerForm(
-      state.managers.find((manager) => manager.id === button.dataset.editManager)
-    );
+document
+  .querySelector(".js-add-managed-user")
+  .addEventListener("click", () => void openManagedUserForm());
+document.querySelector('[data-panel-content="accounts"]').addEventListener("click", (event) => {
+  const button = event.target.closest("[data-edit-managed-user]");
+  if (!button) return;
+  const role = button.dataset.managedUserRole;
+  const collection = role === "MONTAJCI" ? state.montageUsers : state.managers;
+  const user = collection.find((item) => item.id === button.dataset.editManagedUser);
+  if (user) void openManagedUserForm(user, role);
 });
-managerForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
-  button.addEventListener("click", () => managerDialog.close());
+managedUserForm.elements.role.addEventListener("change", syncManagedUserRole);
+managedUserForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
+  button.addEventListener("click", () => managedUserDialog.close());
 });
-managerForm.addEventListener("submit", async (event) => {
+managedUserForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (event.submitter?.value === "cancel") return;
-  const data = new FormData(managerForm);
-  const managerId = data.get("managerId");
+  const data = new FormData(managedUserForm);
+  const managedUserId = data.get("managedUserId");
+  const role = managedUserForm.dataset.role || data.get("role");
+  const isMontageUser = role === "MONTAJCI";
   const body = {
     username: data.get("username"),
-    venueId: data.get("venueId"),
     status: data.has("isActive") ? "ACTIVE" : "DISABLED",
+    ...(!isMontageUser ? { venueId: data.get("venueId") } : {}),
     ...(data.get("password") ? { password: data.get("password") } : {})
   };
+  const endpoint = isMontageUser ? "/admin/montage-users" : "/admin/venue-managers";
+  const roleLabel = isMontageUser ? "Montajcı" : "Salon sorumlusu";
   try {
     const response = await apiRequestWithAdminStepUp(
-      managerId ? `/admin/venue-managers/${managerId}` : "/admin/venue-managers",
+      managedUserId ? `${endpoint}/${managedUserId}` : endpoint,
       {
-        method: managerId ? "PATCH" : "POST",
+        method: managedUserId ? "PATCH" : "POST",
         body
       },
       {
-        actionLabel: managerId
-          ? "Salon sorumlusu hesabını değiştirme"
-          : "Salon sorumlusu hesabı oluşturma"
+        actionLabel: `${roleLabel} hesabını ${managedUserId ? "değiştirme" : "oluşturma"}`
       }
     );
     if (!response) return;
-    managerDialog.close();
-    setMessage(managerId ? "Salon sorumlusu güncellendi." : "Salon sorumlusu eklendi.", true);
-    await loadManagers();
+    managedUserDialog.close();
+    setMessage(`${roleLabel} hesabı ${managedUserId ? "güncellendi" : "eklendi"}.`, true);
+    await loadManagedUsers();
   } catch (error) {
-    managerForm.querySelector(".dialog-message").textContent = error.message;
+    managedUserForm.querySelector(".dialog-message").textContent = error.message;
   }
 });
 
