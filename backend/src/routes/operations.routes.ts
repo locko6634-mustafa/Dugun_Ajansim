@@ -519,6 +519,7 @@ router.post(
 
 router.patch(
   "/staff/:id",
+  denySalonManagement,
   verifyCsrf,
   validateRequest(
     z.object({ body: venueStaffUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema })
