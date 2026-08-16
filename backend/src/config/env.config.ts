@@ -361,7 +361,7 @@ const envSchema = z
       'PAYMENT_HANDOFF_TTL_MINUTES',
       5,
       1440,
-    ).default('60'),
+    ).default('1440'),
     PAYMENT_BANK_NAME: z.string().trim().min(2).max(120).default(TEST_PAYMENT_BANK_NAME),
     PAYMENT_ACCOUNT_HOLDER: z.string().trim().min(2).max(160).default(TEST_PAYMENT_ACCOUNT_HOLDER),
     PAYMENT_IBAN: z

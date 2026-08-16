@@ -207,34 +207,34 @@ Bu rapor aşağıdaki kanıtlardan üretildi:
 - [ ] 400/409/422/429/500/offline senaryolarının her biri kullanıcıya doğru mesajı aktif adımda gösteriyor.
 - [ ] Yenileme/geri/ileri sonrası aynı başvuru yanlışlıkla çoğalmıyor.
 
-### P0-02 — WhatsApp/dekont aşamasındaki başvuru 60 dakika sonra otomatik silinebiliyor — KAPATILDI (2026-08-12)
+### P0-02 — Başvuru düzenleme süresi dekont gönderme süresiyle karışıyordu — KAPATILDI (2026-08-16)
 
 **Kanıt**
 
-- Handoff tamamlanmış public başvuru varsayılan TTL sonunda cleanup tarafından siliniyor.
-- Varsayılan süre 60 dakika; tarama her dakika çalışıyor.
-- Entegrasyon testi bu silmeyi beklenen davranış olarak doğruluyor.
-- Kod: `backend/src/services/booking.service.ts:725-733`, `backend/src/bootstrap.ts:13`, `backend/src/bootstrap.ts:22-36`, `backend/src/config/env.config.ts:353-358`, `backend/tests/database.integration.test.ts:1594-1631`.
+- Public başvurunun düzenleme penceresi 24 saattir.
+- Süre dolumu başvuruyu iptal etmez veya arşivlemez; yalnızca düzenlemeyi kapatır.
+- Başvuru numarası korunur ve dekont WhatsApp üzerinden daha sonra da gönderilebilir.
+- Bekleyen public başvurular salon uygunluğunu bloke etmez; rezervasyon yönetici onayıyla kesinleşir.
 
 **Etki**
 
-- Kullanıcı dekont/ödeme kanıtı göndermişken admin bir saat içinde işlem yapmazsa kayıt kaybolabilir.
-- Finansal mutabakat ve operasyon takibi güvenilir olmaz.
+- Müşteri süre baskısı olmadan aynı referansla dekont gönderebilir.
+- Bot veya terk edilmiş başvurular salon takvimini işgal etmez.
 
 **Yapılacaklar**
 
-- [x] Handoff/dekont aşamasındaki kayıtlar otomatik silme kapsamından çıkarıldı.
-- [x] TTL yalnız ödeme adımına ulaşmamış gerçek terk kayıtlarına uygulanıyor.
-- [x] Fiziksel silme yerine kontrollü iptal/arşiv durum geçişi uygulanıyor.
-- [x] Cleanup metriği ve beklenmeyen silme alarmı kuruldu.
-- [x] Entegrasyon testi yeni veri saklama kuralına göre değiştirildi.
+- [x] Düzenleme süresi 24 saate çıkarıldı.
+- [x] Süre dolan başvuru salt okunur durumda korunuyor.
+- [x] WhatsApp geçişi süre dolduktan sonra da kullanılabiliyor.
+- [x] Bekleyen public başvurular uygunluk hesabından çıkarıldı.
+- [x] Süre dolumu ve saklama davranışı entegrasyon testleriyle kapsandı.
 
 **Kabul ölçütü**
 
-- [x] Handoff yapılmış test başvurusu 24+ saat sonra hâlâ admin kuyruğunda bulunuyor.
-- [x] Gerçek terk kayıtları tanımlı sürede ve kayıtlı audit iziyle arşivleniyor.
+- [x] Handoff yapılmış veya yapılmamış test başvurusu 24+ saat sonra hâlâ admin kuyruğunda bulunuyor.
+- [x] Süre dolan kayıt referansını koruyor, düzenleme isteği 410 uyarısı alıyor ve fiziksel olarak silinmiyor.
 
-**Güncel çözüm kanıtı:** `kanit/faz-02-ttl-handoff-saklama.md`. Gerçek terk 60 dakikada fiziksel silinmiyor; `IPTAL_EDILDI` durumuna atomik geçiriliyor ve varsayılan 90 günlük public retention politikasına bırakılıyor. Handoff/ödeme kanalı bulunan başvurular korunuyor, slot tutuyor ve TTL sonrasında da yönetici tarafından onaylanabiliyor. Hata enjeksiyonunda transaction rollback’i doğrulandı.
+**Güncel çözüm:** 24 saat sonunda yalnız düzenleme yetkisi kapanır. Başvuru `ONAY_BEKLIYOR` durumunda ve referans numarasıyla korunur; WhatsApp dekontu daha sonra gönderilebilir. Public bekleyen başvurular salon slotu tutmaz, yönetici dekontu doğrulayıp başvuruyu onayladığında rezervasyon kesinleşir.
 
 ### P0-03 — Müşteri altın yolu kanıtlanmadı
 

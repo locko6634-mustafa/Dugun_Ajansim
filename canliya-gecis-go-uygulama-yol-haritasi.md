@@ -255,13 +255,13 @@ Aşağıdaki erişimler yoksa agent kod tarafındaki hazırlığı bitirir, faka
 
 ### 02.3 Regresyon ve uzun süre testi
 
-- [x] Mevcut “handoff sonrası silinir” entegrasyon testini yeni kurala göre değiştir.
-- [x] Handoff yapılmış kayıt 60 dakika ve 24+ saat simülasyonunda korunuyor.
-- [x] Dekont/ödeme kanıtlı kayıt korunuyor.
-- [x] Gerçek terk kayıt tanımlı sürede durum değiştiriyor/arşivleniyor.
-- [x] Cleanup audit izi kayıt ID’si, karar nedeni ve zamanı taşıyor.
-- [x] Cleanup hatası kayıtları yarım silmiyor.
-- [x] İzole production-benzeri staging smoke sonrasında sentetik handoff başvurusunun cleanup’a uğramadığı doğrulandı.
+- [x] Düzenleme süresi dolan başvurunun silinmediğini doğrulayan entegrasyon testini ekle.
+- [x] Handoff yapılmış ve yapılmamış kayıtların 24+ saat sonra korunduğunu doğrula.
+- [x] Süre sonrası düzenleme isteğinin açık kullanıcı uyarısıyla reddedildiğini doğrula.
+- [x] Süre dolsa da WhatsApp geçişinin ve yönetici onayının çalıştığını doğrula.
+- [x] Bekleyen public başvurunun salon slotu tutmadığını doğrula.
+- [x] Süre dolumu audit izinin kayıt ID’si, karar nedeni ve zamanı taşıdığını doğrula.
+- [x] Cleanup hatasının kayıtları yarım güncellemediğini doğrula.
 
 **Faz 02 çıkış kapısı**
 

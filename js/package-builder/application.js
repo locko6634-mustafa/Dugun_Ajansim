@@ -879,53 +879,62 @@ function applyPaymentFlowSummary(data) {
   state.transferReference = data.referenceCode;
   state.paymentFlowExpiresAt = data.paymentFlowExpiresAt;
   state.whatsappHandoffAt = data.whatsappHandoffAt;
-  if (state.whatsappHandoffAt) clearPaymentFlowSession();
-  else persistPaymentFlowSession();
+  persistPaymentFlowSession();
   updateTransferUI();
   updatePaymentFlowState();
 }
 
-function showPaymentFlowExpired() {
+function isPaymentFlowEditingExpired() {
+  const expiresAt = new Date(state.paymentFlowExpiresAt).valueOf();
+  return Boolean(state.applicationId) && (!Number.isFinite(expiresAt) || expiresAt <= Date.now());
+}
+
+function showPaymentFlowEditExpired() {
   if (paymentFlowCountdownTimer) window.clearInterval(paymentFlowCountdownTimer);
-  clearPaymentFlowSession();
-  document.querySelector(".js-payment-flow-expired").hidden = false;
-  document.querySelector(".js-transfer-layout").hidden = true;
+  const warning = document.querySelector(".js-payment-flow-expired");
+  warning.hidden = false;
+  document.querySelector(".js-transfer-layout").hidden = false;
+  document.querySelector(".js-payment-flow-expiry").hidden = true;
+  setPaymentNotificationStatus(
+    "24 saatlik düzenleme süreniz doldu. Başvurunuz ve referans numaranız geçerliliğini koruyor.",
+    "success"
+  );
   goToStep(5);
+  warning.focus({ preventScroll: true });
+}
+
+function requestPaymentFlowEdit(targetStep) {
+  if (isPaymentFlowEditingExpired()) {
+    showPaymentFlowEditExpired();
+    return;
+  }
+  goToStep(targetStep);
 }
 
 function updatePaymentFlowState() {
   const expiry = document.querySelector(".js-payment-flow-expiry");
-  const editButtons = [
-    document.querySelector(".js-edit-package"),
-    document.querySelector(".js-edit-details"),
-    paymentNotificationForm?.querySelector(".js-step-back"),
-    ...document.querySelectorAll("[data-remove-service]")
-  ].filter(Boolean);
-  editButtons.forEach((button) => {
-    button.disabled = Boolean(state.whatsappHandoffAt);
-  });
   if (state.whatsappHandoffAt) {
     setPaymentNotificationStatus(
-      "WhatsApp aşamasına geçildi. Başvurunuz kalan süre içinde yönetici onayı bekliyor.",
+      "WhatsApp görüşmeniz hazır. Dekontunuzu dilediğiniz zaman aynı başvuru numarasıyla gönderebilirsiniz.",
       "success"
     );
   }
   const renderCountdown = () => {
     const remainingMs = new Date(state.paymentFlowExpiresAt).valueOf() - Date.now();
     if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
-      showPaymentFlowExpired();
-      return;
+      showPaymentFlowEditExpired();
+      return false;
     }
-    const minutes = Math.floor(remainingMs / 60_000);
+    document.querySelector(".js-payment-flow-expired").hidden = true;
+    const hours = Math.floor(remainingMs / 3_600_000);
+    const minutes = Math.floor((remainingMs % 3_600_000) / 60_000);
     const seconds = Math.floor((remainingMs % 60_000) / 1000);
     expiry.hidden = false;
-    const countdownLabel = state.whatsappHandoffAt
-      ? "Yönetici onayı için kalan süre"
-      : "WhatsApp bildirimi için kalan süre";
-    expiry.textContent = `${countdownLabel}: ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    expiry.textContent = `Başvuruyu düzenlemek için kalan süre: ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    return true;
   };
   if (paymentFlowCountdownTimer) window.clearInterval(paymentFlowCountdownTimer);
-  renderCountdown();
+  if (!renderCountdown()) return;
   paymentFlowCountdownTimer = window.setInterval(renderCountdown, 1000);
 }
 
@@ -1012,7 +1021,7 @@ async function openPaymentSummary() {
     }
   } catch (error) {
     if (error.status === 410) {
-      showPaymentFlowExpired();
+      showPaymentFlowEditExpired();
     } else {
       const hasFieldErrors = applyServerFieldErrors(error);
       const message = getBookingFailureMessage(error);
@@ -1038,7 +1047,7 @@ document
   .addEventListener("click", () => void openPaymentSummary());
 
 document.querySelectorAll(".js-step-back").forEach((button) => {
-  button.addEventListener("click", () => goToStep(Number(button.dataset.targetStep)));
+  button.addEventListener("click", () => requestPaymentFlowEdit(Number(button.dataset.targetStep)));
 });
 
 paymentInputs.forEach((input) => {
@@ -1577,12 +1586,20 @@ checkoutForm.addEventListener("submit", (event) => {
   goToStep(4);
 });
 
-document.querySelector(".js-edit-package").addEventListener("click", () => goToStep(2));
-document.querySelector(".js-edit-details").addEventListener("click", () => goToStep(3));
+document
+  .querySelector(".js-edit-package")
+  .addEventListener("click", () => requestPaymentFlowEdit(2));
+document
+  .querySelector(".js-edit-details")
+  .addEventListener("click", () => requestPaymentFlowEdit(3));
 
 orderItemsContainer.addEventListener("click", async (event) => {
   const removeButton = event.target.closest("[data-remove-service]");
   if (!removeButton) return;
+  if (isPaymentFlowEditingExpired()) {
+    showPaymentFlowEditExpired();
+    return;
+  }
 
   const serviceId = removeButton.dataset.removeService;
   if (!state.extras.has(serviceId)) return;
@@ -1675,7 +1692,7 @@ function showBookingCompletion() {
     : "Başvurunuz Kaydedildi";
   document.querySelector(".js-completion-status").textContent = isTest
     ? "Test başvurunuz oluşturuldu; gerçek ödeme alınmadı."
-    : "Başvurunuz oluşturuldu ve yönetici onayına iletildi.";
+    : "Başvurunuz oluşturuldu; dekontunuzu dilediğiniz zaman WhatsApp'tan iletebilirsiniz.";
   document.querySelector(".js-completion-copy").textContent = isTest
     ? "Bu bir test akışıdır. Test hesabına gerçek para göndermeyin."
     : `Dekontunuzu WhatsApp üzerinden iletin. Başvurunuzu ${state.transferReference} referansıyla takip edebilirsiniz.`;
@@ -1749,7 +1766,7 @@ if (paymentNotificationForm) {
       }
     } catch (error) {
       whatsappWindow?.close();
-      if (error.status === 410) showPaymentFlowExpired();
+      if (error.status === 410) showPaymentFlowEditExpired();
       else setPaymentNotificationStatus(error.message);
     } finally {
       submitButton.disabled = false;
@@ -1997,7 +2014,6 @@ function applyRestoredPaymentFlow(data) {
   updateBaseSelection();
   updatePaymentUI();
   applyPaymentFlowSummary(data);
-  document.querySelector(".js-payment-flow-expired").hidden = true;
   document.querySelector(".js-transfer-layout").hidden = false;
   goToStep(5);
 }
@@ -2019,7 +2035,7 @@ async function restorePaymentFlowSession() {
     const response = await apiRequest(`/booking-applications/${applicationId}/payment-flow`);
     applyRestoredPaymentFlow(response.data);
   } catch (error) {
-    if (error.status === 410) showPaymentFlowExpired();
+    if (error.status === 410) showPaymentFlowEditExpired();
     else {
       clearPaymentFlowSession();
       state.applicationId = null;
@@ -2027,11 +2043,6 @@ async function restorePaymentFlowSession() {
     }
   }
 }
-
-document.querySelector(".js-restart-payment-flow")?.addEventListener("click", () => {
-  clearPaymentFlowSession();
-  window.location.reload();
-});
 
 function openRequestedService() {
   const requestedService = new URL(window.location.href).searchParams.get("hizmet");

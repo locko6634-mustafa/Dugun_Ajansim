@@ -3820,10 +3820,10 @@ body.is-summary-open .package-summary__close svg {
   max-width: 760px;
   margin: 0 auto 2rem;
   padding: 1.25rem;
-  border: 1px solid hsl(6deg 55% 80%);
+  border: 1px solid hsl(38deg 55% 72%);
   border-radius: 1rem;
-  background: hsl(6deg 65% 97%);
-  color: hsl(6deg 45% 28%);
+  background: hsl(42deg 70% 96%);
+  color: hsl(32deg 55% 27%);
 }
 
 .payment-flow-expired[hidden] {

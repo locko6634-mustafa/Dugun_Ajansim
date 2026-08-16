@@ -1211,10 +1211,10 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await clickPanel(page, "applications");
   await expect(page.locator(".application-card")).toContainText("10 Ağu 2026");
   await expect(page.locator(".application-card")).toContainText("00:30");
-  await expect(page.locator(".application-card")).toContainText("Bildirim süresi doldu");
+  await expect(page.locator(".application-card")).toContainText("düzenleme süresi doldu");
   await expect(
     page.locator(".application-card").getByRole("button", { name: "Onayla" })
-  ).toHaveCount(0);
+  ).toHaveCount(1);
   await page.locator(".application-card").getByRole("button", { name: "Detaylar" }).click();
   await expect(page.locator(".js-application-detail-dialog")).toContainText("Drone Çekimi");
   await expect(page.locator(".js-application-detail-dialog")).toContainText("₺2.500");
@@ -2150,7 +2150,7 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
     note: "",
     privacyConsent: true,
     marketingConsent: false,
-    paymentFlowExpiresAt: "2027-08-10T20:00:00.000Z",
+    paymentFlowExpiresAt: "2020-08-10T20:00:00.000Z",
     whatsappHandoffAt: null,
     paymentFlowExpiredAt: null
   };
@@ -2250,6 +2250,13 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
     "WhatsApp yönlendirme adresine kişisel bilgileriniz eklenmez"
   );
   await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-777888");
+  await expect(page.locator(".js-payment-flow-expired")).toContainText(
+    "24 saatlik düzenleme süreniz doldu"
+  );
+  await expect(page.locator(".js-transfer-layout")).toBeVisible();
+  await page.locator(".js-edit-details").click();
+  await expect(page.locator(".js-payment-flow-expired")).toBeFocused();
+  await expect(page.locator('.builder-step[data-step="5"]')).toBeVisible();
   await page.locator(".js-complete-with-whatsapp").click();
   await expect
     .poll(() => page.evaluate(() => window.__whatsappUrls[0]))
@@ -2257,10 +2264,12 @@ test("@frontend-smoke geri yüklenen ödeme akışı WhatsApp geçişini kaydede
   expect(await page.evaluate(() => window.__copiedPaymentReferences)).toEqual(["DA-2026-777888"]);
   expect(
     await page.evaluate(() => window.sessionStorage.getItem("dugunajansim_payment_flow"))
-  ).toBeNull();
+  ).toBe(applicationId);
   await expect(page.locator(".js-booking-completion")).toBeVisible();
   await expect(page.locator(".js-booking-reference")).toHaveText("DA-2026-777888");
-  await expect(page.locator(".js-completion-status")).toContainText("yönetici onayına iletildi");
+  await expect(page.locator(".js-completion-status")).toContainText(
+    "dekontunuzu dilediğiniz zaman"
+  );
 });
 
 test("@frontend-smoke ortak istemci askıda isteği keser ve güvenli anahtar üretir", async ({

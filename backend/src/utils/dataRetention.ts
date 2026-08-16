@@ -102,14 +102,7 @@ export const runDataRetentionBatch = async (
           source: 'PUBLIC_FORM',
           wedding: null,
           updatedAt: { lt: cutoffs.publicApplication },
-          OR: [
-            { status: 'REDDEDILDI' },
-            {
-              paymentFlowExpiredAt: { lt: cutoffs.publicApplication },
-              whatsappHandoffAt: null,
-              paymentNotificationChannel: null,
-            },
-          ],
+          status: 'REDDEDILDI',
         },
         select: { id: true },
         orderBy: { updatedAt: 'asc' },

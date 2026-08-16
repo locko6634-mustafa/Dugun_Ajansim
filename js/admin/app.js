@@ -996,10 +996,10 @@ async function loadApplications() {
   }
 }
 
-function hasActivePaymentFlow(item) {
+function isPaymentFlowEditable(item) {
   if (item.source !== "PUBLIC_FORM" || item.status !== "ONAY_BEKLIYOR") return true;
   const expiresAt = new Date(item.paymentFlowExpiresAt).valueOf();
-  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+  return !item.paymentFlowExpiredAt && Number.isFinite(expiresAt) && expiresAt > Date.now();
 }
 
 function renderApplicationCard(item) {
@@ -1016,17 +1016,16 @@ function renderApplicationCard(item) {
   const isGroomPrimary = item.primaryContact === "DAMAT";
   const primaryLabel = PRIMARY_CONTACT_LABELS[item.primaryContact] || item.primaryContact;
   const paymentLabel = PAYMENT_METHOD_LABELS[item.paymentMethod] || item.paymentMethod;
-  const paymentFlowIsActive = hasActivePaymentFlow(item);
-  const canApprove =
-    item.source === "ADMIN" || (Boolean(item.whatsappHandoffAt) && paymentFlowIsActive);
+  const paymentFlowIsEditable = isPaymentFlowEditable(item);
+  const canApprove = item.status === "ONAY_BEKLIYOR";
   const paymentStage =
-    item.paymentFlowExpiredAt || !paymentFlowIsActive
-      ? "Bildirim süresi doldu"
-      : item.source === "ADMIN"
-        ? "Yönetici başvurusu"
-        : item.whatsappHandoffAt
-          ? `Dekont kontrolü bekleniyor — son süre ${formatDate(item.paymentFlowExpiresAt, true)}`
-          : "WhatsApp geçişi bekleniyor";
+    item.source === "ADMIN"
+      ? "Yönetici başvurusu"
+      : item.whatsappHandoffAt
+        ? `Dekont kontrolü bekleniyor${paymentFlowIsEditable ? "" : " — düzenleme süresi doldu"}`
+        : paymentFlowIsEditable
+          ? `Dekont bekleniyor — ${formatDate(item.paymentFlowExpiresAt, true)} tarihine kadar düzenlenebilir`
+          : "Dekont bekleniyor — düzenleme süresi doldu";
 
   const statusLabel = BOOKING_STATUS_LABELS[item.status] || item.status;
 
@@ -1115,17 +1114,16 @@ function renderApplicationDetailModal(item) {
 
   const primaryLabel = PRIMARY_CONTACT_LABELS[item.primaryContact] || item.primaryContact;
   const paymentLabel = PAYMENT_METHOD_LABELS[item.paymentMethod] || item.paymentMethod;
-  const paymentFlowIsActive = hasActivePaymentFlow(item);
-  const canApprove =
-    item.source === "ADMIN" || (Boolean(item.whatsappHandoffAt) && paymentFlowIsActive);
+  const paymentFlowIsEditable = isPaymentFlowEditable(item);
+  const canApprove = item.status === "ONAY_BEKLIYOR";
   const paymentStage =
-    item.paymentFlowExpiredAt || !paymentFlowIsActive
-      ? `Bildirim süresi doldu (${formatDate(item.paymentFlowExpiredAt || item.paymentFlowExpiresAt, true)})`
-      : item.source === "ADMIN"
-        ? "Yönetici başvurusu"
-        : item.whatsappHandoffAt
-          ? `Dekont kontrolü bekleniyor (${formatDate(item.whatsappHandoffAt, true)}) — son süre ${formatDate(item.paymentFlowExpiresAt, true)}`
-          : `WhatsApp geçişi bekleniyor${item.paymentFlowExpiresAt ? ` — son süre ${formatDate(item.paymentFlowExpiresAt, true)}` : ""}`;
+    item.source === "ADMIN"
+      ? "Yönetici başvurusu"
+      : item.whatsappHandoffAt
+        ? `Dekont kontrolü bekleniyor (${formatDate(item.whatsappHandoffAt, true)})${paymentFlowIsEditable ? "" : " — düzenleme süresi doldu"}`
+        : paymentFlowIsEditable
+          ? `Dekont bekleniyor — ${formatDate(item.paymentFlowExpiresAt, true)} tarihine kadar düzenlenebilir`
+          : `Dekont bekleniyor — düzenleme süresi ${formatDate(item.paymentFlowExpiredAt || item.paymentFlowExpiresAt, true)} tarihinde doldu`;
 
   const statusLabel = BOOKING_STATUS_LABELS[item.status] || item.status;
   const statusClass =
@@ -2210,7 +2208,7 @@ async function handleApplicationAction(event) {
       const accepted = await requestDangerConfirmation(
         {
           title: "Başvuruyu arşivle",
-          copy: "Başvuru normal listelerden kaldırılır. Henüz WhatsApp'a aktarılmamış etkin ödeme bağlantısı son süresine kadar korunur; aktarılmış veya süresi dolmuş bağlantı güvenlik için iptal edilir ve geri yüklemeyle yeniden açılmaz.",
+          copy: "Başvuru normal listelerden kaldırılır ancak referans numarası korunur. Dekont daha sonra gelirse başvuru arşivden geri yüklenebilir.",
           button: "Arşivle"
         },
         archiveButton

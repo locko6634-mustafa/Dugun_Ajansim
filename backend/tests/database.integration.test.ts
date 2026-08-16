@@ -1326,13 +1326,6 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     "Ödeme akışı güncellendi"
   ]);
 
-  await assert.rejects(
-    approveBookingApplication(publicRouteApplicationId, admin.id, correlationId),
-    (error: unknown) =>
-      error instanceof Error &&
-      "statusCode" in error &&
-      (error as { statusCode: number }).statusCode === 409
-  );
   const firstHandoff = await request(app)
     .post(`/api/v1/booking-applications/${publicRouteApplicationId}/whatsapp-handoff`)
     .set("Payment-Flow-Key", routePaymentFlowKey)
@@ -1458,16 +1451,33 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(missingApplicationRead.status, 404);
   assert.equal(await prisma.bookingApplication.count({ where: { id: expiringApplication.id } }), 1);
   const expiringSweep = await expireStalePaymentFlows(new Date(), correlationId);
-  assert.equal(expiringSweep.archivedAbandonedCount, 1);
+  assert.equal(expiringSweep.editingExpiredCount, 1);
   assert.equal(expiringSweep.physicalDeletedCount, 0);
   const expiredApplication = await prisma.bookingApplication.findUnique({
     where: { id: expiringApplication.id }
   });
   assert.ok(expiredApplication);
-  assert.equal(expiredApplication.status, "IPTAL_EDILDI");
-  assert.ok(expiredApplication.deletedAt);
+  assert.equal(expiredApplication.status, "ONAY_BEKLIYOR");
+  assert.equal(expiredApplication.deletedAt, null);
   assert.ok(expiredApplication.paymentFlowExpiredAt);
-  assert.equal(expiredApplication.paymentFlowTokenHash, null);
+  assert.ok(expiredApplication.paymentFlowTokenHash);
+  const expiredPaymentFlowReadOnly = await request(app)
+    .get(`/api/v1/booking-applications/${expiringApplication.id}/payment-flow`)
+    .set("Payment-Flow-Key", expiringFlowKey);
+  assert.equal(expiredPaymentFlowReadOnly.status, 200);
+  assert.equal(expiredPaymentFlowReadOnly.body.data.paymentFlowEditingExpired, true);
+  assert.equal(expiredPaymentFlowReadOnly.body.data.referenceCode, expiringApplication.referenceCode);
+  const expiredPaymentFlowUpdate = await request(app)
+    .patch(`/api/v1/booking-applications/${expiringApplication.id}/payment-flow`)
+    .set("Payment-Flow-Key", expiringFlowKey)
+    .send({ ...applicationInput, weddingDate: expiringDate });
+  assert.equal(expiredPaymentFlowUpdate.status, 410);
+  assert.equal(expiredPaymentFlowUpdate.body.code, "PAYMENT_FLOW_EDIT_EXPIRED");
+  const expiredPaymentFlowHandoff = await request(app)
+    .post(`/api/v1/booking-applications/${expiringApplication.id}/whatsapp-handoff`)
+    .set("Payment-Flow-Key", expiringFlowKey)
+    .send({});
+  assert.equal(expiredPaymentFlowHandoff.status, 200);
   const expiredAvailability = await getVenueAvailability(venue.id, expiringDate);
   assert.equal(
     expiredAvailability.occupiedSlots.some(
@@ -1482,16 +1492,16 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
   assert.deepEqual(
     expiredApplicationAudits.map((entry) => entry.action),
-    ["booking.created", "booking.payment_flow_expired"]
+    ["booking.created", "booking.payment_flow_edit_expired", "booking.whatsapp_handoff_started"]
   );
-  const expiryAuditMetadata = expiredApplicationAudits.at(-1)?.metadata as {
+  const editExpiryAuditMetadata = expiredApplicationAudits[1]?.metadata as {
     expiredAt?: string;
     reason?: string;
     physicalDelete?: boolean;
   } | null;
-  assert.equal(expiryAuditMetadata?.reason, "no_handoff_or_payment_evidence_before_deadline");
-  assert.equal(expiryAuditMetadata?.physicalDelete, false);
-  assert.ok(expiryAuditMetadata?.expiredAt);
+  assert.equal(editExpiryAuditMetadata?.reason, "edit_window_elapsed");
+  assert.equal(editExpiryAuditMetadata?.physicalDelete, false);
+  assert.ok(editExpiryAuditMetadata?.expiredAt);
   assert.equal(
     JSON.stringify(expiredApplicationAudits).includes(`expiring-${marker}@example.com`),
     false
@@ -1537,7 +1547,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
 
   const customVenueSweep = await expireStalePaymentFlows(new Date(), correlationId);
-  assert.equal(customVenueSweep.archivedAbandonedCount, 1);
+  assert.equal(customVenueSweep.editingExpiredCount, 1);
   assert.equal(customVenueSweep.physicalDeletedCount, 0);
   assert.equal(
     await prisma.bookingApplication.count({ where: { id: customVenueApplication.id } }),
@@ -1552,7 +1562,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
         orderBy: { createdAt: "asc" }
       })
     ).map((entry) => entry.action),
-    ["booking.created", "booking.payment_flow_updated", "booking.payment_flow_expired"]
+    ["booking.created", "booking.payment_flow_updated", "booking.payment_flow_edit_expired"]
   );
 
   const overflowVenue = await prisma.venue.create({
@@ -1603,7 +1613,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   });
 
   const firstBulkSweep = await expireStalePaymentFlows(new Date(), correlationId);
-  assert.equal(firstBulkSweep.archivedAbandonedCount, 100);
+  assert.equal(firstBulkSweep.editingExpiredCount, 100);
   assert.equal(firstBulkSweep.retainedCount, 100);
   assert.equal(firstBulkSweep.physicalDeletedCount, 0);
   assert.equal(
@@ -1626,13 +1636,13 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       where: {
         targetType: "BookingApplication",
         targetId: { in: overflowApplicationIds },
-        action: "booking.payment_flow_expired"
+        action: "booking.payment_flow_edit_expired"
       }
     }),
     100
   );
   const secondBulkSweep = await expireStalePaymentFlows(new Date(), correlationId);
-  assert.equal(secondBulkSweep.archivedAbandonedCount, 1);
+  assert.equal(secondBulkSweep.editingExpiredCount, 1);
   assert.equal(secondBulkSweep.physicalDeletedCount, 0);
   assert.equal(
     await prisma.bookingApplication.count({ where: { id: { in: overflowApplicationIds } } }),
@@ -1644,7 +1654,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       where: {
         targetType: "BookingApplication",
         targetId: { in: overflowApplicationIds },
-        action: "booking.payment_flow_expired"
+        action: "booking.payment_flow_edit_expired"
       }
     }),
     101
@@ -1713,7 +1723,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     await heldAdvisoryLock;
   }
   const unlockedSweep = await expireStalePaymentFlows(new Date(), correlationId);
-  assert.equal(unlockedSweep.archivedAbandonedCount, 1);
+  assert.equal(unlockedSweep.editingExpiredCount, 1);
   assert.equal(unlockedSweep.physicalDeletedCount, 0);
   assert.equal(
     await prisma.bookingApplication.count({ where: { id: advisoryLockApplicationId } }),
@@ -1752,33 +1762,27 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     handedOffExpiredAvailability.occupiedSlots.some(
       (slot) => slot.startTime === "13:00" && slot.endTime === "15:00"
     ),
-    true
+    false
   );
-  await assert.rejects(
-    createBookingApplication(
-      {
-        ...applicationInput,
-        weddingDate: handedOffExpiringDate,
-        startTime: "13:00",
-        endTime: "15:00",
-        endsNextDay: false,
-        primaryEmail: `handoff-expiry-replacement-${marker}@example.com`
-      },
-      {
-        source: "PUBLIC_FORM",
-        idempotencyKey: `${marker}-handoff-expiry-replacement`,
-        paymentFlowKey: `${marker}-handoff-expiry-replacement-key-1234567890`,
-        correlationId
-      }
-    ),
-    (error: unknown) =>
-      error instanceof Error &&
-      "statusCode" in error &&
-      (error as { statusCode: number }).statusCode === 409
+  const overlappingPendingApplication = await createBookingApplication(
+    {
+      ...applicationInput,
+      weddingDate: handedOffExpiringDate,
+      startTime: "13:00",
+      endTime: "15:00",
+      endsNextDay: false,
+      primaryEmail: `handoff-expiry-replacement-${marker}@example.com`
+    },
+    {
+      source: "PUBLIC_FORM",
+      idempotencyKey: `${marker}-handoff-expiry-replacement`,
+      paymentFlowKey: `${marker}-handoff-expiry-replacement-key-1234567890`,
+      correlationId
+    }
   );
+  assert.equal(overlappingPendingApplication.status, "ONAY_BEKLIYOR");
   const handedOffSweep = await expireStalePaymentFlows(new Date(), correlationId);
-  assert.equal(handedOffSweep.preservedEvidenceCount, 1);
-  assert.equal(handedOffSweep.publicAccessClosedCount, 1);
+  assert.equal(handedOffSweep.editingExpiredCount, 1);
   assert.equal(handedOffSweep.physicalDeletedCount, 0);
   const expiredHandedOffApplication = await prisma.bookingApplication.findUnique({
     where: { id: handedOffExpiringApplication.id }
@@ -1786,7 +1790,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.ok(expiredHandedOffApplication);
   assert.equal(expiredHandedOffApplication.status, "ONAY_BEKLIYOR");
   assert.equal(expiredHandedOffApplication.deletedAt, null);
-  assert.equal(expiredHandedOffApplication.paymentFlowTokenHash, null);
+  assert.ok(expiredHandedOffApplication.paymentFlowTokenHash);
   assert.deepEqual(
     (
       await prisma.auditLog.findMany({
@@ -1798,7 +1802,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
         orderBy: { createdAt: "asc" }
       })
     ).map((entry) => entry.action),
-    ["booking.created", "booking.whatsapp_handoff_started", "booking.payment_flow_access_closed"]
+    ["booking.created", "booking.whatsapp_handoff_started", "booking.payment_flow_edit_expired"]
   );
 
   const approvalExpiryRaceDate = addCalendarDays(weddingDate, 7);
@@ -1819,13 +1823,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       correlationId
     }
   );
-  await markWhatsappHandoff(
-    approvalExpiryRaceApplication.id,
-    approvalExpiryRaceFlowKey,
-    correlationId
-  );
   let approvalExpiryWasForced = false;
-  const approvalAfterHandoffExpiry = await approveBookingApplication(
+  const approvalAfterEditExpiry = await approveBookingApplication(
     approvalExpiryRaceApplication.id,
     admin.id,
     correlationId,
@@ -1841,7 +1840,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     }
   );
   assert.equal(approvalExpiryWasForced, true);
-  assert.equal(approvalAfterHandoffExpiry.applicationId, approvalExpiryRaceApplication.id);
+  assert.equal(approvalAfterEditExpiry.applicationId, approvalExpiryRaceApplication.id);
   assert.equal(
     await prisma.wedding.count({ where: { applicationId: approvalExpiryRaceApplication.id } }),
     1
@@ -4587,7 +4586,7 @@ test("retention gerçek PostgreSQL üzerinde süre, batch, izolasyon ve audit to
         ),
         referenceCode: `${marker}-${suffix}`,
         source: "PUBLIC_FORM",
-        status: "IPTAL_EDILDI",
+        status: "ONAY_BEKLIYOR",
         primaryContact: "GELIN",
         weddingStartsAt: futureWeddingStart,
         weddingEndsAt: futureWeddingEnd,
@@ -4746,7 +4745,7 @@ test("retention gerçek PostgreSQL üzerinde süre, batch, izolasyon ve audit to
     authSessions: 0,
     trustedDevices: 0,
     passwordSetupTokens: 0,
-    publicApplications: 2,
+    publicApplications: 0,
     archivedApplications: 2,
     archivedWeddings: 1,
     customerUsers: 1
@@ -4755,7 +4754,7 @@ test("retention gerçek PostgreSQL üzerinde süre, batch, izolasyon ve audit to
     await prisma.bookingApplication.count({
       where: { id: { in: expiredPublicApplications.map(({ id }) => id) } }
     }),
-    1
+    3
   );
   assert.equal(
     await prisma.bookingApplication.count({

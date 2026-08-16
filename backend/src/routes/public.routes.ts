@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from "express";
+import { Router, type Request } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
@@ -74,13 +74,6 @@ export const paymentFlowCookieOptions = (
   path: "/api/v1/booking-applications",
   maxAge: maxAgeMs
 });
-const clearPaymentFlowCookie = (res: Response): void => {
-  res.clearCookie(PAYMENT_FLOW_COOKIE_NAME, {
-    secure: env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/api/v1/booking-applications"
-  });
-};
 const publicBookingLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -323,7 +316,7 @@ router.post(
     res.cookie(
       PAYMENT_FLOW_COOKIE_NAME,
       paymentFlowKey,
-      paymentFlowCookieOptions(env.PAYMENT_HANDOFF_TTL_MINUTES * 60 * 1000)
+      paymentFlowCookieOptions(env.PUBLIC_APPLICATION_RETENTION_DAYS * 24 * 60 * 60 * 1000)
     );
     res.set("Cache-Control", "no-store");
     res.status(201).json({
@@ -375,7 +368,6 @@ router.post(
       getPaymentFlowKey(req),
       req.correlationId
     );
-    clearPaymentFlowCookie(res);
     res.set("Cache-Control", "no-store");
     res.json({ success: true, data: application, correlationId: req.correlationId });
   })

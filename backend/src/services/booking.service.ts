@@ -202,19 +202,10 @@ type VenueScheduleAvailabilityInput = {
   excludeApplicationId?: string;
 };
 
-const activeScheduleApplicationWhere = (now: Date): Prisma.BookingApplicationWhereInput => ({
+const activeScheduleApplicationWhere = (): Prisma.BookingApplicationWhereInput => ({
   OR: [
     { status: "ONAYLANDI" },
-    { status: "ONAY_BEKLIYOR", source: "ADMIN" },
-    {
-      status: "ONAY_BEKLIYOR",
-      source: "PUBLIC_FORM",
-      OR: [
-        { paymentFlowExpiresAt: { gt: now } },
-        { whatsappHandoffAt: { not: null } },
-        { paymentNotificationChannel: { not: null } }
-      ]
-    }
+    { status: "ONAY_BEKLIYOR", source: "ADMIN" }
   ]
 });
 
@@ -247,7 +238,6 @@ export const assertVenueScheduleAvailable = async (
   transaction: Prisma.TransactionClient,
   input: VenueScheduleAvailabilityInput
 ): Promise<void> => {
-  const now = new Date();
   const [conflictingWedding, conflictingApplication] = await Promise.all([
     transaction.wedding.findFirst({
       where: {
@@ -265,7 +255,7 @@ export const assertVenueScheduleAvailable = async (
         venueId: input.venueId,
         ...(input.excludeApplicationId ? { id: { not: input.excludeApplicationId } } : {}),
         deletedAt: null,
-        ...activeScheduleApplicationWhere(now),
+        ...activeScheduleApplicationWhere(),
         weddingStartsAt: { lt: input.endsAt },
         weddingEndsAt: { gt: input.startsAt }
       },
@@ -498,7 +488,7 @@ export const createBookingApplication = async (
                   where: {
                     venueId: venue.id,
                     deletedAt: null,
-                    ...activeScheduleApplicationWhere(new Date()),
+                    ...activeScheduleApplicationWhere(),
                     weddingStartsAt: { lt: endsAt },
                     weddingEndsAt: { gt: startsAt }
                   },
@@ -703,55 +693,50 @@ const assertPaymentFlowAccess = (
   }
 };
 
-const assertPaymentFlowNotExpired = (
+const assertPaymentFlowEditable = (
   application: Pick<
     PaymentFlowApplication,
     "source" | "status" | "paymentFlowExpiresAt" | "paymentFlowExpiredAt"
   >,
   now: Date
 ): void => {
-  const wasExpired = application.status === "IPTAL_EDILDI" && application.paymentFlowExpiredAt;
-  const isPastDeadline =
+  const isEditingExpired =
     application.source === "PUBLIC_FORM" &&
     application.status === "ONAY_BEKLIYOR" &&
-    (!application.paymentFlowExpiresAt || application.paymentFlowExpiresAt <= now);
-  if (wasExpired || isPastDeadline) {
-    throw new AppError("WhatsApp ödeme bildirimi süresi doldu.", 410, true, {
-      code: "PAYMENT_FLOW_EXPIRED"
-    });
+    (Boolean(application.paymentFlowExpiredAt) ||
+      !application.paymentFlowExpiresAt ||
+      application.paymentFlowExpiresAt <= now);
+  if (isEditingExpired) {
+    throw new AppError(
+      "24 saatlik düzenleme süresi doldu. Başvurunuz ve referans numaranız geçerliliğini koruyor.",
+      410,
+      true,
+      {
+        code: "PAYMENT_FLOW_EDIT_EXPIRED"
+      }
+    );
   }
 };
 
-const assertApplicationNotAbandoned = (
-  application: Pick<
-    PaymentFlowApplication,
-    | "source"
-    | "status"
-    | "paymentFlowExpiresAt"
-    | "paymentFlowExpiredAt"
-    | "whatsappHandoffAt"
-    | "paymentNotificationChannel"
-  >,
+const isPaymentFlowEditingExpired = (
+  application: Pick<PaymentFlowApplication, "paymentFlowExpiresAt" | "paymentFlowExpiredAt">,
   now: Date
+): boolean =>
+  Boolean(application.paymentFlowExpiredAt) ||
+  !application.paymentFlowExpiresAt ||
+  application.paymentFlowExpiresAt <= now;
+
+const assertApplicationPending = (
+  application: Pick<PaymentFlowApplication, "status" | "deletedAt">
 ): void => {
-  const hasHandoffOrEvidence = Boolean(
-    application.whatsappHandoffAt || application.paymentNotificationChannel
-  );
-  const wasArchivedAsAbandoned =
-    application.status === "IPTAL_EDILDI" && application.paymentFlowExpiredAt;
-  const isAbandonedPastDeadline =
-    application.source === "PUBLIC_FORM" &&
-    application.status === "ONAY_BEKLIYOR" &&
-    !hasHandoffOrEvidence &&
-    (!application.paymentFlowExpiresAt || application.paymentFlowExpiresAt <= now);
-  if (wasArchivedAsAbandoned || isAbandonedPastDeadline) {
-    throw new AppError("WhatsApp ödeme bildirimi süresi doldu.", 410, true, {
-      code: "PAYMENT_FLOW_EXPIRED"
+  if (application.status !== "ONAY_BEKLIYOR" || application.deletedAt) {
+    throw new AppError("Başvuru artık işlem beklemiyor.", 409, true, {
+      code: "APPLICATION_NOT_PENDING"
     });
   }
 };
 
-const toPaymentFlowResponse = (application: PaymentFlowApplication) => {
+const toPaymentFlowResponse = (application: PaymentFlowApplication, now = new Date()) => {
   const weddingDate = getIstanbulDate(application.weddingStartsAt);
   const pii = decryptBookingApplicationPii(application.id, application);
   return {
@@ -787,6 +772,7 @@ const toPaymentFlowResponse = (application: PaymentFlowApplication) => {
     privacyConsent: application.privacyConsentAt !== null,
     marketingConsent: application.marketingConsentAt !== null,
     paymentFlowExpiresAt: application.paymentFlowExpiresAt,
+    paymentFlowEditingExpired: isPaymentFlowEditingExpired(application, now),
     whatsappHandoffAt: application.whatsappHandoffAt,
     paymentFlowExpiredAt: application.paymentFlowExpiredAt
   };
@@ -798,9 +784,7 @@ export const PAYMENT_FLOW_SWEEP_ADVISORY_LOCK_KEY = 1_940_667_981;
 export type PaymentFlowSweepMetrics = {
   selectedCount: number;
   retainedCount: number;
-  archivedAbandonedCount: number;
-  preservedEvidenceCount: number;
-  publicAccessClosedCount: number;
+  editingExpiredCount: number;
   failedCount: number;
   physicalDeletedCount: number;
 };
@@ -812,80 +796,45 @@ type ExpiredPaymentFlowCandidate = {
   id: string;
 };
 
-const retainExpiredPaymentFlowCandidates = async (
+const markExpiredPaymentFlowCandidates = async (
   transaction: Prisma.TransactionClient,
-  abandonedCandidates: readonly ExpiredPaymentFlowCandidate[],
-  protectedCandidates: readonly ExpiredPaymentFlowCandidate[],
+  candidates: readonly ExpiredPaymentFlowCandidate[],
   now: Date,
   correlationId: string
 ): Promise<PaymentFlowSweepMetrics> => {
-  let archivedAbandonedCount = 0;
-  let publicAccessClosedCount = 0;
-  for (const candidate of abandonedCandidates) {
-    const archived = await transaction.bookingApplication.updateMany({
+  let editingExpiredCount = 0;
+  for (const candidate of candidates) {
+    const marked = await transaction.bookingApplication.updateMany({
       where: {
         id: candidate.id,
         source: "PUBLIC_FORM",
         status: "ONAY_BEKLIYOR",
         deletedAt: null,
         paymentFlowExpiredAt: null,
-        paymentFlowExpiresAt: { lte: now },
-        whatsappHandoffAt: null,
-        paymentNotificationChannel: null
+        paymentFlowExpiresAt: { lte: now }
       },
       data: {
-        status: "IPTAL_EDILDI",
-        deletedAt: now,
-        paymentFlowExpiredAt: now,
-        paymentFlowTokenHash: null
+        paymentFlowExpiredAt: now
       }
     });
-    if (archived.count !== 1) continue;
+    if (marked.count !== 1) continue;
 
     await createAudit(transaction, {
-      action: "booking.payment_flow_expired",
+      action: "booking.payment_flow_edit_expired",
       targetType: "BookingApplication",
       targetId: candidate.id,
       correlationId,
       metadata: {
         expiredAt: now.toISOString(),
-        reason: "no_handoff_or_payment_evidence_before_deadline",
-        lifecycle: "cancelled_and_archived",
+        reason: "edit_window_elapsed",
+        lifecycle: "retained_read_only",
         physicalDelete: false
       }
     });
-    archivedAbandonedCount += 1;
+    editingExpiredCount += 1;
   }
 
-  for (const candidate of protectedCandidates) {
-    const closed = await transaction.bookingApplication.updateMany({
-      where: {
-        id: candidate.id,
-        source: "PUBLIC_FORM",
-        status: "ONAY_BEKLIYOR",
-        deletedAt: null,
-        paymentFlowExpiresAt: { lte: now },
-        OR: [{ whatsappHandoffAt: { not: null } }, { paymentNotificationChannel: { not: null } }],
-        paymentFlowTokenHash: { not: null }
-      },
-      data: { paymentFlowTokenHash: null }
-    });
-    if (closed.count !== 1) continue;
-    await createAudit(transaction, {
-      action: "booking.payment_flow_access_closed",
-      targetType: "BookingApplication",
-      targetId: candidate.id,
-      correlationId,
-      metadata: {
-        closedAt: now.toISOString(),
-        reason: "handoff_or_payment_evidence_retained",
-        physicalDelete: false
-      }
-    });
-    publicAccessClosedCount += 1;
-  }
-
-  const selectedIds = [...abandonedCandidates, ...protectedCandidates].map(({ id }) => id);
+  const selectedIds = candidates.map(({ id }) => id);
   const retainedCount = selectedIds.length
     ? await transaction.bookingApplication.count({ where: { id: { in: selectedIds } } })
     : 0;
@@ -895,9 +844,7 @@ const retainExpiredPaymentFlowCandidates = async (
   const metrics = {
     selectedCount,
     retainedCount,
-    archivedAbandonedCount,
-    preservedEvidenceCount: protectedCandidates.length,
-    publicAccessClosedCount,
+    editingExpiredCount,
     failedCount,
     physicalDeletedCount
   };
@@ -909,35 +856,32 @@ const retainExpiredPaymentFlowCandidates = async (
   return metrics;
 };
 
-const expireStalePaymentFlow = async (
+const markPaymentFlowEditingExpired = async (
   applicationId: string,
   now: Date,
   correlationId: string
 ): Promise<number> =>
   prisma.$transaction(
     async (transaction) => {
-      const expiredCandidates = await transaction.bookingApplication.findMany({
+      const candidates = await transaction.bookingApplication.findMany({
         where: {
           id: applicationId,
           source: "PUBLIC_FORM",
           status: "ONAY_BEKLIYOR",
           deletedAt: null,
           paymentFlowExpiredAt: null,
-          paymentFlowExpiresAt: { lte: now },
-          whatsappHandoffAt: null,
-          paymentNotificationChannel: null
+          paymentFlowExpiresAt: { lte: now }
         },
         select: { id: true },
         take: 1
       });
-      const metrics = await retainExpiredPaymentFlowCandidates(
+      const metrics = await markExpiredPaymentFlowCandidates(
         transaction,
-        expiredCandidates,
-        [],
+        candidates,
         now,
         correlationId
       );
-      return metrics.archivedAbandonedCount;
+      return metrics.editingExpiredCount;
     },
     { maxWait: 2_000, timeout: 10_000 }
   );
@@ -957,48 +901,25 @@ export const expireStalePaymentFlows = async (
         return {
           selectedCount: 0,
           retainedCount: 0,
-          archivedAbandonedCount: 0,
-          preservedEvidenceCount: 0,
-          publicAccessClosedCount: 0,
+          editingExpiredCount: 0,
           failedCount: 0,
           physicalDeletedCount: 0
         };
       }
 
-      const abandonedCandidates = await transaction.bookingApplication.findMany({
+      const candidates = await transaction.bookingApplication.findMany({
         where: {
           source: "PUBLIC_FORM",
           status: "ONAY_BEKLIYOR",
           deletedAt: null,
           paymentFlowExpiredAt: null,
-          paymentFlowExpiresAt: { lte: now },
-          whatsappHandoffAt: null,
-          paymentNotificationChannel: null
+          paymentFlowExpiresAt: { lte: now }
         },
         select: { id: true },
         orderBy: [{ paymentFlowExpiresAt: "asc" }, { id: "asc" }],
         take: PAYMENT_FLOW_SWEEP_BATCH_SIZE
       });
-      const protectedCandidates = await transaction.bookingApplication.findMany({
-        where: {
-          source: "PUBLIC_FORM",
-          status: "ONAY_BEKLIYOR",
-          deletedAt: null,
-          paymentFlowExpiresAt: { lte: now },
-          paymentFlowTokenHash: { not: null },
-          OR: [{ whatsappHandoffAt: { not: null } }, { paymentNotificationChannel: { not: null } }]
-        },
-        select: { id: true },
-        orderBy: [{ paymentFlowExpiresAt: "asc" }, { id: "asc" }],
-        take: PAYMENT_FLOW_SWEEP_BATCH_SIZE
-      });
-      return retainExpiredPaymentFlowCandidates(
-        transaction,
-        abandonedCandidates,
-        protectedCandidates,
-        now,
-        correlationId
-      );
+      return markExpiredPaymentFlowCandidates(transaction, candidates, now, correlationId);
     },
     { maxWait: 2_000, timeout: 30_000 }
   );
@@ -1024,10 +945,9 @@ const authorizePaymentFlowTarget = async (
 
   assertPaymentFlowAccess(application, paymentFlowKey);
   if (application.paymentFlowExpiresAt && application.paymentFlowExpiresAt <= now) {
-    await expireStalePaymentFlow(applicationId, now, correlationId);
-    throw new AppError("Ödeme akışı bulunamadı.", 404);
+    await markPaymentFlowEditingExpired(applicationId, now, correlationId);
   }
-  assertPaymentFlowNotExpired(application, now);
+  assertPaymentFlowEditable(application, now);
 };
 
 export const getPaymentFlowApplication = async (
@@ -1043,11 +963,9 @@ export const getPaymentFlowApplication = async (
   if (!application) throw new AppError("Ödeme akışı bulunamadı.", 404);
   assertPaymentFlowAccess(application, paymentFlowKey);
   if (application.paymentFlowExpiresAt && application.paymentFlowExpiresAt <= now) {
-    await expireStalePaymentFlow(application.id, now, correlationId);
-    throw new AppError("Ödeme akışı bulunamadı.", 404);
+    await markPaymentFlowEditingExpired(application.id, now, correlationId);
   }
-  assertPaymentFlowNotExpired(application, now);
-  return toPaymentFlowResponse(application);
+  return toPaymentFlowResponse(application, now);
 };
 
 export const updatePaymentFlowApplication = async (
@@ -1077,10 +995,8 @@ export const updatePaymentFlowApplication = async (
       });
       if (!current) throw new AppError("Ödeme akışı bulunamadı.", 404);
       assertPaymentFlowAccess(current, paymentFlowKey);
-      assertPaymentFlowNotExpired(current, now);
-      if (current.status !== "ONAY_BEKLIYOR" || current.whatsappHandoffAt) {
-        throw new AppError("WhatsApp aşamasına geçilen başvuru artık düzenlenemez.", 409);
-      }
+      assertPaymentFlowEditable(current, now);
+      assertApplicationPending(current);
       const currentPii = decryptBookingApplicationPii(current.id, current);
 
       const venue = input.venueId
@@ -1198,7 +1114,22 @@ export const markWhatsappHandoff = async (
   correlationId: string
 ) => {
   const now = new Date();
-  await authorizePaymentFlowTarget(applicationId, paymentFlowKey, now, correlationId);
+  const target = await prisma.bookingApplication.findUnique({
+    where: { id: applicationId },
+    select: {
+      source: true,
+      status: true,
+      deletedAt: true,
+      paymentFlowTokenHash: true,
+      paymentFlowExpiresAt: true,
+      paymentFlowExpiredAt: true
+    }
+  });
+  if (!target) throw new AppError("Ödeme akışı bulunamadı.", 404);
+  assertPaymentFlowAccess(target, paymentFlowKey);
+  if (target.paymentFlowExpiresAt && target.paymentFlowExpiresAt <= now) {
+    await markPaymentFlowEditingExpired(applicationId, now, correlationId);
+  }
   return prisma.$transaction(async (transaction) => {
     const application = await transaction.bookingApplication.findUnique({
       where: { id: applicationId },
@@ -1206,23 +1137,15 @@ export const markWhatsappHandoff = async (
     });
     if (!application) throw new AppError("Ödeme akışı bulunamadı.", 404);
     assertPaymentFlowAccess(application, paymentFlowKey);
-    assertPaymentFlowNotExpired(application, now);
     if (application.whatsappHandoffAt) return toPaymentFlowResponse(application);
-    if (
-      application.status !== "ONAY_BEKLIYOR" ||
-      !application.paymentFlowExpiresAt ||
-      application.paymentFlowExpiresAt <= now
-    ) {
-      throw new AppError("WhatsApp ödeme bildirimi süresi doldu.", 410, true, {
-        code: "PAYMENT_FLOW_EXPIRED"
-      });
-    }
+    assertApplicationPending(application);
     const claimed = await transaction.bookingApplication.updateMany({
       where: {
         id: application.id,
         status: "ONAY_BEKLIYOR",
         whatsappHandoffAt: null,
-        paymentFlowExpiresAt: { gt: now }
+        deletedAt: null,
+        paymentFlowTokenHash: { not: null }
       },
       data: { whatsappHandoffAt: now, paymentNotificationChannel: "WHATSAPP" }
     });
@@ -1293,31 +1216,13 @@ export const approveBookingApplication = async (
   correlationId: string,
   dependencies: ApprovalDependencies = {}
 ) => {
-  const approvalStartedAt = new Date();
-  await expireStalePaymentFlow(applicationId, approvalStartedAt, correlationId);
   const applicationIdentity = await prisma.bookingApplication.findFirst({
     where: { id: applicationId, deletedAt: null },
-    select: {
-      status: true,
-      source: true,
-      whatsappHandoffAt: true,
-      paymentNotificationChannel: true,
-      paymentFlowExpiresAt: true,
-      paymentFlowExpiredAt: true
-    }
+    select: { status: true }
   });
   if (!applicationIdentity) throw new AppError("Başvuru bulunamadı.", 404);
-  assertApplicationNotAbandoned(applicationIdentity, approvalStartedAt);
   if (applicationIdentity.status !== "ONAY_BEKLIYOR") {
     throw new AppError("Yalnızca onay bekleyen başvurular onaylanabilir.", 409);
-  }
-  if (
-    applicationIdentity.source === "PUBLIC_FORM" &&
-    applicationIdentity.paymentFlowExpiresAt &&
-    !applicationIdentity.whatsappHandoffAt &&
-    !applicationIdentity.paymentNotificationChannel
-  ) {
-    throw new AppError("WhatsApp dekont bildirimi başlatılmamış başvuru onaylanamaz.", 409);
   }
 
   const passwordHash = await hashPassword(createOpaqueToken(48));
@@ -1333,18 +1238,8 @@ export const approveBookingApplication = async (
           });
           if (!application) throw new AppError("Başvuru bulunamadı.", 404);
           const applicationPii = decryptBookingApplicationPii(application.id, application);
-          const approvalClaimedAt = new Date();
-          assertApplicationNotAbandoned(application, approvalClaimedAt);
           if (application.status !== "ONAY_BEKLIYOR") {
             throw new AppError("Yalnızca onay bekleyen başvurular onaylanabilir.", 409);
-          }
-          if (
-            application.source === "PUBLIC_FORM" &&
-            application.paymentFlowExpiresAt &&
-            !application.whatsappHandoffAt &&
-            !application.paymentNotificationChannel
-          ) {
-            throw new AppError("WhatsApp dekont bildirimi başlatılmamış başvuru onaylanamaz.", 409);
           }
 
           const approvedVenue = application.venueId
@@ -1381,15 +1276,7 @@ export const approveBookingApplication = async (
               id: application.id,
               status: "ONAY_BEKLIYOR",
               deletedAt: null,
-              updatedAt: application.updatedAt,
-              ...(application.source === "PUBLIC_FORM"
-                ? {
-                    OR: [
-                      { whatsappHandoffAt: { not: null } },
-                      { paymentNotificationChannel: { not: null } }
-                    ]
-                  }
-                : {})
+              updatedAt: application.updatedAt
             },
             data: {
               status: "ONAYLANDI",
@@ -1625,7 +1512,7 @@ export const getVenueAvailability = async (
       where: {
         venueId,
         deletedAt: null,
-        ...activeScheduleApplicationWhere(new Date()),
+        ...activeScheduleApplicationWhere(),
         weddingStartsAt: { lt: dayEndsAt },
         weddingEndsAt: { gt: dayStartsAt }
       },

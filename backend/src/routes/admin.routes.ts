@@ -584,21 +584,17 @@ router.post(
           }
 
           const now = new Date();
-          const keepActivePaymentFlow = Boolean(
+          const keepPaymentFlowAccess = Boolean(
             current.status === "ONAY_BEKLIYOR" &&
             current.source === "PUBLIC_FORM" &&
-            current.paymentFlowTokenHash &&
-            current.paymentFlowExpiresAt &&
-            current.paymentFlowExpiresAt > now &&
-            !current.whatsappHandoffAt &&
-            !current.paymentFlowExpiredAt
+            current.paymentFlowTokenHash
           );
           const updated = await transaction.bookingApplication.updateMany({
             where: { id: current.id, deletedAt: null, updatedAt: current.updatedAt },
             data: {
               deletedAt: now,
               deletedById: req.auth!.userId,
-              ...(!keepActivePaymentFlow ? { paymentFlowTokenHash: null } : {})
+              ...(!keepPaymentFlowAccess ? { paymentFlowTokenHash: null } : {})
             }
           });
           if (updated.count !== 1) {
@@ -612,7 +608,7 @@ router.post(
             targetType: "BookingApplication",
             targetId: current.id,
             correlationId: req.correlationId,
-            metadata: { activePaymentFlowPreserved: keepActivePaymentFlow }
+            metadata: { paymentFlowAccessPreserved: keepPaymentFlowAccess }
           });
           return transaction.bookingApplication.findUniqueOrThrow({ where: { id: current.id } });
         },
@@ -645,22 +641,6 @@ router.post(
 
           if (archived.status === "ONAY_BEKLIYOR") {
             assertWeddingStartsInFuture(archived.weddingStartsAt);
-            const hasHandoffEvidence = Boolean(archived.whatsappHandoffAt);
-            const hasUsablePaymentFlow = Boolean(
-              archived.paymentFlowTokenHash &&
-              archived.paymentFlowExpiresAt &&
-              archived.paymentFlowExpiresAt > new Date() &&
-              !archived.paymentFlowExpiredAt
-            );
-            if (archived.source === "PUBLIC_FORM" && !hasHandoffEvidence && !hasUsablePaymentFlow) {
-              throw new AppError(
-                "Ödeme bildirimi tamamlanmamış başvurunun bağlantısı artık kullanılamıyor.",
-                409,
-                true,
-                undefined,
-                { code: "PAYMENT_FLOW_RESTORE_UNAVAILABLE" }
-              );
-            }
             if (archived.venueId) {
               await assertVenueScheduleAvailable(transaction, {
                 venueId: archived.venueId,
