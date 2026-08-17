@@ -470,6 +470,33 @@ function populateVenueFilter() {
   select.value = currentValue;
 }
 
+function staffInitials(staff) {
+  return `${staff.firstName?.[0] || ""}${staff.lastName?.[0] || ""}`.toLocaleUpperCase(APP_LOCALE);
+}
+
+function staffAvatarMarkup(staff) {
+  const initials = staffInitials(staff);
+  return staff.photoUrl
+    ? `<img class="avatar" src="${escapeHtml(staff.photoUrl)}" alt="${escapeHtml(`${staff.firstName} ${staff.lastName} fotoğrafı`)}" loading="lazy" width="42" height="42" data-avatar-initials="${escapeHtml(initials)}">`
+    : `<span class="avatar" aria-hidden="true">${escapeHtml(initials)}</span>`;
+}
+
+function installStaffAvatarFallbacks(container) {
+  container.querySelectorAll("img[data-avatar-initials]").forEach((image) => {
+    image.addEventListener(
+      "error",
+      () => {
+        const fallback = document.createElement("span");
+        fallback.className = "avatar";
+        fallback.setAttribute("aria-hidden", "true");
+        fallback.textContent = image.dataset.avatarInitials;
+        image.replaceWith(fallback);
+      },
+      { once: true }
+    );
+  });
+}
+
 function renderStaff() {
   const term =
     document.querySelector(".js-staff-search")?.value.trim().toLocaleLowerCase(APP_LOCALE) || "";
@@ -489,10 +516,11 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini düzenle`)}">Düzenle</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini sil`)}">Sil</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head">${staffAvatarMarkup(staff)}<span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini düzenle`)}">Düzenle</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini sil`)}">Sil</button></footer></article>`
         )
         .join("")
     : empty("Personel bulunamadı.");
+  installStaffAvatarFallbacks(document.querySelector(".js-staff"));
 }
 
 async function loadStaff() {

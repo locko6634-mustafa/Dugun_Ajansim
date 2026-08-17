@@ -36,8 +36,15 @@ export async function apiRequest(path, options = {}) {
   const method = requestOptions.method || "GET";
   const headers = new window.Headers(requestOptions.headers || {});
   headers.set("Accept", "application/json");
+  const bodyCanBeSentDirectly =
+    requestOptions.body instanceof FormData ||
+    requestOptions.body instanceof window.Blob ||
+    requestOptions.body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(requestOptions.body) ||
+    requestOptions.body instanceof window.URLSearchParams;
+  const shouldSerializeJson = Boolean(requestOptions.body) && !bodyCanBeSentDirectly;
 
-  if (requestOptions.body && !(requestOptions.body instanceof FormData)) {
+  if (shouldSerializeJson) {
     headers.set("Content-Type", "application/json");
   }
   if (!["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase())) {
@@ -64,10 +71,7 @@ export async function apiRequest(path, options = {}) {
       headers,
       credentials: "include",
       signal: controller.signal,
-      body:
-        requestOptions.body && !(requestOptions.body instanceof FormData)
-          ? JSON.stringify(requestOptions.body)
-          : requestOptions.body
+      body: shouldSerializeJson ? JSON.stringify(requestOptions.body) : requestOptions.body
     });
 
     const payload = await response.json().catch(() => ({

@@ -28,6 +28,7 @@ id_ed25519
 playwright-report/
 test-results/
 coverage/
+.test-data/
 .nyc_output/
 reports/
 report/

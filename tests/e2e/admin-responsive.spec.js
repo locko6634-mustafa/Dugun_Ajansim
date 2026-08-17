@@ -58,6 +58,8 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   let managerCreateBody = null;
   let managerUpdateBody = null;
   let storedManager = null;
+  let storedStaff = null;
+  let staffPhotoUpload = null;
   const accountVenue = {
     id: "00000000-0000-4000-8000-000000000091",
     name: "Cess Wedding Park"
@@ -168,6 +170,51 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
       body: JSON.stringify({ success: true, data: [accountVenue, secondAccountVenue] })
     })
   );
+  await page.route("**/api/v1/admin/staff", async (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      storedStaff = {
+        id: "00000000-0000-4000-8000-000000000097",
+        ...body,
+        venueId: body.venueIds[0],
+        venue: secondAccountVenue,
+        venues: [secondAccountVenue],
+        assignments: [],
+        photoUrl: null
+      };
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: storedStaff })
+      });
+      return;
+    }
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: storedStaff ? [storedStaff] : [] })
+    });
+  });
+  await page.route(/\/api\/v1\/admin\/staff\/[^/]+\/photo(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === "PUT") {
+      staffPhotoUpload = {
+        contentType: await route.request().headerValue("content-type"),
+        bytes: route.request().postDataBuffer()?.length || 0
+      };
+      storedStaff.photoUrl = `/api/v1/admin/staff/${storedStaff.id}/photo?v=2026-08-17T12%3A00%3A00.000Z`;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: { photoUrl: storedStaff.photoUrl } })
+      });
+      return;
+    }
+    await route.fulfill({
+      contentType: "image/webp",
+      body: Buffer.from(
+        "UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEAAUAmJaQAA3AA/v89WAAAAA==",
+        "base64"
+      )
+    });
+  });
   await page.route("**/api/v1/catalog", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -308,8 +355,26 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
     .click();
   await expect(staffParkChoice.locator('input[name="venueIds"]')).not.toBeChecked();
   await expect(staffVenuePicker.locator(".js-staff-venue-count")).toHaveText("1 salon seçili");
-  await staffDialog.getByRole("button", { name: "Vazgeç" }).click();
+  await staffDialog.locator('[name="firstName"]').fill("Deniz");
+  await staffDialog.locator('[name="lastName"]').fill("Kamera");
+  await staffDialog.locator('[name="phone"]').fill("05551112233");
+  await staffDialog.locator('[name="specialties"][value="PHOTOGRAPHY"]').check();
+  await staffDialog.locator('[name="photo"]').setInputFiles({
+    name: "deniz.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlS0AAAAASUVORK5CYII=",
+      "base64"
+    )
+  });
+  await expect(staffDialog.locator(".js-staff-photo-preview-image")).toBeVisible();
+  await staffDialog.getByRole("button", { name: "Kaydet" }).click();
   await expect(staffDialog).toBeHidden();
+  await expect.poll(() => staffPhotoUpload).toEqual({ contentType: "image/png", bytes: 68 });
+  await expect(page.locator(".js-staff img.avatar")).toHaveAttribute(
+    "src",
+    /\/api\/v1\/admin\/staff\/.+\/photo\?v=/
+  );
 
   await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
   await page.locator('[data-panel="accounts"]').click();

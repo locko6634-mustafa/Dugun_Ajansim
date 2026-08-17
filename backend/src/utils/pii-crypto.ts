@@ -647,7 +647,12 @@ export type DecryptedBookingApplication<Row> = Omit<
 export type DecryptedWedding<Row> = Omit<Row, EnvelopePersistenceKey | keyof WeddingPii> & WeddingPii;
 export type DecryptedMessageTask<Row> = Omit<Row, EnvelopePersistenceKey | keyof MessageTaskPii> &
   MessageTaskPii;
-export type DecryptedStaff<Row> = Omit<Row, EnvelopePersistenceKey | keyof StaffPii> & StaffPii;
+type StaffPhotoPersistenceKey = 'photoStorageKey' | 'photoUpdatedAt';
+export type DecryptedStaff<Row> = Omit<
+  Row,
+  EnvelopePersistenceKey | StaffPhotoPersistenceKey | keyof StaffPii
+> &
+  StaffPii;
 
 const stripEnvelopePersistence = (source: Record<string, unknown>): Record<string, unknown> => {
   const {
@@ -735,7 +740,12 @@ export const messageTaskWithDecryptedPii = <
 };
 
 export const staffWithDecryptedPii = <
-  Row extends NullablePiiEnvelope & NullablePayloadFields<StaffPii> & { id: string },
+  Row extends NullablePiiEnvelope &
+    NullablePayloadFields<StaffPii> & {
+      id: string;
+      photoStorageKey?: string | null;
+      photoUpdatedAt?: Date | null;
+    },
 >(
   row: Row,
   cryptography: PiiCryptography = piiCryptography,
@@ -746,6 +756,8 @@ export const staffWithDecryptedPii = <
     firstName: _firstName,
     lastName: _lastName,
     phone: _phone,
+    photoStorageKey: _photoStorageKey,
+    photoUpdatedAt: _photoUpdatedAt,
     ...withoutLegacyPii
   } = row;
   return {

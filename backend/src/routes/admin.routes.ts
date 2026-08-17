@@ -1,6 +1,6 @@
 import { Prisma, type StaffSpecialty } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-import { Router } from "express";
+import { raw, Router, type RequestHandler } from "express";
 import { z } from "zod";
 import { env } from "../config/env.config.js";
 import { prisma } from "../config/prisma.js";
@@ -95,6 +95,14 @@ import { findBoundedIntervalConflicts } from "../utils/intervalConflicts.js";
 import { decodeListCursor, encodeListCursor, listPaginationMeta } from "../utils/pagination.js";
 import { assertActiveStaffPhoneAvailable } from "../utils/staff-policy.js";
 import { releaseDelivery } from "../services/delivery-release.service.js";
+import {
+  readStaffPhoto,
+  removeStaffPhoto,
+  STAFF_PHOTO_CONTENT_TYPES,
+  STAFF_PHOTO_MAX_BYTES,
+  staffPhotoUrl,
+  storeStaffPhoto
+} from "../services/staff-photo.service.js";
 
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole("ADMIN"));
@@ -106,6 +114,27 @@ router.use((_req, res, next) => {
 const emptyQuery = z.object({}).strict();
 const emptyBody = z.object({}).strict();
 const uuidRequest = z.object({ body: emptyBody, query: emptyQuery, params: uuidParamsSchema });
+const staffPhotoGetRequest = z.object({
+  body: emptyBody,
+  query: z.object({ v: z.string().datetime().optional() }).strict(),
+  params: uuidParamsSchema
+});
+const staffPhotoUploadRequest = z.object({
+  body: z.instanceof(Buffer),
+  query: emptyQuery,
+  params: uuidParamsSchema
+});
+const parseStaffPhoto = raw({ type: [...STAFF_PHOTO_CONTENT_TYPES], limit: STAFF_PHOTO_MAX_BYTES });
+const requireStaffPhotoContentType: RequestHandler = (req, _res, next) => {
+  const contentType = req.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  if (
+    !STAFF_PHOTO_CONTENT_TYPES.includes(contentType as (typeof STAFF_PHOTO_CONTENT_TYPES)[number])
+  ) {
+    next(new AppError("Yalnızca JPG, PNG veya WebP fotoğraf yükleyebilirsiniz.", 415));
+    return;
+  }
+  next();
+};
 const venueIdsFromBody = (body: { venueId?: string; venueIds?: string[] }): string[] => [
   ...new Set([...(body.venueIds ?? []), ...(body.venueId ? [body.venueId] : [])])
 ];
@@ -1008,6 +1037,7 @@ router.get(
     const safeStaff = sortStaffByStatusAndName(
       staff.map(({ assignments, venueAssignments, ...member }) => ({
         ...staffWithDecryptedPii(member),
+        photoUrl: staffPhotoUrl("admin", member.id, member.photoUpdatedAt),
         venues: venueAssignments.map((assignment) => assignment.venue),
         assignments: assignments.map(({ wedding, ...assignment }) => {
           const names = weddingNames(wedding);
@@ -1025,6 +1055,102 @@ router.get(
       }))
     );
     res.json({ success: true, data: safeStaff, correlationId: req.correlationId });
+  })
+);
+
+router.get(
+  "/staff/:id/photo",
+  validateRequest(staffPhotoGetRequest),
+  asyncHandler(async (req, res) => {
+    const staff = await prisma.staff.findUnique({
+      where: { id: req.params.id },
+      select: { photoStorageKey: true }
+    });
+    if (!staff?.photoStorageKey) throw new AppError("Personel fotoğrafı bulunamadı.", 404);
+    const photo = await readStaffPhoto(staff.photoStorageKey);
+    res.set({
+      "Cache-Control": "private, max-age=3600, must-revalidate",
+      "Content-Type": "image/webp",
+      "Content-Length": String(photo.length),
+      "X-Content-Type-Options": "nosniff"
+    });
+    res.send(photo);
+  })
+);
+
+router.put(
+  "/staff/:id/photo",
+  verifyCsrf,
+  requireStaffPhotoContentType,
+  parseStaffPhoto,
+  validateRequest(staffPhotoUploadRequest),
+  asyncHandler(async (req, res) => {
+    const contentType = req.get("Content-Type")!.split(";", 1)[0]!.trim().toLowerCase();
+    const stored = await storeStaffPhoto(req.params.id, req.body as Buffer, contentType);
+    let previousStorageKey: string | null = null;
+    try {
+      await prisma.$transaction(async (transaction) => {
+        await transaction.$queryRaw(
+          Prisma.sql`SELECT "id" FROM "staff" WHERE "id" = ${req.params.id} FOR UPDATE`
+        );
+        const current = await transaction.staff.findUnique({ where: { id: req.params.id } });
+        if (!current) throw new AppError("Personel bulunamadı.", 404);
+        previousStorageKey = current.photoStorageKey;
+        await transaction.staff.update({
+          where: { id: current.id },
+          data: { photoStorageKey: stored.key, photoUpdatedAt: stored.updatedAt }
+        });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "staff.photo_updated",
+          targetType: "Staff",
+          targetId: current.id,
+          correlationId: req.correlationId
+        });
+      });
+    } catch (error) {
+      await removeStaffPhoto(stored.key).catch(() => undefined);
+      throw error;
+    }
+    await removeStaffPhoto(previousStorageKey).catch(() => undefined);
+    res.json({
+      success: true,
+      data: { photoUrl: staffPhotoUrl("admin", req.params.id, stored.updatedAt) },
+      correlationId: req.correlationId
+    });
+  })
+);
+
+router.delete(
+  "/staff/:id/photo",
+  verifyCsrf,
+  validateRequest(uuidRequest),
+  asyncHandler(async (req, res) => {
+    const previousStorageKey = await prisma.$transaction(async (transaction) => {
+      await transaction.$queryRaw(
+        Prisma.sql`SELECT "id" FROM "staff" WHERE "id" = ${req.params.id} FOR UPDATE`
+      );
+      const current = await transaction.staff.findUnique({ where: { id: req.params.id } });
+      if (!current) throw new AppError("Personel bulunamadı.", 404);
+      await transaction.staff.update({
+        where: { id: current.id },
+        data: { photoStorageKey: null, photoUpdatedAt: null }
+      });
+      await createAudit(transaction, {
+        actorUserId: req.auth!.userId,
+        action: "staff.photo_deleted",
+        targetType: "Staff",
+        targetId: current.id,
+        correlationId: req.correlationId
+      });
+      return current.photoStorageKey;
+    });
+    await removeStaffPhoto(previousStorageKey).catch(() => undefined);
+    res.json({
+      success: true,
+      data: { photoUrl: null },
+      correlationId: req.correlationId
+    });
   })
 );
 
@@ -1197,11 +1323,16 @@ router.delete(
           correlationId: req.correlationId,
           metadata: { deletedAssignmentCount: staff._count.assignments }
         });
-        return { id: staff.id, action: "deleted" };
+        return { id: staff.id, action: "deleted", photoStorageKey: staff.photoStorageKey };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
-    res.json({ success: true, data: result, correlationId: req.correlationId });
+    await removeStaffPhoto(result.photoStorageKey).catch(() => undefined);
+    res.json({
+      success: true,
+      data: { id: result.id, action: result.action },
+      correlationId: req.correlationId
+    });
   })
 );
 

@@ -67,6 +67,9 @@ COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=production-dependencies /app/package.json ./package.json
 COPY --from=build /app/dist ./dist
 
+RUN mkdir -p /app/data/staff-photos \
+    && chown -R node:node /app/data
+
 USER node
 EXPOSE 5000
 STOPSIGNAL SIGTERM

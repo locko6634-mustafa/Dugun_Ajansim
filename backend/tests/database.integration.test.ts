@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import request from "supertest";
+import sharp from "sharp";
 import type { Options as RateLimitOptions } from "express-rate-limit";
 import { createApp } from "../src/app.js";
 import { env } from "../src/config/env.config.js";
@@ -2463,6 +2464,52 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(createdStaff.status, 201);
   staffIds.push(createdStaff.body.data.id as string);
   assert.equal(createdStaff.body.data.phone, "+905551112233");
+  const staffPhoto = await sharp({
+    create: { width: 60, height: 40, channels: 3, background: "#7f8b62" }
+  })
+    .png()
+    .toBuffer();
+  const uploadedStaffPhoto = await request(app)
+    .put(`/api/v1/admin/staff/${createdStaff.body.data.id}/photo`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .set("Content-Type", "image/png")
+    .send(staffPhoto);
+  assert.equal(uploadedStaffPhoto.status, 200);
+  assert.match(uploadedStaffPhoto.body.data.photoUrl, /\/api\/v1\/admin\/staff\/.+\/photo\?v=/);
+  const downloadedStaffPhoto = await request(app)
+    .get(uploadedStaffPhoto.body.data.photoUrl as string)
+    .set("Cookie", adminCookie);
+  assert.equal(downloadedStaffPhoto.status, 200);
+  assert.match(downloadedStaffPhoto.headers["content-type"], /^image\/webp/);
+  assert.ok(downloadedStaffPhoto.body.length > 0);
+  const rejectedStaffPhoto = await request(app)
+    .put(`/api/v1/admin/staff/${createdStaff.body.data.id}/photo`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .set("Content-Type", "text/plain")
+    .send("not-an-image");
+  assert.equal(rejectedStaffPhoto.status, 415);
+  const removedStaffPhoto = await request(app)
+    .delete(`/api/v1/admin/staff/${createdStaff.body.data.id}/photo`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken);
+  assert.equal(removedStaffPhoto.status, 200);
+  assert.equal(removedStaffPhoto.body.data.photoUrl, null);
+  const restoredStaffPhoto = await request(app)
+    .put(`/api/v1/admin/staff/${createdStaff.body.data.id}/photo`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .set("Content-Type", "image/png")
+    .send(staffPhoto);
+  assert.equal(restoredStaffPhoto.status, 200);
+  const listedStaff = await request(app).get("/api/v1/admin/staff").set("Cookie", adminCookie);
+  const listedPhotoStaff = listedStaff.body.data.find(
+    (staff: { id: string }) => staff.id === createdStaff.body.data.id
+  );
+  assert.match(listedPhotoStaff.photoUrl, /\/api\/v1\/admin\/staff\/.+\/photo\?v=/);
+  assert.equal("photoStorageKey" in listedPhotoStaff, false);
+  assert.equal("photoUpdatedAt" in listedPhotoStaff, false);
   const duplicateActiveStaff = await request(app)
     .post("/api/v1/admin/staff")
     .set("Cookie", adminAuthCookie)
@@ -2760,6 +2807,15 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     ),
     true
   );
+  const operationsPhotoStaff = operationsStaff.body.data.find(
+    (staff: { id: string }) => staff.id === createdStaff.body.data.id
+  );
+  assert.match(operationsPhotoStaff.photoUrl, /\/api\/v1\/operations\/staff\/.+\/photo\?v=/);
+  const operationsStaffPhoto = await request(app)
+    .get(operationsPhotoStaff.photoUrl as string)
+    .set("Cookie", managerCookie);
+  assert.equal(operationsStaffPhoto.status, 200);
+  assert.match(operationsStaffPhoto.headers["content-type"], /^image\/webp/);
   assert.equal(
     operationsStaff.body.data.some((staff: { id: string }) => staff.id === foreignStaff.id),
     false

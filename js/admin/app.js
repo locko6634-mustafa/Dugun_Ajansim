@@ -2,6 +2,7 @@ import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
 import { initTrustedDevices } from "../shared/trusted-devices.js";
 import {
+  showCustomConfirm,
   showCustomPrompt,
   showCatalogFormModal,
   showVenueFormModal
@@ -155,6 +156,10 @@ const connectionStatus = document.querySelector(".js-connection-status");
 const connectionText = document.querySelector(".js-connection-text");
 const lastDataTime = document.querySelector(".js-last-data-time");
 const dialogReturnFocus = new WeakMap();
+const STAFF_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const STAFF_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const EMPTY_IMAGE_SRC = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+let staffPhotoPreviewObjectUrl = null;
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -1406,6 +1411,70 @@ function validateVenueSelection(form) {
   return valid;
 }
 
+function staffInitials(staff) {
+  return `${staff.firstName?.[0] || ""}${staff.lastName?.[0] || ""}`.toLocaleUpperCase(APP_LOCALE);
+}
+
+function staffAvatarMarkup(staff) {
+  const initials = staffInitials(staff);
+  return staff.photoUrl
+    ? `<img class="avatar" src="${escapeHtml(staff.photoUrl)}" alt="${escapeHtml(`${staff.firstName} ${staff.lastName} fotoğrafı`)}" loading="lazy" width="42" height="42" data-avatar-initials="${escapeHtml(initials)}">`
+    : `<span class="avatar" aria-hidden="true">${escapeHtml(initials)}</span>`;
+}
+
+function installStaffAvatarFallbacks(container) {
+  container.querySelectorAll("img[data-avatar-initials]").forEach((image) => {
+    image.addEventListener(
+      "error",
+      () => {
+        const fallback = document.createElement("span");
+        fallback.className = "avatar";
+        fallback.setAttribute("aria-hidden", "true");
+        fallback.textContent = image.dataset.avatarInitials;
+        image.replaceWith(fallback);
+      },
+      { once: true }
+    );
+  });
+}
+
+function clearStaffPhotoObjectUrl() {
+  if (!staffPhotoPreviewObjectUrl) return;
+  URL.revokeObjectURL(staffPhotoPreviewObjectUrl);
+  staffPhotoPreviewObjectUrl = null;
+}
+
+function showStaffPhotoPreview(staff, file = null) {
+  clearStaffPhotoObjectUrl();
+  const image = staffForm.querySelector(".js-staff-photo-preview-image");
+  const initials = staffForm.querySelector(".js-staff-photo-initials");
+  const source = file ? (staffPhotoPreviewObjectUrl = URL.createObjectURL(file)) : staff?.photoUrl;
+  initials.textContent = staff ? staffInitials(staff) : "+";
+  initials.hidden = Boolean(source);
+  image.hidden = !source;
+  image.src = source || EMPTY_IMAGE_SRC;
+  image.alt = source && staff ? `${staff.firstName} ${staff.lastName} fotoğrafı` : "";
+  staffForm.querySelector(".js-remove-staff-photo").hidden = !staff?.photoUrl;
+}
+
+function validateStaffPhoto(file) {
+  const error = staffForm.querySelector(".js-staff-photo-error");
+  if (!(file instanceof window.File) || file.size === 0) {
+    error.textContent = "";
+    return true;
+  }
+  if (!STAFF_PHOTO_TYPES.has(file.type)) {
+    error.textContent = "Yalnızca JPG, PNG veya WebP fotoğraf seçin.";
+    return false;
+  }
+  if (file.size > STAFF_PHOTO_MAX_BYTES) {
+    error.textContent = "Fotoğraf en fazla 5 MB olabilir.";
+    return false;
+  }
+  error.textContent = "";
+  return true;
+}
+
 function setupVenuePicker(form) {
   const field = venuePickerField(form);
   field.querySelector(".venue-picker__search").addEventListener("input", () => {
@@ -1454,10 +1523,11 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}">Sil</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head">${staffAvatarMarkup(staff)}<span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}">Sil</button></footer></article>`
         )
         .join("")
     : empty("Filtreye uyan personel yok.");
+  installStaffAvatarFallbacks(document.querySelector(".js-staff"));
 }
 
 async function openStaffForm(staff = null) {
@@ -1479,6 +1549,8 @@ async function openStaffForm(staff = null) {
     ? "Personeli düzenle"
     : "Personel ekle";
   staffForm.querySelector(".js-staff-form-message").textContent = "";
+  staffForm.querySelector(".js-staff-photo-error").textContent = "";
+  showStaffPhotoPreview(staff);
   staffForm.querySelector(".js-staff-specialties-error").hidden = true;
   const submitButton = staffForm.querySelector(".js-staff-submit");
   submitButton.disabled = false;
@@ -2517,6 +2589,49 @@ staffForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
 staffForm.querySelector(".js-staff-specialties").addEventListener("change", () => {
   staffForm.querySelector(".js-staff-specialties-error").hidden = true;
 });
+staffForm.elements.photo.addEventListener("change", () => {
+  const staff = state.staff.find((item) => item.id === staffForm.elements.staffId.value) || null;
+  const file = staffForm.elements.photo.files?.[0] || null;
+  if (!validateStaffPhoto(file)) {
+    staffForm.elements.photo.value = "";
+    showStaffPhotoPreview(staff);
+    return;
+  }
+  showStaffPhotoPreview(staff, file);
+});
+staffForm.querySelector(".js-staff-photo-preview-image").addEventListener("error", (event) => {
+  event.currentTarget.hidden = true;
+  staffForm.querySelector(".js-staff-photo-initials").hidden = false;
+});
+staffForm.querySelector(".js-remove-staff-photo").addEventListener("click", async (event) => {
+  const staffId = staffForm.elements.staffId.value;
+  if (!staffId) return;
+  const confirmed = await showCustomConfirm({
+    title: "Personel fotoğrafını kaldır",
+    message: "Bu fotoğraf sunucudan kalıcı olarak silinecek.",
+    confirmText: "Fotoğrafı kaldır",
+    isDanger: true
+  });
+  if (!confirmed) return;
+  const button = event.currentTarget;
+  const formMessage = staffForm.querySelector(".js-staff-form-message");
+  button.disabled = true;
+  formMessage.textContent = "Fotoğraf kaldırılıyor…";
+  try {
+    await apiRequest(`/admin/staff/${staffId}/photo`, { method: "DELETE" });
+    const staff = state.staff.find((item) => item.id === staffId);
+    if (staff) staff.photoUrl = null;
+    staffForm.elements.photo.value = "";
+    showStaffPhotoPreview(staff);
+    renderStaff();
+    formMessage.textContent = "Personel fotoğrafı kaldırıldı.";
+  } catch (error) {
+    formMessage.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+staffDialog.addEventListener("close", clearStaffPhotoObjectUrl);
 setupVenuePicker(staffForm);
 staffForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -2526,6 +2641,7 @@ staffForm.addEventListener("submit", async (event) => {
   const formMessage = staffForm.querySelector(".js-staff-form-message");
   const data = new FormData(staffForm);
   const staffId = data.get("staffId");
+  const photo = data.get("photo");
   const body = {
     firstName: data.get("firstName"),
     lastName: data.get("lastName"),
@@ -2535,6 +2651,7 @@ staffForm.addEventListener("submit", async (event) => {
     venueIds: data.getAll("venueIds")
   };
   specialtyError.hidden = body.specialties.length > 0;
+  if (!validateStaffPhoto(photo)) return;
   if (!validateVenueSelection(staffForm)) return;
   if (!body.specialties.length) {
     staffForm.querySelector('input[name="specialties"]')?.focus();
@@ -2543,16 +2660,33 @@ staffForm.addEventListener("submit", async (event) => {
   formMessage.textContent = "";
   submitButton.disabled = true;
   submitButton.textContent = "Kaydediliyor…";
+  let savedStaffId = staffId;
   try {
-    await apiRequest(staffId ? `/admin/staff/${staffId}` : "/admin/staff", {
+    const response = await apiRequest(staffId ? `/admin/staff/${staffId}` : "/admin/staff", {
       method: staffId ? "PATCH" : "POST",
       body
     });
+    savedStaffId = response.data.id;
+    if (photo instanceof window.File && photo.size > 0) {
+      submitButton.textContent = "Fotoğraf yükleniyor…";
+      await apiRequest(`/admin/staff/${savedStaffId}/photo`, {
+        method: "PUT",
+        body: photo,
+        timeoutMs: 30_000
+      });
+    }
     staffDialog.close();
     setMessage(staffId ? "Personel güncellendi." : "Personel eklendi.", true);
     await Promise.all([loadStaff(), loadDashboard()]);
   } catch (error) {
-    formMessage.textContent = formErrorMessage(staffForm, error);
+    if (!staffId && savedStaffId) {
+      staffForm.elements.staffId.value = savedStaffId;
+      document.querySelector(".js-staff-form-title").textContent = "Personeli düzenle";
+      formMessage.textContent = `Personel kaydedildi ancak fotoğraf yüklenemedi: ${error.message}`;
+      await loadStaff();
+    } else {
+      formMessage.textContent = formErrorMessage(staffForm, error);
+    }
   } finally {
     submitButton.disabled = false;
     submitButton.textContent = "Kaydet";

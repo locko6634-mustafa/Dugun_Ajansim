@@ -1147,6 +1147,53 @@ button:disabled {
   font-family: Inter, Manrope, sans-serif;
   font-size: 17px;
 }
+img.avatar {
+  display: block;
+  object-fit: cover;
+}
+.staff-photo-field {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-strong);
+}
+.staff-photo-preview {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  flex: 0 0 76px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--olive-pale);
+  color: var(--olive);
+  font-family: Inter, Manrope, sans-serif;
+  font-size: 24px;
+}
+.staff-photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.staff-photo-controls {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 8px;
+}
+.staff-photo-controls label {
+  display: grid;
+  gap: 7px;
+}
+.staff-photo-controls small {
+  color: var(--ink-soft);
+}
+.staff-photo-controls .mini-button {
+  justify-self: start;
+}
 .staff-card h3 {
   margin-top: 16px;
   font-family: Inter, Manrope, sans-serif;

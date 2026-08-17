@@ -459,6 +459,8 @@ model Staff {
   piiBlindIndexVersion Int?
   specialties          StaffSpecialty[]
   isActive             Boolean                @default(true)
+  photoStorageKey      String?                 @db.VarChar(255)
+  photoUpdatedAt       DateTime?
   venueId              String
   venue                Venue                  @relation(fields: [venueId], references: [id], onDelete: Restrict)
   venueAssignments     StaffVenueAssignment[]

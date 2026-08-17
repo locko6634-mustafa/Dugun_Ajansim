@@ -561,6 +561,39 @@
               aria-describedby="staff-name-help"
               required /></label
           ><label class="wide">Telefon<input name="phone" type="tel" required /></label>
+          <div class="staff-photo-field wide">
+            <div class="staff-photo-preview js-staff-photo-preview" aria-hidden="true">
+              <span class="js-staff-photo-initials">+</span>
+              <img
+                class="js-staff-photo-preview-image"
+                src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+                alt=""
+                hidden
+              />
+            </div>
+            <div class="staff-photo-controls">
+              <label
+                >Personel fotoğrafı<input
+                  name="photo"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  aria-describedby="staff-photo-help staff-photo-error"
+              /></label>
+              <button
+                class="mini-button mini-button--danger js-remove-staff-photo"
+                type="button"
+                hidden
+              >
+                Fotoğrafı kaldır
+              </button>
+              <small id="staff-photo-help">JPG, PNG veya WebP · En fazla 5 MB</small>
+              <span
+                class="field-error js-staff-photo-error"
+                id="staff-photo-error"
+                aria-live="assertive"
+              ></span>
+            </div>
+          </div>
           <fieldset
             class="js-staff-venue venue-picker wide"
             aria-describedby="staff-venues-help staff-venues-error"

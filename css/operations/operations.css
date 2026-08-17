@@ -609,6 +609,10 @@ p {
   font-family: Inter, Manrope, sans-serif;
   font-size: 17px;
 }
+.staff-card img.avatar {
+  display: block;
+  object-fit: cover;
+}
 .staff-card h3 {
   margin: 16px 0 0;
   font-family: Inter, Manrope, sans-serif;

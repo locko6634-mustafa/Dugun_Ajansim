@@ -11,6 +11,7 @@ import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import request from 'supertest';
+import sharp from 'sharp';
 import { z } from 'zod';
 import { createApp } from '../src/app.js';
 import { parseEnvironment } from '../src/config/env.config.js';
@@ -89,6 +90,11 @@ import {
   weddingLegacyPiiMatches,
 } from '../src/utils/pii-crypto.js';
 import { createFailedLoginSecurityEvent } from '../src/utils/securityLogger.js';
+import {
+  readStaffPhoto,
+  removeStaffPhoto,
+  storeStaffPhoto,
+} from '../src/services/staff-photo.service.js';
 import { cleanupStaleSessions } from '../src/utils/sessionMaintenance.js';
 import {
   createTotpEnrollmentUri,
@@ -1142,7 +1148,17 @@ test('Staff PII zarfı plaintext ve persistence metadata alanlarını DTO dış�
 
   assert.equal(encrypted.firstName, null);
   assert.equal(decryptStaffPii(id, encrypted, cryptography, 'strict').phone, '+905551112233');
-  const dto = staffWithDecryptedPii({ id, ...encrypted, isActive: true }, cryptography, 'strict');
+  const dto = staffWithDecryptedPii(
+    {
+      id,
+      ...encrypted,
+      isActive: true,
+      photoStorageKey: `${id}/${randomUUID()}.webp`,
+      photoUpdatedAt: new Date(),
+    },
+    cryptography,
+    'strict',
+  );
   assert.equal(dto.firstName, 'Ayşe');
   assert.equal(dto.lastName, 'Yılmaz');
   assert.equal(dto.phone, '+905551112233');
@@ -1153,10 +1169,47 @@ test('Staff PII zarfı plaintext ve persistence metadata alanlarını DTO dış�
     'piiKeyId',
     'phoneBlindIndex',
     'piiBlindIndexKeyId',
+    'photoStorageKey',
+    'photoUpdatedAt',
   ]) {
     assert.equal(secret in dto, false);
   }
 });
+
+nodeTest(
+  'backend-unit personel fotoğrafını güvenli anahtarla WebP olarak saklar ve kaldırır',
+  async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'dugun-ajansim-staff-photo-'));
+    try {
+      const staffId = randomUUID();
+      const source = await sharp({
+        create: { width: 40, height: 60, channels: 3, background: '#7f8b62' },
+      })
+        .png()
+        .toBuffer();
+      const stored = await storeStaffPhoto(staffId, source, 'image/png', directory);
+      assert.match(stored.key, new RegExp(`^${staffId}/[0-9a-f-]{36}\\.webp$`, 'i'));
+
+      const output = await readStaffPhoto(stored.key, directory);
+      const metadata = await sharp(output).metadata();
+      assert.equal(metadata.format, 'webp');
+      assert.equal(metadata.width, 512);
+      assert.equal(metadata.height, 512);
+
+      await assert.rejects(
+        storeStaffPhoto(staffId, source, 'image/jpeg', directory),
+        (error: unknown) => error instanceof AppError && error.statusCode === 415,
+      );
+      await removeStaffPhoto(stored.key, directory);
+      await assert.rejects(
+        readStaffPhoto(stored.key, directory),
+        (error: unknown) => error instanceof AppError && error.statusCode === 404,
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);
 
 test('Legacy PII redaction tutarlılık denetimi normalize eşleşmeyi kabul edip sapmayı reddeder', () => {
   const bookingPayload = {

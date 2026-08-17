@@ -209,6 +209,12 @@ const envSchema = z
   .object({
     PORT: portSchema.default('5000'),
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    STAFF_PHOTO_STORAGE_DIR: z
+      .string()
+      .trim()
+      .min(1, 'STAFF_PHOTO_STORAGE_DIR boş olamaz')
+      .max(500, 'STAFF_PHOTO_STORAGE_DIR en fazla 500 karakter olabilir')
+      .default('./data/staff-photos'),
     APP_PROCESS_ROLE: z
       .enum(['api', 'admin-bootstrap', 'pii-maintenance', 'data-retention'])
       .default('api'),

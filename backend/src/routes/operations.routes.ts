@@ -47,6 +47,11 @@ import {
 } from "../utils/pii-crypto.js";
 import { decodeListCursor, encodeListCursor, listPaginationMeta } from "../utils/pagination.js";
 import { assertActiveStaffPhoneAvailable } from "../utils/staff-policy.js";
+import {
+  readStaffPhoto,
+  removeStaffPhoto,
+  staffPhotoUrl
+} from "../services/staff-photo.service.js";
 
 const router = Router();
 router.use(authenticate, requireChangedPassword, requireRole("SALON_YETKILISI"));
@@ -58,6 +63,11 @@ router.use((_req, res, next) => {
 const emptyQuery = z.object({}).strict();
 const emptyBody = z.object({}).strict();
 const uuidRequest = z.object({ body: emptyBody, query: emptyQuery, params: uuidParamsSchema });
+const staffPhotoGetRequest = z.object({
+  body: emptyBody,
+  query: z.object({ v: z.string().datetime().optional() }).strict(),
+  params: uuidParamsSchema
+});
 const assignmentParamsSchema = z
   .object({ id: z.string().uuid(), assignmentId: z.string().uuid() })
   .strict();
@@ -445,6 +455,7 @@ router.get(
     const staffDtos = sortStaffByStatusAndName(
       staff.map(({ assignments, venueAssignments, ...staffMember }) => ({
         ...staffWithDecryptedPii(staffMember),
+        photoUrl: staffPhotoUrl("operations", staffMember.id, staffMember.photoUpdatedAt),
         venues: venueAssignments.map((assignment) => assignment.venue),
         assignments: assignments.map((assignment) => {
           const weddingPii = decryptSelectedWeddingPii(assignment.wedding);
@@ -463,6 +474,33 @@ router.get(
       }))
     );
     res.json({ success: true, data: staffDtos, correlationId: req.correlationId });
+  })
+);
+
+router.get(
+  "/staff/:id/photo",
+  validateRequest(staffPhotoGetRequest),
+  asyncHandler(async (req, res) => {
+    const venueIds = venueIdsOf(req.auth!.venueIds, req.auth!.venueId);
+    const staff = await prisma.staff.findFirst({
+      where: {
+        id: req.params.id,
+        OR: [
+          { venueId: { in: venueIds } },
+          { venueAssignments: { some: { venueId: { in: venueIds } } } }
+        ]
+      },
+      select: { photoStorageKey: true }
+    });
+    if (!staff?.photoStorageKey) throw new AppError("Personel fotoğrafı bulunamadı.", 404);
+    const photo = await readStaffPhoto(staff.photoStorageKey);
+    res.set({
+      "Cache-Control": "private, max-age=3600, must-revalidate",
+      "Content-Type": "image/webp",
+      "Content-Length": String(photo.length),
+      "X-Content-Type-Options": "nosniff"
+    });
+    res.send(photo);
   })
 );
 
@@ -605,11 +643,16 @@ router.delete(
           correlationId: req.correlationId,
           metadata: { venueIds, deletedAssignmentCount: staff._count.assignments }
         });
-        return { id: staff.id, action: "deleted" };
+        return { id: staff.id, action: "deleted", photoStorageKey: staff.photoStorageKey };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
-    res.json({ success: true, data: result, correlationId: req.correlationId });
+    await removeStaffPhoto(result.photoStorageKey).catch(() => undefined);
+    res.json({
+      success: true,
+      data: { id: result.id, action: result.action },
+      correlationId: req.correlationId
+    });
   })
 );
 

@@ -170,6 +170,10 @@ Yerel retention, host veya disk kaybına karşı koruma değildir. `*.dump.gcm` 
 anahtar sürümünü erişimi kısıtlı, sunucu dışı ve immutable depolamaya ayrıca kopyalayın; en az üç
 ayda bir bu kopyadan bağımsız restore tatbikatı yapın.
 
+Personel fotoğrafları `staff_photo_data` Docker volume'ünde tutulur ve veritabanı yedeğine dahil
+değildir. Bu volume'ü de erişimi kısıtlı, şifreli ve sunucu dışı yedekleme politikasına dahil edin;
+veritabanı ile fotoğraf volume yedeğini aynı zaman damgasıyla eşleştirin.
+
 ## Kontrol
 
 ```bash

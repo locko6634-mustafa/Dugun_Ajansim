@@ -345,6 +345,7 @@ services:
       NODE_ENV: production
       APP_PROCESS_ROLE: api
       PORT: 5000
+      STAFF_PHOTO_STORAGE_DIR: ${STAFF_PHOTO_STORAGE_DIR:-/app/data/staff-photos}
       CORS_ORIGIN: https://${APP_DOMAIN:?APP_DOMAIN zorunludur}
       BOT_PROTECTION_MODE: ${BOT_PROTECTION_MODE:?BOT_PROTECTION_MODE zorunludur}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
@@ -380,6 +381,8 @@ services:
       PAYMENT_ACCOUNT_HOLDER: ${PAYMENT_ACCOUNT_HOLDER:?PAYMENT_ACCOUNT_HOLDER zorunludur}
       PAYMENT_IBAN: ${PAYMENT_IBAN:?PAYMENT_IBAN zorunludur}
       PAYMENT_WHATSAPP_PHONE: ${PAYMENT_WHATSAPP_PHONE:?PAYMENT_WHATSAPP_PHONE zorunludur}
+    volumes:
+      - staff_photo_data:/app/data/staff-photos
     depends_on:
       db-runtime-hardening:
         condition: service_completed_successfully
@@ -464,6 +467,7 @@ services:
 
 volumes:
   postgres_data:
+  staff_photo_data:
 
 networks:
   internal:
