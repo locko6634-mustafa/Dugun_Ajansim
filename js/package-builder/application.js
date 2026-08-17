@@ -466,8 +466,9 @@ async function hydrateRemoteData() {
       "Güncel paket ve salon bilgileri alınamadı. Lütfen bağlantınızı kontrol edip sayfayı yenileyin."
     );
     setBuilderRequestStatus(
-      error?.message ||
-        "Güncel paket, salon veya doğrulama bilgileri alınamadı. Bağlantınızı kontrol edip yeniden deneyin.",
+      `Güncel paket, salon veya doğrulama bilgileri alınamadı. ${
+        error?.message || "Bağlantınızı kontrol edip yeniden deneyin."
+      }`,
       {
         title: "Başvuru bilgileri yüklenemedi",
         retryAction: hydrateRemoteData,
