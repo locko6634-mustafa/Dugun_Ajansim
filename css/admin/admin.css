@@ -898,6 +898,10 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.calendar-day__month {
+  display: none;
+}
+
 .calendar-events {
   display: grid;
   gap: 5px;
@@ -1897,6 +1901,13 @@ body.sidebar-open {
     font-family: Inter, Manrope, sans-serif;
     font-size: 28px;
     font-weight: 400;
+  }
+
+  .calendar-day__month {
+    display: inline;
+    margin-left: 5px;
+    font-size: 14px;
+    font-weight: 500;
   }
 
   .calendar-day.is-today .calendar-day__number {

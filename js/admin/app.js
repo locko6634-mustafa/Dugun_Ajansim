@@ -902,7 +902,11 @@ function renderCalendar() {
       weekday: "short",
       timeZone: "UTC"
     }).format(dateValue);
-    return `<section class="calendar-day ${outside ? "is-outside" : ""} ${events.length ? "" : "is-empty"} ${date === data.today ? "is-today" : ""}" aria-label="${escapeHtml(formatDate(`${date}T00:00:00.000Z`))}"><div class="calendar-day__head"><span class="calendar-day__number">${dateValue.getUTCDate()}</span><span class="calendar-day__weekday">${escapeHtml(weekday)}</span></div><div class="calendar-events">${events
+    const month = new Intl.DateTimeFormat(APP_LOCALE, {
+      month: "short",
+      timeZone: "UTC"
+    }).format(dateValue);
+    return `<section class="calendar-day ${outside ? "is-outside" : ""} ${events.length ? "" : "is-empty"} ${date === data.today ? "is-today" : ""}" aria-label="${escapeHtml(formatDate(`${date}T00:00:00.000Z`))}"><div class="calendar-day__head"><span class="calendar-day__number">${dateValue.getUTCDate()}<span class="calendar-day__month"> ${escapeHtml(month)}</span></span><span class="calendar-day__weekday">${escapeHtml(weekday)}</span></div><div class="calendar-events">${events
       .map(
         (wedding) =>
           `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${data.selectedVenue ? "" : `${escapeHtml(wedding.venue.name)} · `}${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`

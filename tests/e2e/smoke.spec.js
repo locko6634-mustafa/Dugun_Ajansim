@@ -1240,6 +1240,13 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   const pastCalendarEvent = page.getByRole("button", { name: /Elif & Can/ });
   const historyToggle = page.getByRole("checkbox", { name: "Geçmiş düğünleri göster" });
   if (isMobile) {
+    await expect(
+      page
+        .locator(".calendar-day")
+        .filter({ has: page.getByRole("button", { name: /Ayşe & Mehmet/ }) })
+        .first()
+        .locator(".calendar-day__number")
+    ).toHaveText("10 Ağu");
     await expect(pastCalendarEvent).toHaveCount(0);
     await expect(historyToggle).toBeVisible();
     await expect(historyToggle).not.toBeChecked();
