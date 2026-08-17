@@ -9,7 +9,6 @@ import {
   formatAppTime
 } from "../shared/runtime-config.js";
 import { escapeHtml } from "../shared/html.js";
-import { showCustomConfirm } from "../shared/custom-dialogs.js";
 import { printWeddingReport } from "../shared/wedding-print-report.js";
 
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
@@ -867,29 +866,18 @@ document.querySelector(".js-staff").addEventListener("click", (event) => {
   } else if (remove) {
     const staff = state.staff.find((item) => item.id === remove.dataset.deleteStaff);
     if (!staff) return;
-    void showCustomConfirm({
-      title: "Personeli sil",
-      message: `${staff.firstName} ${staff.lastName} ekipten çıkarılsın mı? Geçmiş görevi varsa kayıt pasife alınır.`,
-      confirmText: "Personeli sil",
-      isDanger: true
-    }).then(async (confirmed) => {
-      if (!confirmed) return;
+    void (async () => {
       remove.disabled = true;
       try {
-        const response = await apiRequest(`/operations/staff/${staff.id}`, { method: "DELETE" });
+        await apiRequest(`/operations/staff/${staff.id}`, { method: "DELETE" });
         await loadStaff();
-        setMessage(
-          response.data.action === "deactivated"
-            ? "Personelin geçmiş görevleri var; kayıt pasife alındı."
-            : "Personel ekipten silindi.",
-          true
-        );
+        setMessage("Personel ekipten silindi.", true);
       } catch (error) {
         setMessage(error.message);
       } finally {
         remove.disabled = false;
       }
-    });
+    })();
   }
 });
 staffForm

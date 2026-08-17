@@ -91,24 +91,6 @@ async function clickPanel(page, panelName, isOps = false) {
   await page.locator(`[data-panel="${panelName}"]`).first().click();
 }
 
-async function completeAdminStepUp(page) {
-  const dialog = page.locator("#app-custom-dialog");
-  const passwordInput = dialog.locator(".js-admin-step-up-password");
-  const totpInput = dialog.locator(".js-admin-step-up-totp");
-
-  await expect(dialog).toBeVisible();
-  await expect(passwordInput).toHaveAttribute("type", "password");
-  await expect(passwordInput).toHaveAttribute("autocomplete", "current-password");
-  await expect(totpInput).toHaveAttribute("inputmode", "numeric");
-  await expect(totpInput).toHaveAttribute("autocomplete", "one-time-code");
-  await passwordInput.fill("Guvenli-Admin-Step-Up-2026!");
-  await totpInput.fill("123456");
-  await dialog.getByRole("button", { name: "Doğrula ve devam et" }).click();
-  await expect(dialog).toBeHidden();
-  await expect(dialog.locator(".js-admin-step-up-password")).toHaveCount(0);
-  await expect(dialog.locator(".js-admin-step-up-totp")).toHaveCount(0);
-}
-
 async function selectWeddingDate(page, value) {
   const dateTrigger = page.locator(".js-date-trigger");
   await dateTrigger.click();
@@ -560,11 +542,9 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       body: JSON.stringify({ success: true, data: { status: "healthy", database: "connected" } })
     })
   );
-  let adminStepUpActive = false;
   const adminStepUpBodies = [];
   await page.route("**/api/v1/auth/admin-step-up", async (route) => {
     adminStepUpBodies.push(route.request().postDataJSON());
-    adminStepUpActive = true;
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -573,19 +553,6 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       })
     });
   });
-  const requireAdminStepUp = async (route) => {
-    if (adminStepUpActive) return false;
-    await route.fulfill({
-      status: 428,
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: false,
-        message: "Ek yönetici doğrulaması gerekli.",
-        details: { code: "ADMIN_STEP_UP_REQUIRED" }
-      })
-    });
-    return true;
-  };
   const wedding = {
     id: "6ae9f9e6-6217-4b6c-91ea-251be3bb6fc1",
     venueId: "de305d54-75b4-431b-adb2-eb6b9e546014",
@@ -879,8 +846,6 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await page.route("**/api/v1/admin/packages/*", async (route) => {
     packageDeleteAttempts += 1;
     packageDeleteBodies.push(route.request().postDataJSON());
-    if (await requireAdminStepUp(route)) return;
-    adminStepUpActive = false;
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -909,8 +874,6 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     const isDecisionTask = route.request().url().includes(decisionTaskId);
     if (route.request().url().endsWith("/render")) {
       messageRenderAttempts += 1;
-      if (!isDecisionTask && (await requireAdminStepUp(route))) return;
-      if (!isActivationTask) adminStepUpActive = false;
       messageStatus = "PREPARED";
       messageUpdatedAt = "2026-08-10T10:01:00.000Z";
       await route.fulfill({
@@ -926,8 +889,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       return;
     }
     if (route.request().url().endsWith("/override-due")) {
-      if (await requireAdminStepUp(route)) return;
-      expect(route.request().postDataJSON().reason).toContain("erken aktifleştirildi");
+      expect(route.request().postDataJSON()).toEqual({});
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -938,8 +900,6 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       return;
     }
     if (route.request().url().endsWith("/verify")) {
-      if (!isDecisionTask && (await requireAdminStepUp(route))) return;
-      adminStepUpActive = false;
       messageStatus = "READY_TO_SEND";
       messageUpdatedAt = "2026-08-10T10:02:00.000Z";
       const message = isActivationTask
@@ -1005,8 +965,6 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       return;
     }
     weddingUpdateAttempts += 1;
-    if (await requireAdminStepUp(route)) return;
-    adminStepUpActive = false;
     const body = route.request().postDataJSON();
     expect(body.brideLastName).toBe("Kaya");
     expect(body.packageCode).toBe("hikaye");
@@ -1124,9 +1082,6 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await page.emulateMedia({ media: "screen" });
   await expect(page.getByRole("button", { name: "Müşteri MFA'sını sıfırla" })).toHaveCount(0);
   await page.getByRole("button", { name: "Müşteri hesabını aktifleştir" }).click();
-  await expect(page.getByRole("heading", { name: "Yönetici doğrulaması" })).toBeVisible();
-  expect(await page.evaluate(() => window.__adminWindowOpenUrls)).toEqual([]);
-  await completeAdminStepUp(page);
   await expect
     .poll(() => page.evaluate(() => window.__copiedAdminMessages[0]))
     .toContain("Kullanıcı adı: yilmaz-demir-4821");
@@ -1204,9 +1159,8 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     /Ek hizmet eklendi: Drone Çekimi\./
   );
   await page.getByRole("button", { name: "Değişiklikleri kaydet" }).click();
-  await completeAdminStepUp(page);
   await expect(page.locator(".global-message")).toContainText("Yeni kullanıcı adı");
-  expect(weddingUpdateAttempts).toBe(2);
+  expect(weddingUpdateAttempts).toBe(1);
   await page.locator(".js-wedding-detail [data-close-dialog]").click();
   await clickPanel(page, "applications");
   await expect(page.locator(".application-card")).toContainText("10 Ağu 2026");
@@ -1274,14 +1228,11 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   await expect(historyToggle).toBeHidden();
   await clickPanel(page, "messages");
   await page.getByRole("button", { name: "Hazırla" }).click();
-  await completeAdminStepUp(page);
   await expect(page.getByRole("button", { name: "Linki doğrula" })).toBeVisible();
   await page.getByRole("button", { name: "Linki doğrula" }).click();
-  await completeAdminStepUp(page);
   const markSentButton = page.getByRole("button", { name: "Gönderildi işaretle" });
   await expect(markSentButton).toBeDisabled();
   await page.getByRole("button", { name: "WhatsApp'ta gönder" }).click();
-  await completeAdminStepUp(page);
   await expect
     .poll(() => page.evaluate(() => window.__copiedAdminMessages.at(-1)))
     .toBe(
@@ -1302,30 +1253,11 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     .locator('[data-catalog-type="packages"]')
     .filter({ hasText: "Mini Paket" });
   await packageRow.getByRole("button", { name: "Sil" }).click();
-  await page.locator(".js-danger-confirm").fill("Mini Paket");
-  await page.locator(".js-danger-reason").fill("Artık sunulmayan katalog paketi kaldırılıyor.");
-  await page.locator(".js-danger-submit").click();
-  await completeAdminStepUp(page);
   await expect(page.locator(".js-catalog-message")).toContainText("Temel paketi silindi");
-  expect(packageDeleteAttempts).toBe(2);
-  expect(packageDeleteBodies).toEqual([
-    {
-      confirmText: "Mini Paket",
-      reason: "Artık sunulmayan katalog paketi kaldırılıyor."
-    },
-    {
-      confirmText: "Mini Paket",
-      reason: "Artık sunulmayan katalog paketi kaldırılıyor."
-    }
-  ]);
-  expect(messageRenderAttempts).toBe(5);
-  expect(adminStepUpBodies).toHaveLength(6);
-  expect(adminStepUpBodies).toEqual(
-    Array.from({ length: 6 }, () => ({
-      currentPassword: "Guvenli-Admin-Step-Up-2026!",
-      totpCode: "123456"
-    }))
-  );
+  expect(packageDeleteAttempts).toBe(1);
+  expect(packageDeleteBodies).toEqual([{}]);
+  expect(messageRenderAttempts).toBe(3);
+  expect(adminStepUpBodies).toHaveLength(0);
 });
 
 test("@frontend-smoke müşteri teslimat paneli linki teslim öncesinde göstermiyor", async ({
@@ -2866,7 +2798,6 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
   await expect(staffDialog).toBeHidden();
   await expect(page.locator(".js-staff")).toContainText("Cemal Arslan");
   await page.getByRole("button", { name: "Cemal Arslan personelini sil" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Personeli sil" }).click();
   await expect.poll(() => staffDeleteCalls).toBe(1);
   expect(pageErrors).toEqual([]);
   const overflow = await page.evaluate(

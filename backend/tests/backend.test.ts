@@ -191,7 +191,7 @@ authTest('yönetici adım-yükseltme süresi yalnız son beş dakikayı kabul ed
   assert.equal(isAdminStepUpFresh(new Date(now.valueOf() - ADMIN_STEP_UP_TTL_MS), now), false);
 });
 
-authTest('adım-yükseltme ve kritik işlem gövdeleri katı doğrulanır', () => {
+authTest('adım-yükseltme ve doğrudan silme gövdeleri katı doğrulanır', () => {
   assert.deepEqual(
     adminStepUpBodySchema.parse({ currentPassword: 'guvenli-parola', totpCode: '123456' }),
     { currentPassword: 'guvenli-parola', totpCode: '123456' },
@@ -208,13 +208,7 @@ authTest('adım-yükseltme ve kritik işlem gövdeleri katı doğrulanır', () =
     permanentDeleteBodySchema.safeParse({ confirmText: 'Mini Paket', reason: 'çok kısa' }).success,
     false,
   );
-  assert.deepEqual(
-    permanentDeleteBodySchema.parse({
-      confirmText: 'Mini Paket',
-      reason: 'Katalog artık kullanılmıyor.',
-    }),
-    { confirmText: 'Mini Paket', reason: 'Katalog artık kullanılmıyor.' },
-  );
+  assert.deepEqual(permanentDeleteBodySchema.parse({}), {});
 });
 
 authTest('oturum bootstrap RLS bağlamı yalnız açık authenticate seçeneğiyle etkinleşir', () => {

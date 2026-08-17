@@ -560,17 +560,39 @@
               autocomplete="family-name"
               aria-describedby="staff-name-help"
               required /></label
-          ><label class="wide">Telefon<input name="phone" type="tel" required /></label
-          ><label class="wide"
-            >Salonlar<select
-              class="js-staff-venues"
-              name="venueIds"
-              multiple
-              size="6"
-              required
-            ></select>
-            <small>Ortak çalışabileceği tüm salonları seçin.</small></label
+          ><label class="wide">Telefon<input name="phone" type="tel" required /></label>
+          <fieldset
+            class="js-staff-venue venue-picker wide"
+            aria-describedby="staff-venues-help staff-venues-error"
           >
+            <legend>Salonlar</legend>
+            <div class="venue-picker__toolbar">
+              <input
+                class="venue-picker__search js-staff-venue-search"
+                type="search"
+                placeholder="Salon ara"
+                aria-label="Salonlarda ara"
+                autocomplete="off"
+              />
+              <strong class="venue-picker__count js-staff-venue-count" aria-live="polite"
+                >0 salon seçili</strong
+              >
+            </div>
+            <div
+              class="venue-picker__selected js-staff-venue-selected"
+              aria-label="Seçili salonlar"
+            ></div>
+            <div class="venue-picker__list js-staff-venues"></div>
+            <p class="venue-picker__empty js-staff-venue-empty" hidden>
+              Aramanızla eşleşen salon yok.
+            </p>
+            <small id="staff-venues-help">Ortak çalışabileceği tüm salonları seçin.</small>
+            <span
+              class="field-error js-staff-venues-error"
+              id="staff-venues-error"
+              aria-live="assertive"
+            ></span>
+          </fieldset>
           <small class="wide" id="staff-name-help"
             >Ad ve soyad yalnızca harf, boşluk, kesme işareti ve kısa çizgi içerebilir.</small
           >
@@ -827,42 +849,6 @@
         <div class="dialog-actions">
           <button class="secondary-button" type="button" value="cancel">Vazgeç</button
           ><button class="primary-button" type="submit">Değişiklikleri kaydet</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog class="form-dialog js-danger-dialog" aria-labelledby="danger-title">
-      <form class="form-shell js-danger-form" method="dialog">
-        <div class="sheet-heading">
-          <div>
-            <p class="section-index">Tehlikeli işlem</p>
-            <h2 id="danger-title">İşlemi onayla</h2>
-          </div>
-          <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
-        </div>
-        <p class="js-danger-copy"></p>
-        <label class="js-danger-confirm-wrap" hidden
-          >Devam etmek için <strong class="js-danger-confirm-label"></strong> yazın<input
-            class="js-danger-confirm"
-            type="text"
-            autocomplete="off"
-        /></label>
-        <label class="js-danger-reason-wrap" hidden
-          >İşlem gerekçesi<textarea
-            class="js-danger-reason"
-            rows="3"
-            minlength="10"
-            maxlength="500"
-            autocomplete="off"
-            placeholder="En az 10 karakterle işlem gerekçesini yazın"
-          ></textarea
-          ><small>Parola, doğrulama kodu veya gereksiz kişisel bilgi yazmayın.</small></label
-        >
-        <p class="dialog-message js-danger-message" role="status"></p>
-        <div class="dialog-actions">
-          <button class="secondary-button" type="button" value="cancel">Vazgeç</button
-          ><button class="mini-button mini-button--danger js-danger-submit" type="submit">
-            Onayla
-          </button>
         </div>
       </form>
     </dialog>

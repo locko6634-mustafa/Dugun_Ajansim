@@ -2,8 +2,6 @@ import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
 import { initTrustedDevices } from "../shared/trusted-devices.js";
 import {
-  showAdminStepUpDialog,
-  showCustomConfirm,
   showCustomPrompt,
   showCatalogFormModal,
   showVenueFormModal
@@ -153,13 +151,10 @@ const manualDialog = document.querySelector(".js-manual-dialog");
 const manualForm = document.querySelector(".js-manual-form");
 const weddingDialog = document.querySelector(".js-wedding-dialog");
 const weddingForm = document.querySelector(".js-wedding-form");
-const dangerDialog = document.querySelector(".js-danger-dialog");
-const dangerForm = document.querySelector(".js-danger-form");
 const connectionStatus = document.querySelector(".js-connection-status");
 const connectionText = document.querySelector(".js-connection-text");
 const lastDataTime = document.querySelector(".js-last-data-time");
 const dialogReturnFocus = new WeakMap();
-let dangerTrigger = null;
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -193,113 +188,7 @@ document.querySelectorAll("dialog").forEach((dialog) => {
   });
 });
 
-dangerForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
-  button.addEventListener("click", () => dangerDialog.close());
-});
-
-function requestDangerConfirmation(
-  { title, copy, confirmation = "", button = "Kalıcı sil", reasonRequired = false },
-  trigger
-) {
-  dangerTrigger = trigger;
-  dangerForm.querySelector("h2").textContent = title;
-  dangerForm.querySelector(".js-danger-copy").textContent = copy;
-  dangerForm.querySelector(".js-danger-confirm-wrap").hidden = !confirmation;
-  dangerForm.querySelector(".js-danger-confirm-label").textContent = confirmation;
-  const input = dangerForm.querySelector(".js-danger-confirm");
-  input.value = "";
-  input.required = Boolean(confirmation);
-  const reasonWrap = dangerForm.querySelector(".js-danger-reason-wrap");
-  const reasonInput = dangerForm.querySelector(".js-danger-reason");
-  reasonWrap.hidden = !reasonRequired;
-  reasonInput.value = "";
-  reasonInput.required = reasonRequired;
-  dangerForm.querySelector(".js-danger-message").textContent = "";
-  dangerForm.querySelector(".js-danger-submit").textContent = button;
-  openManagedDialog(dangerDialog, trigger);
-  setTimeout(
-    () =>
-      (confirmation
-        ? input
-        : reasonRequired
-          ? reasonInput
-          : dangerForm.querySelector(".js-danger-submit")
-      ).focus(),
-    0
-  );
-  return new Promise((resolve) => {
-    let settled = false;
-    const done = (result) => {
-      if (settled) return;
-      settled = true;
-      dangerDialog.removeEventListener("close", closed);
-      dangerForm.onsubmit = null;
-      input.value = "";
-      reasonInput.value = "";
-      if (dangerDialog.open) dangerDialog.close();
-      resolve(result);
-      dangerTrigger?.focus();
-      dangerTrigger = null;
-    };
-    const closed = () => done(null);
-    dangerDialog.addEventListener("close", closed, { once: true });
-    dangerForm.onsubmit = (event) => {
-      event.preventDefault();
-      const confirmText = input.value.trim();
-      const reason = reasonInput.value.trim();
-      if (confirmation && confirmText !== confirmation) {
-        dangerForm.querySelector(".js-danger-message").textContent =
-          "Onay metni gösterilen değerle tam olarak eşleşmelidir.";
-        input.focus();
-        return;
-      }
-      if (reasonRequired && reason.length < 10) {
-        dangerForm.querySelector(".js-danger-message").textContent =
-          "İşlem gerekçesi en az 10 karakter olmalıdır.";
-        reasonInput.focus();
-        return;
-      }
-      done(reasonRequired ? { confirmText, reason } : confirmation ? confirmText : true);
-    };
-  });
-}
-
-const isAdminStepUpRequired = (error) =>
-  error?.status === 428 && error?.payload?.details?.code === "ADMIN_STEP_UP_REQUIRED";
-
-const requestAdminStepUp = (actionLabel) =>
-  showAdminStepUpDialog({
-    message: `${actionLabel} için güncel yönetici parolanız ve doğrulama uygulamanızdaki kod gereklidir.`,
-    onVerify: ({ currentPassword, totpCode, signal }) =>
-      apiRequest("/auth/admin-step-up", {
-        method: "POST",
-        signal,
-        body: { currentPassword, totpCode }
-      })
-  });
-
-async function apiRequestWithAdminStepUp(path, options, { actionLabel = "Bu işlem" } = {}) {
-  try {
-    return await apiRequest(path, options);
-  } catch (error) {
-    if (!isAdminStepUpRequired(error)) throw error;
-  }
-
-  const verified = await requestAdminStepUp(actionLabel);
-  if (!verified) return null;
-  return apiRequest(path, options);
-}
-
-async function requestRequiredReason(options) {
-  const value = await showCustomPrompt({ ...options, required: true });
-  if (value === null || value === undefined || String(value).trim() === "") return null;
-  const reason = String(value).trim();
-  if (reason.length < 10) {
-    setMessage("İşlem gerekçesi en az 10 karakter olmalıdır.");
-    return null;
-  }
-  return reason;
-}
+const apiRequestWithAdminStepUp = (path, options) => apiRequest(path, options);
 
 const formatDate = (value, includeTime = false) =>
   value
@@ -657,7 +546,7 @@ async function prepareWhatsAppMessageTask(
       `/admin/message-tasks/${id}/override-due`,
       {
         method: "POST",
-        body: { reason: "Müşteri hesabı düğün ayrıntılarından erken aktifleştirildi." }
+        body: {}
       },
       { actionLabel: "Müşteri hesabını erken aktifleştirme" }
     );
@@ -1051,7 +940,7 @@ function renderApplicationCard(item) {
         <button class="mini-button" type="button" data-open-application="${escapeHtml(item.id)}">Detaylar</button>
         ${
           item.deletedAt
-            ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button>${["ONAY_BEKLIYOR", "REDDEDILDI"].includes(item.status) ? `<button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>` : ""}`
+            ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button>${["ONAY_BEKLIYOR", "REDDEDILDI"].includes(item.status) ? `<button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}">Kalıcı Sil</button>` : ""}`
             : item.status === "ONAY_BEKLIYOR"
               ? `${canApprove ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button>` : ""}<button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
               : ["REDDEDILDI", "IPTAL_EDILDI"].includes(item.status)
@@ -1260,7 +1149,7 @@ function renderApplicationDetailModal(item) {
       <div class="app-detail-footer-actions">
         ${
           item.deletedAt
-            ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button>${["ONAY_BEKLIYOR", "REDDEDILDI"].includes(item.status) ? `<button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}" data-confirm="${escapeHtml(item.referenceCode)}">Kalıcı Sil</button>` : ""}`
+            ? `<button class="mini-button" type="button" data-restore-application="${item.id}">Geri Yükle</button>${["ONAY_BEKLIYOR", "REDDEDILDI"].includes(item.status) ? `<button class="mini-button mini-button--danger" type="button" data-delete-application="${item.id}">Kalıcı Sil</button>` : ""}`
             : item.status === "ONAY_BEKLIYOR"
               ? `${canApprove ? `<button class="mini-button mini-button--primary" type="button" data-approve="${item.id}">Onayla</button>` : ""}<button class="mini-button mini-button--danger" type="button" data-reject="${item.id}">Reddet</button><button class="mini-button" type="button" data-archive-application="${item.id}">Arşivle</button>`
               : ["REDDEDILDI", "IPTAL_EDILDI"].includes(item.status)
@@ -1309,7 +1198,7 @@ function renderWeddingLifecycleActions(wedding) {
     wedding.customerUser.mustChangePassword && activationTask
       ? `<button class="primary-button" type="button" data-activate-customer="${escapeHtml(activationTask.id)}" data-task-status="${escapeHtml(activationTask.status)}" data-task-due-at="${escapeHtml(activationTask.dueAt)}" data-task-early-override-at="${escapeHtml(activationTask.earlyOverrideAt || "")}">Müşteri hesabını aktifleştir</button>`
       : "";
-  const commonActions = `${activationAction}<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}" data-confirm="${escapeHtml(wedding.customerUser.username)}">Müşteri parolasını sıfırla</button>`;
+  const commonActions = `${activationAction}<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}">Müşteri parolasını sıfırla</button>`;
   if (new Date(wedding.endsAt).valueOf() > Date.now()) {
     return `${commonActions}<button class="secondary-button" type="button" data-cancel-wedding="${wedding.id}">Düğünü iptal et</button>`;
   }
@@ -1336,7 +1225,7 @@ function renderWeddingDetail(wedding) {
   const paymentRemainingCents = Math.max(paymentTotalCents - paymentReceivedCents, 0);
   document.querySelector(".js-detail-title").textContent = coupleName(wedding);
   weddingPdfButton.disabled = false;
-  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(wedding.cancelledAt ? "İptal edildi" : STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span>${wedding.cancelledAt && wedding.cancellationReason ? `<small>İptal nedeni: ${escapeHtml(wedding.cancellationReason)}</small>` : ""}</div><div class="detail-actions">${renderWeddingLifecycleActions(wedding)}</div></section>
+  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(wedding.cancelledAt ? "İptal edildi" : STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span></div><div class="detail-actions">${renderWeddingLifecycleActions(wedding)}</div></section>
   <div class="detail-grid">
     <section class="detail-block"><h3>Çift ve iletişim</h3><div class="contact-line"><span>${escapeHtml(wedding.brideFirstName)} ${escapeHtml(wedding.brideLastName)}</span><a href="${safePhoneHref(wedding.bridePhone)}">${escapeHtml(wedding.bridePhone)}</a></div><div class="contact-line"><span>${escapeHtml(wedding.groomFirstName)} ${escapeHtml(wedding.groomLastName)}</span><a href="${safePhoneHref(wedding.groomPhone)}">${escapeHtml(wedding.groomPhone)}</a></div><div class="contact-line"><span>E-posta</span><a href="mailto:${escapeHtml(wedding.primaryEmail)}">${escapeHtml(wedding.primaryEmail)}</a></div></section>
     <section class="detail-block"><h3>Paket</h3>${packageDetail(wedding.packageSummary)}${wedding.note ? `<p>${escapeHtml(wedding.note)}</p>` : ""}</section>
@@ -1374,7 +1263,7 @@ function renderWeddingDetail(wedding) {
             )}</select><input data-field="dueDate" type="date" aria-label="Teslim tarihi" aria-describedby="delivery-error-${delivery.id}" min="${expectedDeliveryDate}" max="${expectedDeliveryDate}" value="${String(delivery.dueDate).slice(0, 10)}" ${deliveryInputsDisabled ? "disabled" : ""} /><input data-field="driveUrl" type="url" aria-label="Google Drive veya WeTransfer bağlantısı" aria-describedby="delivery-error-${delivery.id}" placeholder="https://drive.google.com/... veya https://we.tl/..." value="${escapeHtml(delivery.driveUrl || "")}" ${deliveryInputsDisabled ? "disabled" : ""} /><button class="mini-button" type="button" data-save-delivery="${delivery.id}" ${deliveryInputsDisabled ? "disabled" : ""}>Kaydet</button><button class="mini-button mini-button--primary" type="button" data-deliver="${delivery.id}" ${deliveryLocked || delivery.status !== "TESLIME_HAZIR" || !delivery.hasDriveUrl ? "disabled" : ""}>Teslim Et</button>${delivery.status === "TESLIM_EDILDI" && !delivery.revokedAt && !deliveryLocked ? `<button class="mini-button mini-button--danger" type="button" data-revoke-delivery="${delivery.id}">Erişimi geri çek</button>` : ""}${delivery.revokedAt ? `<span class="status-dot">Erişim geri çekildi</span>` : ""}<p id="delivery-error-${delivery.id}" class="dialog-message js-delivery-message" role="alert" aria-live="assertive"></p></div>`
         : empty("Teslimat kaydı yok.")
     }</section>
-    ${wedding.deletedAt && !wedding.cancelledAt ? `<section class="detail-block wide danger-zone"><h3>Tehlikeli işlemler</h3><p>Kalıcı silme; atamaları, mesaj görevlerini ve teslimat operasyon kayıtlarını geri alınamaz şekilde siler. Denetim kayıtları korunur.</p><button class="mini-button mini-button--danger" type="button" data-delete-wedding="${wedding.id}" data-confirm="${escapeHtml(coupleName(wedding))}">Kalıcı Sil</button></section>` : ""}
+    ${wedding.deletedAt && !wedding.cancelledAt ? `<section class="detail-block wide danger-zone"><h3>Tehlikeli işlemler</h3><p>Kalıcı silme; atamaları, mesaj görevlerini ve teslimat operasyon kayıtlarını geri alınamaz şekilde siler. Denetim kayıtları korunur.</p><button class="mini-button mini-button--danger" type="button" data-delete-wedding="${wedding.id}">Kalıcı Sil</button></section>` : ""}
     <section class="detail-block wide"><h3>Mesaj geçmişi</h3><div class="message-timeline">${
       wedding.messageTasks.length
         ? wedding.messageTasks
@@ -1426,8 +1315,8 @@ async function ensureVenues() {
   const options = state.venues
     .map((venue) => `<option value="${escapeHtml(venue.id)}">${escapeHtml(venue.name)}</option>`)
     .join("");
-  document.querySelector(".js-staff-venues").innerHTML = options;
-  renderManagedVenueChoices();
+  renderVenueChoices(staffForm);
+  renderVenueChoices(managedUserForm);
   const filterVenueSelect = document.querySelector(".js-staff-venue-filter");
   if (filterVenueSelect) {
     const currentValue = filterVenueSelect.value;
@@ -1436,84 +1325,107 @@ async function ensureVenues() {
   }
 }
 
-function selectVenueOptions(select, venueIds) {
-  const selected = new Set(venueIds);
-  [...select.options].forEach((option) => {
-    option.selected = selected.has(option.value);
-  });
+function venuePickerField(form) {
+  return form.querySelector(".venue-picker");
 }
 
-function managedVenueInputs() {
-  return [...managedUserForm.querySelectorAll('input[name="venueIds"]')];
+function venuePickerInputs(form) {
+  return [...venuePickerField(form).querySelectorAll('input[name="venueIds"]')];
 }
 
-function selectedManagedVenueIds() {
-  return managedVenueInputs()
+function selectedVenueIds(form) {
+  return venuePickerInputs(form)
     .filter((input) => input.checked)
     .map((input) => input.value);
 }
 
-function updateManagedVenueSummary() {
-  const selectedIds = new Set(selectedManagedVenueIds());
+function updateVenueSummary(form) {
+  const field = venuePickerField(form);
+  const selectedIds = new Set(selectedVenueIds(form));
   const selectedVenues = state.venues.filter((venue) => selectedIds.has(venue.id));
-  const count = managedUserForm.querySelector(".js-managed-user-venue-count");
-  const selected = managedUserForm.querySelector(".js-managed-user-venue-selected");
+  const count = field.querySelector(".venue-picker__count");
+  const selected = field.querySelector(".venue-picker__selected");
   count.textContent = `${selectedVenues.length} salon seçili`;
   selected.innerHTML = selectedVenues
     .map(
       (venue) =>
-        `<button type="button" data-remove-managed-venue="${escapeHtml(venue.id)}" aria-label="${escapeHtml(`${venue.name} salonunu çıkar`)}">${escapeHtml(venue.name)} <span aria-hidden="true">×</span></button>`
+        `<button type="button" data-remove-venue="${escapeHtml(venue.id)}" aria-label="${escapeHtml(`${venue.name} salonunu çıkar`)}">${escapeHtml(venue.name)} <span aria-hidden="true">×</span></button>`
     )
     .join("");
 }
 
-function setManagedVenueSelection(venueIds) {
+function setVenueSelection(form, venueIds) {
   const selected = new Set(venueIds);
-  managedVenueInputs().forEach((input) => {
+  venuePickerInputs(form).forEach((input) => {
     input.checked = selected.has(input.value);
   });
-  updateManagedVenueSummary();
-  managedUserForm.querySelector(".js-managed-user-venue").setAttribute("aria-invalid", "false");
-  managedUserForm.querySelector(".js-managed-user-venues-error").textContent = "";
+  const field = venuePickerField(form);
+  updateVenueSummary(form);
+  field.setAttribute("aria-invalid", "false");
+  field.querySelector(".field-error").textContent = "";
 }
 
-function renderManagedVenueChoices() {
-  const selectedIds = selectedManagedVenueIds();
-  const container = managedUserForm.querySelector(".js-managed-user-venues");
+function renderVenueChoices(form) {
+  const field = venuePickerField(form);
+  const selectedIds = selectedVenueIds(form);
+  const container = field.querySelector(".venue-picker__list");
   container.innerHTML = state.venues
     .map(
       (venue) =>
         `<label class="venue-picker__choice"><input type="checkbox" name="venueIds" value="${escapeHtml(venue.id)}"><span>${escapeHtml(venue.name)}</span></label>`
     )
     .join("");
-  setManagedVenueSelection(selectedIds);
+  setVenueSelection(form, selectedIds);
 }
 
-function filterManagedVenueChoices() {
-  const search = managedUserForm.querySelector(".js-managed-user-venue-search");
+function filterVenueChoices(form) {
+  const field = venuePickerField(form);
+  const search = field.querySelector(".venue-picker__search");
   const term = search.value.trim().toLocaleLowerCase(APP_LOCALE);
   let visibleCount = 0;
-  managedUserForm.querySelectorAll(".venue-picker__choice").forEach((choice) => {
+  field.querySelectorAll(".venue-picker__choice").forEach((choice) => {
     const matches = choice.textContent.toLocaleLowerCase(APP_LOCALE).includes(term);
     choice.hidden = !matches;
     if (matches) visibleCount += 1;
   });
-  managedUserForm.querySelector(".js-managed-user-venue-empty").hidden = visibleCount > 0;
+  field.querySelector(".venue-picker__empty").hidden = visibleCount > 0;
 }
 
-function validateManagedVenueSelection() {
-  const valid = selectedManagedVenueIds().length > 0;
-  const field = managedUserForm.querySelector(".js-managed-user-venue");
-  const error = managedUserForm.querySelector(".js-managed-user-venues-error");
+function validateVenueSelection(form) {
+  const valid = selectedVenueIds(form).length > 0;
+  const field = venuePickerField(form);
+  const error = field.querySelector(".field-error");
   field.setAttribute("aria-invalid", String(!valid));
   error.textContent = valid ? "" : "En az bir salon seçin.";
   if (!valid) {
-    const search = managedUserForm.querySelector(".js-managed-user-venue-search");
+    const search = field.querySelector(".venue-picker__search");
     search.value = "";
-    filterManagedVenueChoices();
-    managedVenueInputs()[0]?.focus();
+    filterVenueChoices(form);
+    venuePickerInputs(form)[0]?.focus();
   }
   return valid;
+}
+
+function setupVenuePicker(form) {
+  const field = venuePickerField(form);
+  field.querySelector(".venue-picker__search").addEventListener("input", () => {
+    filterVenueChoices(form);
+  });
+  field.querySelector(".venue-picker__list").addEventListener("change", (event) => {
+    if (event.target.name !== "venueIds") return;
+    updateVenueSummary(form);
+    validateVenueSelection(form);
+  });
+  field.querySelector(".venue-picker__selected").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-remove-venue]");
+    if (!button) return;
+    const input = venuePickerInputs(form).find(
+      (candidate) => candidate.value === button.dataset.removeVenue
+    );
+    if (input) input.checked = false;
+    updateVenueSummary(form);
+    validateVenueSelection(form);
+  });
 }
 
 function renderStaff() {
@@ -1542,7 +1454,7 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" data-confirm="${escapeHtml(`${staff.firstName} ${staff.lastName}`)}">Sil</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}">Sil</button></footer></article>`
         )
         .join("")
     : empty("Filtreye uyan personel yok.");
@@ -1556,11 +1468,13 @@ async function openStaffForm(staff = null) {
   staffForm.elements.lastName.value = staff?.lastName || "";
   staffForm.elements.phone.value = staff?.phone || "";
   staffForm.elements.isActive.checked = staff?.isActive ?? true;
-  selectVenueOptions(
-    staffForm.elements.venueIds,
+  setVenueSelection(
+    staffForm,
     staff?.venues?.map((venue) => venue.id) ||
       [staff?.venueId || state.venues[0]?.id].filter(Boolean)
   );
+  staffForm.querySelector(".js-staff-venue-search").value = "";
+  filterVenueChoices(staffForm);
   document.querySelector(".js-staff-form-title").textContent = staff
     ? "Personeli düzenle"
     : "Personel ekle";
@@ -1624,9 +1538,9 @@ function syncManagedUserRole() {
   const isMontageUser = role === "MONTAJCI";
   const venueField = managedUserForm.querySelector(".js-managed-user-venue");
   venueField.hidden = isMontageUser;
-  if (isMontageUser) setManagedVenueSelection([]);
-  else if (!selectedManagedVenueIds().length && state.venues[0]) {
-    setManagedVenueSelection([state.venues[0].id]);
+  if (isMontageUser) setVenueSelection(managedUserForm, []);
+  else if (!selectedVenueIds(managedUserForm).length && state.venues[0]) {
+    setVenueSelection(managedUserForm, [state.venues[0].id]);
   }
 }
 
@@ -1638,12 +1552,13 @@ async function openManagedUserForm(user = null, role = "SALON_YETKILISI") {
   managedUserForm.elements.role.value = role;
   managedUserForm.elements.role.disabled = Boolean(user);
   managedUserForm.elements.username.value = user?.username || "";
-  setManagedVenueSelection(
+  setVenueSelection(
+    managedUserForm,
     user?.venues?.map((venue) => venue.id) ||
       [user?.venue?.id || state.venues[0]?.id].filter(Boolean)
   );
   managedUserForm.querySelector(".js-managed-user-venue-search").value = "";
-  filterManagedVenueChoices();
+  filterVenueChoices(managedUserForm);
   managedUserForm.elements.isActive.checked = user?.status !== "DISABLED";
   managedUserForm.elements.password.required = !user;
   document.querySelector(".js-managed-user-password-note").textContent = user
@@ -1666,7 +1581,7 @@ function renderMessageActions(task) {
   const retryReached = !task.nextAttemptAt || new Date(task.nextAttemptAt).valueOf() <= Date.now();
   const cancelButton = `<button class="mini-button" type="button" data-cancel-message="${task.id}">İptal</button>`;
   const overrideButton = !dueReached
-    ? `<button class="mini-button" type="button" data-override-message="${task.id}">Erken gönderim onayı</button>`
+    ? `<button class="mini-button" type="button" data-override-message="${task.id}">Şimdi gönder</button>`
     : "";
   if (task.status === "PLANNED" || task.status === "FAILED") {
     return `<button class="mini-button mini-button--primary" type="button" data-prepare-message="${task.id}" ${retryReached ? "" : "disabled"}>Hazırla</button>${overrideButton}${cancelButton}`;
@@ -2209,15 +2124,6 @@ async function handleApplicationAction(event) {
       setMessage("Başvuru reddedildi.", true);
       if (appDetailDialog?.open) appDetailDialog.close();
     } else if (archiveButton) {
-      const accepted = await requestDangerConfirmation(
-        {
-          title: "Başvuruyu arşivle",
-          copy: "Başvuru normal listelerden kaldırılır ancak referans numarası korunur. Dekont daha sonra gelirse başvuru arşivden geri yüklenebilir.",
-          button: "Arşivle"
-        },
-        archiveButton
-      );
-      if (accepted === null) return;
       await apiRequest(
         `/admin/booking-applications/${archiveButton.dataset.archiveApplication}/archive`,
         { method: "POST" }
@@ -2235,23 +2141,12 @@ async function handleApplicationAction(event) {
       );
       if (appDetailDialog?.open) appDetailDialog.close();
     } else if (deleteButton) {
-      const confirmation = await requestDangerConfirmation(
-        {
-          title: "Başvuruyu kalıcı sil",
-          copy: "Bu işlem geri alınamaz. Başvuru ve bağlı hizmet seçimleri silinecektir.",
-          confirmation: deleteButton.dataset.confirm,
-          button: "Kalıcı Sil",
-          reasonRequired: true
-        },
-        deleteButton
-      );
-      if (confirmation === null) return;
       deleteButton.disabled = true;
       const response = await apiRequestWithAdminStepUp(
         `/admin/booking-applications/${deleteButton.dataset.deleteApplication}`,
         {
           method: "DELETE",
-          body: confirmation
+          body: {}
         },
         { actionLabel: "Başvuruyu kalıcı silme" }
       );
@@ -2333,31 +2228,11 @@ detailContent.addEventListener("submit", async (event) => {
         if (formMessage) formMessage.textContent = formErrorMessage(form, error);
         return;
       }
-      const summary = conflicts
-        .map((wedding) => `${coupleName(wedding)} (${formatDate(wedding.startsAt, true)})`)
-        .join("\n");
-      const confirmed = await showCustomConfirm({
-        title: "Çakışan Görev Uyarısı",
-        message: `Personelin çakışan görevi var:\n${summary}\n\nYine de atansın mı?`,
-        confirmText: "Yine de Atansın",
-        cancelText: "Vazgeç",
-        isWarning: true
-      });
-      if (!confirmed) return;
-      const overrideReason = await requestRequiredReason({
-        title: "Çakışan atama gerekçesi",
-        message: "Bu istisnanın neden gerekli olduğunu denetim kaydı için yazın.",
-        placeholder: "En az 10 karakterlik operasyon gerekçesi",
-        confirmText: "Gerekçeyi kaydet",
-        cancelText: "Vazgeç",
-        isWarning: true
-      });
-      if (!overrideReason) return;
       const response = await apiRequestWithAdminStepUp(
         `/admin/weddings/${state.currentWedding.id}/assignments`,
         {
           method: "POST",
-          body: { ...body, allowConflict: true, overrideReason }
+          body: { ...body, allowConflict: true }
         },
         { actionLabel: "Çakışan personel ataması" }
       );
@@ -2462,34 +2337,15 @@ detailContent.addEventListener("click", async (event) => {
       });
       setMessage("Teslimat bilgileri kaydedildi.", true);
     } else if (deliverButton) {
-      const sharingConfirmation = await showCustomPrompt({
-        title: "Teslimat bağlantısını doğrula",
-        message:
-          "Bağlantıyı gizli pencerede açıp 'bağlantıya sahip herkes' erişimini doğrulayın ve ERİŞİMİ DOĞRULADIM yazın.",
-        placeholder: "ERİŞİMİ DOĞRULADIM",
-        confirmText: "Teslim Et",
-        required: true
-      });
-      if (sharingConfirmation !== "ERİŞİMİ DOĞRULADIM") {
-        throw new Error("Teslimat bağlantısının paylaşım izni doğrulanmalıdır.");
-      }
       await apiRequest(`/admin/deliveries/${deliverButton.dataset.deliver}/deliver`, {
         method: "POST",
-        body: { sharingConfirmed: true, sharingConfirmation }
+        body: {}
       });
       setMessage("Teslimat müşteriye açıldı ve mesaj görevi oluşturuldu.", true);
     } else if (revokeDeliveryButton) {
-      const reason = await showCustomPrompt({
-        title: "Teslimat erişimini geri çek",
-        message: "Müşteri bağlantıya artık erişemeyecek. Gerekçeyi yazın.",
-        confirmText: "Erişimi geri çek",
-        isDanger: true,
-        required: true
-      });
-      if (!reason) return;
       const response = await apiRequestWithAdminStepUp(
         `/admin/deliveries/${revokeDeliveryButton.dataset.revokeDelivery}/revoke`,
-        { method: "POST", body: { reason } },
+        { method: "POST", body: {} },
         { actionLabel: "Teslimat erişimini geri çekme" }
       );
       if (!response) return;
@@ -2512,71 +2368,31 @@ detailContent.addEventListener("click", async (event) => {
         true
       );
     } else if (resetButton) {
-      const confirmation = await requestDangerConfirmation(
-        {
-          title: "Müşteri parolasını sıfırla",
-          copy: "Müşterinin açık oturumları kapatılır ve tek kullanımlık parola belirleme bağlantısı hazırlanır.",
-          confirmation: resetButton.dataset.confirm,
-          button: "Parolayı Sıfırla",
-          reasonRequired: true
-        },
-        resetButton
-      );
-      if (confirmation === null) return;
       const response = await apiRequestWithAdminStepUp(
         `/admin/customers/${resetButton.dataset.resetUser}/reset-password`,
-        { method: "POST", body: confirmation },
+        { method: "POST", body: {} },
         { actionLabel: "Müşteri parolasını sıfırlama" }
       );
       if (!response) return;
       setMessage("Parola sıfırlama görevi oluşturuldu; Mesajlar bölümünden hazırlayın.", true);
       await Promise.all([loadMessages(), loadDashboard()]);
     } else if (cancelWeddingButton) {
-      const reason = await requestRequiredReason({
-        title: "Düğünü iptal et",
-        message:
-          "Müşteri erişimi ve bekleyen mesaj görevleri durdurulur. Personel atamaları kayıt amacıyla korunur.",
-        placeholder: "En az 10 karakterlik iptal nedeni",
-        confirmText: "Düğünü iptal et",
-        cancelText: "Vazgeç",
-        isDanger: true
-      });
-      if (!reason) return;
       const response = await apiRequestWithAdminStepUp(
         `/admin/weddings/${cancelWeddingButton.dataset.cancelWedding}/cancel`,
-        { method: "POST", body: { reason } },
+        { method: "POST", body: {} },
         { actionLabel: "Düğünü iptal etme" }
       );
       if (!response) return;
       setMessage("Düğün iptal edildi; müşteri ve mesaj erişimleri durduruldu.", true);
     } else if (reinstateWeddingButton) {
-      const reason = await requestRequiredReason({
-        title: "Düğün iptalini geri al",
-        message:
-          "Takvim uygunluğu yeniden denetlenir. İptalde geri çekilen teslimat erişimi kendiliğinden açılmaz.",
-        placeholder: "En az 10 karakterlik geri alma nedeni",
-        confirmText: "İptali geri al",
-        cancelText: "Vazgeç",
-        isWarning: true
-      });
-      if (!reason) return;
       const response = await apiRequestWithAdminStepUp(
         `/admin/weddings/${reinstateWeddingButton.dataset.reinstateWedding}/reinstate`,
-        { method: "POST", body: { reason } },
+        { method: "POST", body: {} },
         { actionLabel: "Düğün iptalini geri alma" }
       );
       if (!response) return;
       setMessage("Düğün iptali geri alındı; teslimat erişimi kendiliğinden açılmadı.", true);
     } else if (archiveWeddingButton) {
-      const accepted = await requestDangerConfirmation(
-        {
-          title: "Düğünü arşivle",
-          copy: "İptal edilmiş veya zamanı geçmiş düğün; plan, takvim ve teslimat listelerinden kaldırılır. Gelecekteki aktif düğün önce iptal edilmelidir.",
-          button: "Arşivle"
-        },
-        archiveWeddingButton
-      );
-      if (accepted === null) return;
       await apiRequest(`/admin/weddings/${archiveWeddingButton.dataset.archiveWedding}/archive`, {
         method: "POST"
       });
@@ -2588,21 +2404,10 @@ detailContent.addEventListener("click", async (event) => {
       });
       setMessage("Düğün geri yüklendi.", true);
     } else if (deleteWeddingButton) {
-      const confirmation = await requestDangerConfirmation(
-        {
-          title: "Düğünü kalıcı sil",
-          copy: "Bu işlem geri alınamaz. Operasyon kayıtları silinir; denetim kayıtları korunur.",
-          confirmation: deleteWeddingButton.dataset.confirm,
-          button: "Kalıcı Sil",
-          reasonRequired: true
-        },
-        deleteWeddingButton
-      );
-      if (confirmation === null) return;
       deleteWeddingButton.disabled = true;
       const response = await apiRequestWithAdminStepUp(
         `/admin/weddings/${deleteWeddingButton.dataset.deleteWedding}`,
-        { method: "DELETE", body: confirmation },
+        { method: "DELETE", body: {} },
         { actionLabel: "Düğünü kalıcı silme" }
       );
       if (!response) {
@@ -2612,21 +2417,10 @@ detailContent.addEventListener("click", async (event) => {
       detailDialog.close();
       setMessage("Düğün kalıcı olarak silindi.", true);
     } else if (removeButton) {
-      const confirmation = await requestDangerConfirmation(
-        {
-          title: "Personel atamasını kaldır",
-          copy: "Bu işlem yalnızca atamayı kaldırır; geçmiş düğün ve personel kayıtları silinmez.",
-          confirmation: "ATAMAYI KALDIR",
-          button: "Atamayı kaldır",
-          reasonRequired: true
-        },
-        removeButton
-      );
-      if (confirmation === null) return;
       removeButton.disabled = true;
       const response = await apiRequestWithAdminStepUp(
         `/admin/weddings/${state.currentWedding.id}/assignments/${removeButton.dataset.removeAssignment}`,
-        { method: "DELETE", body: confirmation },
+        { method: "DELETE", body: {} },
         { actionLabel: "Personel atamasını kaldırma" }
       );
       if (!response) {
@@ -2688,39 +2482,25 @@ document.querySelector(".js-staff").addEventListener("click", (event) => {
       .then(() => setMessage("Personel durumu güncellendi.", true))
       .catch((error) => setMessage(error.message))
       .finally(finishInFlight);
-  } else if (deleteButton)
-    void requestDangerConfirmation(
-      {
-        title: "Personeli sil",
-        copy: "Ataması varsa personel silinmez, pasife alınır. Ataması yoksa işlem geri alınamaz.",
-        confirmation: deleteButton.dataset.confirm,
-        button: "Devam et",
-        reasonRequired: true
-      },
-      deleteButton
-    ).then(async (confirmation) => {
-      if (confirmation === null) return;
+  } else if (deleteButton) {
+    void (async () => {
       deleteButton.disabled = true;
       try {
         const response = await apiRequestWithAdminStepUp(
           `/admin/staff/${deleteButton.dataset.deleteStaff}`,
-          { method: "DELETE", body: confirmation },
+          { method: "DELETE", body: {} },
           { actionLabel: "Personel kaydını silme" }
         );
         if (!response) return;
-        setMessage(
-          response.data.action === "deactivated"
-            ? "Personelin geçmiş atamaları var; pasife alındı."
-            : "Personel kalıcı olarak silindi.",
-          true
-        );
+        setMessage("Personel kalıcı olarak silindi.", true);
         await Promise.all([loadStaff(), loadDashboard()]);
       } catch (error) {
         setMessage(error.message);
       } finally {
         deleteButton.disabled = false;
       }
-    });
+    })();
+  }
 });
 [
   ".js-staff-search",
@@ -2737,6 +2517,7 @@ staffForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
 staffForm.querySelector(".js-staff-specialties").addEventListener("change", () => {
   staffForm.querySelector(".js-staff-specialties-error").hidden = true;
 });
+setupVenuePicker(staffForm);
 staffForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (event.submitter?.value === "cancel") return;
@@ -2754,6 +2535,7 @@ staffForm.addEventListener("submit", async (event) => {
     venueIds: data.getAll("venueIds")
   };
   specialtyError.hidden = body.specialties.length > 0;
+  if (!validateVenueSelection(staffForm)) return;
   if (!body.specialties.length) {
     staffForm.querySelector('input[name="specialties"]')?.focus();
     return;
@@ -2789,26 +2571,7 @@ document.querySelector('[data-panel-content="accounts"]').addEventListener("clic
   if (user) void openManagedUserForm(user, role);
 });
 managedUserForm.elements.role.addEventListener("change", syncManagedUserRole);
-managedUserForm
-  .querySelector(".js-managed-user-venue-search")
-  .addEventListener("input", filterManagedVenueChoices);
-managedUserForm.querySelector(".js-managed-user-venues").addEventListener("change", (event) => {
-  if (event.target.name !== "venueIds") return;
-  updateManagedVenueSummary();
-  validateManagedVenueSelection();
-});
-managedUserForm
-  .querySelector(".js-managed-user-venue-selected")
-  .addEventListener("click", (event) => {
-    const button = event.target.closest("[data-remove-managed-venue]");
-    if (!button) return;
-    const input = managedVenueInputs().find(
-      (candidate) => candidate.value === button.dataset.removeManagedVenue
-    );
-    if (input) input.checked = false;
-    updateManagedVenueSummary();
-    validateManagedVenueSelection();
-  });
+setupVenuePicker(managedUserForm);
 managedUserForm.querySelectorAll('button[value="cancel"]').forEach((button) => {
   button.addEventListener("click", () => managedUserDialog.close());
 });
@@ -2819,11 +2582,11 @@ managedUserForm.addEventListener("submit", async (event) => {
   const managedUserId = data.get("managedUserId");
   const role = managedUserForm.dataset.role || data.get("role");
   const isMontageUser = role === "MONTAJCI";
-  if (!isMontageUser && !validateManagedVenueSelection()) return;
+  if (!isMontageUser && !validateVenueSelection(managedUserForm)) return;
   const body = {
     username: data.get("username"),
     status: data.has("isActive") ? "ACTIVE" : "DISABLED",
-    ...(!isMontageUser ? { venueIds: selectedManagedVenueIds() } : {}),
+    ...(!isMontageUser ? { venueIds: selectedVenueIds(managedUserForm) } : {}),
     ...(data.get("password") ? { password: data.get("password") } : {})
   };
   const endpoint = isMontageUser ? "/admin/montage-users" : "/admin/venue-managers";
@@ -2921,45 +2684,23 @@ document.querySelector(".js-messages").addEventListener("click", async (event) =
       state.openedMessageTaskIds.delete(sentButton.dataset.markSent);
       await Promise.all([loadMessages(), loadDashboard()]);
     } else if (failedButton) {
-      const reason = await showCustomPrompt({
-        title: "Gönderim başarısız",
-        message: "Yeniden deneme kuyruğuna alınması için kısa nedeni yazın.",
-        confirmText: "Başarısız işaretle",
-        required: true
-      });
-      if (!reason) return;
       await apiRequest(`/admin/message-tasks/${failedButton.dataset.markFailed}/mark-failed`, {
         method: "POST",
-        body: { expectedUpdatedAt: failedButton.dataset.taskUpdatedAt, reason }
+        body: { expectedUpdatedAt: failedButton.dataset.taskUpdatedAt }
       });
       state.openedMessageTaskIds.delete(failedButton.dataset.markFailed);
       await loadMessages();
     } else if (cancelButton) {
-      const reason = await showCustomPrompt({
-        title: "Mesaj görevini iptal et",
-        message: "İptal nedeni denetim kaydına yazılır.",
-        confirmText: "İptal et",
-        isDanger: true,
-        required: true
-      });
-      if (!reason) return;
       await apiRequest(`/admin/message-tasks/${cancelButton.dataset.cancelMessage}/cancel`, {
         method: "POST",
-        body: { reason }
+        body: {}
       });
       state.openedMessageTaskIds.delete(cancelButton.dataset.cancelMessage);
       await loadMessages();
     } else if (overrideButton) {
-      const reason = await showCustomPrompt({
-        title: "Erken gönderim onayı",
-        message: "Planlanan zamandan önce gönderme gerekçesini yazın.",
-        confirmText: "Onayla",
-        required: true
-      });
-      if (!reason) return;
       const response = await apiRequestWithAdminStepUp(
         `/admin/message-tasks/${overrideButton.dataset.overrideMessage}/override-due`,
-        { method: "POST", body: { reason } },
+        { method: "POST", body: {} },
         { actionLabel: "Mesaj için erken gönderim onayı" }
       );
       if (!response) return;
@@ -3084,30 +2825,16 @@ document
             : row.dataset.catalogType === "services"
               ? "Ek hizmeti"
               : "Mekânı";
-        const name = row.dataset.catalogName || "Katalog kaydı";
         const isVenue = row.dataset.catalogType === "venues";
-        const confirmation = await requestDangerConfirmation(
-          {
-            title: `${typeLabel} ${isVenue ? "kaldır" : "sil"}`,
-            copy: isVenue
-              ? `"${name}" mekânı ilişkili operasyon kaydı varsa pasife alınır; yoksa kalıcı silinir.`
-              : `"${name}" seçeneği kullanılmıyorsa kalıcı silinir; ilişkili kayıt varsa pasife alınır.`,
-            confirmation: name,
-            button: isVenue ? "Kaldır" : "Sil",
-            reasonRequired: true
-          },
-          deleteButton
-        );
-        if (confirmation === null) return;
         try {
           const response = await apiRequestWithAdminStepUp(
             `/admin/${row.dataset.catalogType}/${row.dataset.catalogRow}`,
-            { method: "DELETE", body: confirmation },
+            { method: "DELETE", body: {} },
             { actionLabel: `${typeLabel} ${isVenue ? "kaldırma" : "silme"}` }
           );
           if (!response) return;
           await loadCatalogAdmin();
-          setCatalogMessage(`${typeLabel} ${isVenue ? "kaldırıldı" : "silindi"}.`, true);
+          setCatalogMessage(`${typeLabel} silindi.`, true);
         } catch (error) {
           setCatalogMessage(error.message);
         }

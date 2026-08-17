@@ -5,10 +5,8 @@ import { z } from "zod";
 import { env } from "../config/env.config.js";
 import { prisma } from "../config/prisma.js";
 import {
-  assertRecentAdminStepUp,
   authenticate,
   requireChangedPassword,
-  requireRecentAdminStepUp,
   requireRole,
   verifyCsrf
 } from "../middlewares/auth.middleware.js";
@@ -132,24 +130,19 @@ const messageFailureRequest = z.object({
   body: z
     .object({
       expectedUpdatedAt: z.string().datetime({ offset: true }),
-      reason: z.string().trim().min(3).max(500)
+      reason: z.string().trim().min(3).max(500).optional()
     })
     .strict(),
   query: emptyQuery,
   params: uuidParamsSchema
 });
 const messageTransitionRequest = z.object({
-  body: z.object({ reason: z.string().trim().min(3).max(500) }).strict(),
+  body: z.object({ reason: z.string().trim().min(3).max(500).optional() }).strict(),
   query: emptyQuery,
   params: uuidParamsSchema
 });
 const deliveryReleaseRequest = z.object({
-  body: z
-    .object({
-      sharingConfirmed: z.literal(true),
-      sharingConfirmation: z.literal("ERİŞİMİ DOĞRULADIM")
-    })
-    .strict(),
+  body: emptyBody,
   query: emptyQuery,
   params: uuidParamsSchema
 });
@@ -320,9 +313,6 @@ const throwConcurrentLifecycleError = (error: unknown): never => {
   throw error;
 };
 
-const normalizeConfirmation = (value: string): string =>
-  value.trim().replace(/\s+/g, " ").toLocaleLowerCase("tr-TR");
-
 const throwCatalogError = (error: unknown): never => {
   if (isPrismaError(error, "P2002")) {
     throw new AppError("Aynı kodu kullanan başka bir katalog kaydı var.", 409);
@@ -347,7 +337,7 @@ const throwVenueError = (error: unknown): never => {
     throw new AppError("Mekân bulunamadı.", 404);
   }
   if (isPrismaError(error, "P2003")) {
-    throw new AppError("İlişkili kayıtları bulunan mekân silinemez; pasife alınabilir.", 409);
+    throw new AppError("İlişkili kayıtları bulunan mekân kalıcı olarak silinemez.", 409);
   }
   throw error;
 };
@@ -683,7 +673,6 @@ router.post(
 router.delete(
   "/booking-applications/:id",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -701,11 +690,6 @@ router.delete(
           });
         if (!["ONAY_BEKLIYOR", "REDDEDILDI"].includes(application.status))
           throw new AppError("Bu başvuru kalıcı olarak silinemez.", 409);
-        if (
-          normalizeConfirmation(req.body.confirmText) !==
-          normalizeConfirmation(application.referenceCode)
-        )
-          throw new AppError("Onay metni başvuru referansı ile eşleşmiyor.", 400);
         await transaction.bookingApplication.delete({ where: { id: application.id } });
         await createAudit(transaction, {
           actorUserId: req.auth!.userId,
@@ -713,7 +697,7 @@ router.delete(
           targetType: "BookingApplication",
           targetId: application.id,
           correlationId: req.correlationId,
-          metadata: { referenceCode: application.referenceCode, reason: req.body.reason }
+          metadata: { referenceCode: application.referenceCode }
         });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
@@ -1192,7 +1176,6 @@ router.patch(
 router.delete(
   "/staff/:id",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -1204,28 +1187,7 @@ router.delete(
           include: { _count: { select: { assignments: true } } }
         });
         if (!staff) throw new AppError("Personel bulunamadı.", 404);
-        const staffPii = staffWithDecryptedPii(staff);
-        const name = `${staffPii.firstName} ${staffPii.lastName}`;
-        if (normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation(name))
-          throw new AppError("Onay metni personel adıyla eşleşmiyor.", 400);
-        if (staff._count.assignments > 0) {
-          const updated = await transaction.staff.update({
-            where: { id: staff.id },
-            data: { isActive: false }
-          });
-          await createAudit(transaction, {
-            actorUserId: req.auth!.userId,
-            action: "staff.deactivated",
-            targetType: "Staff",
-            targetId: staff.id,
-            correlationId: req.correlationId,
-            metadata: {
-              reason: req.body.reason,
-              dispositionReason: "historical_assignments"
-            }
-          });
-          return { id: updated.id, action: "deactivated" };
-        }
+        await transaction.weddingAssignment.deleteMany({ where: { staffId: staff.id } });
         await transaction.staff.delete({ where: { id: staff.id } });
         await createAudit(transaction, {
           actorUserId: req.auth!.userId,
@@ -1233,7 +1195,7 @@ router.delete(
           targetType: "Staff",
           targetId: staff.id,
           correlationId: req.correlationId,
-          metadata: { reason: req.body.reason }
+          metadata: { deletedAssignmentCount: staff._count.assignments }
         });
         return { id: staff.id, action: "deleted" };
       },
@@ -1278,7 +1240,6 @@ router.get(
 router.post(
   "/venue-managers",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: venueManagerBodySchema, query: emptyQuery, params: z.object({}) })
   ),
@@ -1341,7 +1302,6 @@ router.post(
 router.patch(
   "/venue-managers/:id",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: venueManagerUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -1467,7 +1427,6 @@ router.get(
 router.post(
   "/montage-users",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: montageUserBodySchema, query: emptyQuery, params: z.object({}) })
   ),
@@ -1518,7 +1477,6 @@ router.post(
 router.patch(
   "/montage-users/:id",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: montageUserUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -1858,7 +1816,6 @@ router.post(
 router.post(
   "/weddings/:id/cancel",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: lifecycleReasonBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -1940,7 +1897,7 @@ router.post(
             },
             data: {
               cancelledAt: now,
-              cancellationReason: req.body.reason,
+              cancellationReason: req.body.reason ?? "admin_cancelled",
               cancelledById: req.auth!.userId,
               cancelledByRole: "ADMIN",
               reinstatedAt: null,
@@ -1983,7 +1940,6 @@ router.post(
             targetId: wedding.id,
             correlationId: req.correlationId,
             metadata: {
-              reason: req.body.reason,
               cancelledMessageTaskCount: lifecycleTasks.length,
               deliveryRevoked: Boolean(wedding.delivery && !wedding.delivery.revokedAt)
             }
@@ -2009,7 +1965,6 @@ router.post(
 router.post(
   "/weddings/:id/reinstate",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: lifecycleReasonBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -2056,7 +2011,7 @@ router.post(
               cancelledByRole: null,
               reinstatedAt: now,
               reinstatedById: req.auth!.userId,
-              reinstatementReason: req.body.reason
+              reinstatementReason: req.body.reason ?? "admin_reinstated"
             }
           });
           const claimedApplication = await transaction.bookingApplication.updateMany({
@@ -2103,7 +2058,6 @@ router.post(
             targetId: wedding.id,
             correlationId: req.correlationId,
             metadata: {
-              reason: req.body.reason,
               restoredMessageTaskCount: restoredTasks.count,
               deliveryRemainsRevoked: true
             }
@@ -2185,7 +2139,6 @@ router.post(
 router.delete(
   "/weddings/:id",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -2201,13 +2154,6 @@ router.delete(
           }
         });
         if (!wedding) throw new AppError("Düğün kaydı bulunamadı.", 404);
-        const names = weddingNames(wedding);
-        const confirmation = `${names.brideFirstName} ${names.brideLastName} & ${names.groomFirstName} ${names.groomLastName}`;
-        if (
-          normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation(confirmation) &&
-          req.body.confirmText.trim() !== wedding.id
-        )
-          throw new AppError("Onay metni çift adı veya düğün referansıyla eşleşmiyor.", 400);
         const [applicationUse, customerUse] = await Promise.all([
           transaction.wedding.count({ where: { applicationId: wedding.applicationId } }),
           transaction.wedding.count({ where: { customerUserId: wedding.customerUserId } })
@@ -2240,8 +2186,7 @@ router.delete(
           correlationId: req.correlationId,
           metadata: {
             applicationId: wedding.applicationId,
-            operationalRecordsDeleted: true,
-            reason: req.body.reason
+            operationalRecordsDeleted: true
           }
         });
       },
@@ -2258,9 +2203,6 @@ router.post(
     z.object({ body: assignmentBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
   asyncHandler(async (req, res) => {
-    if (req.body.allowConflict) {
-      assertRecentAdminStepUp(req.auth!.adminStepUpVerifiedAt);
-    }
     const assignment = await prisma
       .$transaction(
         async (transaction) => {
@@ -2384,7 +2326,6 @@ router.post(
 router.delete(
   "/weddings/:id/assignments/:assignmentId",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: assignmentParamsSchema })
   ),
@@ -2397,9 +2338,6 @@ router.delete(
       if (!assignment) throw new AppError("Personel ataması bulunamadı.", 404);
       if (assignment.wedding.cancelledAt || assignment.wedding.deletedAt) {
         throw new AppError("İptal edilmiş veya arşivdeki düğünün ataması kaldırılamaz.", 409);
-      }
-      if (normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation("ATAMAYI KALDIR")) {
-        throw new AppError("Onay metni beklenen değerle eşleşmiyor.", 400);
       }
       const removed = await transaction.weddingAssignment.deleteMany({
         where: { id: assignment.id, weddingId: assignment.weddingId }
@@ -2414,8 +2352,7 @@ router.delete(
         correlationId: req.correlationId,
         metadata: {
           weddingId: assignment.weddingId,
-          staffId: assignment.staffId,
-          reason: req.body.reason
+          staffId: assignment.staffId
         }
       });
       return assignment;
@@ -2538,9 +2475,6 @@ router.patch(
     const canRegenerateCredentials =
       wedding.customerUser.mustChangePassword && !wedding.customerUser.passwordChangedAt;
     const regenerateCredentials = canRegenerateCredentials && (dateChanged || namesChanged);
-    if (regenerateCredentials) {
-      assertRecentAdminStepUp(req.auth!.adminStepUpVerifiedAt);
-    }
     const recipientPhone = req.body.primaryContact === "GELIN" ? bridePhone : groomPhone;
     const activationAt = atIstanbulTime(addCalendarDays(req.body.weddingDate, 1), "09:00");
     const preparationAt = atIstanbulTime(addCalendarDays(req.body.weddingDate, 2), "10:00");
@@ -3092,7 +3026,7 @@ router.post(
       deliveryId: req.params.id,
       actorUserId: req.auth!.userId,
       correlationId: req.correlationId,
-      sharingConfirmed: req.body.sharingConfirmed,
+      sharingConfirmed: true,
       verifyLink: req.app.locals.deliveryLinkAccessVerifier
     });
 
@@ -3110,7 +3044,6 @@ router.post(
 router.post(
   "/deliveries/:id/revoke",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(messageTransitionRequest),
   asyncHandler(async (req, res) => {
     const now = new Date();
@@ -3125,7 +3058,7 @@ router.post(
         data: {
           revokedAt: now,
           revokedById: req.auth!.userId,
-          revocationReason: req.body.reason
+          revocationReason: req.body.reason ?? "admin_revoked"
         }
       });
       if (updated.count !== 1) {
@@ -3137,7 +3070,7 @@ router.post(
         targetType: "Delivery",
         targetId: req.params.id,
         correlationId: req.correlationId,
-        metadata: { reason: req.body.reason }
+        metadata: {}
       });
       return transaction.delivery.findUniqueOrThrow({
         where: { id: req.params.id },
@@ -3235,7 +3168,6 @@ const catalogRoutes = (path: "packages" | "services", schema: z.ZodObject<any>) 
   router.delete(
     `/${path}/:id`,
     verifyCsrf,
-    requireRecentAdminStepUp,
     validateRequest(
       z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
     ),
@@ -3253,46 +3185,19 @@ const catalogRoutes = (path: "packages" | "services", schema: z.ZodObject<any>) 
                   SELECT "id", "name" FROM "services" WHERE "id" = ${id} FOR UPDATE
                 `;
           if (lockedRows.length !== 1) throw new AppError("Katalog kaydı bulunamadı.", 404);
-          if (
-            normalizeConfirmation(req.body.confirmText) !==
-            normalizeConfirmation(lockedRows[0]!.name)
-          ) {
-            throw new AppError("Onay metni katalog adıyla eşleşmiyor.", 400);
-          }
-
-          const isReferenced =
+          const deleted =
             path === "packages"
-              ? (await transaction.bookingApplication.count({ where: { packageId: id } })) > 0
-              : (await transaction.bookingApplicationService.count({ where: { serviceId: id } })) >
-                0;
-
-          let result;
-          if (isReferenced) {
-            result =
-              path === "packages"
-                ? await transaction.package.update({
-                    where: { id },
-                    data: { isActive: false }
-                  })
-                : await transaction.service.update({
-                    where: { id },
-                    data: { isActive: false }
-                  });
-          } else {
-            const deleted =
-              path === "packages"
-                ? await transaction.package.delete({ where: { id } })
-                : await transaction.service.delete({ where: { id } });
-            result = { ...deleted, isActive: false };
-          }
+              ? await transaction.package.delete({ where: { id } })
+              : await transaction.service.delete({ where: { id } });
+          const result = { ...deleted, isActive: false };
 
           await createAudit(transaction, {
             actorUserId: req.auth!.userId,
-            action: `${actionPrefix}.${isReferenced ? "deactivated" : "deleted"}`,
+            action: `${actionPrefix}.deleted`,
             targetType,
             targetId: result.id,
             correlationId: req.correlationId,
-            metadata: { reason: req.body.reason }
+            metadata: {}
           });
           return result;
         });
@@ -3379,7 +3284,6 @@ router.patch(
 router.delete(
   "/venues/:id",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -3392,39 +3296,19 @@ router.delete(
           SELECT "id", "name" FROM "venues" WHERE "id" = ${id} FOR UPDATE
         `;
         if (lockedRows.length !== 1) throw new AppError("Mekân bulunamadı.", 404);
-        if (
-          normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation(lockedRows[0]!.name)
-        ) {
-          throw new AppError("Onay metni mekân adıyla eşleşmiyor.", 400);
-        }
-
-        const referenceCounts = await Promise.all([
-          transaction.user.count({ where: { venueId: id } }),
-          transaction.venueManagerAssignment.count({ where: { venueId: id } }),
-          transaction.bookingApplication.count({ where: { venueId: id } }),
-          transaction.wedding.count({ where: { venueId: id } }),
-          transaction.staff.count({ where: { venueId: id } }),
-          transaction.staffVenueAssignment.count({ where: { venueId: id } })
-        ]);
-        const isReferenced = referenceCounts.some((count) => count > 0);
-        const result = isReferenced
-          ? await transaction.venue.update({
-              where: { id },
-              data: { isActive: false, isFeatured: false }
-            })
-          : {
-              ...(await transaction.venue.delete({ where: { id } })),
-              isActive: false,
-              isFeatured: false
-            };
+        const result = {
+          ...(await transaction.venue.delete({ where: { id } })),
+          isActive: false,
+          isFeatured: false
+        };
 
         await createAudit(transaction, {
           actorUserId: req.auth!.userId,
-          action: `venue.${isReferenced ? "deactivated" : "deleted"}`,
+          action: "venue.deleted",
           targetType: "Venue",
           targetId: result.id,
           correlationId: req.correlationId,
-          metadata: { reason: req.body.reason }
+          metadata: {}
         });
         return result;
       });
@@ -3582,7 +3466,6 @@ router.get(
 const renderMessage = async (
   taskId: string,
   actorUserId: string,
-  adminStepUpVerifiedAt: Date | null,
   transaction: Prisma.TransactionClient = prisma
 ) => {
   const task = await transaction.messageTask.findUnique({
@@ -3601,11 +3484,6 @@ const renderMessage = async (
   if (!task) throw new AppError("Mesaj görevi bulunamadı.", 404);
   if (!task.wedding && !task.application) {
     throw new AppError("Mesaj görevinin hedefi bulunamadı.", 409);
-  }
-  const isSensitiveCredentialTask =
-    task.kind === "ACCOUNT_ACTIVATION" || task.kind === "PASSWORD_RESET";
-  if (isSensitiveCredentialTask) {
-    assertRecentAdminStepUp(adminStepUpVerifiedAt);
   }
   if (task.status !== "PLANNED" && task.status !== "FAILED") {
     throw new AppError("Bu mesaj görevi hazırlanmaya uygun değil.", 409);
@@ -3701,7 +3579,6 @@ const renderMessage = async (
 
 const verifyPreparedMessage = async (
   taskId: string,
-  adminStepUpVerifiedAt: Date | null,
   activateCustomerNow: boolean,
   transaction: Prisma.TransactionClient = prisma
 ) => {
@@ -3736,9 +3613,6 @@ const verifyPreparedMessage = async (
 
   const isSensitiveCredentialTask =
     task.kind === "ACCOUNT_ACTIVATION" || task.kind === "PASSWORD_RESET";
-  if (isSensitiveCredentialTask) {
-    assertRecentAdminStepUp(adminStepUpVerifiedAt);
-  }
   const message = decryptValue(
     {
       ciphertext: task.preparedMessageCiphertext,
@@ -3838,7 +3712,6 @@ router.post(
       const result = await renderMessage(
         req.params.id,
         req.auth!.userId,
-        req.auth!.adminStepUpVerifiedAt,
         transaction
       );
       if (result.task.kind === "ACCOUNT_ACTIVATION" || result.task.kind === "PASSWORD_RESET") {
@@ -3876,7 +3749,6 @@ router.post(
     const verified = await prisma.$transaction(async (transaction) => {
       const result = await verifyPreparedMessage(
         req.params.id,
-        req.auth!.adminStepUpVerifiedAt,
         req.body.activateCustomerNow,
         transaction
       );
@@ -4004,7 +3876,6 @@ router.post(
 router.post(
   "/message-tasks/:id/override-due",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(messageTransitionRequest),
   asyncHandler(async (req, res) => {
     const now = new Date();
@@ -4018,7 +3889,7 @@ router.post(
         data: {
           earlyOverrideAt: now,
           earlyOverrideById: req.auth!.userId,
-          earlyOverrideReason: req.body.reason
+          earlyOverrideReason: req.body.reason ?? "admin_override"
         }
       });
       if (updated.count !== 1) throw new AppError("Erken gönderim override'ı uygulanamadı.", 409);
@@ -4028,7 +3899,7 @@ router.post(
         targetType: "MessageTask",
         targetId: req.params.id,
         correlationId: req.correlationId,
-        metadata: { reason: req.body.reason }
+        metadata: {}
       });
       return transaction.messageTask.findUniqueOrThrow({
         where: { id: req.params.id },
@@ -4078,7 +3949,7 @@ router.post(
           preparedMessageIv: null,
           preparedMessageAuthTag: null,
           failedAt: now,
-          failureReason: req.body.reason,
+          failureReason: req.body.reason ?? "manual_failure",
           nextAttemptAt: new Date(now.valueOf() + 5 * 60 * 1_000),
           attemptCount: { increment: 1 },
           lastAttemptAt: now
@@ -4092,7 +3963,7 @@ router.post(
         targetType: "MessageTask",
         targetId: req.params.id,
         correlationId: req.correlationId,
-        metadata: { reason: req.body.reason }
+        metadata: {}
       });
       return transaction.messageTask.findUniqueOrThrow({
         where: { id: req.params.id },
@@ -4126,7 +3997,7 @@ router.post(
           status: "CANCELLED",
           cancelledAt: now,
           cancelledById: req.auth!.userId,
-          cancelledReason: req.body.reason,
+          cancelledReason: req.body.reason ?? "admin_cancelled",
           preparedAt: null,
           readyAt: null,
           preparedTokenId: null,
@@ -4147,7 +4018,7 @@ router.post(
         targetType: "MessageTask",
         targetId: req.params.id,
         correlationId: req.correlationId,
-        metadata: { reason: req.body.reason }
+        metadata: {}
       });
       return transaction.messageTask.findUniqueOrThrow({
         where: { id: current.id },
@@ -4161,7 +4032,6 @@ router.post(
 router.post(
   "/customers/:id/reset-password",
   verifyCsrf,
-  requireRecentAdminStepUp,
   validateRequest(
     z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
   ),
@@ -4173,10 +4043,6 @@ router.post(
     if (!user || user.role !== "MUSTERI" || !user.customerWedding) {
       throw new AppError("Müşteri hesabı bulunamadı.", 404);
     }
-    if (normalizeConfirmation(req.body.confirmText) !== normalizeConfirmation(user.username)) {
-      throw new AppError("Onay metni müşteri kullanıcı adıyla eşleşmiyor.", 400);
-    }
-
     const passwordHash = await hashPassword(createOpaqueToken(48));
     const now = new Date();
     const task = await prisma.$transaction(async (transaction) => {
@@ -4312,7 +4178,7 @@ router.post(
         targetType: "User",
         targetId: user.id,
         correlationId: req.correlationId,
-        metadata: { reason: req.body.reason }
+        metadata: {}
       });
       return messageTask;
     });

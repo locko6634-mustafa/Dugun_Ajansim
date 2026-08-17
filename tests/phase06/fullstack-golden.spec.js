@@ -300,7 +300,7 @@ test("@phase06 production imajı, Nginx, migration ve least-privilege runtime s�
   await attachRequestIds(testInfo, requestIds);
 });
 
-test("@phase06 rol, route, CSRF, CORS ve step-up negatif matrisi", async ({}, testInfo) => {
+test("@phase06 rol, route, CSRF ve CORS negatif matrisi", async ({}, testInfo) => {
   const identity = await createIdentity("matrix");
   const requestIds = new Set();
   const anonymous = await playwrightRequest.newContext({ baseURL });
@@ -360,11 +360,9 @@ test("@phase06 rol, route, CSRF, CORS ve step-up negatif matrisi", async ({}, te
       requestIds
     );
     await responseJson(
-      await authenticatedRequest(admin, "post", `/api/v1/admin/weddings/${foreignId}/cancel`, {
-        reason: "Sentetik step-up negatif matris kontrolü"
-      }),
-      428,
-      "admin step-up required",
+      await authenticatedRequest(admin, "post", `/api/v1/admin/weddings/${foreignId}/cancel`, {}),
+      404,
+      "admin session is sufficient for sensitive action",
       requestIds
     );
     await responseJson(
@@ -720,10 +718,12 @@ test("@phase06 mocksuz telefon ve WhatsApp altın yolu", async ({ page }, testIn
     );
     expect(readyDeliveryBody.data.allowedTransitions).toEqual([]);
     await responseJson(
-      await authenticatedRequest(admin, "post", `/api/v1/admin/deliveries/${deliveryId}/deliver`, {
-        sharingConfirmed: true,
-        sharingConfirmation: "ERİŞİMİ DOĞRULADIM"
-      }),
+      await authenticatedRequest(
+        admin,
+        "post",
+        `/api/v1/admin/deliveries/${deliveryId}/deliver`,
+        {}
+      ),
       200,
       "delivery release",
       requestIds

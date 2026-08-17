@@ -588,23 +588,7 @@ export const assignmentBodySchema = z
     allowConflict: z.boolean().default(false),
     overrideReason: z.string().trim().min(10).max(500).optional()
   })
-  .strict()
-  .superRefine((value, context) => {
-    if (value.allowConflict && !value.overrideReason) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["overrideReason"],
-        message: "Çakışma override gerekçesi zorunludur."
-      });
-    }
-    if (!value.allowConflict && value.overrideReason) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["overrideReason"],
-        message: "Override gerekçesi yalnız çakışma override işleminde gönderilebilir."
-      });
-    }
-  });
+  .strict();
 
 export const operationalAssignmentBodySchema = assignmentBodySchema.superRefine(
   (value, context) => {
@@ -694,14 +678,7 @@ export const messageTaskQuerySchema = z
   .strict();
 
 export const lifecycleReasonBodySchema = z
-  .object({ reason: z.string().trim().min(10).max(500) })
+  .object({ reason: z.string().trim().min(10).max(500).optional() })
   .strict();
 
-export const criticalAdminActionBodySchema = z
-  .object({
-    confirmText: z.string().trim().min(3).max(160),
-    reason: z.string().trim().min(10).max(500)
-  })
-  .strict();
-
-export const permanentDeleteBodySchema = criticalAdminActionBodySchema;
+export const permanentDeleteBodySchema = z.object({}).strict();

@@ -595,21 +595,7 @@ router.delete(
         });
         if (!staff)
           throw new AppError("Personel bulunamadı veya başka bir salonla paylaşılıyor.", 404);
-        if (staff._count.assignments > 0) {
-          const updated = await transaction.staff.update({
-            where: { id: staff.id },
-            data: { isActive: false }
-          });
-          await createAudit(transaction, {
-            actorUserId: req.auth!.userId,
-            action: "venue_staff.deactivated",
-            targetType: "Staff",
-            targetId: staff.id,
-            correlationId: req.correlationId,
-            metadata: { venueIds, dispositionReason: "historical_assignments" }
-          });
-          return { id: updated.id, action: "deactivated" };
-        }
+        await transaction.weddingAssignment.deleteMany({ where: { staffId: staff.id } });
         await transaction.staff.delete({ where: { id: staff.id } });
         await createAudit(transaction, {
           actorUserId: req.auth!.userId,
@@ -617,7 +603,7 @@ router.delete(
           targetType: "Staff",
           targetId: staff.id,
           correlationId: req.correlationId,
-          metadata: { venueIds }
+          metadata: { venueIds, deletedAssignmentCount: staff._count.assignments }
         });
         return { id: staff.id, action: "deleted" };
       },

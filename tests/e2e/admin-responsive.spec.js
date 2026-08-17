@@ -285,6 +285,31 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await page.locator('[data-panel="staff"]').click();
   await expect(page.locator('[data-panel-content="staff"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeHidden();
+  await page.getByRole("button", { name: "+ Personel ekle" }).click();
+  const staffDialog = page.locator(".js-staff-dialog");
+  const staffVenuePicker = staffDialog.locator(".js-staff-venue");
+  await expect(staffDialog).toBeVisible();
+  await expect(staffVenuePicker.locator(".js-staff-venue-count")).toHaveText("1 salon seçili");
+  await expectMinimumHeight(staffVenuePicker.locator(".js-staff-venue-search"));
+  const staffParkChoice = staffVenuePicker.locator(".venue-picker__choice").filter({
+    hasText: accountVenue.name
+  });
+  const staffForestChoice = staffVenuePicker.locator(".venue-picker__choice").filter({
+    hasText: secondAccountVenue.name
+  });
+  await staffVenuePicker.locator(".js-staff-venue-search").fill("Orman");
+  await expect(staffParkChoice).toBeHidden();
+  await expect(staffForestChoice).toBeVisible();
+  await staffVenuePicker.locator(".js-staff-venue-search").clear();
+  await staffForestChoice.locator('input[name="venueIds"]').check();
+  await expect(staffVenuePicker.locator(".js-staff-venue-count")).toHaveText("2 salon seçili");
+  await staffVenuePicker
+    .getByRole("button", { name: `${accountVenue.name} salonunu çıkar` })
+    .click();
+  await expect(staffParkChoice.locator('input[name="venueIds"]')).not.toBeChecked();
+  await expect(staffVenuePicker.locator(".js-staff-venue-count")).toHaveText("1 salon seçili");
+  await staffDialog.getByRole("button", { name: "Vazgeç" }).click();
+  await expect(staffDialog).toBeHidden();
 
   await page.getByRole("button", { name: /Menüyü Aç\/Kapat/i }).click();
   await page.locator('[data-panel="accounts"]').click();

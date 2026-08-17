@@ -322,8 +322,8 @@ model BookingApplication {
   weddingEndsAt                 DateTime
   venueId                       String?
   venue                         Venue?                      @relation(fields: [venueId], references: [id], onDelete: Restrict)
-  packageId                     String
-  package                       Package                     @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  packageId                     String?
+  package                       Package?                    @relation(fields: [packageId], references: [id], onDelete: SetNull)
   packageCodeSnapshot           String
   packageNameSnapshot           String
   packagePriceCents             Int
@@ -366,8 +366,8 @@ model BookingApplicationService {
   id            String             @id @default(uuid())
   applicationId String
   application   BookingApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  serviceId     String
-  service       Service            @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  serviceId     String?
+  service       Service?           @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   codeSnapshot  String
   nameSnapshot  String
   priceCents    Int
