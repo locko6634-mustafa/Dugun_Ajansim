@@ -1,4 +1,4 @@
-import { Prisma, type BookingSource, type User } from "@prisma/client";
+import { Prisma, type BookingSource, type EventType, type User } from "@prisma/client";
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { setTimeout as wait } from "node:timers/promises";
 import { prisma } from "../config/prisma.js";
@@ -33,6 +33,7 @@ import {
 
 export type BookingInput = Omit<z.infer<typeof bookingBodySchema>, "privacyConsent"> & {
   privacyConsent: boolean;
+  eventType?: EventType;
 };
 
 type CreateBookingOptions = {
@@ -125,6 +126,7 @@ const idempotencySelect = {
   id: true,
   referenceCode: true,
   status: true,
+  eventType: true,
   packageCodeSnapshot: true,
   packageNameSnapshot: true,
   packagePriceCents: true,
@@ -285,6 +287,7 @@ export const createBookingFingerprint = (
   hashToken(
     JSON.stringify({
       source,
+      ...(input.eventType && input.eventType !== "WEDDING" ? { eventType: input.eventType } : {}),
       brideFirstName: input.brideFirstName,
       brideLastName: input.brideLastName,
       bridePhone,
@@ -316,6 +319,7 @@ export const createBookingFingerprintPayload = (
 ): string =>
   serializeBookingFingerprintPayload({
     source,
+    eventType: input.eventType,
     brideFirstName: input.brideFirstName,
     brideLastName: input.brideLastName,
     bridePhone,
@@ -346,6 +350,9 @@ export const createBookingApplication = async (
   if (options.source === "PUBLIC_FORM" && !options.idempotencyKey) {
     throw new AppError("Idempotency-Key zorunludur.", 400);
   }
+  const eventType: EventType =
+    options.source === "ADMIN" ? (input.eventType ?? "WEDDING") : "WEDDING";
+  const normalizedInput = { ...input, eventType };
   const { startsAt, endsAt } = createWeddingRange(
     input.weddingDate,
     input.startTime,
@@ -358,7 +365,7 @@ export const createBookingApplication = async (
   const groomPhone = normalizePhone(input.groomPhone);
   const serviceCodes = [...new Set(input.serviceCodes)].sort();
   const idempotencyFingerprint = createBookingFingerprint(
-    input,
+    normalizedInput,
     options.source,
     startsAt,
     endsAt,
@@ -367,7 +374,7 @@ export const createBookingApplication = async (
     serviceCodes
   );
   const idempotencyFingerprintPayload = createBookingFingerprintPayload(
-    input,
+    normalizedInput,
     options.source,
     startsAt,
     endsAt,
@@ -532,6 +539,7 @@ export const createBookingApplication = async (
               idempotencyFingerprint: null,
               ...(options.idempotencyKey ? idempotencyFingerprintEnvelope : {}),
               source: options.source,
+              eventType,
               ...applicationPii,
               primaryContact: input.primaryContact,
               weddingStartsAt: startsAt,
@@ -564,6 +572,7 @@ export const createBookingApplication = async (
               id: true,
               referenceCode: true,
               status: true,
+              eventType: true,
               packageCodeSnapshot: true,
               packageNameSnapshot: true,
               packagePriceCents: true,
@@ -1330,6 +1339,7 @@ export const approveBookingApplication = async (
                 1
               ),
               primaryContact: application.primaryContact,
+              eventType: application.eventType,
               startsAt: application.weddingStartsAt,
               endsAt: application.weddingEndsAt,
               venueId: approvedVenue.id,

@@ -76,6 +76,7 @@ const assertOperationsWeddingContract = (wedding: Record<string, unknown>) => {
     assert.equal(field in wedding, false, `Operasyon düğün yanıtı ${field} alanını içermemeli.`);
   }
   assert.equal(typeof wedding.id, "string");
+  assert.equal(typeof wedding.eventType, "string");
   assert.equal(typeof (wedding.venue as { name?: unknown } | undefined)?.name, "string");
   assert.equal(typeof wedding.brideFirstName, "string");
   assert.equal(typeof wedding.brideLastName, "string");
@@ -1002,7 +1003,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       weddingDate,
       brideFirstName: "Elif",
       groomFirstName: "Can",
-      primaryEmail: `iki-${marker}@example.com`
+      primaryEmail: `iki-${marker}@example.com`,
+      eventType: "ENGAGEMENT"
     },
     {
       source: "ADMIN",
@@ -1124,6 +1126,11 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     admin.id,
     correlationId
   );
+  const secondApprovedWedding = await prisma.wedding.findUniqueOrThrow({
+    where: { id: secondApproval.weddingId },
+    select: { eventType: true }
+  });
+  assert.equal(secondApprovedWedding.eventType, "ENGAGEMENT");
   assert.notEqual(firstApproval.username, secondApproval.username);
   assert.match(firstApproval.decisionTaskId, /^[0-9a-f-]{36}$/i);
   assert.match(firstApproval.activationTaskId, /^[0-9a-f-]{36}$/i);
@@ -1136,6 +1143,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     where: { id: firstApproval.weddingId },
     include: { customerUser: true, delivery: true, messageTasks: true }
   });
+  assert.equal(wedding.eventType, "WEDDING");
   assert.ok(wedding.delivery);
   assert.equal(wedding.messageTasks.length, 2);
   assert.equal(
@@ -1467,7 +1475,10 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Payment-Flow-Key", expiringFlowKey);
   assert.equal(expiredPaymentFlowReadOnly.status, 200);
   assert.equal(expiredPaymentFlowReadOnly.body.data.paymentFlowEditingExpired, true);
-  assert.equal(expiredPaymentFlowReadOnly.body.data.referenceCode, expiringApplication.referenceCode);
+  assert.equal(
+    expiredPaymentFlowReadOnly.body.data.referenceCode,
+    expiringApplication.referenceCode
+  );
   const expiredPaymentFlowUpdate = await request(app)
     .patch(`/api/v1/booking-applications/${expiringApplication.id}/payment-flow`)
     .set("Payment-Flow-Key", expiringFlowKey)
@@ -2950,6 +2961,13 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
       (calendarWedding: { id: string }) => calendarWedding.id === wedding.id
     )
   );
+  assert.ok(
+    allVenuesCalendar.body.data.weddings.some(
+      (calendarWedding: { id: string; eventType: string }) =>
+        calendarWedding.id === secondApproval.weddingId &&
+        calendarWedding.eventType === "ENGAGEMENT"
+    )
+  );
   assert.ok(allVenuesCalendar.body.data.weddings.length >= venueCalendar.body.data.weddings.length);
 
   const invalidCalendarMonth = await request(app)
@@ -3004,7 +3022,9 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(deletedAssignedStaff.body.data.action, "deleted");
   assert.equal(await prisma.staff.count({ where: { id: createdStaff.body.data.id as string } }), 0);
   assert.equal(
-    await prisma.weddingAssignment.count({ where: { staffId: createdStaff.body.data.id as string } }),
+    await prisma.weddingAssignment.count({
+      where: { staffId: createdStaff.body.data.id as string }
+    }),
     0
   );
 

@@ -193,6 +193,8 @@ export const totpCodeSchema = z
   .trim()
   .regex(/^\d{6}$/, "6 haneli doğrulama kodunu girin.");
 
+export const eventTypeSchema = z.enum(["WEDDING", "ENGAGEMENT", "HENNA", "ADDITIONAL_JOB"]);
+
 const bookingBodyBaseSchema = z
   .object({
     brideFirstName: personNameSchema,
@@ -255,7 +257,10 @@ const validateVenueChoice = (
 export const bookingBodySchema = bookingBodyBaseSchema.superRefine(validateVenueChoice);
 
 export const adminBookingBodySchema = bookingBodyBaseSchema
-  .extend({ privacyConsent: z.boolean().default(false) })
+  .extend({
+    privacyConsent: z.boolean().default(false),
+    eventType: eventTypeSchema.default("WEDDING")
+  })
   .superRefine(validateVenueChoice);
 
 export const loginBodySchema = z

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import nodeTest from "node:test";
 import {
+  adminBookingBodySchema,
   adminCatalogFormConstraints,
   bookingBodySchema,
   bookingFormConstraints,
@@ -182,6 +183,27 @@ test("kişi adı ve telefon alanları kontrol karakteri veya harf gizlenmiş num
   );
   assert.equal(
     bookingBodySchema.safeParse({ ...validBooking, bridePhone: "abc05551234567" }).success,
+    false
+  );
+  assert.equal(bookingBodySchema.safeParse({ ...validBooking, eventType: "HENNA" }).success, false);
+  assert.equal(
+    adminBookingBodySchema.parse({
+      ...validBooking,
+      privacyConsent: false,
+      eventType: "HENNA"
+    }).eventType,
+    "HENNA"
+  );
+  assert.equal(
+    adminBookingBodySchema.parse({ ...validBooking, privacyConsent: false }).eventType,
+    "WEDDING"
+  );
+  assert.equal(
+    adminBookingBodySchema.safeParse({
+      ...validBooking,
+      privacyConsent: false,
+      eventType: "CORPORATE"
+    }).success,
     false
   );
 });

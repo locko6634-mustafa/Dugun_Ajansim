@@ -106,7 +106,7 @@
         <section class="admin-panel is-active" data-panel-content="overview">
           <div class="metric-ribbon" aria-label="Günlük özet">
             <article>
-              <span>Bugünkü düğün</span><strong data-metric="todayWeddings">—</strong>
+              <span>Bugünkü etkinlik</span><strong data-metric="todayWeddings">—</strong>
             </article>
             <article>
               <span>Onay bekleyen</span><strong data-metric="pendingBookings">—</strong>
@@ -267,9 +267,51 @@
             role="tablist"
             aria-label="Salon takvimleri"
           ></div>
+          <div class="calendar-type-toolbar">
+            <span>Etkinlik türü</span>
+            <div
+              class="calendar-type-filter js-calendar-type-filter"
+              role="group"
+              aria-label="Etkinlik türüne göre filtrele"
+            >
+              <button type="button" data-calendar-event-type="ALL" aria-pressed="true">Tümü</button>
+              <button
+                type="button"
+                data-calendar-event-type="WEDDING"
+                data-event-type="WEDDING"
+                aria-pressed="true"
+              >
+                <span aria-hidden="true"></span>Düğün
+              </button>
+              <button
+                type="button"
+                data-calendar-event-type="ENGAGEMENT"
+                data-event-type="ENGAGEMENT"
+                aria-pressed="true"
+              >
+                <span aria-hidden="true"></span>Nişan
+              </button>
+              <button
+                type="button"
+                data-calendar-event-type="HENNA"
+                data-event-type="HENNA"
+                aria-pressed="true"
+              >
+                <span aria-hidden="true"></span>Kına
+              </button>
+              <button
+                type="button"
+                data-calendar-event-type="ADDITIONAL_JOB"
+                data-event-type="ADDITIONAL_JOB"
+                aria-pressed="true"
+              >
+                <span aria-hidden="true"></span>Ek iş
+              </button>
+            </div>
+          </div>
           <label class="calendar-history-toggle" hidden>
             <input class="js-calendar-show-past" type="checkbox" />
-            <span>Geçmiş düğünleri göster</span>
+            <span>Geçmiş etkinlikleri göster</span>
           </label>
           <div class="calendar-shell">
             <div class="calendar-weekdays" aria-hidden="true">
@@ -407,7 +449,7 @@
                   <span class="account-role-badge account-role-badge--montage">Teslimat</span>
                   <h3 id="montage-user-group-title">Montajcılar</h3>
                 </div>
-                <small>Tüm düğün bilgilerini görüntüleme ve Drive teslimi</small>
+                <small>Tüm etkinlik bilgilerini görüntüleme ve Drive teslimi</small>
               </header>
               <div class="staff-grid js-montage-users"></div>
             </section>
@@ -489,7 +531,7 @@
       <div class="sheet-shell">
         <div class="sheet-heading">
           <div>
-            <p class="section-index">Düğün dosyası</p>
+            <p class="section-index">Etkinlik dosyası</p>
             <h2 id="wedding-detail-title" class="js-detail-title">Yükleniyor</h2>
           </div>
           <div class="wedding-detail-heading-actions">
@@ -766,11 +808,32 @@
         <div class="sheet-heading">
           <div>
             <p class="section-index">Yeni kayıt</p>
-            <h2 id="manual-form-title">Manuel düğün başvurusu</h2>
+            <h2 id="manual-form-title">Manuel etkinlik başvurusu</h2>
           </div>
           <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
         </div>
         <div class="form-grid">
+          <fieldset class="wide event-type-picker">
+            <legend>Etkinlik türü</legend>
+            <div class="event-type-options">
+              <label data-event-type="WEDDING">
+                <input type="radio" name="eventType" value="WEDDING" checked />
+                <span aria-hidden="true"></span><strong>Düğün</strong>
+              </label>
+              <label data-event-type="ENGAGEMENT">
+                <input type="radio" name="eventType" value="ENGAGEMENT" />
+                <span aria-hidden="true"></span><strong>Nişan</strong>
+              </label>
+              <label data-event-type="HENNA">
+                <input type="radio" name="eventType" value="HENNA" />
+                <span aria-hidden="true"></span><strong>Kına</strong>
+              </label>
+              <label data-event-type="ADDITIONAL_JOB">
+                <input type="radio" name="eventType" value="ADDITIONAL_JOB" />
+                <span aria-hidden="true"></span><strong>Ek iş</strong>
+              </label>
+            </div>
+          </fieldset>
           <label>Gelin adı<input name="brideFirstName" type="text" required /></label
           ><label>Gelin soyadı<input name="brideLastName" type="text" required /></label
           ><label>Gelin telefonu<input name="bridePhone" type="tel" required /></label
@@ -783,7 +846,7 @@
               name="primaryContact"
             ></select></label
           ><label>Birincil e-posta<input name="primaryEmail" type="email" required /></label
-          ><label>Düğün tarihi<input name="weddingDate" type="date" required /></label
+          ><label>Etkinlik tarihi<input name="weddingDate" type="date" required /></label
           ><label>Başlangıç<input name="startTime" type="time" required /></label
           ><label>Bitiş<input name="endTime" type="time" required /></label
           ><label>Salon<select class="js-manual-venue" name="venueId" required></select></label
@@ -814,7 +877,7 @@
       >
         <div class="sheet-heading">
           <div>
-            <p class="section-index">Düğün kaydı</p>
+            <p class="section-index">Etkinlik kaydı</p>
             <h2 id="wedding-form-title">Bilgileri güncelle</h2>
           </div>
           <button class="dialog-close" type="button" value="cancel" aria-label="Kapat">×</button>
@@ -833,7 +896,7 @@
               name="primaryContact"
             ></select></label
           ><label>Birincil e-posta<input name="primaryEmail" type="email" required /></label
-          ><label>Düğün tarihi<input name="weddingDate" type="date" required /></label
+          ><label>Etkinlik tarihi<input name="weddingDate" type="date" required /></label
           ><label>Başlangıç<input name="startTime" type="time" required /></label
           ><label>Bitiş<input name="endTime" type="time" required /></label
           ><label>Salon<select class="js-wedding-venue" name="venueId" required></select></label

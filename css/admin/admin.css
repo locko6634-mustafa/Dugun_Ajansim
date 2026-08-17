@@ -735,6 +735,30 @@ button:disabled {
   line-height: 1.45;
 }
 
+[data-event-type="WEDDING"] {
+  --event-accent: hsl(158 48% 34%);
+  --event-surface: hsl(153 36% 92%);
+  --event-ink: hsl(159 57% 22%);
+}
+
+[data-event-type="ENGAGEMENT"] {
+  --event-accent: hsl(340 57% 54%);
+  --event-surface: hsl(340 70% 95%);
+  --event-ink: hsl(340 59% 34%);
+}
+
+[data-event-type="HENNA"] {
+  --event-accent: hsl(26 71% 48%);
+  --event-surface: hsl(34 76% 93%);
+  --event-ink: hsl(24 65% 31%);
+}
+
+[data-event-type="ADDITIONAL_JOB"] {
+  --event-accent: hsl(215 18% 38%);
+  --event-surface: hsl(215 20% 93%);
+  --event-ink: hsl(215 24% 24%);
+}
+
 .plan-controls {
   display: flex;
   align-items: center;
@@ -811,6 +835,71 @@ button:disabled {
   content: "Pasif";
   font-size: 8px;
   text-transform: uppercase;
+}
+
+.calendar-type-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -4px 0 16px;
+}
+
+.calendar-type-toolbar > span {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.calendar-type-filter {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px;
+  scrollbar-width: thin;
+}
+
+.calendar-type-filter button {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.calendar-type-filter button > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--event-accent);
+}
+
+.calendar-type-filter button[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: white;
+}
+
+.calendar-type-filter button[data-event-type][aria-pressed="true"] {
+  border-color: var(--event-accent);
+  background: var(--event-surface);
+  color: var(--event-ink);
+}
+
+.calendar-type-filter button:focus-visible {
+  outline: 3px solid hsl(70 30% 40% / 24%);
+  outline-offset: 2px;
 }
 
 .calendar-history-toggle {
@@ -912,17 +1001,17 @@ button:disabled {
   width: 100%;
   padding: 8px;
   border: 0;
-  border-left: 3px solid var(--olive);
+  border: 1px solid color-mix(in srgb, var(--event-accent) 32%, transparent);
+  border-left: 4px solid var(--event-accent);
   border-radius: 7px;
-  background: var(--olive-pale);
-  color: var(--ink);
+  background: var(--event-surface);
+  color: var(--event-ink);
   text-align: left;
   cursor: pointer;
 }
 
 .calendar-event.is-unassigned {
-  border-left-color: var(--clay);
-  background: var(--clay-pale);
+  border-left-style: dashed;
 }
 
 .calendar-event time,
@@ -933,13 +1022,29 @@ button:disabled {
 
 .calendar-event time,
 .calendar-event small {
-  color: var(--ink-soft);
+  color: var(--event-ink);
   font-size: 8px;
+  opacity: 0.76;
 }
 
 .calendar-event strong {
   margin: 3px 0;
   font-size: 10px;
+}
+
+.calendar-event__type {
+  display: inline-block;
+  margin-bottom: 4px;
+  color: var(--event-ink);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.calendar-event:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--event-accent) 32%, transparent);
+  outline-offset: 2px;
 }
 
 .calendar-mobile-empty {
@@ -1587,6 +1692,90 @@ dialog {
 .form-grid .wide {
   grid-column: 1 / -1;
 }
+
+.event-type-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.event-type-picker legend {
+  margin-bottom: 8px;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.event-type-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.event-type-options label {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.event-type-options input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.event-type-options label > span {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--event-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--event-accent) 14%, transparent);
+}
+
+.event-type-options label:has(input:checked) {
+  border-color: var(--event-accent);
+  background: var(--event-surface);
+  color: var(--event-ink);
+}
+
+.event-type-options label:has(input:focus-visible) {
+  outline: 3px solid color-mix(in srgb, var(--event-accent) 28%, transparent);
+  outline-offset: 2px;
+}
+
+.event-type-options strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-type-badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--event-accent) 45%, transparent);
+  border-radius: 999px;
+  background: var(--event-surface);
+  color: var(--event-ink);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .js-managed-user-venue[hidden] {
   display: none;
 }
@@ -2907,6 +3096,17 @@ h6,
     padding-bottom: 8px;
   }
 
+  .admin-main .calendar-type-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+    margin-bottom: 14px;
+  }
+
+  .admin-main .calendar-type-filter {
+    width: 100%;
+  }
+
   .admin-main .venue-switcher button {
     min-height: 38px;
     padding: 8px 12px;
@@ -3263,6 +3463,7 @@ h6,
   .admin-main .availability-filters select,
   .admin-main .availability-filters input,
   .admin-main .venue-switcher button,
+  .admin-main .calendar-type-filter button,
   .admin-main .filter-bar input,
   .admin-main .filter-bar select,
   .admin-main .filter-bar button,
@@ -3513,5 +3714,11 @@ h6,
 
   .dialog-actions {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 560px) {
+  .event-type-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

@@ -16,6 +16,7 @@ export type BookingFingerprintEnvelope = {
 
 export type BookingFingerprintPayloadInput = {
   source: string;
+  eventType?: string;
   brideFirstName: string;
   brideLastName: string;
   bridePhone: string;
@@ -41,6 +42,7 @@ export const serializeBookingFingerprintPayload = (
 ): string =>
   JSON.stringify({
     source: input.source,
+    ...(input.eventType && input.eventType !== 'WEDDING' ? { eventType: input.eventType } : {}),
     brideFirstName: input.brideFirstName,
     brideLastName: input.brideLastName,
     bridePhone: input.bridePhone,

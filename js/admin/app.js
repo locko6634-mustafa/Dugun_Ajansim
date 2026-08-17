@@ -18,6 +18,7 @@ import {
   ACCOUNT_STATUS_LABELS,
   BOOKING_STATUS_LABELS,
   DELIVERY_STATUS_LABELS,
+  EVENT_TYPE_LABELS,
   MESSAGE_KIND_LABELS,
   MESSAGE_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
@@ -38,7 +39,12 @@ import { printWeddingReport } from "../shared/wedding-print-report.js";
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
 const STATUS_LABELS = DELIVERY_STATUS_LABELS;
 const MESSAGE_LABELS = MESSAGE_KIND_LABELS;
+const EVENT_TYPES = Object.freeze(Object.keys(EVENT_TYPE_LABELS));
 const CATALOG_FALLBACK_IMAGE = "assets/images/hero-couple.webp";
+
+function normalizeEventType(eventType) {
+  return EVENT_TYPE_LABELS[eventType] ? eventType : "WEDDING";
+}
 
 function domainOptions(labels) {
   return Object.entries(labels)
@@ -86,6 +92,7 @@ const state = {
   calendarView: "month",
   calendarFocusDate: "",
   calendarShowPast: false,
+  calendarEventTypes: new Set(EVENT_TYPES),
   staff: [],
   managers: [],
   montageUsers: [],
@@ -330,7 +337,7 @@ function syncDependencyControls() {
   if (manualButton) {
     manualButton.disabled = !manualReady;
     manualButton.title = manualReady
-      ? "Yeni manuel düğün başvurusu oluştur"
+      ? "Yeni manuel etkinlik başvurusu oluştur"
       : "Başvuru form koşulları yüklenemedi; sayfayı yenileyip tekrar deneyin";
   }
 
@@ -610,15 +617,17 @@ function renderCrew(assignments = []) {
 }
 
 function eventCard(wedding) {
-  return `<article class="event-card">
+  const eventType = normalizeEventType(wedding.eventType);
+  return `<article class="event-card" data-event-type="${eventType}">
     <div class="event-time"><strong>${formatAppTime(wedding.startsAt)}</strong><small>${formatAppTime(wedding.endsAt)}</small></div>
-    <div class="event-copy"><strong>${escapeHtml(coupleName(wedding))}</strong><small>${escapeHtml(wedding.venue.name)} · ${escapeHtml(wedding.packageSummary?.name || "Paket belirtilmedi")}</small><div class="crew-line">${renderCrew(wedding.assignments)}</div></div>
+    <div class="event-copy"><span class="event-type-badge" data-event-type="${eventType}">${escapeHtml(EVENT_TYPE_LABELS[eventType])}</span><strong>${escapeHtml(coupleName(wedding))}</strong><small>${escapeHtml(wedding.venue.name)} · ${escapeHtml(wedding.packageSummary?.name || "Paket belirtilmedi")}</small><div class="crew-line">${renderCrew(wedding.assignments)}</div></div>
     <button class="mini-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}">Dosyayı aç</button>
   </article>`;
 }
 
 function compactWedding(wedding) {
-  return `<button class="compact-card text-button" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><span><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${escapeHtml(wedding.venue.name)}</small></span><time>${formatAppTime(wedding.startsAt)}</time></button>`;
+  const eventType = normalizeEventType(wedding.eventType);
+  return `<button class="compact-card text-button" type="button" data-event-type="${eventType}" data-open-wedding="${escapeHtml(wedding.id)}"><span><span class="event-type-badge" data-event-type="${eventType}">${escapeHtml(EVENT_TYPE_LABELS[eventType])}</span><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${escapeHtml(wedding.venue.name)}</small></span><time>${formatAppTime(wedding.startsAt)}</time></button>`;
 }
 
 function renderDashboard() {
@@ -636,11 +645,11 @@ function renderDashboard() {
   if (todayElem) {
     todayElem.innerHTML = todayWeddings.length
       ? todayWeddings.map(eventCard).join("")
-      : empty("Bugün planlanmış düğün yok. Takvim nefes alıyor.");
+      : empty("Bugün planlanmış etkinlik yok. Takvim nefes alıyor.");
   }
   document.querySelector(".js-tomorrow-weddings").innerHTML = data.tomorrowWeddings.length
     ? data.tomorrowWeddings.map(compactWedding).join("")
-    : empty("Yarın için düğün yok.");
+    : empty("Yarın için etkinlik yok.");
   const venueSelect = document.querySelector(".js-availability-venue");
   venueSelect.innerHTML = `<option value="">Tüm salonlar</option>${(data.venues || [])
     .map(
@@ -797,9 +806,20 @@ function renderCalendar() {
   const isCurrentMonth = isIsoDate(data.today) && data.month === data.today.slice(0, 7);
   historyToggle.hidden = state.calendarView !== "month" || !isCurrentMonth;
   historyCheckbox.checked = state.calendarShowPast;
+  const allEventTypesSelected = state.calendarEventTypes.size === EVENT_TYPES.length;
+  document.querySelectorAll("[data-calendar-event-type]").forEach((button) => {
+    const eventType = button.dataset.calendarEventType;
+    button.setAttribute(
+      "aria-pressed",
+      String(eventType === "ALL" ? allEventTypesSelected : state.calendarEventTypes.has(eventType))
+    );
+  });
 
   const range = calendarRange(data);
-  const byDate = calendarEventsByDate(data.weddings);
+  const filteredWeddings = data.weddings.filter((wedding) =>
+    state.calendarEventTypes.has(normalizeEventType(wedding.eventType))
+  );
+  const byDate = calendarEventsByDate(filteredWeddings);
   const hidePastEvents = shouldHidePastCalendarEvents(data);
   let visibleEventCount = 0;
   const cells = Array.from({ length: range.count }, (_, index) => {
@@ -817,16 +837,20 @@ function renderCalendar() {
       timeZone: "UTC"
     }).format(dateValue);
     return `<section class="calendar-day ${outside ? "is-outside" : ""} ${events.length ? "" : "is-empty"} ${date === data.today ? "is-today" : ""}" aria-label="${escapeHtml(formatDate(`${date}T00:00:00.000Z`))}"><div class="calendar-day__head"><span class="calendar-day__number">${dateValue.getUTCDate()}<span class="calendar-day__month"> ${escapeHtml(month)}</span></span><span class="calendar-day__weekday">${escapeHtml(weekday)}</span></div><div class="calendar-events">${events
-      .map(
-        (wedding) =>
-          `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${escapeHtml(wedding.id)}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${data.selectedVenue ? "" : `${escapeHtml(wedding.venue.name)} · `}${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
-      )
+      .map((wedding) => {
+        const eventType = normalizeEventType(wedding.eventType);
+        return `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-event-type="${eventType}" data-open-wedding="${escapeHtml(wedding.id)}"><span class="calendar-event__type">${escapeHtml(EVENT_TYPE_LABELS[eventType])}</span><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(wedding.brideFirstName)} &amp; ${escapeHtml(wedding.groomFirstName)}</strong><small>${data.selectedVenue ? "" : `${escapeHtml(wedding.venue.name)} · `}${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`;
+      })
       .join("")}</div></section>`;
   }).join("");
+  const emptyMessage =
+    data.weddings.length && !filteredWeddings.length
+      ? "Seçili türlerde etkinlik yok."
+      : hidePastEvents && filteredWeddings.length
+        ? "Geçmiş etkinlikler gizli. Görmek için yukarıdaki seçeneği açın."
+        : `Seçilen ${state.calendarView === "week" ? "hafta" : "ay"} için etkinlik yok.`;
   document.querySelector(".js-month-calendar").innerHTML = `${cells}${
-    visibleEventCount
-      ? ""
-      : `<p class="calendar-mobile-empty empty-state">${hidePastEvents && data.weddings.length ? "Geçmiş düğünler gizli. Görmek için yukarıdaki seçeneği açın." : `Seçilen ${state.calendarView === "week" ? "hafta" : "ay"} için düğün yok.`}</p>`
+    visibleEventCount ? "" : `<p class="calendar-mobile-empty empty-state">${emptyMessage}</p>`
   }`;
 }
 
@@ -917,6 +941,8 @@ function isPaymentFlowEditable(item) {
 }
 
 function renderApplicationCard(item) {
+  const eventType = normalizeEventType(item.eventType);
+  const eventTypeLabel = EVENT_TYPE_LABELS[eventType];
   const venueName = item.venue?.name || "Salon Belirtilmedi";
   const dateStr = formatDate(item.weddingStartsAt, false);
   const startTime = formatAppTime(item.weddingStartsAt);
@@ -955,6 +981,7 @@ function renderApplicationCard(item) {
       <div class="app-card__couple-info">
         <strong class="app-card__names">${escapeHtml(brideFullName)} &amp; ${escapeHtml(groomFullName)}</strong>
         <span class="ref-badge">${escapeHtml(item.referenceCode)}</span>
+        <span class="event-type-badge" data-event-type="${eventType}">${escapeHtml(eventTypeLabel)}</span>
         <span class="status-tag ${statusClass}">${escapeHtml(statusLabel)}</span>
       </div>
       <div class="data-row__actions">
@@ -1017,6 +1044,8 @@ async function openApplicationDetail(applicationId) {
 }
 
 function renderApplicationDetailModal(item) {
+  const eventType = normalizeEventType(item.eventType);
+  const eventTypeLabel = EVENT_TYPE_LABELS[eventType];
   const venueName = item.venue?.name || "Salon Belirtilmedi";
   const dateStr = formatDate(item.weddingStartsAt, false);
   const startTime = formatAppTime(item.weddingStartsAt);
@@ -1068,6 +1097,7 @@ function renderApplicationDetailModal(item) {
       <div class="app-detail-header-card">
         <div class="app-detail-header-left">
           <span class="ref-badge large">${escapeHtml(item.referenceCode)}</span>
+          <span class="event-type-badge" data-event-type="${eventType}">${escapeHtml(eventTypeLabel)}</span>
           <span class="status-tag ${statusClass}">${escapeHtml(statusLabel)}</span>
         </div>
         <div class="app-detail-header-date">
@@ -1080,11 +1110,15 @@ function renderApplicationDetailModal(item) {
         <h3>Etkinlik &amp; Salon Bilgileri</h3>
         <div class="app-detail-grid">
           <div class="app-detail-box">
+            <small>Etkinlik Türü</small>
+            <strong>${escapeHtml(eventTypeLabel)}</strong>
+          </div>
+          <div class="app-detail-box">
             <small>Salon / Mekân</small>
             <strong>🏛️ ${escapeHtml(venueName)}</strong>
           </div>
           <div class="app-detail-box">
-            <small>Düğün / Etkinlik Tarihi</small>
+            <small>Etkinlik Tarihi</small>
             <strong>📅 ${escapeHtml(dateStr)}</strong>
           </div>
           <div class="app-detail-box">
@@ -1219,14 +1253,15 @@ function renderWeddingLifecycleActions(wedding) {
     wedding.customerUser.mustChangePassword && activationTask
       ? `<button class="primary-button" type="button" data-activate-customer="${escapeHtml(activationTask.id)}" data-task-status="${escapeHtml(activationTask.status)}" data-task-due-at="${escapeHtml(activationTask.dueAt)}" data-task-early-override-at="${escapeHtml(activationTask.earlyOverrideAt || "")}">Müşteri hesabını aktifleştir</button>`
       : "";
-  const commonActions = `${activationAction}<button class="secondary-button" type="button" data-edit-current>Düğün bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}">Müşteri parolasını sıfırla</button>`;
+  const commonActions = `${activationAction}<button class="secondary-button" type="button" data-edit-current>Etkinlik bilgilerini düzenle</button><button class="secondary-button" type="button" data-reset-user="${escapeHtml(wedding.customerUser.id)}">Müşteri parolasını sıfırla</button>`;
   if (new Date(wedding.endsAt).valueOf() > Date.now()) {
-    return `${commonActions}<button class="secondary-button" type="button" data-cancel-wedding="${wedding.id}">Düğünü iptal et</button>`;
+    return `${commonActions}<button class="secondary-button" type="button" data-cancel-wedding="${wedding.id}">Etkinliği iptal et</button>`;
   }
   return `${commonActions}<button class="secondary-button" type="button" data-archive-wedding="${wedding.id}">Arşivle</button>`;
 }
 
 function renderWeddingDetail(wedding) {
+  const eventType = normalizeEventType(wedding.eventType);
   const delivery = wedding.delivery;
   const deliveryLocked = Boolean(wedding.cancelledAt || wedding.deletedAt);
   const deliveryInputsDisabled = deliveryLocked || delivery?.status === "TESLIM_EDILDI";
@@ -1246,7 +1281,7 @@ function renderWeddingDetail(wedding) {
   const paymentRemainingCents = Math.max(paymentTotalCents - paymentReceivedCents, 0);
   document.querySelector(".js-detail-title").textContent = coupleName(wedding);
   weddingPdfButton.disabled = false;
-  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(wedding.cancelledAt ? "İptal edildi" : STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span></div><div class="detail-actions">${renderWeddingLifecycleActions(wedding)}</div></section>
+  detailContent.innerHTML = `<section class="detail-hero"><div class="detail-hero__meta"><span class="event-type-badge" data-event-type="${eventType}">${escapeHtml(EVENT_TYPE_LABELS[eventType])}</span><span>${formatDate(wedding.startsAt, true)}</span><span>${escapeHtml(wedding.venue.name)}</span><span>${escapeHtml(wedding.cancelledAt ? "İptal edildi" : STATUS_LABELS[delivery?.status] || "Teslimat yok")}</span></div><div class="detail-actions">${renderWeddingLifecycleActions(wedding)}</div></section>
   <div class="detail-grid">
     <section class="detail-block"><h3>Çift ve iletişim</h3><div class="contact-line"><span>${escapeHtml(wedding.brideFirstName)} ${escapeHtml(wedding.brideLastName)}</span><a href="${safePhoneHref(wedding.bridePhone)}">${escapeHtml(wedding.bridePhone)}</a></div><div class="contact-line"><span>${escapeHtml(wedding.groomFirstName)} ${escapeHtml(wedding.groomLastName)}</span><a href="${safePhoneHref(wedding.groomPhone)}">${escapeHtml(wedding.groomPhone)}</a></div><div class="contact-line"><span>E-posta</span><a href="mailto:${escapeHtml(wedding.primaryEmail)}">${escapeHtml(wedding.primaryEmail)}</a></div></section>
     <section class="detail-block"><h3>Paket</h3>${packageDetail(wedding.packageSummary)}${wedding.note ? `<p>${escapeHtml(wedding.note)}</p>` : ""}</section>
@@ -1262,7 +1297,7 @@ function renderWeddingDetail(wedding) {
         : empty("Henüz personel atanmadı.")
     }</div>${
       deliveryLocked
-        ? `<small>İptal edilmiş veya arşivlenmiş düğünde personel ataması değiştirilemez.</small>`
+        ? `<small>İptal edilmiş veya arşivlenmiş etkinlikte personel ataması değiştirilemez.</small>`
         : `<form class="assignment-form js-assignment-form"><select name="staffId" aria-label="Müsait personel" required><option value="">Müsait personel seçin</option>${available
             .map(
               (staff) =>
@@ -1303,7 +1338,7 @@ async function openWeddingDetail(weddingId) {
   state.currentWedding = null;
   weddingPdfButton.disabled = true;
   document.querySelector(".js-detail-title").textContent = "Yükleniyor…";
-  detailContent.innerHTML = empty("Düğün dosyası hazırlanıyor…");
+  detailContent.innerHTML = empty("Etkinlik dosyası hazırlanıyor…");
   try {
     const response = await apiRequest(`/admin/weddings/${weddingId}`);
     state.currentWedding = response.data;
@@ -1608,7 +1643,7 @@ async function loadMontageUsers() {
       ? state.montageUsers
           .map(
             (user) =>
-              `<article class="staff-card ${user.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(user.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${user.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[user.status] || user.status)}</span></div><h3>${escapeHtml(user.username)}</h3><p>Tüm düğün bilgileri ve teslimat bağlantısı yetkisi</p><small>${user.lastLoginAt ? `Son giriş: ${formatDate(user.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${user.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${user.id}" data-managed-user-role="MONTAJCI">Düzenle</button></footer></article>`
+              `<article class="staff-card ${user.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(user.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${user.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[user.status] || user.status)}</span></div><h3>${escapeHtml(user.username)}</h3><p>Tüm etkinlik bilgileri ve teslimat bağlantısı yetkisi</p><small>${user.lastLoginAt ? `Son giriş: ${formatDate(user.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${user.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${user.id}" data-managed-user-role="MONTAJCI">Düzenle</button></footer></article>`
           )
           .join("")
       : empty("Henüz montajcı hesabı yok.");
@@ -2107,6 +2142,18 @@ document.querySelector(".js-calendar-venues").addEventListener("click", (event) 
     );
   }
 });
+document.querySelector(".js-calendar-type-filter").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-calendar-event-type]");
+  if (!button || state.calendarStatus !== "ready") return;
+  const eventType = button.dataset.calendarEventType;
+  if (eventType === "ALL") {
+    state.calendarEventTypes = new Set(EVENT_TYPES);
+  } else if (EVENT_TYPE_LABELS[eventType]) {
+    if (state.calendarEventTypes.has(eventType)) state.calendarEventTypes.delete(eventType);
+    else state.calendarEventTypes.add(eventType);
+  }
+  renderCalendar();
+});
 document.querySelectorAll("[data-calendar-view]").forEach((button) => {
   button.addEventListener("click", () => {
     if (state.calendarStatus !== "ready" || button.dataset.calendarView === state.calendarView)
@@ -2331,7 +2378,7 @@ detailContent.addEventListener("submit", async (event) => {
       );
       if (!response) return;
     }
-    setMessage("Personel düğüne atandı.", true);
+    setMessage("Personel etkinliğe atandı.", true);
     await Promise.all([
       openWeddingDetail(state.currentWedding.id),
       loadDashboard(),
@@ -2473,42 +2520,42 @@ detailContent.addEventListener("click", async (event) => {
       const response = await apiRequestWithAdminStepUp(
         `/admin/weddings/${cancelWeddingButton.dataset.cancelWedding}/cancel`,
         { method: "POST", body: {} },
-        { actionLabel: "Düğünü iptal etme" }
+        { actionLabel: "Etkinliği iptal etme" }
       );
       if (!response) return;
-      setMessage("Düğün iptal edildi; müşteri ve mesaj erişimleri durduruldu.", true);
+      setMessage("Etkinlik iptal edildi; müşteri ve mesaj erişimleri durduruldu.", true);
     } else if (reinstateWeddingButton) {
       const response = await apiRequestWithAdminStepUp(
         `/admin/weddings/${reinstateWeddingButton.dataset.reinstateWedding}/reinstate`,
         { method: "POST", body: {} },
-        { actionLabel: "Düğün iptalini geri alma" }
+        { actionLabel: "Etkinlik iptalini geri alma" }
       );
       if (!response) return;
-      setMessage("Düğün iptali geri alındı; teslimat erişimi kendiliğinden açılmadı.", true);
+      setMessage("Etkinlik iptali geri alındı; teslimat erişimi kendiliğinden açılmadı.", true);
     } else if (archiveWeddingButton) {
       await apiRequest(`/admin/weddings/${archiveWeddingButton.dataset.archiveWedding}/archive`, {
         method: "POST"
       });
       detailDialog.close();
-      setMessage("Düğün arşivlendi.", true);
+      setMessage("Etkinlik arşivlendi.", true);
     } else if (restoreWeddingButton) {
       await apiRequest(`/admin/weddings/${restoreWeddingButton.dataset.restoreWedding}/restore`, {
         method: "POST"
       });
-      setMessage("Düğün geri yüklendi.", true);
+      setMessage("Etkinlik geri yüklendi.", true);
     } else if (deleteWeddingButton) {
       deleteWeddingButton.disabled = true;
       const response = await apiRequestWithAdminStepUp(
         `/admin/weddings/${deleteWeddingButton.dataset.deleteWedding}`,
         { method: "DELETE", body: {} },
-        { actionLabel: "Düğünü kalıcı silme" }
+        { actionLabel: "Etkinliği kalıcı silme" }
       );
       if (!response) {
         deleteWeddingButton.disabled = false;
         return;
       }
       detailDialog.close();
-      setMessage("Düğün kalıcı olarak silindi.", true);
+      setMessage("Etkinlik kalıcı olarak silindi.", true);
     } else if (removeButton) {
       removeButton.disabled = true;
       const response = await apiRequestWithAdminStepUp(
@@ -3136,6 +3183,7 @@ manualForm.addEventListener("submit", async (event) => {
     await apiRequest("/admin/booking-applications", {
       method: "POST",
       body: {
+        eventType: data.get("eventType"),
         brideFirstName: data.get("brideFirstName"),
         brideLastName: data.get("brideLastName"),
         bridePhone: data.get("bridePhone"),
@@ -3159,7 +3207,7 @@ manualForm.addEventListener("submit", async (event) => {
     });
     manualDialog.close();
     manualForm.reset();
-    setMessage("Başvuru oluşturuldu ve onay kuyruğuna eklendi.", true);
+    setMessage("Etkinlik başvurusu oluşturuldu ve onay kuyruğuna eklendi.", true);
     await Promise.all([loadApplications(), loadDashboard()]);
   } catch (error) {
     manualForm.querySelector(".dialog-message").textContent = formErrorMessage(manualForm, error);
@@ -3340,14 +3388,14 @@ weddingForm.addEventListener("submit", async (event) => {
           note: data.get("note") || undefined
         }
       },
-      { actionLabel: "Düğün ve müşteri kimlik bilgilerini güncelleme" }
+      { actionLabel: "Etkinlik ve müşteri kimlik bilgilerini güncelleme" }
     );
     if (!response) return;
     weddingDialog.close();
     setMessage(
       response.data.credentialsRegenerated
-        ? `Düğün güncellendi. Yeni kullanıcı adı: ${response.data.username}.`
-        : "Düğün bilgileri güncellendi.",
+        ? `Etkinlik güncellendi. Yeni kullanıcı adı: ${response.data.username}.`
+        : "Etkinlik bilgileri güncellendi.",
       true
     );
     await Promise.all([openWeddingDetail(weddingId), loadCalendar(), loadDashboard()]);
@@ -3414,7 +3462,7 @@ if (await ensureAdmin()) {
       .catch((error) => {
         state.bookingFormConstraintsReady = false;
         state.bookingSchedulePolicy = null;
-        setMessage(`Yeni düğün formu kapalı: ${error.message}`);
+        setMessage(`Yeni etkinlik formu kapalı: ${error.message}`);
       })
       .finally(syncDependencyControls)
   ]);

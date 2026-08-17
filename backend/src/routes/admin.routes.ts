@@ -269,6 +269,7 @@ const dashboardWedding = (
     brideLastName: pii.brideLastName,
     groomFirstName: pii.groomFirstName,
     groomLastName: pii.groomLastName,
+    eventType: wedding.eventType,
     startsAt: wedding.startsAt,
     endsAt: wedding.endsAt,
     venue: wedding.venue,

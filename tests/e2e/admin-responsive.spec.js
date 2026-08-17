@@ -460,6 +460,11 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await page.getByRole("button", { name: "Yeni düğün" }).click();
   const dialog = page.locator(".js-manual-dialog");
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Manuel etkinlik başvurusu" })).toBeVisible();
+  await expect(dialog.getByRole("radio", { name: "Düğün" })).toBeChecked();
+  await dialog.getByRole("radio", { name: "Kına" }).check();
+  await expect(dialog.getByRole("radio", { name: "Kına" })).toBeChecked();
+  await expect(dialog.getByRole("radio", { name: "Düğün" })).not.toBeChecked();
   await expectMinimumHeight(dialog.getByRole("button", { name: "Kapat" }));
   expect(
     await dialog.evaluate((element) => element.scrollWidth <= document.documentElement.clientWidth)
@@ -491,6 +496,9 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
     await page.setViewportSize(viewport);
     await expectNoPageOverflow(page);
     await expectMinimumHeight(page.getByRole("button", { name: "Yeni düğün" }));
+    await expectMinimumHeight(
+      page.locator('.js-calendar-type-filter [data-calendar-event-type="WEDDING"]')
+    );
     const controls = page.locator(".calendar-heading .plan-controls");
     expect(await controls.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
       true

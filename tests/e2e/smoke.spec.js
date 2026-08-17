@@ -555,6 +555,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   });
   const wedding = {
     id: "6ae9f9e6-6217-4b6c-91ea-251be3bb6fc1",
+    eventType: "WEDDING",
     venueId: "de305d54-75b4-431b-adb2-eb6b9e546014",
     brideFirstName: "Ayşe",
     brideLastName: "Yılmaz",
@@ -594,14 +595,25 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   const pastCalendarWedding = {
     ...wedding,
     id: "7be9f9e6-6217-4b6c-91ea-251be3bb6fc2",
+    eventType: "HENNA",
     brideFirstName: "Elif",
     groomFirstName: "Can",
     startsAt: "2026-08-04T17:00:00.000Z",
     endsAt: "2026-08-04T20:00:00.000Z"
   };
+  const engagementCalendarWedding = {
+    ...wedding,
+    id: "9de9f9e6-6217-4b6c-91ea-251be3bb6fc4",
+    eventType: "ENGAGEMENT",
+    brideFirstName: "Selin",
+    groomFirstName: "Eren",
+    startsAt: "2026-08-11T16:00:00.000Z",
+    endsAt: "2026-08-11T20:00:00.000Z"
+  };
   const previousMonthWedding = {
     ...wedding,
     id: "8ce9f9e6-6217-4b6c-91ea-251be3bb6fc3",
+    eventType: "ADDITIONAL_JOB",
     venueId: "a430c729-e45a-4ce9-9c98-62a94d2b8581",
     brideFirstName: "Derya",
     groomFirstName: "Bora",
@@ -681,7 +693,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
       : null;
     const weddings =
       month === "2026-08" && (!selectedVenueId || selectedVenueId === wedding.venueId)
-        ? [pastCalendarWedding, wedding]
+        ? [pastCalendarWedding, wedding, engagementCalendarWedding]
         : month === "2026-07" && (!selectedVenueId || selectedVenueId === secondVenueId)
           ? [previousMonthWedding]
           : [];
@@ -704,6 +716,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
   });
   const midnightApplication = {
     id: "263b221c-327b-4c8e-b015-33c70fc41e55",
+    eventType: "WEDDING",
     referenceCode: "DA-2026-123456",
     status: "ONAY_BEKLIYOR",
     source: "PUBLIC_FORM",
@@ -1036,7 +1049,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     const weddingSheet = weddingDialog.locator(".sheet-shell");
     const weddingHeading = weddingDialog.locator(".sheet-heading");
     const compactActionButtons = weddingDialog.getByRole("button", {
-      name: /Düğün bilgilerini düzenle|Müşteri parolasını sıfırla|Düğünü iptal et/
+      name: /Etkinlik bilgilerini düzenle|Müşteri parolasını sıfırla|Etkinliği iptal et/
     });
 
     expect(await weddingSheet.evaluate((sheet) => sheet.scrollWidth <= sheet.clientWidth)).toBe(
@@ -1090,7 +1103,7 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     .toContain("purpose%3DACCOUNT_ACTIVATION");
   expect(await page.evaluate(() => window.__adminWindowOpenUrls[0])).toMatch(/^https:\/\/wa\.me\//);
   await expect(page.locator(".global-message")).toContainText("Müşteri hesabı aktifleştirildi");
-  await page.getByRole("button", { name: "Düğün bilgilerini düzenle" }).click();
+  await page.getByRole("button", { name: "Etkinlik bilgilerini düzenle" }).click();
   await expect(page.getByRole("heading", { name: "Bilgileri güncelle" })).toBeVisible();
   if (isMobile) {
     const weddingEditDialog = page.locator(".js-wedding-dialog");
@@ -1190,9 +1203,34 @@ test("@frontend-smoke @admin admin günlük plan ve düğün ayrıntısı yetkil
     "true"
   );
   await expect(page.locator(".js-calendar-venues [role=tab]").first()).toHaveText("Tüm Salonlar");
-  await expect(page.getByRole("button", { name: /Ayşe & Mehmet/ }).first()).toBeVisible();
+  const weddingCalendarEvent = page.getByRole("button", { name: /Ayşe & Mehmet/ }).first();
+  const engagementCalendarEvent = page.getByRole("button", { name: /Selin & Eren/ }).first();
+  await expect(weddingCalendarEvent).toBeVisible();
+  await expect(weddingCalendarEvent).toContainText("Düğün");
+  await expect(engagementCalendarEvent).toBeVisible();
+  await expect(engagementCalendarEvent).toContainText("Nişan");
+  expect(
+    await weddingCalendarEvent.evaluate((element) => getComputedStyle(element).backgroundColor)
+  ).not.toBe(
+    await engagementCalendarEvent.evaluate((element) => getComputedStyle(element).backgroundColor)
+  );
+  const weddingTypeFilter = page.locator(
+    '.js-calendar-type-filter [data-calendar-event-type="WEDDING"]'
+  );
+  const engagementTypeFilter = page.locator(
+    '.js-calendar-type-filter [data-calendar-event-type="ENGAGEMENT"]'
+  );
+  await weddingTypeFilter.click();
+  await expect(weddingTypeFilter).toHaveAttribute("aria-pressed", "false");
+  await expect(weddingCalendarEvent).toHaveCount(0);
+  await expect(engagementCalendarEvent).toBeVisible();
+  await engagementTypeFilter.click();
+  await expect(engagementCalendarEvent).toHaveCount(0);
+  await page.locator('.js-calendar-type-filter [data-calendar-event-type="ALL"]').click();
+  await expect(weddingCalendarEvent).toBeVisible();
+  await expect(engagementCalendarEvent).toBeVisible();
   const pastCalendarEvent = page.getByRole("button", { name: /Elif & Can/ });
-  const historyToggle = page.getByRole("checkbox", { name: "Geçmiş düğünleri göster" });
+  const historyToggle = page.getByRole("checkbox", { name: "Geçmiş etkinlikleri göster" });
   if (isMobile) {
     await expect(
       page
@@ -2670,6 +2708,7 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
   const staffId = "2bb5d7fd-232f-4a96-a56a-92d93b669f21";
   const wedding = {
     id: "6ae9f9e6-6217-4b6c-91ea-251be3bb6fc1",
+    eventType: "WEDDING",
     venueId,
     brideFirstName: "Ayşe",
     brideLastName: "Yılmaz",
@@ -2691,6 +2730,7 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
   const secondWedding = {
     ...wedding,
     id: "6ae9f9e6-6217-4b6c-91ea-251be3bb6fc2",
+    eventType: "ENGAGEMENT",
     brideFirstName: "Zeynep",
     groomFirstName: "Emre",
     venue: venues[1]
@@ -2834,9 +2874,27 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
   await expect.poll(() => assignmentCalls).toBe(1);
   await page.locator(".js-wedding-dialog [data-close-dialog]").click();
   await clickPanel(page, "calendar", true);
-  await expect(page.locator(".calendar-event").first()).toContainText("Ayşe & Mehmet");
+  const operationsWeddingEvent = page.locator('.calendar-event[data-event-type="WEDDING"]');
+  const operationsEngagementEvent = page.locator('.calendar-event[data-event-type="ENGAGEMENT"]');
+  await expect(operationsWeddingEvent).toContainText("Ayşe & Mehmet");
+  await expect(operationsWeddingEvent).toContainText("Düğün");
+  await expect(operationsEngagementEvent).toContainText("Nişan");
+  expect(
+    await operationsWeddingEvent.evaluate((element) => getComputedStyle(element).backgroundColor)
+  ).not.toBe(
+    await operationsEngagementEvent.evaluate((element) => getComputedStyle(element).backgroundColor)
+  );
   await expect(page.locator(".js-calendar")).toContainText("Cess Wedding Park");
   await expect(page.locator(".js-calendar")).toContainText("Cess Wedding Orman");
+  const operationsWeddingFilter = page.locator(
+    '.js-calendar-type-filter [data-calendar-event-type="WEDDING"]'
+  );
+  await operationsWeddingFilter.click();
+  await expect(operationsWeddingFilter).toHaveAttribute("aria-pressed", "false");
+  await expect(operationsWeddingEvent).toHaveCount(0);
+  await expect(operationsEngagementEvent).toBeVisible();
+  await page.locator('.js-calendar-type-filter [data-calendar-event-type="ALL"]').click();
+  await expect(operationsWeddingEvent).toBeVisible();
   await clickPanel(page, "staff", true);
   await expect(page.locator(".js-staff")).toContainText("Cem Arslan");
   await page.getByRole("button", { name: "+ Personel ekle" }).click();

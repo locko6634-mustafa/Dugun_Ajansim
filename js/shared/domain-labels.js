@@ -44,6 +44,13 @@ export const BOOKING_STATUS_LABELS = Object.freeze({
   IPTAL_EDILDI: "İptal Edildi"
 });
 
+export const EVENT_TYPE_LABELS = Object.freeze({
+  WEDDING: "Düğün",
+  ENGAGEMENT: "Nişan",
+  HENNA: "Kına",
+  ADDITIONAL_JOB: "Ek iş"
+});
+
 export const PAYMENT_METHOD_LABELS = Object.freeze({
   CASH: "Peşin",
   DEPOSIT: "Kapora"

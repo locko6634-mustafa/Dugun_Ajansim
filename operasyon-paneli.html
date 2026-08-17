@@ -161,6 +161,48 @@
               ><button type="button" data-month-move="1" aria-label="Sonraki ay" disabled>→</button>
             </div>
           </div>
+          <div class="calendar-type-toolbar">
+            <span>Etkinlik türü</span>
+            <div
+              class="calendar-type-filter js-calendar-type-filter"
+              role="group"
+              aria-label="Etkinlik türüne göre filtrele"
+            >
+              <button type="button" data-calendar-event-type="ALL" aria-pressed="true">Tümü</button>
+              <button
+                type="button"
+                data-calendar-event-type="WEDDING"
+                data-event-type="WEDDING"
+                aria-pressed="true"
+              >
+                <span aria-hidden="true"></span>Düğün
+              </button>
+              <button
+                type="button"
+                data-calendar-event-type="ENGAGEMENT"
+                data-event-type="ENGAGEMENT"
+                aria-pressed="true"
+              >
+                <span aria-hidden="true"></span>Nişan
+              </button>
+              <button
+                type="button"
+                data-calendar-event-type="HENNA"
+                data-event-type="HENNA"
+                aria-pressed="true"
+              >
+                <span aria-hidden="true"></span>Kına
+              </button>
+              <button
+                type="button"
+                data-calendar-event-type="ADDITIONAL_JOB"
+                data-event-type="ADDITIONAL_JOB"
+                aria-pressed="true"
+              >
+                <span aria-hidden="true"></span>Ek iş
+              </button>
+            </div>
+          </div>
           <div class="calendar-shell">
             <div class="calendar-weekdays">
               <span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span
@@ -169,7 +211,7 @@
             <div class="month-grid js-calendar" aria-busy="true"></div>
             <p class="dialog-message js-calendar-message" role="status" aria-live="polite"></p>
             <p class="calendar-mobile-empty js-calendar-empty" hidden>
-              Bu ay salonunuzda planlı düğün yok.
+              Bu ay salonlarınızda planlı etkinlik yok.
             </p>
           </div>
         </section>

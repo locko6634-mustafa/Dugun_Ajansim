@@ -31,6 +31,13 @@ enum BookingSource {
   ADMIN
 }
 
+enum EventType {
+  WEDDING
+  ENGAGEMENT
+  HENNA
+  ADDITIONAL_JOB
+}
+
 enum PrimaryContact {
   GELIN
   DAMAT
@@ -298,6 +305,7 @@ model BookingApplication {
   idempotencyFingerprintVersion Int?
   source                        BookingSource
   status                        BookingStatus               @default(ONAY_BEKLIYOR)
+  eventType                     EventType                   @default(WEDDING)
   brideFirstName                String?
   brideLastName                 String?
   bridePhone                    String?
@@ -384,6 +392,7 @@ model Wedding {
   application            BookingApplication  @relation(fields: [applicationId], references: [id], onDelete: Restrict)
   customerUserId         String              @unique
   customerUser           User                @relation("CustomerWedding", fields: [customerUserId], references: [id], onDelete: Restrict)
+  eventType              EventType           @default(WEDDING)
   brideFirstName         String?
   brideLastName          String?
   bridePhone             String?

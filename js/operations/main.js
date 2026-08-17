@@ -1,6 +1,6 @@
 import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
-import { STAFF_SPECIALTY_LABELS } from "../shared/domain-labels.js";
+import { EVENT_TYPE_LABELS, STAFF_SPECIALTY_LABELS } from "../shared/domain-labels.js";
 import { clearErrorFeedback, renderErrorFeedback } from "../shared/error-feedback.js";
 import {
   APP_LOCALE,
@@ -13,6 +13,12 @@ import { escapeHtml } from "../shared/html.js";
 import { printWeddingReport } from "../shared/wedding-print-report.js";
 
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
+const EVENT_TYPES = Object.freeze(Object.keys(EVENT_TYPE_LABELS));
+
+function normalizeEventType(eventType) {
+  return EVENT_TYPE_LABELS[eventType] ? eventType : "WEDDING";
+}
+
 const PANEL_TITLES = {
   overview: "Bugünün akışı",
   calendar: "Salon takvimi",
@@ -31,6 +37,8 @@ const state = {
   calendarReady: false,
   calendarLoading: false,
   calendarRequestId: 0,
+  calendarData: null,
+  calendarEventTypes: new Set(EVENT_TYPES),
   weddings: [],
   weddingPagination: {
     cursor: null,
@@ -127,6 +135,8 @@ function clearVenueScopedUi(nextVenueIds = []) {
   state.calendarReady = false;
   state.calendarLoading = false;
   state.calendarRequestId += 1;
+  state.calendarData = null;
+  state.calendarEventTypes = new Set(EVENT_TYPES);
   state.weddings = [];
   state.staff = [];
   state.currentWedding = null;
@@ -277,6 +287,7 @@ async function loadDashboard(weekStart = state.weekStart) {
 
 function renderCalendar(data) {
   assertVenuePayload(data);
+  state.calendarData = data;
   state.calendarMonth = data.month;
   state.calendarReady = true;
   const [year, month] = data.month.split("-").map(Number);
@@ -290,6 +301,17 @@ function renderCalendar(data) {
   const cellCount = leading + daysInMonth <= 35 ? 35 : 42;
   const gridStart = new Date(first);
   gridStart.setUTCDate(1 - leading);
+  const allEventTypesSelected = state.calendarEventTypes.size === EVENT_TYPES.length;
+  document.querySelectorAll("[data-calendar-event-type]").forEach((button) => {
+    const eventType = button.dataset.calendarEventType;
+    button.setAttribute(
+      "aria-pressed",
+      String(eventType === "ALL" ? allEventTypesSelected : state.calendarEventTypes.has(eventType))
+    );
+  });
+  const filteredWeddings = data.weddings.filter((wedding) =>
+    state.calendarEventTypes.has(normalizeEventType(wedding.eventType))
+  );
   const cells = Array.from({ length: cellCount }, (_, index) => {
     const probe = new Date(gridStart);
     probe.setUTCDate(gridStart.getUTCDate() + index);
@@ -297,19 +319,24 @@ function renderCalendar(data) {
   });
   document.querySelector(".js-calendar").innerHTML = cells
     .map((day) => {
-      const events = data.weddings.filter((wedding) => dateKey(wedding.startsAt) === day);
+      const events = filteredWeddings.filter((wedding) => dateKey(wedding.startsAt) === day);
       const date = new Date(`${day}T12:00:00.000Z`);
       const outside = day.slice(0, 7) !== data.month;
       const weekday = new Intl.DateTimeFormat(APP_LOCALE, { weekday: "short" }).format(date);
       return `<article class="calendar-day ${outside ? "is-outside" : ""} ${events.length ? "" : "is-empty"} ${day === data.today ? "is-today" : ""}"><div class="calendar-day__head"><span class="calendar-day__number">${date.getUTCDate()}</span><span class="calendar-day__weekday">${escapeHtml(weekday)}</span></div><div class="calendar-events">${events
-        .map(
-          (wedding) =>
-            `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-open-wedding="${wedding.id}"><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(couple(wedding))}</strong><small>${escapeHtml(wedding.venue.name)} · ${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`
-        )
+        .map((wedding) => {
+          const eventType = normalizeEventType(wedding.eventType);
+          return `<button class="calendar-event ${wedding.assignments.length ? "" : "is-unassigned"}" type="button" data-event-type="${eventType}" data-open-wedding="${wedding.id}"><span class="calendar-event__type">${escapeHtml(EVENT_TYPE_LABELS[eventType])}</span><time>${formatAppTime(wedding.startsAt)}–${formatAppTime(wedding.endsAt)}</time><strong>${escapeHtml(couple(wedding))}</strong><small>${escapeHtml(wedding.venue.name)} · ${wedding.assignments.length ? `${wedding.assignments.length} kişilik ekip` : "Ekip atanmadı"}</small></button>`;
+        })
         .join("")}</div></article>`;
     })
     .join("");
-  document.querySelector(".js-calendar-empty").hidden = data.weddings.length > 0;
+  const emptyState = document.querySelector(".js-calendar-empty");
+  emptyState.textContent =
+    data.weddings.length && !filteredWeddings.length
+      ? "Bu ay seçili türlerde etkinlik yok."
+      : "Bu ay salonlarınızda planlı etkinlik yok.";
+  emptyState.hidden = filteredWeddings.length > 0;
 }
 
 async function loadCalendar(month = state.calendarMonth) {
@@ -1083,6 +1110,18 @@ document
   );
 document.querySelector("[data-month-today]").addEventListener("click", () => {
   void loadCalendar("").catch((error) => setMessage(error));
+});
+document.querySelector(".js-calendar-type-filter").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-calendar-event-type]");
+  if (!button || !state.calendarReady || !state.calendarData) return;
+  const eventType = button.dataset.calendarEventType;
+  if (eventType === "ALL") {
+    state.calendarEventTypes = new Set(EVENT_TYPES);
+  } else if (EVENT_TYPE_LABELS[eventType]) {
+    if (state.calendarEventTypes.has(eventType)) state.calendarEventTypes.delete(eventType);
+    else state.calendarEventTypes.add(eventType);
+  }
+  renderCalendar(state.calendarData);
 });
 
 document.querySelector(".js-specialties").innerHTML = Object.entries(SPECIALTIES)

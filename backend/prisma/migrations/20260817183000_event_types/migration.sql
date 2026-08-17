@@ -1,0 +1,7 @@
+CREATE TYPE "EventType" AS ENUM ('WEDDING', 'ENGAGEMENT', 'HENNA', 'ADDITIONAL_JOB');
+
+ALTER TABLE "booking_applications"
+ADD COLUMN "eventType" "EventType" NOT NULL DEFAULT 'WEDDING';
+
+ALTER TABLE "weddings"
+ADD COLUMN "eventType" "EventType" NOT NULL DEFAULT 'WEDDING';
