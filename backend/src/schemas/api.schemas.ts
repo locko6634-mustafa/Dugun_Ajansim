@@ -88,11 +88,13 @@ const catalogNameSchema = z
   .min(adminCatalogFormConstraints.name.minLength)
   .max(adminCatalogFormConstraints.name.maxLength);
 export const staffSpecialtySchema = z.enum([
+  "ACTUAL_CAMERA",
   "PHOTOGRAPHY",
-  "VIDEO",
   "DRONE",
+  "VIDEO",
+  "PRINTING",
+  "SALES",
   "JIMMY_JIB",
-  "ASSISTANT",
   "EDITING",
   "ALBUM"
 ]);
@@ -474,7 +476,7 @@ const staffFieldsSchema = z
     firstName: personNameSchema,
     lastName: personNameSchema,
     phone: phoneSchema,
-    specialties: z.array(staffSpecialtySchema).min(1).max(7),
+    specialties: z.array(staffSpecialtySchema).min(1).max(staffSpecialtySchema.options.length),
     isActive: z.boolean().default(true)
   })
   .strict();

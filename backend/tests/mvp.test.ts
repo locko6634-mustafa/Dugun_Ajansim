@@ -11,6 +11,7 @@ import {
   packageBodySchema,
   serviceBodySchema,
   passwordChangeBodySchema,
+  staffSpecialtySchema,
   strongPasswordSchema,
   venueManagerBodySchema,
   weddingUpdateBodySchema
@@ -45,6 +46,21 @@ import {
 
 const test: typeof nodeTest = ((name: string, ...args: unknown[]) =>
   nodeTest(`[backend-unit] ${name}`, ...(args as [never]))) as typeof nodeTest;
+
+test("personel uzmanlık sözleşmesi operasyon rollerini eksiksiz kabul eder", () => {
+  assert.deepEqual(staffSpecialtySchema.options, [
+    "ACTUAL_CAMERA",
+    "PHOTOGRAPHY",
+    "DRONE",
+    "VIDEO",
+    "PRINTING",
+    "SALES",
+    "JIMMY_JIB",
+    "EDITING",
+    "ALBUM"
+  ]);
+  assert.equal(staffSpecialtySchema.safeParse("ASSISTANT").success, false);
+});
 
 test("düğün aralığı yalnız aynı gün için İstanbul saatine göre oluşturulur", () => {
   const range = createWeddingRange("2026-08-10", "20:00", "23:00", false);

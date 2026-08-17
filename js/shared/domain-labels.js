@@ -9,13 +9,15 @@ export const ROLE_PANEL_CONFIG = Object.freeze({
 });
 
 export const STAFF_SPECIALTY_LABELS = Object.freeze({
-  PHOTOGRAPHY: "Fotoğraf",
-  VIDEO: "Video",
+  ACTUAL_CAMERA: "Aktüel Kamera",
+  PHOTOGRAPHY: "Fotoğrafçı",
   DRONE: "Drone",
+  VIDEO: "Klipçi",
+  PRINTING: "Baskıcı",
+  SALES: "Satış Personeli",
   JIMMY_JIB: "Jimmy Jib",
-  ASSISTANT: "Asistan",
   EDITING: "Kurgu / Montaj",
-  ALBUM: "Albüm"
+  ALBUM: "Albüm Tasarımı"
 });
 
 export const DELIVERY_STATUS_LABELS = Object.freeze({

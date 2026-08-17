@@ -29,6 +29,7 @@ import {
   rejectBookingBodySchema,
   serviceBodySchema,
   staffBodySchema,
+  staffSpecialtySchema,
   staffUpdateBodySchema,
   uuidParamsSchema,
   venueBodySchema,
@@ -891,12 +892,10 @@ router.get(
     }));
 
     const distribution = Object.fromEntries(
-      ["PHOTOGRAPHY", "VIDEO", "DRONE", "JIMMY_JIB", "ASSISTANT", "EDITING", "ALBUM"].map(
-        (specialty) => [
-          specialty,
-          assignments.filter(({ assignment }) => assignment.specialty === specialty).length
-        ]
-      )
+      staffSpecialtySchema.options.map((specialty) => [
+        specialty,
+        assignments.filter(({ assignment }) => assignment.specialty === specialty).length
+      ])
     );
 
     res.json({

@@ -89,11 +89,13 @@ enum AuditOutcome {
 }
 
 enum StaffSpecialty {
+  ACTUAL_CAMERA
   PHOTOGRAPHY
-  VIDEO
   DRONE
+  VIDEO
+  PRINTING
+  SALES
   JIMMY_JIB
-  ASSISTANT
   EDITING
   ALBUM
 }

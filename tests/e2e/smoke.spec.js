@@ -2900,6 +2900,17 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
   await page.getByRole("button", { name: "+ Personel ekle" }).click();
   const staffDialog = page.locator(".js-staff-dialog");
   await expect(staffDialog.getByRole("heading", { name: "Personel ekle" })).toBeVisible();
+  await expect(staffDialog.locator(".specialty-choices label")).toHaveText([
+    "Aktüel Kamera",
+    "Fotoğrafçı",
+    "Drone",
+    "Klipçi",
+    "Baskıcı",
+    "Satış Personeli",
+    "Jimmy Jib",
+    "Kurgu / Montaj",
+    "Albüm Tasarımı"
+  ]);
   await staffDialog.locator('[name="firstName"]').fill("Cem");
   await staffDialog.locator('[name="lastName"]').fill("Arslan");
   await staffDialog.locator('[name="phone"]').fill("055511110101");
