@@ -2,6 +2,7 @@ import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
 import { DELIVERY_STATUS_LABELS, STAFF_SPECIALTY_LABELS } from "../shared/domain-labels.js";
 import { isAllowedDeliveryLinkUrl } from "../shared/delivery-link.js";
+import { clearErrorFeedback, renderErrorFeedback } from "../shared/error-feedback.js";
 import { escapeHtml } from "../shared/html.js";
 import {
   APP_LOCALE,
@@ -27,8 +28,14 @@ const dialog = document.querySelector(".js-delivery-dialog");
 const dialogContent = document.querySelector(".js-delivery-content");
 const montageDeliveryStatuses = ["HAZIRLANIYOR", "MONTAJ", "KONTROL", "TESLIME_HAZIR"];
 
-const setMessage = (copy, success = false) => {
-  message.textContent = copy;
+const setMessage = (copy, success = false, feedbackOptions = {}) => {
+  if (!success && copy && typeof copy === "object") {
+    message.classList.remove("is-success");
+    renderErrorFeedback(message, copy, feedbackOptions);
+    return;
+  }
+  clearErrorFeedback(message);
+  message.textContent = copy || "";
   message.classList.toggle("is-success", success);
 };
 
@@ -119,8 +126,17 @@ async function ensureSession() {
     document.querySelector(".js-user-initial").textContent =
       response.data.username[0].toUpperCase();
     return true;
-  } catch {
-    window.location.replace("login.html");
+  } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      window.location.replace("login.html");
+      return false;
+    }
+    setMessage(error, false, {
+      title: "Güvenli oturum doğrulanamadı",
+      retryAction: () => window.location.reload(),
+      actionLabel: "Sayfayı yeniden dene",
+      focus: true
+    });
     return false;
   }
 }
@@ -390,5 +406,11 @@ document.querySelector(".montage-intro .eyebrow").textContent = `${new Intl.Date
 ).format(new Date())} · ${OPERATIONS_CITY}`;
 
 if (await ensureSession()) {
-  await loadCalendar().catch((error) => setMessage(error.message));
+  await loadCalendar().catch((error) =>
+    setMessage(error, false, {
+      title: "Montaj takvimi yüklenemedi",
+      retryAction: () => window.location.reload(),
+      actionLabel: "Sayfayı yeniden dene"
+    })
+  );
 }

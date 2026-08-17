@@ -1456,6 +1456,64 @@ test("@frontend-smoke müşteri teslimat penceresini geciken API yanıtından ö
   await expect(page).toHaveURL(/login\.html$/);
 });
 
+test("@frontend-smoke müşteri paneli geçici oturum hatasını açıklar ve yeniden dener", async ({
+  page
+}) => {
+  let sessionAttempts = 0;
+  await page.route("**/api/v1/auth/session", (route) => {
+    sessionAttempts += 1;
+    if (sessionAttempts === 1) {
+      return route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          code: "SERVICE_UNAVAILABLE",
+          message: "Bir hata oluştu.",
+          errorId: "customer_session_failure"
+        })
+      });
+    }
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { role: "MUSTERI", mustChangePassword: false, username: "musteri" }
+      })
+    });
+  });
+  await page.route("**/api/v1/customer/dashboard", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          couple: { bride: "Ayşe Yılmaz", groom: "Mehmet Demir" },
+          venue: "Cess Wedding",
+          startsAt: "2026-08-10T17:00:00.000Z",
+          delivery: {
+            status: "MONTAJ",
+            dueDate: "2026-08-31T00:00:00.000Z",
+            available: false,
+            history: []
+          }
+        }
+      })
+    })
+  );
+
+  await page.goto("/musteri-paneli.html");
+  await expect(page).toHaveURL(/musteri-paneli\.html$/);
+  const feedback = page.locator(".page-message");
+  await expect(feedback).toContainText("Güvenli oturum doğrulanamadı");
+  await expect(feedback).toContainText("Destek kodu: customer_session_failure");
+  await feedback.getByRole("button", { name: "Sayfayı yeniden dene" }).click();
+
+  await expect(page.locator(".customer-hero")).toBeVisible();
+  await expect(page.locator(".js-bride")).toHaveText("Ayşe Yılmaz");
+  expect(sessionAttempts).toBe(2);
+});
+
 async function preparePublicBookingForm(page, bookingHandler) {
   await page.route("**/api/v1/catalog", (route) =>
     route.fulfill({
@@ -1562,6 +1620,7 @@ test("@frontend-smoke public 500 hatası aktif adımda görünür, veriyi korur 
   const status = page.locator(".js-builder-request-status");
   await expect(status).toBeVisible();
   await expect(status).toContainText("Bilgileriniz korundu");
+  await expect(status).toContainText("Destek kodu: request_public_500");
   await expect(page.locator('input[name="payment-method"][value="cash"]')).toBeChecked();
   await status.getByRole("button", { name: "Tekrar dene" }).click();
   await expect(page.locator(".js-transfer-reference")).toContainText("DA-2026-500001");

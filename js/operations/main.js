@@ -1,6 +1,7 @@
 import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
 import { STAFF_SPECIALTY_LABELS } from "../shared/domain-labels.js";
+import { clearErrorFeedback, renderErrorFeedback } from "../shared/error-feedback.js";
 import {
   APP_LOCALE,
   APP_TIME_ZONE,
@@ -87,8 +88,14 @@ const addDays = (date, days) => {
   probe.setUTCDate(probe.getUTCDate() + days);
   return probe.toISOString().slice(0, 10);
 };
-const setMessage = (copy, success = false) => {
-  message.textContent = copy;
+const setMessage = (copy, success = false, feedbackOptions = {}) => {
+  if (!success && copy && typeof copy === "object") {
+    message.classList.remove("is-success");
+    renderErrorFeedback(message, copy, feedbackOptions);
+    return;
+  }
+  clearErrorFeedback(message);
+  message.textContent = copy || "";
   message.classList.toggle("is-success", success);
 };
 
@@ -165,9 +172,18 @@ async function ensureSession() {
     document.querySelector(".js-user-initial").textContent =
       response.data.username[0].toUpperCase();
     return true;
-  } catch {
+  } catch (error) {
     clearVenueScopedUi();
-    window.location.replace("login.html");
+    if (error?.status === 401 || error?.status === 403) {
+      window.location.replace("login.html");
+      return false;
+    }
+    setMessage(error, false, {
+      title: "Güvenli oturum doğrulanamadı",
+      retryAction: () => window.location.reload(),
+      actionLabel: "Sayfayı yeniden dene",
+      focus: true
+    });
     return false;
   }
 }
@@ -843,7 +859,12 @@ function activatePanel(name) {
     panel.classList.toggle("is-active", active);
   });
   document.querySelector(".js-page-title").textContent = PANEL_TITLES[name];
-  void loaders[name]?.().catch((error) => setMessage(error.message));
+  void loaders[name]?.().catch((error) =>
+    setMessage(error, false, {
+      title: "Bölüm yüklenemedi",
+      retryAction: () => loaders[name]?.()
+    })
+  );
 }
 
 document.addEventListener("click", (event) => {
@@ -866,7 +887,7 @@ weddingSearchInput?.addEventListener("input", () => {
     return;
   }
   weddingSearchTimer = window.setTimeout(
-    () => void loadWeddings().catch((error) => setMessage(error.message)),
+    () => void loadWeddings().catch((error) => setMessage(error)),
     250
   );
 });
@@ -875,12 +896,12 @@ document.querySelector(".js-wedding-search-reset")?.addEventListener("click", ()
   state.weddingRequestId += 1;
   weddingSearchInput.value = "";
   resetWeddingPagination();
-  void loadWeddings().catch((error) => setMessage(error.message));
+  void loadWeddings().catch((error) => setMessage(error));
 });
 weddingPagination?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-wedding-page]");
   if (!button) return;
-  void moveWeddingPage(button.dataset.weddingPage).catch((error) => setMessage(error.message));
+  void moveWeddingPage(button.dataset.weddingPage).catch((error) => setMessage(error));
 });
 document.querySelector(".js-staff-search").addEventListener("input", renderStaff);
 document.querySelector(".js-staff-venue-filter")?.addEventListener("change", renderStaff);
@@ -901,7 +922,7 @@ document.querySelector(".js-staff").addEventListener("click", (event) => {
         await loadStaff();
         setMessage("Personel ekipten silindi.", true);
       } catch (error) {
-        setMessage(error.message);
+        setMessage(error);
       } finally {
         remove.disabled = false;
       }
@@ -1037,12 +1058,12 @@ document
       "click",
       () =>
         void loadDashboard(addDays(state.weekStart, Number(button.dataset.weekMove))).catch(
-          (error) => setMessage(error.message)
+          (error) => setMessage(error)
         )
     )
   );
 document.querySelector("[data-week-today]").addEventListener("click", () => {
-  void loadDashboard("").catch((error) => setMessage(error.message));
+  void loadDashboard("").catch((error) => setMessage(error));
 });
 const moveMonth = (offset) => {
   const [year, month] = state.calendarMonth.split("-").map(Number);
@@ -1056,12 +1077,12 @@ document
       "click",
       () =>
         void loadCalendar(moveMonth(Number(button.dataset.monthMove))).catch((error) =>
-          setMessage(error.message)
+          setMessage(error)
         )
     )
   );
 document.querySelector("[data-month-today]").addEventListener("click", () => {
-  void loadCalendar("").catch((error) => setMessage(error.message));
+  void loadCalendar("").catch((error) => setMessage(error));
 });
 
 document.querySelector(".js-specialties").innerHTML = Object.entries(SPECIALTIES)
@@ -1082,7 +1103,13 @@ document
   );
 
 if (await ensureSession()) {
-  await loadDashboard().catch((error) => setMessage(error.message));
+  await loadDashboard().catch((error) =>
+    setMessage(error, false, {
+      title: "Salon verileri yüklenemedi",
+      retryAction: () => window.location.reload(),
+      actionLabel: "Sayfayı yeniden dene"
+    })
+  );
 }
 
 /* UX & Klavye Kısayolları */

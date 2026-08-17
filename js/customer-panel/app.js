@@ -2,10 +2,23 @@ import { apiRequest } from "../shared/api-client.js";
 import { logoutUser } from "../shared/auth-session.js";
 import { DELIVERY_STATUS_LABELS, DELIVERY_STATUS_ORDER } from "../shared/domain-labels.js";
 import { normalizeDeliveryLinkUrl } from "../shared/delivery-link.js";
+import { clearErrorFeedback, renderErrorFeedback } from "../shared/error-feedback.js";
 import { APP_TIME_ZONE, formatAppDate } from "../shared/runtime-config.js";
 
 const statusOrder = DELIVERY_STATUS_ORDER;
 const statusLabels = DELIVERY_STATUS_LABELS;
+const pageMessage = document.querySelector(".page-message");
+
+const reloadPage = () => window.location.reload();
+
+function showPanelError(error, title) {
+  renderErrorFeedback(pageMessage, error, {
+    title,
+    retryAction: reloadPage,
+    actionLabel: "Sayfayı yeniden dene",
+    focus: true
+  });
+}
 
 const formatDate = (value) => formatAppDate(value, { dateStyle: "long" });
 
@@ -52,8 +65,12 @@ async function ensureCustomer() {
       return null;
     }
     return session.data;
-  } catch {
-    window.location.replace("login.html");
+  } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      window.location.replace("login.html");
+      return null;
+    }
+    showPanelError(error, "Güvenli oturum doğrulanamadı");
     return null;
   }
 }
@@ -95,7 +112,7 @@ async function loadDashboard() {
     .join("");
 
   document.querySelector(".delivery-release").hidden = !data.delivery.available;
-  document.querySelector(".page-message").textContent = "";
+  clearErrorFeedback(pageMessage);
   showContent();
 }
 
@@ -115,7 +132,10 @@ document.querySelector(".js-open-delivery").addEventListener("click", async () =
     popup.location.href = driveUrl;
   } catch (error) {
     popup?.close();
-    document.querySelector(".page-message").textContent = error.message;
+    renderErrorFeedback(pageMessage, error, {
+      title: "Teslimat bağlantısı açılamadı",
+      focus: true
+    });
   } finally {
     button.disabled = false;
   }
@@ -137,7 +157,7 @@ window.addEventListener("pageshow", (event) => {
   void ensureCustomer().then((session) => {
     if (!session) return;
     void loadDashboard().catch((error) => {
-      document.querySelector(".page-message").textContent = error.message;
+      showPanelError(error, "Teslimat bilgileri yüklenemedi");
     });
   });
 });
@@ -146,6 +166,6 @@ hideSensitiveContent();
 const customerSession = await ensureCustomer();
 if (customerSession) {
   await loadDashboard().catch((error) => {
-    document.querySelector(".page-message").textContent = error.message;
+    showPanelError(error, "Teslimat bilgileri yüklenemedi");
   });
 }

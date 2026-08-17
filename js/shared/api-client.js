@@ -1,3 +1,5 @@
+import { decorateRequestError } from "./error-feedback.js";
+
 const isLocalDevelopmentServer =
   ["localhost", "127.0.0.1"].includes(window.location.hostname) && window.location.port === "8000";
 const configuredApiBaseUrl = document
@@ -25,7 +27,7 @@ export async function apiRequest(path, options = {}) {
   if (!hasApiEndpoint()) {
     const error = new Error("API adresi bu ortam için yapılandırılmamış.");
     error.status = 503;
-    throw error;
+    throw decorateRequestError(error);
   }
 
   const {
@@ -74,10 +76,15 @@ export async function apiRequest(path, options = {}) {
       body: shouldSerializeJson ? JSON.stringify(requestOptions.body) : requestOptions.body
     });
 
-    const payload = await response.json().catch(() => ({
-      success: false,
-      message: "Sunucudan geçersiz yanıt alındı."
-    }));
+    const payload = await response.json().catch(() => null);
+    if (!payload || typeof payload !== "object") {
+      const invalidResponseError = new Error(
+        "Sunucudan okunabilir bir yanıt alınamadı. Sayfayı yenileyip tekrar deneyin."
+      );
+      invalidResponseError.status = response.ok ? 502 : response.status;
+      invalidResponseError.payload = { success: false, code: "INVALID_RESPONSE" };
+      throw decorateRequestError(invalidResponseError);
+    }
 
     if (!response.ok) {
       const error = new Error(payload.message || "İşlem tamamlanamadı.");
@@ -88,7 +95,7 @@ export async function apiRequest(path, options = {}) {
         10
       );
       if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfterSeconds = retryAfter;
-      throw error;
+      throw decorateRequestError(error);
     }
 
     return payload;
@@ -97,7 +104,7 @@ export async function apiRequest(path, options = {}) {
       const timeoutError = new Error("Sunucu zamanında yanıt vermedi. Lütfen tekrar deneyin.");
       timeoutError.status = 408;
       timeoutError.code = "REQUEST_TIMEOUT";
-      throw timeoutError;
+      throw decorateRequestError(timeoutError);
     }
     if (error?.name === "AbortError" && callerSignal?.aborted) throw error;
     if (error instanceof TypeError) {
@@ -106,7 +113,7 @@ export async function apiRequest(path, options = {}) {
       );
       offlineError.status = 0;
       offlineError.code = "NETWORK_ERROR";
-      throw offlineError;
+      throw decorateRequestError(offlineError);
     }
     throw error;
   } finally {

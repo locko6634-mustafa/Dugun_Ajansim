@@ -449,7 +449,7 @@ async function hydrateRemoteData() {
         "Şu anda başvuruya açık bir paket bulunmuyor. Lütfen daha sonra tekrar deneyin."
       );
     }
-  } catch {
+  } catch (error) {
     state.catalogReady = false;
     state.paymentPolicy = null;
     state.bookingSchedulePolicy = null;
@@ -466,7 +466,8 @@ async function hydrateRemoteData() {
       "Güncel paket ve salon bilgileri alınamadı. Lütfen bağlantınızı kontrol edip sayfayı yenileyin."
     );
     setBuilderRequestStatus(
-      "Güncel paket, salon veya doğrulama bilgileri alınamadı. Bağlantınızı kontrol edip yeniden deneyin.",
+      error?.message ||
+        "Güncel paket, salon veya doğrulama bilgileri alınamadı. Bağlantınızı kontrol edip yeniden deneyin.",
       {
         title: "Başvuru bilgileri yüklenemedi",
         retryAction: hydrateRemoteData,
@@ -1090,6 +1091,7 @@ function applyServerFieldErrors(error) {
 }
 
 function getBookingFailureMessage(error) {
+  const supportReference = error?.reference ? ` Destek kodu: ${error.reference}.` : "";
   if (error?.status === 409) {
     return "Seçtiğiniz salon veya başvuru bilgileri başka bir işlemle çakıştı. Bilgileri kontrol edip tekrar deneyin.";
   }
@@ -1100,7 +1102,7 @@ function getBookingFailureMessage(error) {
     return `Çok fazla deneme yapıldı.${wait} tekrar deneyin.`;
   }
   if (error?.status >= 500 || error?.status === 0 || error?.status === 408) {
-    return "Başvurunuz şu anda kaydedilemedi. Bilgileriniz korundu; bağlantınızı kontrol edip tekrar deneyin.";
+    return `Başvurunuz şu anda kaydedilemedi. Bilgileriniz korundu; bağlantınızı kontrol edip tekrar deneyin.${supportReference}`;
   }
   return error?.message || "Başvuru tamamlanamadı. Bilgilerinizi kontrol edip tekrar deneyin.";
 }

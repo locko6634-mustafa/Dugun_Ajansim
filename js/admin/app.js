@@ -13,6 +13,7 @@ import {
 } from "../shared/booking-form-constraints.js";
 import { parseBookingSchedulePolicy } from "../shared/booking-schedule-policy.js";
 import { isAllowedDeliveryLinkUrl } from "../shared/delivery-link.js";
+import { clearErrorFeedback, renderErrorFeedback } from "../shared/error-feedback.js";
 import {
   ACCOUNT_STATUS_LABELS,
   BOOKING_STATUS_LABELS,
@@ -245,8 +246,14 @@ const addMonths = (month, amount) => {
   return value.toISOString().slice(0, 7);
 };
 
-const setMessage = (message, success = false) => {
-  globalMessage.textContent = message;
+const setMessage = (message, success = false, feedbackOptions = {}) => {
+  globalMessage.style.color = "";
+  if (!success && message && typeof message === "object") {
+    renderErrorFeedback(globalMessage, message, feedbackOptions);
+    return;
+  }
+  clearErrorFeedback(globalMessage);
+  globalMessage.textContent = message || "";
   globalMessage.style.color = success ? "var(--success)" : "";
 };
 
@@ -577,8 +584,17 @@ async function ensureAdmin() {
       return false;
     }
     return true;
-  } catch {
-    window.location.replace("login.html");
+  } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      window.location.replace("login.html");
+      return false;
+    }
+    setMessage(error, false, {
+      title: "Güvenli oturum doğrulanamadı",
+      retryAction: () => window.location.reload(),
+      actionLabel: "Sayfayı yeniden dene",
+      focus: true
+    });
     return false;
   }
 }
@@ -1881,7 +1897,12 @@ function activatePanel(name) {
   });
   const mobileMore = document.querySelector(".mobile-more");
   if (mobileMore) mobileMore.hidden = true;
-  void panelLoaders[name]?.().catch((error) => setMessage(error.message));
+  void panelLoaders[name]?.().catch((error) =>
+    setMessage(error, false, {
+      title: "Bölüm yüklenemedi",
+      retryAction: () => panelLoaders[name]?.()
+    })
+  );
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -2075,14 +2096,14 @@ document.querySelector(".js-availability-filters").addEventListener("change", (e
   if (!event.target.matches("select, input")) return;
   state.availabilityVenueId = document.querySelector(".js-availability-venue").value;
   state.availabilityDate = document.querySelector(".js-availability-date").value;
-  void loadDashboard().catch((error) => setMessage(error.message));
+  void loadDashboard().catch((error) => setMessage(error));
 });
 
 document.querySelector(".js-calendar-venues").addEventListener("click", (event) => {
   const button = event.target.closest("[data-calendar-venue]");
   if (button && state.calendarStatus === "ready") {
     void loadCalendar(state.calendarMonth, button.dataset.calendarVenue).catch((error) =>
-      setMessage(error.message)
+      setMessage(error)
     );
   }
 });
@@ -2111,14 +2132,14 @@ document.querySelectorAll("[data-month-move]").forEach((button) => {
         renderCalendar();
       } else {
         void loadCalendar(targetMonth, state.calendarVenueId, focusDate).catch((error) =>
-          setMessage(error.message)
+          setMessage(error)
         );
       }
       return;
     }
     const target = addMonths(state.calendarMonth, Number(button.dataset.monthMove));
     if (target) {
-      void loadCalendar(target, state.calendarVenueId).catch((error) => setMessage(error.message));
+      void loadCalendar(target, state.calendarVenueId).catch((error) => setMessage(error));
     }
   });
 });
@@ -2126,7 +2147,7 @@ document.querySelector("[data-month-today]").addEventListener("click", () => {
   if (state.calendarStatus !== "ready") return;
   state.calendarMonth = "";
   state.calendarFocusDate = "";
-  void loadCalendar("", state.calendarVenueId, "").catch((error) => setMessage(error.message));
+  void loadCalendar("", state.calendarVenueId, "").catch((error) => setMessage(error));
 });
 
 document.querySelector(".js-application-search").addEventListener("submit", (event) => {
@@ -2233,7 +2254,7 @@ async function handleApplicationAction(event) {
   } catch (error) {
     whatsappPopup?.close();
     if (deleteButton) deleteButton.disabled = false;
-    setMessage(error.message);
+    setMessage(error);
   } finally {
     finishInFlight();
   }
@@ -2517,7 +2538,7 @@ detailContent.addEventListener("click", async (event) => {
           ? detailContent.querySelector(".js-assignment-message")
           : null;
     if (contextualMessage) contextualMessage.textContent = error.message;
-    else setMessage(error.message);
+    else setMessage(error);
   } finally {
     finishInFlight();
   }
@@ -2552,7 +2573,7 @@ document.querySelector(".js-staff").addEventListener("click", (event) => {
     })
       .then(() => Promise.all([loadStaff(), loadDashboard()]))
       .then(() => setMessage("Personel durumu güncellendi.", true))
-      .catch((error) => setMessage(error.message))
+      .catch((error) => setMessage(error))
       .finally(finishInFlight);
   } else if (deleteButton) {
     void (async () => {
@@ -2567,7 +2588,7 @@ document.querySelector(".js-staff").addEventListener("click", (event) => {
         setMessage("Personel kalıcı olarak silindi.", true);
         await Promise.all([loadStaff(), loadDashboard()]);
       } catch (error) {
-        setMessage(error.message);
+        setMessage(error);
       } finally {
         deleteButton.disabled = false;
       }
@@ -2841,7 +2862,7 @@ document.querySelector(".js-messages").addEventListener("click", async (event) =
       await loadMessages();
     }
   } catch (error) {
-    setMessage(error.message);
+    setMessage(error);
   }
 });
 
@@ -3094,7 +3115,7 @@ document.querySelector(".js-open-manual").addEventListener("click", async (event
     syncScheduleFields(manualForm);
     openManagedDialog(manualDialog, event.currentTarget);
   } catch (error) {
-    setMessage(error.message);
+    setMessage(error);
   } finally {
     finishInFlight();
   }
@@ -3361,7 +3382,13 @@ document.querySelector(".js-current-date").textContent = `${new Intl.DateTimeFor
 if (await ensureAdmin()) {
   initTrustedDevices();
   await Promise.all([
-    loadDashboard().catch((error) => setMessage(error.message)),
+    loadDashboard().catch((error) =>
+      setMessage(error, false, {
+        title: "Yönetim verileri yüklenemedi",
+        retryAction: () => window.location.reload(),
+        actionLabel: "Sayfayı yeniden dene"
+      })
+    ),
     loadHealth(),
     apiRequest("/admin/catalog-form-constraints")
       .then((response) => {
