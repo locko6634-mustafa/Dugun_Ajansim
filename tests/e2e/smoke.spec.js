@@ -2717,6 +2717,8 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
   };
   let assignmentCalls = 0;
   let staffUpdateBody = null;
+  let staffCreateBody = null;
+  let staffDeleteCalls = 0;
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -2767,13 +2769,29 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
       })
     })
   );
-  await page.route("**/api/v1/operations/staff", (route) =>
-    route.fulfill({
+  await page.route("**/api/v1/operations/staff", (route) => {
+    if (route.request().method() === "POST") {
+      staffCreateBody = route.request().postDataJSON();
+      Object.assign(staff, staffCreateBody);
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: staff })
+      });
+    }
+    return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ success: true, data: [staff] })
-    })
-  );
+    });
+  });
   await page.route(`**/api/v1/operations/staff/${staffId}`, async (route) => {
+    if (route.request().method() === "DELETE") {
+      staffDeleteCalls += 1;
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: { id: staffId, action: "deleted" } })
+      });
+    }
     staffUpdateBody = route.request().postDataJSON();
     Object.assign(staff, staffUpdateBody);
     return route.fulfill({
@@ -2830,15 +2848,26 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
   await expect(page.locator(".js-calendar")).toContainText("Cess Wedding Orman");
   await clickPanel(page, "staff", true);
   await expect(page.locator(".js-staff")).toContainText("Cem Arslan");
-  await expect(page.locator(".js-add-staff, [data-toggle-staff]")).toHaveCount(0);
-  await page.getByRole("button", { name: "Cem Arslan personelini düzenle" }).click();
+  await page.getByRole("button", { name: "+ Personel ekle" }).click();
   const staffDialog = page.locator(".js-staff-dialog");
+  await expect(staffDialog.getByRole("heading", { name: "Personel ekle" })).toBeVisible();
+  await staffDialog.locator('[name="firstName"]').fill("Cem");
+  await staffDialog.locator('[name="lastName"]').fill("Arslan");
+  await staffDialog.locator('[name="phone"]').fill("055511110101");
+  await staffDialog.locator('[name="specialties"][value="PHOTOGRAPHY"]').check();
+  await staffDialog.getByRole("button", { name: "Kaydet" }).click();
+  await expect.poll(() => staffCreateBody?.firstName).toBe("Cem");
+  await expect(staffDialog).toBeHidden();
+  await page.getByRole("button", { name: "Cem Arslan personelini düzenle" }).click();
   await expect(staffDialog.getByRole("heading", { name: "Personeli düzenle" })).toBeVisible();
   await staffDialog.locator('[name="firstName"]').fill("Cemal");
   await staffDialog.getByRole("button", { name: "Kaydet" }).click();
   await expect.poll(() => staffUpdateBody?.firstName).toBe("Cemal");
   await expect(staffDialog).toBeHidden();
   await expect(page.locator(".js-staff")).toContainText("Cemal Arslan");
+  await page.getByRole("button", { name: "Cemal Arslan personelini sil" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Personeli sil" }).click();
+  await expect.poll(() => staffDeleteCalls).toBe(1);
   expect(pageErrors).toEqual([]);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth

@@ -2767,26 +2767,65 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     operationsStaff.body.data.some((staff: { id: string }) => staff.id === foreignStaff.id),
     false
   );
+  const operationsCreatedStaff = await request(app)
+    .post("/api/v1/operations/staff")
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", managerAuthCookie)
+    .set("X-CSRF-Token", managerCsrfToken)
+    .send({
+      firstName: "Salon",
+      lastName: "Ekibi",
+      phone: "05551112255",
+      specialties: ["VIDEO"],
+      isActive: true
+    });
+  assert.equal(operationsCreatedStaff.status, 201);
+  assert.deepEqual(
+    (
+      await prisma.staffVenueAssignment.findMany({
+        where: { staffId: operationsCreatedStaff.body.data.id as string },
+        select: { venueId: true }
+      })
+    )
+      .map(({ venueId }) => venueId)
+      .sort(),
+    [venue.id, secondVenue.id].sort()
+  );
   const updatedOwnStaff = await request(app)
     .patch(`/api/v1/operations/staff/${createdStaff.body.data.id}`)
     .set("X-Correlation-ID", correlationId)
     .set("Cookie", managerAuthCookie)
     .set("X-CSRF-Token", managerCsrfToken)
     .send({ firstName: "Denizcan" });
-  assert.equal(updatedOwnStaff.status, 403);
+  assert.equal(updatedOwnStaff.status, 200);
   assert.equal(
     decryptStaffPii(
       createdStaff.body.data.id as string,
       await prisma.staff.findUniqueOrThrow({ where: { id: createdStaff.body.data.id as string } })
     ).firstName,
-    "Deniz"
+    "Denizcan"
   );
   const rejectedForeignStaff = await request(app)
     .patch(`/api/v1/operations/staff/${foreignStaff.id}`)
     .set("Cookie", managerAuthCookie)
     .set("X-CSRF-Token", managerCsrfToken)
     .send({ firstName: "Erişilmemeli" });
-  assert.equal(rejectedForeignStaff.status, 403);
+  assert.equal(rejectedForeignStaff.status, 404);
+  const rejectedForeignStaffDelete = await request(app)
+    .delete(`/api/v1/operations/staff/${foreignStaff.id}`)
+    .set("Cookie", managerAuthCookie)
+    .set("X-CSRF-Token", managerCsrfToken);
+  assert.equal(rejectedForeignStaffDelete.status, 404);
+  const deletedOperationsStaff = await request(app)
+    .delete(`/api/v1/operations/staff/${operationsCreatedStaff.body.data.id}`)
+    .set("Cookie", managerAuthCookie)
+    .set("X-CSRF-Token", managerCsrfToken);
+  assert.equal(deletedOperationsStaff.status, 200);
+  assert.equal(deletedOperationsStaff.body.data.action, "deleted");
+  assert.equal(
+    await prisma.staff.count({ where: { id: operationsCreatedStaff.body.data.id as string } }),
+    0
+  );
 
   const invalidStaff = await request(app)
     .post("/api/v1/admin/staff")

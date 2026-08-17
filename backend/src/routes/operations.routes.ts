@@ -468,7 +468,6 @@ router.get(
 
 router.post(
   "/staff",
-  denySalonManagement,
   verifyCsrf,
   validateRequest(
     z.object({ body: venueStaffBodySchema, query: emptyQuery, params: z.object({}) })
@@ -519,7 +518,6 @@ router.post(
 
 router.patch(
   "/staff/:id",
-  denySalonManagement,
   verifyCsrf,
   validateRequest(
     z.object({ body: venueStaffUpdateBodySchema, query: emptyQuery, params: uuidParamsSchema })
@@ -574,6 +572,58 @@ router.patch(
       })
       .catch(staffPhoneConflictError);
     res.json({ success: true, data: staff, correlationId: req.correlationId });
+  })
+);
+
+router.delete(
+  "/staff/:id",
+  verifyCsrf,
+  validateRequest(uuidRequest),
+  asyncHandler(async (req, res) => {
+    const venueIds = venueIdsOf(req.auth!.venueIds, req.auth!.venueId);
+    const result = await prisma.$transaction(
+      async (transaction) => {
+        const staff = await transaction.staff.findFirst({
+          where: {
+            id: req.params.id,
+            venueAssignments: {
+              some: { venueId: { in: venueIds } },
+              every: { venueId: { in: venueIds } }
+            }
+          },
+          include: { _count: { select: { assignments: true } } }
+        });
+        if (!staff)
+          throw new AppError("Personel bulunamadı veya başka bir salonla paylaşılıyor.", 404);
+        if (staff._count.assignments > 0) {
+          const updated = await transaction.staff.update({
+            where: { id: staff.id },
+            data: { isActive: false }
+          });
+          await createAudit(transaction, {
+            actorUserId: req.auth!.userId,
+            action: "venue_staff.deactivated",
+            targetType: "Staff",
+            targetId: staff.id,
+            correlationId: req.correlationId,
+            metadata: { venueIds, dispositionReason: "historical_assignments" }
+          });
+          return { id: updated.id, action: "deactivated" };
+        }
+        await transaction.staff.delete({ where: { id: staff.id } });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: "venue_staff.permanently_deleted",
+          targetType: "Staff",
+          targetId: staff.id,
+          correlationId: req.correlationId,
+          metadata: { venueIds }
+        });
+        return { id: staff.id, action: "deleted" };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+    res.json({ success: true, data: result, correlationId: req.correlationId });
   })
 );
 

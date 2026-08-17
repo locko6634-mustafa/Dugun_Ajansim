@@ -9,6 +9,7 @@ import {
   formatAppTime
 } from "../shared/runtime-config.js";
 import { escapeHtml } from "../shared/html.js";
+import { showCustomConfirm } from "../shared/custom-dialogs.js";
 import { printWeddingReport } from "../shared/wedding-print-report.js";
 
 const SPECIALTIES = STAFF_SPECIALTY_LABELS;
@@ -489,7 +490,7 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini düzenle`)}">Düzenle</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(staff.firstName[0])}${escapeHtml(staff.lastName[0])}</span><span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini düzenle`)}">Düzenle</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini sil`)}">Sil</button></footer></article>`
         )
         .join("")
     : empty("Personel bulunamadı.");
@@ -859,9 +860,37 @@ document.querySelector(".js-staff-venue-filter")?.addEventListener("change", ren
 document.querySelector(".js-add-staff")?.addEventListener("click", () => openStaffForm());
 document.querySelector(".js-staff").addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit-staff]");
-  if (!edit) return;
-  const staff = state.staff.find((item) => item.id === edit.dataset.editStaff);
-  if (staff) openStaffForm(staff, edit);
+  const remove = event.target.closest("[data-delete-staff]");
+  if (edit) {
+    const staff = state.staff.find((item) => item.id === edit.dataset.editStaff);
+    if (staff) openStaffForm(staff, edit);
+  } else if (remove) {
+    const staff = state.staff.find((item) => item.id === remove.dataset.deleteStaff);
+    if (!staff) return;
+    void showCustomConfirm({
+      title: "Personeli sil",
+      message: `${staff.firstName} ${staff.lastName} ekipten çıkarılsın mı? Geçmiş görevi varsa kayıt pasife alınır.`,
+      confirmText: "Personeli sil",
+      isDanger: true
+    }).then(async (confirmed) => {
+      if (!confirmed) return;
+      remove.disabled = true;
+      try {
+        const response = await apiRequest(`/operations/staff/${staff.id}`, { method: "DELETE" });
+        await loadStaff();
+        setMessage(
+          response.data.action === "deactivated"
+            ? "Personelin geçmiş görevleri var; kayıt pasife alındı."
+            : "Personel ekipten silindi.",
+          true
+        );
+      } catch (error) {
+        setMessage(error.message);
+      } finally {
+        remove.disabled = false;
+      }
+    });
+  }
 });
 staffForm
   .querySelectorAll('[value="cancel"]')
