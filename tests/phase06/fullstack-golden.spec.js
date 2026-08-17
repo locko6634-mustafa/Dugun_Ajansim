@@ -641,7 +641,7 @@ test("@phase06 mocksuz telefon ve WhatsApp altın yolu", async ({ page }, testIn
       requestIds
     );
     expect(salonWeddingsBody.data.items.some((item) => item.id === weddingId)).toBe(true);
-    await responseJson(
+    const staffBody = await responseJson(
       await authenticatedRequest(salon, "post", "/api/v1/operations/staff", {
         firstName: "Sentetik",
         lastName: "Personel",
@@ -649,33 +649,21 @@ test("@phase06 mocksuz telefon ve WhatsApp altın yolu", async ({ page }, testIn
         specialties: ["PHOTOGRAPHY"],
         isActive: true
       }),
-      403,
-      "salon staff create forbidden",
-      requestIds
-    );
-    const staffBody = await responseJson(
-      await authenticatedRequest(admin, "post", "/api/v1/admin/staff", {
-        firstName: "Sentetik",
-        lastName: "Personel",
-        phone: `+90555200${uniqueDigits}`,
-        specialties: ["PHOTOGRAPHY"],
-        isActive: true,
-        venueId: venue.id
-      }),
       201,
-      "admin staff create",
+      "salon staff create",
       requestIds
     );
     identity.staffIds.add(staffBody.data.id);
     identity.otherTargetIds.add(staffBody.data.id);
-    await responseJson(
+    const updatedStaffBody = await responseJson(
       await authenticatedRequest(salon, "patch", `/api/v1/operations/staff/${staffBody.data.id}`, {
         lastName: "Güncel Personel"
       }),
-      403,
-      "salon staff edit forbidden",
+      200,
+      "salon staff edit",
       requestIds
     );
+    expect(updatedStaffBody.data.lastName).toBe("Güncel Personel");
     const assignmentBody = await responseJson(
       await authenticatedRequest(
         salon,

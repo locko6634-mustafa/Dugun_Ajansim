@@ -432,6 +432,25 @@ test("RLS enforcement salon, montaj, müşteri, public, auth ve maintenance bağ
       .map(({ id }) => ({ venueId: id }))
       .sort((left, right) => left.venueId.localeCompare(right.venueId))
   );
+  const operationsCreatedVenueAssignment = await withRuntimeContext(
+    operationsContext,
+    (transaction) =>
+      transaction.staffVenueAssignment.create({
+        data: {
+          staffId: fixture.staff[1]!.id,
+          venueId: fixture.venues[0]!.id
+        }
+      })
+  );
+  assert.equal(operationsCreatedVenueAssignment.venueId, fixture.venues[0]!.id);
+  await ownerPrisma.staffVenueAssignment.delete({
+    where: {
+      staffId_venueId: {
+        staffId: operationsCreatedVenueAssignment.staffId,
+        venueId: operationsCreatedVenueAssignment.venueId
+      }
+    }
+  });
   assert.equal(
     await withRuntimeContext(operationsContext, (transaction) =>
       transaction.staffVenueAssignment.deleteMany({
