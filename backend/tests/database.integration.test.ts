@@ -2773,21 +2773,20 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .set("Cookie", managerAuthCookie)
     .set("X-CSRF-Token", managerCsrfToken)
     .send({ firstName: "Denizcan" });
-  assert.equal(updatedOwnStaff.status, 200);
-  assert.equal(updatedOwnStaff.body.data.firstName, "Denizcan");
+  assert.equal(updatedOwnStaff.status, 403);
   assert.equal(
     decryptStaffPii(
       createdStaff.body.data.id as string,
       await prisma.staff.findUniqueOrThrow({ where: { id: createdStaff.body.data.id as string } })
     ).firstName,
-    "Denizcan"
+    "Deniz"
   );
   const rejectedForeignStaff = await request(app)
     .patch(`/api/v1/operations/staff/${foreignStaff.id}`)
     .set("Cookie", managerAuthCookie)
     .set("X-CSRF-Token", managerCsrfToken)
     .send({ firstName: "Erişilmemeli" });
-  assert.equal(rejectedForeignStaff.status, 404);
+  assert.equal(rejectedForeignStaff.status, 403);
 
   const invalidStaff = await request(app)
     .post("/api/v1/admin/staff")
