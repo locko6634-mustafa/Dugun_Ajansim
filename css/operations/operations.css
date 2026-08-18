@@ -657,6 +657,11 @@ p {
 .heading-actions {
   gap: 10px;
 }
+.filter-bar {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+}
 .wedding-list {
   display: grid;
   gap: 10px;
@@ -1472,8 +1477,39 @@ h6,
   }
 
   .staff-card footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     margin-top: 14px;
     padding-top: 12px;
+  }
+
+  .heading-actions {
+    display: grid;
+    grid-template-columns: minmax(104px, auto) minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+  }
+
+  .heading-actions > .primary-button {
+    min-width: 104px;
+    padding-inline: 12px;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+  }
+
+  .heading-actions .filter-bar {
+    display: grid;
+    gap: 6px;
+  }
+
+  .heading-actions .filter-bar > * {
+    width: 100%;
+    height: 40px;
+    min-width: 0;
+  }
+
+  .staff-card footer .mini-button {
+    margin-left: 0;
   }
 
   .search-input,

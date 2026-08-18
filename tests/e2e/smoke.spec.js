@@ -2688,8 +2688,9 @@ test("@frontend-smoke basarili cikis giris durumunu sonlandirip ana sayfaya yonl
   await expect(page).toHaveURL(/\/index\.html$/);
 });
 
-test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek panelde yonetir", async ({
-  page
+test("@frontend-smoke @responsive salon sorumlusu coklu salon takvimini ve ortak ekibi tek panelde yonetir", async ({
+  page,
+  isMobile
 }) => {
   await page.addInitScript(() => {
     window.__weddingPrintCalls = 0;
@@ -2897,6 +2898,21 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
   await expect(operationsWeddingEvent).toBeVisible();
   await clickPanel(page, "staff", true);
   await expect(page.locator(".js-staff")).toContainText("Cem Arslan");
+  if (isMobile) {
+    const addStaffButton = page.getByRole("button", { name: "+ Personel ekle" });
+    const headingActions = page.locator('[data-panel-content="staff"] .heading-actions');
+    const staffFooter = page.locator(".staff-card footer");
+    const [addButtonBox, headingActionsBox, footerBox] = await Promise.all([
+      addStaffButton.boundingBox(),
+      headingActions.boundingBox(),
+      staffFooter.boundingBox()
+    ]);
+    expect(addButtonBox?.width).toBeGreaterThanOrEqual(104);
+    expect(addButtonBox?.height).toBeLessThanOrEqual(44);
+    expect(headingActionsBox?.height).toBeLessThanOrEqual(90);
+    expect(footerBox?.height).toBeLessThanOrEqual(70);
+    await expect(addStaffButton).toHaveCSS("white-space", "nowrap");
+  }
   await page.getByRole("button", { name: "+ Personel ekle" }).click();
   const staffDialog = page.locator(".js-staff-dialog");
   await expect(staffDialog.getByRole("heading", { name: "Personel ekle" })).toBeVisible();
@@ -2928,6 +2944,9 @@ test("@frontend-smoke salon sorumlusu coklu salon takvimini ve ortak ekibi tek p
   await page.getByRole("button", { name: "Cemal Arslan personelini sil" }).click();
   await expect.poll(() => staffDeleteCalls).toBe(1);
   expect(pageErrors).toEqual([]);
+  if (!isMobile) {
+    await page.setViewportSize({ width: 768, height: 1024 });
+  }
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth
   );
