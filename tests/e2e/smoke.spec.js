@@ -415,6 +415,75 @@ test("@frontend-smoke paketini olustur sayfasinda masaustunde sepet acilip kapan
   }
 });
 
+test("@frontend-smoke paket taslağı sayfaya dönünce bilgilerim adımından devam eder", async ({
+  page
+}) => {
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          paymentPolicy: defaultPaymentPolicy,
+          bookingFormConstraints: defaultBookingFormConstraints,
+          bookingSchedulePolicy: defaultBookingSchedulePolicy,
+          packages: [
+            {
+              code: "mini",
+              name: "Mini Paket",
+              priceCents: 2_000_000,
+              imagePath: "assets/images/hero-couple.webp"
+            },
+            {
+              code: "hikaye",
+              name: "Hikâye Paketi",
+              priceCents: 3_500_000,
+              imagePath: "assets/images/hero-couple.webp"
+            }
+          ],
+          services: [
+            {
+              code: "drone",
+              category: "video",
+              name: "Drone Çekimi",
+              priceCents: 500_000,
+              imagePath: "assets/images/hero-couple.webp",
+              features: [],
+              gallery: []
+            }
+          ]
+        }
+      })
+    })
+  );
+  await page.route("**/api/v1/venues", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] })
+    })
+  );
+  await page.route("**/api/v1/payment-instructions", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { enabled: false, mode: "test" } })
+    })
+  );
+
+  await page.goto("/paketini-olustur.html");
+  await page.locator('input[name="base-package"][value="hikaye"] + .base-package__media').click();
+  await page.locator(".js-next-step").click();
+  await page.locator('[data-toggle-service="drone"]').click();
+  await page.locator(".js-details-step").click();
+  await expect(page.locator('.builder-step[data-step="3"]')).toBeVisible();
+
+  await page.reload();
+
+  await expect(page.locator('.builder-step[data-step="3"]')).toBeVisible();
+  await expect(page.locator('input[name="base-package"][value="hikaye"]')).toBeChecked();
+  await expect(page.locator('.builder-service[data-service="drone"]')).toHaveClass(/is-added/);
+  await expect(page.locator(".js-extra-count")).toHaveText("1 seçim");
+});
+
 test("@frontend-smoke paket formu çift, saat ve salon alanlarını backend kataloğuyla hazırlar", async ({
   page,
   isMobile

@@ -47,6 +47,9 @@ const createImage = (src, alt, loading) => {
 
 let transferAccount = null;
 const PAYMENT_FLOW_SESSION_KEY = "dugunajansim_payment_flow";
+const PACKAGE_DRAFT_STORAGE_KEY = "dugunajansim_package_draft";
+const PACKAGE_DRAFT_VERSION = 1;
+const PACKAGE_DRAFT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const TURNSTILE_SCRIPT_URL =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const BOOKING_TURNSTILE_ACTION = "booking_application";
@@ -78,6 +81,72 @@ const state = {
 let paymentFlowCountdownTimer = null;
 let turnstileWidgetId = null;
 let turnstileScriptPromise = null;
+
+function clearPackageDraft() {
+  try {
+    window.localStorage.removeItem(PACKAGE_DRAFT_STORAGE_KEY);
+  } catch {
+    // Depolama kapalıysa temizlenecek kalıcı bir taslak yoktur.
+  }
+}
+
+function persistPackageDraft() {
+  if (state.applicationId) return;
+  try {
+    window.localStorage.setItem(
+      PACKAGE_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        version: PACKAGE_DRAFT_VERSION,
+        savedAt: Date.now(),
+        step: Math.min(Math.max(state.step, 1), 3),
+        base: state.base,
+        extras: [...state.extras]
+      })
+    );
+  } catch {
+    // Akış açık sekmede çalışmaya devam eder; yalnız taslak geri yüklenemez.
+  }
+}
+
+function restorePackageDraft() {
+  let draft;
+  try {
+    draft = JSON.parse(window.localStorage.getItem(PACKAGE_DRAFT_STORAGE_KEY));
+  } catch {
+    clearPackageDraft();
+    return false;
+  }
+
+  const isValid =
+    draft?.version === PACKAGE_DRAFT_VERSION &&
+    Number.isFinite(draft.savedAt) &&
+    Date.now() - draft.savedAt <= PACKAGE_DRAFT_MAX_AGE_MS &&
+    Number.isInteger(draft.step) &&
+    draft.step >= 1 &&
+    draft.step <= 3 &&
+    typeof draft.base === "string" &&
+    Array.isArray(draft.extras) &&
+    draft.extras.every((code) => typeof code === "string") &&
+    Boolean(basePackages[draft.base]);
+
+  if (!isValid) {
+    clearPackageDraft();
+    return false;
+  }
+
+  const activeServiceCodes = new Set(services.map((service) => service.id));
+  state.base = draft.base;
+  state.extras = new Set(draft.extras.filter((code) => activeServiceCodes.has(code)));
+  baseInputs.forEach((input) => {
+    input.checked = input.value === state.base;
+  });
+  renderServices();
+  updateBaseSelection();
+
+  const requestedService = new URL(window.location.href).searchParams.get("hizmet");
+  if (!requestedService || !activeServiceCodes.has(requestedService)) goToStep(draft.step);
+  return true;
+}
 
 function persistPaymentFlowSession() {
   if (!state.applicationId) return;
@@ -181,6 +250,7 @@ function bindBaseInputs() {
       state.base = input.value;
       invalidateConfirmedPayment();
       updateBaseSelection();
+      persistPackageDraft();
     });
   });
 }
@@ -656,6 +726,7 @@ function goToStep(step) {
   updateProgress();
   setSummaryOpen(false, { returnFocus: false });
   if (step === 5) renderOrderReview();
+  if (step <= 3) persistPackageDraft();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -814,6 +885,7 @@ function toggleService(serviceId) {
   }
   renderServices();
   updateSummary();
+  persistPackageDraft();
 
   if (state.activeService === serviceId && detailDialog.open) {
     updateDetailButton(serviceId);
@@ -881,6 +953,7 @@ function applyPaymentFlowSummary(data) {
   state.transferReference = data.referenceCode;
   state.paymentFlowExpiresAt = data.paymentFlowExpiresAt;
   state.whatsappHandoffAt = data.whatsappHandoffAt;
+  clearPackageDraft();
   persistPaymentFlowSession();
   updateTransferUI();
   updatePaymentFlowState();
@@ -2027,22 +2100,26 @@ async function restorePaymentFlowSession() {
     applicationId = window.sessionStorage.getItem(PAYMENT_FLOW_SESSION_KEY);
   } catch {
     clearPaymentFlowSession();
-    return;
+    return false;
   }
   if (!applicationId || !/^[0-9a-f-]{36}$/i.test(applicationId)) {
     clearPaymentFlowSession();
-    return;
+    return false;
   }
   state.applicationId = applicationId;
   try {
     const response = await apiRequest(`/booking-applications/${applicationId}/payment-flow`);
     applyRestoredPaymentFlow(response.data);
+    return true;
   } catch (error) {
-    if (error.status === 410) showPaymentFlowEditExpired();
-    else {
+    if (error.status === 410) {
+      showPaymentFlowEditExpired();
+      return true;
+    } else {
       clearPaymentFlowSession();
       state.applicationId = null;
       setPaymentNotificationStatus(error.message);
+      return false;
     }
   }
 }
@@ -2060,9 +2137,10 @@ bindBaseInputs();
 updateSummary();
 updateProgress();
 setSummaryOpen(false, { returnFocus: false });
-void Promise.all([hydrateRemoteData(), hydratePaymentInstructions()]).then(() =>
-  restorePaymentFlowSession()
-);
+void Promise.all([hydrateRemoteData(), hydratePaymentInstructions()]).then(async () => {
+  const restoredPaymentFlow = await restorePaymentFlowSession();
+  if (!restoredPaymentFlow) restorePackageDraft();
+});
 
 const todayInIstanbul = dateValueInIstanbul();
 if (weddingDateInput) weddingDateInput.min = todayInIstanbul;
