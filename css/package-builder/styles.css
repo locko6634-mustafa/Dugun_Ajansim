@@ -4067,7 +4067,7 @@ body.is-summary-open .package-summary__close svg {
 }
 
 @media (max-width: 640px) {
-  .builder-request-status {
+  .builder-request-status:not([hidden]) {
     display: grid;
     align-items: start;
     grid-template-columns: minmax(0, 1fr) auto;
