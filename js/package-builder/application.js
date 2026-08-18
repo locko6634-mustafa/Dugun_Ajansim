@@ -465,16 +465,11 @@ async function hydrateRemoteData() {
     setPaymentNotificationStatus(
       "Güncel paket ve salon bilgileri alınamadı. Lütfen bağlantınızı kontrol edip sayfayı yenileyin."
     );
-    setBuilderRequestStatus(
-      `Güncel paket, salon veya doğrulama bilgileri alınamadı. ${
-        error?.message || "Bağlantınızı kontrol edip yeniden deneyin."
-      }`,
-      {
-        title: "Başvuru bilgileri yüklenemedi",
-        retryAction: hydrateRemoteData,
-        focus: true
-      }
-    );
+    setBuilderRequestStatus(error?.message || "Bağlantınızı kontrol edip yeniden deneyin.", {
+      title: "Başvuru bilgileri yüklenemedi",
+      retryAction: hydrateRemoteData,
+      focus: true
+    });
   }
 }
 

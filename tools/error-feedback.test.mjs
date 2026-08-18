@@ -16,6 +16,17 @@ test("beklenmeyen sunucu hatasını yönlendirici mesaj ve güvenli destek koduy
   assert.equal(feedback.retryable, true);
 });
 
+test("sunucu içi hata ayrıntılarını ve dosya yollarını kullanıcıya yansıtmaz", () => {
+  const feedback = describeRequestError({
+    status: 500,
+    message:
+      "Invalid prisma.venue.findMany() invocation in C:\\app\\src\\routes\\public.routes.ts:236 Can't reach database server"
+  });
+
+  assert.match(feedback.message, /birkaç dakika sonra tekrar deneyin/i);
+  assert.doesNotMatch(feedback.message, /prisma|public\.routes|database server|C:\\app/i);
+});
+
 test("operasyonel sunucu mesajını değiştirmez", () => {
   const feedback = describeRequestError({
     status: 409,

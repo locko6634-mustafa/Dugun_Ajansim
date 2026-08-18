@@ -23,6 +23,7 @@ html {
   color: var(--ink);
   background: var(--paper);
   font-family: var(--sans);
+  overflow-x: clip;
   scroll-behavior: smooth;
 }
 
@@ -31,6 +32,7 @@ body {
   margin: 0;
   background:
     radial-gradient(circle at 78% 6%, hsl(37 58% 92% / 0.65), transparent 25%), var(--paper);
+  overflow-x: clip;
 }
 
 body.is-summary-open,
@@ -4047,6 +4049,7 @@ body.is-summary-open .package-summary__close svg {
 
 .builder-request-status p {
   margin-top: 4px;
+  overflow-wrap: anywhere;
 }
 
 .builder-request-status button {
@@ -4064,6 +4067,32 @@ body.is-summary-open .package-summary__close svg {
 }
 
 @media (max-width: 640px) {
+  .builder-request-status {
+    display: grid;
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 7px 12px;
+    margin-bottom: 18px;
+    padding: 14px;
+  }
+
+  .builder-request-status strong {
+    align-self: center;
+  }
+
+  .builder-request-status p {
+    grid-column: 1 / -1;
+    font-size: 0.82rem;
+    line-height: 1.5;
+  }
+
+  .builder-request-status button {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 44px;
+    margin-top: 0;
+  }
+
   .transfer-layout .order-review {
     grid-template-columns: 1fr;
   }

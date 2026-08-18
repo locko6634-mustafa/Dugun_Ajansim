@@ -23,7 +23,9 @@ export function describeRequestError({
 } = {}) {
   const numericStatus = Number.isInteger(status) ? status : null;
   const serverMessage = cleanText(message || payload?.message);
+  const canDisplayServerMessage = numericStatus === null || numericStatus < 500;
   const hasMeaningfulServerMessage =
+    canDisplayServerMessage &&
     serverMessage &&
     !GENERIC_MESSAGES.has(serverMessage.toLocaleLowerCase("tr-TR")) &&
     !/^(?:TypeError|ReferenceError|SyntaxError):|Cannot (?:read|set)|(?:undefined|null) is not|Unexpected token|Failed to fetch|NetworkError/i.test(

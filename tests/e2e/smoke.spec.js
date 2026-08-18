@@ -143,6 +143,41 @@ for (const pagePath of pages) {
   });
 }
 
+test("@frontend-smoke @responsive paket oluşturucu sunucu hatasında mobilde taşmaz", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  const serverError = {
+    success: false,
+    message:
+      "Invalid prisma.venue.findMany() invocation in C:\\app\\src\\routes\\public.routes.ts:236 Can't reach database server"
+  };
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify(serverError)
+    })
+  );
+  await page.route("**/api/v1/venues", (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify(serverError)
+    })
+  );
+
+  await page.goto("/paketini-olustur.html");
+  await expect(page.locator(".js-builder-request-status")).toBeVisible();
+  await expect(page.locator(".js-builder-request-message")).not.toContainText(
+    /prisma|public\.routes/
+  );
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(overflow).toBe(false);
+});
+
 test("@frontend-smoke ana sayfa mobil menu acilip kapanir", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/index.html");
