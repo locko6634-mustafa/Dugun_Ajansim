@@ -1392,7 +1392,7 @@ function staffVenueFilterGroup(venue) {
 
 function staffVenueFilterOptions() {
   const renderedGroups = new Set();
-  return state.venues
+  return `<option value="extra">Extra</option>${state.venues
     .map((venue) => {
       const group = staffVenueFilterGroup(venue);
       if (!group) {
@@ -1402,7 +1402,7 @@ function staffVenueFilterOptions() {
       renderedGroups.add(group.key);
       return `<option value="group:${escapeHtml(group.key)}">${escapeHtml(group.label)}</option>`;
     })
-    .join("");
+    .join("")}`;
 }
 
 function selectedStaffVenueIds(filterValue) {
@@ -1495,7 +1495,8 @@ function filterVenueChoices(form) {
 }
 
 function validateVenueSelection(form) {
-  const valid = selectedVenueIds(form).length > 0;
+  const valid =
+    form !== staffForm || staffForm.elements.isExtra.checked || selectedVenueIds(form).length > 0;
   const field = venuePickerField(form);
   const error = field.querySelector(".field-error");
   field.setAttribute("aria-invalid", String(!valid));
@@ -1507,6 +1508,21 @@ function validateVenueSelection(form) {
     venuePickerInputs(form)[0]?.focus();
   }
   return valid;
+}
+
+function updateStaffVenueRequirement() {
+  const isExtra = staffForm.elements.isExtra.checked;
+  const field = venuePickerField(staffForm);
+  field.hidden = isExtra;
+  field.querySelectorAll("input").forEach((input) => {
+    input.disabled = isExtra;
+  });
+  if (isExtra) {
+    setVenueSelection(staffForm, []);
+  } else if (!selectedVenueIds(staffForm).length && state.venues[0]) {
+    setVenueSelection(staffForm, [state.venues[0].id]);
+  }
+  validateVenueSelection(staffForm);
 }
 
 function staffInitials(staff) {
@@ -1611,6 +1627,7 @@ function renderStaff() {
     const matchesSpecialty = !specialty || staff.specialties.includes(specialty);
     const matchesVenue =
       !venueFilter ||
+      (venueFilter === "extra" && staff.isExtra) ||
       staff.venues?.some((venue) => venueIds.has(venue.id)) ||
       venueIds.has(staff.venueId) ||
       venueIds.has(staff.venue?.id);
@@ -1622,7 +1639,7 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head">${staffAvatarMarkup(staff)}<span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}">Sil</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head">${staffAvatarMarkup(staff)}<span class="status-dot" data-status="${staff.isActive ? "TESLIM_EDILDI" : ""}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="${safePhoneHref(staff.phone)}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.isExtra ? "Extra · Sabit salon yok" : staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((key) => `<span class="tag">${escapeHtml(SPECIALTIES[key])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}">Düzenle</button><button class="mini-button" type="button" data-toggle-staff="${staff.id}" data-active="${staff.isActive}">${staff.isActive ? "Pasife al" : "Aktifleştir"}</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}">Sil</button></footer></article>`
         )
         .join("")
     : empty("Filtreye uyan personel yok.");
@@ -1637,11 +1654,15 @@ async function openStaffForm(staff = null) {
   staffForm.elements.lastName.value = staff?.lastName || "";
   staffForm.elements.phone.value = staff?.phone || "";
   staffForm.elements.isActive.checked = staff?.isActive ?? true;
+  staffForm.elements.isExtra.checked = staff?.isExtra ?? false;
   setVenueSelection(
     staffForm,
-    staff?.venues?.map((venue) => venue.id) ||
-      [staff?.venueId || state.venues[0]?.id].filter(Boolean)
+    staff?.isExtra
+      ? []
+      : staff?.venues?.map((venue) => venue.id) ||
+          [staff?.venueId || state.venues[0]?.id].filter(Boolean)
   );
+  updateStaffVenueRequirement();
   staffForm.querySelector(".js-staff-venue-search").value = "";
   filterVenueChoices(staffForm);
   document.querySelector(".js-staff-form-title").textContent = staff
@@ -2749,6 +2770,7 @@ staffForm.querySelector(".js-remove-staff-photo").addEventListener("click", asyn
 });
 staffDialog.addEventListener("close", clearStaffPhotoObjectUrl);
 setupVenuePicker(staffForm);
+staffForm.elements.isExtra.addEventListener("change", updateStaffVenueRequirement);
 staffForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (event.submitter?.value === "cancel") return;
@@ -2758,17 +2780,19 @@ staffForm.addEventListener("submit", async (event) => {
   const data = new FormData(staffForm);
   const staffId = data.get("staffId");
   const photo = data.get("photo");
+  const isExtra = data.has("isExtra");
   const body = {
     firstName: data.get("firstName"),
     lastName: data.get("lastName"),
     phone: data.get("phone"),
     specialties: data.getAll("specialties"),
     isActive: data.has("isActive"),
-    venueIds: data.getAll("venueIds")
+    isExtra,
+    ...(isExtra ? {} : { venueIds: data.getAll("venueIds") })
   };
   specialtyError.hidden = body.specialties.length > 0;
   if (!validateStaffPhoto(photo)) return;
-  if (!validateVenueSelection(staffForm)) return;
+  if (!isExtra && !validateVenueSelection(staffForm)) return;
   if (!body.specialties.length) {
     staffForm.querySelector('input[name="specialties"]')?.focus();
     return;

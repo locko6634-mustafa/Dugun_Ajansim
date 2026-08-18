@@ -1163,12 +1163,13 @@ router.post(
       .$transaction(async (transaction) => {
         const staffId = randomUUID();
         const normalizedPhone = normalizePhone(req.body.phone);
-        const venueIds = venueIdsFromBody(req.body);
+        const venueIds = req.body.isExtra ? [] : venueIdsFromBody(req.body);
         await assertVenuesExist(transaction, venueIds);
         await assertActiveStaffPhoneAvailable(transaction, {
           venueIds,
           phone: normalizedPhone,
-          isActive: req.body.isActive
+          isActive: req.body.isActive,
+          isExtra: req.body.isExtra
         });
         const created = await transaction.staff.create({
           data: {
@@ -1184,8 +1185,11 @@ router.post(
             ),
             specialties: [...new Set(req.body.specialties)] as StaffSpecialty[],
             isActive: req.body.isActive,
-            venueId: venueIds[0]!,
-            venueAssignments: { create: venueIds.map((venueId) => ({ venueId })) }
+            isExtra: req.body.isExtra,
+            venueId: venueIds[0] ?? null,
+            venueAssignments: venueIds.length
+              ? { create: venueIds.map((venueId) => ({ venueId })) }
+              : undefined
           },
           include: {
             venue: { select: { id: true, name: true } },
@@ -1229,20 +1233,26 @@ router.patch(
         if (!current) throw new AppError("Personel bulunamadı.", 404);
         const currentPii = staffWithDecryptedPii(current);
         const normalizedPhone = req.body.phone ? normalizePhone(req.body.phone) : currentPii.phone;
-        const nextVenueIds =
-          req.body.venueId || req.body.venueIds
+        const venueScopeChanged = req.body.venueId !== undefined || req.body.venueIds !== undefined;
+        const nextIsExtra = req.body.isExtra ?? current.isExtra;
+        const nextVenueIds = nextIsExtra
+          ? []
+          : venueScopeChanged
             ? venueIdsFromBody(req.body)
             : [
                 ...new Set([
                   ...current.venueAssignments.map((assignment) => assignment.venueId),
                   current.venueId
                 ])
-              ];
+              ].filter((venueId): venueId is string => Boolean(venueId));
+        if (!nextIsExtra && nextVenueIds.length === 0)
+          throw new AppError("Personel için en az bir salon seçilmelidir.", 400);
         await assertVenuesExist(transaction, nextVenueIds);
         await assertActiveStaffPhoneAvailable(transaction, {
           venueIds: nextVenueIds,
           phone: normalizedPhone,
           isActive: req.body.isActive ?? current.isActive,
+          isExtra: nextIsExtra,
           excludeStaffId: current.id
         });
         const updated = await transaction.staff.update({
@@ -1261,15 +1271,16 @@ router.patch(
               ? { specialties: [...new Set(req.body.specialties)] as StaffSpecialty[] }
               : {}),
             ...(req.body.isActive === undefined ? {} : { isActive: req.body.isActive }),
-            ...(req.body.venueId || req.body.venueIds
-              ? {
-                  venueId: nextVenueIds[0]!,
+            ...(req.body.isExtra === undefined && !venueScopeChanged
+              ? {}
+              : {
+                  venueId: nextVenueIds[0] ?? null,
+                  isExtra: nextIsExtra,
                   venueAssignments: {
                     deleteMany: {},
                     create: nextVenueIds.map((venueId) => ({ venueId }))
                   }
-                }
-              : {})
+                })
           },
           include: {
             venue: { select: { id: true, name: true } },
@@ -1848,7 +1859,11 @@ router.get(
 
     const availableStaff = await prisma.staff.findMany({
       where: {
-        venueId: wedding.venueId,
+        OR: [
+          { isExtra: true },
+          { venueId: wedding.venueId },
+          { venueAssignments: { some: { venueId: wedding.venueId } } }
+        ],
         isActive: true,
         assignments: {
           none: {
@@ -2349,6 +2364,7 @@ router.post(
             throw new AppError("Düğün kaydı bulunamadı.", 404);
           if (!staff || !staff.isActive) throw new AppError("Aktif personel bulunamadı.", 404);
           if (
+            !staff.isExtra &&
             staff.venueId !== wedding.venueId &&
             !staff.venueAssignments.some((assignment) => assignment.venueId === wedding.venueId)
           ) {
@@ -2691,6 +2707,7 @@ router.patch(
                   weddingId: wedding.id,
                   staff: {
                     AND: [
+                      { isExtra: false },
                       { venueId: { not: req.body.venueId } },
                       { venueAssignments: { none: { venueId: req.body.venueId } } }
                     ]
@@ -3840,11 +3857,7 @@ router.post(
   validateRequest(uuidRequest),
   asyncHandler(async (req, res) => {
     const rendered = await prisma.$transaction(async (transaction) => {
-      const result = await renderMessage(
-        req.params.id,
-        req.auth!.userId,
-        transaction
-      );
+      const result = await renderMessage(req.params.id, req.auth!.userId, transaction);
       if (result.task.kind === "ACCOUNT_ACTIVATION" || result.task.kind === "PASSWORD_RESET") {
         await createAudit(transaction, {
           actorUserId: req.auth!.userId,

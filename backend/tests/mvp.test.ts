@@ -11,6 +11,7 @@ import {
   packageBodySchema,
   serviceBodySchema,
   passwordChangeBodySchema,
+  staffBodySchema,
   staffSpecialtySchema,
   strongPasswordSchema,
   venueManagerBodySchema,
@@ -60,6 +61,26 @@ test("personel uzmanlık sözleşmesi operasyon rollerini eksiksiz kabul eder", 
     "ALBUM"
   ]);
   assert.equal(staffSpecialtySchema.safeParse("ASSISTANT").success, false);
+});
+
+test("extra personel sabit salon olmadan kabul edilir", () => {
+  const staff = {
+    firstName: "Deniz",
+    lastName: "Kamera",
+    phone: "05551112233",
+    specialties: ["PHOTOGRAPHY"],
+    isActive: true
+  };
+  assert.equal(staffBodySchema.safeParse({ ...staff, isExtra: true }).success, true);
+  assert.equal(staffBodySchema.safeParse(staff).success, false);
+  assert.equal(
+    staffBodySchema.safeParse({
+      ...staff,
+      isExtra: true,
+      venueIds: ["11111111-1111-4111-8111-111111111111"]
+    }).success,
+    false
+  );
 });
 
 test("düğün aralığı yalnız aynı gün için İstanbul saatine göre oluşturulur", () => {

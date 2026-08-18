@@ -483,11 +483,18 @@ const staffFieldsSchema = z
 
 export const staffBodySchema = staffFieldsSchema
   .extend({
+    isExtra: z.boolean().default(false),
     venueId: z.string().uuid().optional(),
     venueIds: venueIdsSchema.optional()
   })
   .superRefine((value, context) => {
-    if (!value.venueId && !value.venueIds?.length) {
+    if (value.isExtra && (value.venueId || value.venueIds?.length)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["venueIds"],
+        message: "Extra personel için sabit salon seçmeyin."
+      });
+    } else if (!value.isExtra && !value.venueId && !value.venueIds?.length) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["venueIds"],
@@ -498,11 +505,16 @@ export const staffBodySchema = staffFieldsSchema
 
 export const staffUpdateBodySchema = staffFieldsSchema
   .extend({
+    isExtra: z.boolean().optional(),
     venueId: z.string().uuid().optional(),
     venueIds: venueIdsSchema.optional()
   })
   .partial()
-  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.")
+  .refine((value) => !(value.isExtra && (value.venueId || value.venueIds?.length)), {
+    path: ["venueIds"],
+    message: "Extra personel için sabit salon seçmeyin."
+  });
 
 export const venueStaffBodySchema = staffFieldsSchema;
 export const venueStaffUpdateBodySchema = staffFieldsSchema

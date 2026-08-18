@@ -419,6 +419,7 @@ router.get(
     const staff = await prisma.staff.findMany({
       where: {
         OR: [
+          { isExtra: true },
           { venueId: { in: venueIds } },
           { venueAssignments: { some: { venueId: { in: venueIds } } } }
         ]
@@ -488,6 +489,7 @@ router.get(
       where: {
         id: req.params.id,
         OR: [
+          { isExtra: true },
           { venueId: { in: venueIds } },
           { venueAssignments: { some: { venueId: { in: venueIds } } } }
         ]
@@ -769,6 +771,7 @@ router.get(
     const availableStaff = await prisma.staff.findMany({
       where: {
         OR: [
+          { isExtra: true },
           { venueId: wedding.venueId },
           { venueAssignments: { some: { venueId: wedding.venueId } } }
         ],
@@ -1050,6 +1053,7 @@ router.post(
               id: req.body.staffId,
               isActive: true,
               OR: [
+                { isExtra: true },
                 { venueId: wedding.venueId },
                 { venueAssignments: { some: { venueId: wedding.venueId } } }
               ]

@@ -2898,6 +2898,38 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     .send({ firstName: "Eksik", lastName: "Uzmanlık", phone: "05551112244", specialties: [] });
   assert.equal(invalidStaff.status, 400);
 
+  const extraStaff = await request(app)
+    .post("/api/v1/admin/staff")
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({
+      firstName: "Ece",
+      lastName: "Extra",
+      phone: "05551112245",
+      specialties: ["PHOTOGRAPHY"],
+      isActive: true,
+      isExtra: true
+    });
+  assert.equal(extraStaff.status, 201);
+  staffIds.push(extraStaff.body.data.id as string);
+  assert.equal(extraStaff.body.data.isExtra, true);
+  assert.equal(extraStaff.body.data.venueId, null);
+  assert.deepEqual(extraStaff.body.data.venueAssignments, []);
+
+  const extraCrossVenueAssignment = await request(app)
+    .post(`/api/v1/admin/weddings/${secondApproval.weddingId}/assignments`)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({
+      staffId: extraStaff.body.data.id,
+      specialty: "PHOTOGRAPHY",
+      allowConflict: false
+    });
+  assert.equal(extraCrossVenueAssignment.status, 201);
+  await prisma.weddingAssignment.delete({
+    where: { id: extraCrossVenueAssignment.body.data.id as string }
+  });
+
   const sharedStaffCrossVenueAssignment = await request(app)
     .post(`/api/v1/admin/weddings/${secondApproval.weddingId}/assignments`)
     .set("Cookie", adminAuthCookie)

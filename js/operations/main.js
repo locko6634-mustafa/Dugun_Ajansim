@@ -550,6 +550,7 @@ function renderStaff() {
       .includes(term);
     const matchesVenue =
       !venueId ||
+      staff.isExtra ||
       staff.venues?.some((venue) => venue.id === venueId) ||
       staff.venueId === venueId ||
       staff.venue?.id === venueId;
@@ -559,7 +560,7 @@ function renderStaff() {
     ? rows
         .map(
           (staff) =>
-            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head">${staffAvatarMarkup(staff)}<span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span><button class="mini-button" type="button" data-edit-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini düzenle`)}">Düzenle</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini sil`)}">Sil</button></footer></article>`
+            `<article class="staff-card ${staff.isActive ? "" : "is-passive"}"><div class="staff-card__head">${staffAvatarMarkup(staff)}<span class="status-dot ${staff.isActive ? "" : "is-passive"}">${staff.isActive ? "Aktif" : "Pasif"}</span></div><h3>${escapeHtml(staff.firstName)} ${escapeHtml(staff.lastName)}</h3><a class="staff-phone" href="tel:${escapeHtml(staff.phone.replaceAll(" ", ""))}">${escapeHtml(staff.phone)}</a><small class="staff-venue">${escapeHtml(staff.isExtra ? "Extra · Sabit salon yok" : staff.venues?.map((venue) => venue.name).join(" · ") || staff.venue?.name || "Salon atanmamış")}</small><div class="crew-line">${staff.specialties.map((specialty) => `<span class="tag">${escapeHtml(SPECIALTIES[specialty])}</span>`).join("")}</div><footer><span>${staff.assignments.length ? `${staff.assignments.length} yaklaşan görev` : "Yaklaşan görevi yok"}</span>${staff.isExtra ? "" : `<button class="mini-button" type="button" data-edit-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini düzenle`)}">Düzenle</button><button class="mini-button mini-button--danger" type="button" data-delete-staff="${staff.id}" aria-label="${escapeHtml(`${staff.firstName} ${staff.lastName} personelini sil`)}">Sil</button>`}</footer></article>`
         )
         .join("")
     : empty("Personel bulunamadı.");

@@ -7,6 +7,7 @@ type ActiveStaffPhoneInput = {
   venueIds?: string[];
   phone: string;
   isActive: boolean;
+  isExtra?: boolean;
   excludeStaffId?: string;
 };
 
@@ -18,14 +19,19 @@ export const assertActiveStaffPhoneAvailable = async (
   const venueIds = [
     ...new Set([...(input.venueIds ?? []), ...(input.venueId ? [input.venueId] : [])])
   ];
-  if (venueIds.length === 0) throw new AppError("Personel için en az bir salon seçilmelidir.", 400);
+  if (venueIds.length === 0 && !input.isExtra)
+    throw new AppError("Personel için en az bir salon seçilmelidir.", 400);
   const candidates = piiCryptography.blindIndexCandidates("Staff.phone", input.phone, "phone");
   const conflict = await transaction.staff.findFirst({
     where: {
-      OR: [
-        { venueId: { in: venueIds } },
-        { venueAssignments: { some: { venueId: { in: venueIds } } } }
-      ],
+      ...(input.isExtra
+        ? { isExtra: true }
+        : {
+            OR: [
+              { venueId: { in: venueIds } },
+              { venueAssignments: { some: { venueId: { in: venueIds } } } }
+            ]
+          }),
       isActive: true,
       ...(input.excludeStaffId ? { id: { not: input.excludeStaffId } } : {}),
       AND: {

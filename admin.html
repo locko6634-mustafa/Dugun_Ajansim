@@ -604,6 +604,13 @@
               aria-describedby="staff-name-help"
               required /></label
           ><label class="wide">Telefon<input name="phone" type="tel" required /></label>
+          <fieldset class="wide specialty-choices">
+            <legend>Personel türü</legend>
+            <label class="switch-row"
+              ><input class="js-staff-extra" name="isExtra" type="checkbox" /> Extra</label
+            >
+            <small>Sadece ihtiyaç olduğunda çağrılan Extra personelin sabit salonu olmaz.</small>
+          </fieldset>
           <div class="staff-photo-field wide">
             <div class="staff-photo-preview js-staff-photo-preview" aria-hidden="true">
               <span class="js-staff-photo-initials">+</span>
@@ -641,7 +648,7 @@
             class="js-staff-venue venue-picker wide"
             aria-describedby="staff-venues-help staff-venues-error"
           >
-            <legend>Salonlar</legend>
+            <legend>Sabit salonlar</legend>
             <div class="venue-picker__toolbar">
               <input
                 class="venue-picker__search js-staff-venue-search"

@@ -470,16 +470,18 @@ model Staff {
   piiBlindIndexVersion Int?
   specialties          StaffSpecialty[]
   isActive             Boolean                @default(true)
+  isExtra              Boolean                @default(false)
   photoStorageKey      String?                 @db.VarChar(255)
   photoUpdatedAt       DateTime?
-  venueId              String
-  venue                Venue                  @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  venueId              String?
+  venue                Venue?                 @relation(fields: [venueId], references: [id], onDelete: Restrict)
   venueAssignments     StaffVenueAssignment[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
   assignments          WeddingAssignment[]
 
   @@index([isActive])
+  @@index([isExtra, isActive])
   @@index([venueId, isActive])
   @@map("staff")
 }

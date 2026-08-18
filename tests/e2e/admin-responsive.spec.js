@@ -95,7 +95,21 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
       venues: [venue],
       assignments: [],
       photoUrl: null
-    }))
+    })),
+    {
+      id: "00000000-0000-4000-8000-000000000084",
+      firstName: "Ece",
+      lastName: "Extra",
+      phone: "05550000004",
+      isActive: true,
+      isExtra: true,
+      specialties: ["PHOTOGRAPHY"],
+      venueId: null,
+      venue: null,
+      venues: [],
+      assignments: [],
+      photoUrl: null
+    }
   ];
   await page.setViewportSize({ width: 320, height: 568 });
   await page.route("**/api/v1/auth/session", (route) =>
@@ -374,6 +388,7 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   const staffVenueFilter = page.locator(".js-staff-venue-filter");
   await expect(staffVenueFilter.locator("option")).toHaveText([
     "Tüm salonlar",
+    "Extra",
     "Cess Wedding",
     "Yeşil Nesil Garden"
   ]);
@@ -384,11 +399,20 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await staffVenueFilter.selectOption({ label: "Cess Wedding" });
   await expect(page.locator(".js-staff")).toContainText("Cem Cess");
   await expect(page.locator(".js-staff")).not.toContainText("Yeşil1 Personel");
+  await staffVenueFilter.selectOption("extra");
+  await expect(page.locator(".js-staff")).toContainText("Ece Extra");
+  await expect(page.locator(".js-staff")).toContainText("Extra · Sabit salon yok");
+  await expect(page.locator(".js-staff")).not.toContainText("Cem Cess");
   await staffVenueFilter.selectOption("");
   await page.getByRole("button", { name: "+ Personel ekle" }).click();
   const staffDialog = page.locator(".js-staff-dialog");
   const staffVenuePicker = staffDialog.locator(".js-staff-venue");
   await expect(staffDialog).toBeVisible();
+  await expect(staffVenuePicker.locator(".js-staff-venue-count")).toHaveText("1 salon seçili");
+  await staffDialog.locator('[name="isExtra"]').check();
+  await expect(staffVenuePicker).toBeHidden();
+  await staffDialog.locator('[name="isExtra"]').uncheck();
+  await expect(staffVenuePicker).toBeVisible();
   await expect(staffVenuePicker.locator(".js-staff-venue-count")).toHaveText("1 salon seçili");
   await expectMinimumHeight(staffVenuePicker.locator(".js-staff-venue-search"));
   const staffParkChoice = staffVenuePicker.locator(".venue-picker__choice").filter({
