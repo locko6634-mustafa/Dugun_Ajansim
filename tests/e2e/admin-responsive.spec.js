@@ -68,6 +68,35 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
     id: "00000000-0000-4000-8000-000000000092",
     name: "Cess Wedding Orman"
   };
+  const greenVenues = ["Hayal", "Masal", "Kale", "Rüya"].map((garden, index) => ({
+    id: `00000000-0000-4000-8000-00000000010${index}`,
+    slug: `yesil-nesil-garden-${garden.toLocaleLowerCase("tr-TR")}-bahce`,
+    name: `Yeşil Nesil Garden ${garden} Bahçe`
+  }));
+  const existingStaff = [
+    {
+      id: "00000000-0000-4000-8000-000000000081",
+      firstName: "Cem",
+      lastName: "Cess",
+      phone: "05550000001",
+      isActive: true,
+      specialties: ["PHOTOGRAPHY"],
+      venues: [accountVenue],
+      assignments: [],
+      photoUrl: null
+    },
+    ...greenVenues.slice(0, 2).map((venue, index) => ({
+      id: `00000000-0000-4000-8000-00000000008${index + 2}`,
+      firstName: `Yeşil${index + 1}`,
+      lastName: "Personel",
+      phone: `0555000000${index + 2}`,
+      isActive: true,
+      specialties: ["PHOTOGRAPHY"],
+      venues: [venue],
+      assignments: [],
+      photoUrl: null
+    }))
+  ];
   await page.setViewportSize({ width: 320, height: 568 });
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
@@ -167,7 +196,14 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await page.route("**/api/v1/venues", (route) =>
     route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ success: true, data: [accountVenue, secondAccountVenue] })
+      body: JSON.stringify({
+        success: true,
+        data: [
+          { ...accountVenue, slug: "cess-wedding-park" },
+          { ...secondAccountVenue, slug: "cess-wedding-orman" },
+          ...greenVenues
+        ]
+      })
     })
   );
   await page.route("**/api/v1/admin/staff", async (route) => {
@@ -191,7 +227,10 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
     }
     await route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ success: true, data: storedStaff ? [storedStaff] : [] })
+      body: JSON.stringify({
+        success: true,
+        data: [...existingStaff, ...(storedStaff ? [storedStaff] : [])]
+      })
     });
   });
   await page.route(/\/api\/v1\/admin\/staff\/[^/]+\/photo(?:\?.*)?$/, async (route) => {
@@ -332,6 +371,20 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await page.locator('[data-panel="staff"]').click();
   await expect(page.locator('[data-panel-content="staff"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "Yeni düğün" })).toBeHidden();
+  const staffVenueFilter = page.locator(".js-staff-venue-filter");
+  await expect(staffVenueFilter.locator("option")).toHaveText([
+    "Tüm salonlar",
+    "Cess Wedding",
+    "Yeşil Nesil Garden"
+  ]);
+  await staffVenueFilter.selectOption({ label: "Yeşil Nesil Garden" });
+  await expect(page.locator(".js-staff")).toContainText("Yeşil1 Personel");
+  await expect(page.locator(".js-staff")).toContainText("Yeşil2 Personel");
+  await expect(page.locator(".js-staff")).not.toContainText("Cem Cess");
+  await staffVenueFilter.selectOption({ label: "Cess Wedding" });
+  await expect(page.locator(".js-staff")).toContainText("Cem Cess");
+  await expect(page.locator(".js-staff")).not.toContainText("Yeşil1 Personel");
+  await staffVenueFilter.selectOption("");
   await page.getByRole("button", { name: "+ Personel ekle" }).click();
   const staffDialog = page.locator(".js-staff-dialog");
   const staffVenuePicker = staffDialog.locator(".js-staff-venue");

@@ -166,6 +166,20 @@ const lastDataTime = document.querySelector(".js-last-data-time");
 const dialogReturnFocus = new WeakMap();
 const STAFF_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const STAFF_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const STAFF_VENUE_FILTER_GROUPS = Object.freeze([
+  {
+    key: "cess-wedding",
+    label: "Cess Wedding",
+    slugPrefix: "cess-wedding",
+    namePrefix: "Cess Wedding"
+  },
+  {
+    key: "yesil-nesil-garden",
+    label: "Yeşil Nesil Garden",
+    slugPrefix: "yesil-nesil-garden",
+    namePrefix: "Yeşil Nesil Garden"
+  }
+]);
 const EMPTY_IMAGE_SRC = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
 let staffPhotoPreviewObjectUrl = null;
 
@@ -1366,17 +1380,50 @@ async function loadStaff() {
   }
 }
 
+function staffVenueFilterGroup(venue) {
+  return STAFF_VENUE_FILTER_GROUPS.find(
+    (group) =>
+      venue.slug === group.slugPrefix ||
+      venue.slug?.startsWith(`${group.slugPrefix}-`) ||
+      venue.name === group.namePrefix ||
+      venue.name?.startsWith(`${group.namePrefix} `)
+  );
+}
+
+function staffVenueFilterOptions() {
+  const renderedGroups = new Set();
+  return state.venues
+    .map((venue) => {
+      const group = staffVenueFilterGroup(venue);
+      if (!group) {
+        return `<option value="${escapeHtml(venue.id)}">${escapeHtml(venue.name)}</option>`;
+      }
+      if (renderedGroups.has(group.key)) return "";
+      renderedGroups.add(group.key);
+      return `<option value="group:${escapeHtml(group.key)}">${escapeHtml(group.label)}</option>`;
+    })
+    .join("");
+}
+
+function selectedStaffVenueIds(filterValue) {
+  const groupKey = filterValue.startsWith("group:") ? filterValue.slice(6) : "";
+  return new Set(
+    groupKey
+      ? state.venues
+          .filter((venue) => staffVenueFilterGroup(venue)?.key === groupKey)
+          .map((venue) => venue.id)
+      : [filterValue].filter(Boolean)
+  );
+}
+
 async function ensureVenues() {
   if (!state.venues.length) state.venues = (await apiRequest("/venues")).data;
-  const options = state.venues
-    .map((venue) => `<option value="${escapeHtml(venue.id)}">${escapeHtml(venue.name)}</option>`)
-    .join("");
   renderVenueChoices(staffForm);
   renderVenueChoices(managedUserForm);
   const filterVenueSelect = document.querySelector(".js-staff-venue-filter");
   if (filterVenueSelect) {
     const currentValue = filterVenueSelect.value;
-    filterVenueSelect.innerHTML = `<option value="">Tüm salonlar</option>${options}`;
+    filterVenueSelect.innerHTML = `<option value="">Tüm salonlar</option>${staffVenueFilterOptions()}`;
     filterVenueSelect.value = currentValue;
   }
 }
@@ -1554,7 +1601,8 @@ function renderStaff() {
     .value.trim()
     .toLocaleLowerCase(APP_LOCALE);
   const specialty = document.querySelector(".js-staff-specialty-filter").value;
-  const venueId = document.querySelector(".js-staff-venue-filter")?.value || "";
+  const venueFilter = document.querySelector(".js-staff-venue-filter")?.value || "";
+  const venueIds = selectedStaffVenueIds(venueFilter);
   const active = document.querySelector(".js-staff-active-filter").value;
   const rows = state.staff.filter((staff) => {
     const matchesTerm = `${staff.firstName} ${staff.lastName} ${staff.phone}`
@@ -1562,10 +1610,10 @@ function renderStaff() {
       .includes(term);
     const matchesSpecialty = !specialty || staff.specialties.includes(specialty);
     const matchesVenue =
-      !venueId ||
-      staff.venues?.some((venue) => venue.id === venueId) ||
-      staff.venueId === venueId ||
-      staff.venue?.id === venueId;
+      !venueFilter ||
+      staff.venues?.some((venue) => venueIds.has(venue.id)) ||
+      venueIds.has(staff.venueId) ||
+      venueIds.has(staff.venue?.id);
     const matchesActive =
       active === "all" || (active === "active" ? staff.isActive : !staff.isActive);
     return matchesTerm && matchesSpecialty && matchesVenue && matchesActive;
