@@ -723,6 +723,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   let adminId: string | undefined;
   let managerId: string | undefined;
   let montageUserId: string | undefined;
+  const deletedManagedUserIds: string[] = [];
   const staffIds: string[] = [];
   let assignmentScopeTriggerDisabled = false;
 
@@ -750,6 +751,7 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     await prisma.package.deleteMany({ where: { code: { contains: marker } } });
     if (managerId) await prisma.user.deleteMany({ where: { id: managerId } });
     if (montageUserId) await prisma.user.deleteMany({ where: { id: montageUserId } });
+    await prisma.user.deleteMany({ where: { id: { in: deletedManagedUserIds } } });
     if (secondaryVenueIds.length > 0) {
       await prisma.venue.deleteMany({ where: { id: { in: secondaryVenueIds } } });
     }
@@ -2662,6 +2664,116 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(
     (await request(app).get("/api/v1/operations/staff").set("Cookie", montageCookie)).status,
     403
+  );
+  const removableManager = await request(app)
+    .post("/api/v1/admin/venue-managers")
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({
+      username: `silinecek-sorumlu-${marker}`,
+      password: "Silinecek-Manager-Test-2026!",
+      venueIds: [venue.id],
+      status: "ACTIVE"
+    });
+  assert.equal(removableManager.status, 201);
+  const removableManagerId = removableManager.body.data.id as string;
+  deletedManagedUserIds.push(removableManagerId);
+  const removableManagerSessionToken = `${marker}-removable-manager-token`;
+  await prisma.authSession.create({
+    data: {
+      tokenHash: hashToken(removableManagerSessionToken),
+      csrfTokenHash: hashToken(`${marker}-removable-manager-csrf`),
+      userId: removableManagerId,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000)
+    }
+  });
+  assert.equal(
+    (
+      await request(app)
+        .delete(`/api/v1/admin/venue-managers/${removableManagerId}`)
+        .set("Cookie", adminAuthCookie)
+        .send({})
+    ).status,
+    403
+  );
+  const removedManager = await request(app)
+    .delete(`/api/v1/admin/venue-managers/${removableManagerId}`)
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
+  assert.equal(removedManager.status, 200);
+  const storedRemovedManager = await prisma.user.findUniqueOrThrow({
+    where: { id: removableManagerId },
+    include: { managedVenueAssignments: true, sessions: true }
+  });
+  assert.equal(storedRemovedManager.status, "DISABLED");
+  assert.ok(storedRemovedManager.deletedAt);
+  assert.match(storedRemovedManager.username, /^deleted-[a-f0-9]{32}$/);
+  assert.equal(storedRemovedManager.venueId, null);
+  assert.equal(storedRemovedManager.managedVenueAssignments.length, 0);
+  assert.ok(storedRemovedManager.sessions.every((session) => session.revokedAt !== null));
+  const managersAfterRemoval = await request(app)
+    .get("/api/v1/admin/venue-managers")
+    .set("Cookie", adminCookie);
+  assert.equal(
+    managersAfterRemoval.body.data.some(
+      (listedManager: { id: string }) => listedManager.id === removableManagerId
+    ),
+    false
+  );
+  assert.equal(
+    (
+      await request(app)
+        .patch(`/api/v1/admin/venue-managers/${removableManagerId}`)
+        .set("Cookie", adminAuthCookie)
+        .set("X-CSRF-Token", adminCsrfToken)
+        .send({ status: "ACTIVE" })
+    ).status,
+    404
+  );
+
+  const removableMontage = await request(app)
+    .post("/api/v1/admin/montage-users")
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({
+      username: `silinecek-montaj-${marker}`,
+      password: "Silinecek-Montaj-Test-2026!",
+      status: "ACTIVE"
+    });
+  assert.equal(removableMontage.status, 201);
+  const removableMontageId = removableMontage.body.data.id as string;
+  deletedManagedUserIds.push(removableMontageId);
+  assert.equal(
+    (
+      await request(app)
+        .delete(`/api/v1/admin/montage-users/${removableManagerId}`)
+        .set("Cookie", adminAuthCookie)
+        .set("X-CSRF-Token", adminCsrfToken)
+        .send({})
+    ).status,
+    404
+  );
+  const removedMontage = await request(app)
+    .delete(`/api/v1/admin/montage-users/${removableMontageId}`)
+    .set("X-Correlation-ID", correlationId)
+    .set("Cookie", adminAuthCookie)
+    .set("X-CSRF-Token", adminCsrfToken)
+    .send({});
+  assert.equal(removedMontage.status, 200);
+  assert.ok((await prisma.user.findUniqueOrThrow({ where: { id: removableMontageId } })).deletedAt);
+  assert.equal(
+    (
+      await request(app)
+        .delete(`/api/v1/admin/montage-users/${removableMontageId}`)
+        .set("Cookie", adminAuthCookie)
+        .set("X-CSRF-Token", adminCsrfToken)
+        .send({})
+    ).status,
+    404
   );
   const prematureMontageDelivery = await request(app)
     .patch(`/api/v1/montage/deliveries/${wedding.delivery!.id}`)

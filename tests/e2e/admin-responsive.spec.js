@@ -57,6 +57,7 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   let montageCreateBody = null;
   let managerCreateBody = null;
   let managerUpdateBody = null;
+  let managerDeleteRequest = null;
   let storedManager = null;
   let storedStaff = null;
   let staffPhotoUpload = null;
@@ -200,6 +201,21 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
       return route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({ success: true, data: storedManager })
+      });
+    }
+    if (route.request().method() === "DELETE") {
+      managerDeleteRequest = {
+        method: route.request().method(),
+        url: route.request().url(),
+        body: route.request().postDataJSON()
+      };
+      storedManager = null;
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: { id: managerDeleteRequest.url.split("/").at(-1) }
+        })
       });
     }
     return route.fulfill({
@@ -529,6 +545,18 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
       status: "ACTIVE"
     });
   await expect(accountDialog).toBeHidden();
+  await page.locator(".js-managers").getByRole("button", { name: "Sil" }).click();
+  const deleteAccountDialog = page.locator("#app-custom-dialog");
+  await expect(
+    deleteAccountDialog.getByRole("heading", { name: "Salon sorumlusu hesabını sil" })
+  ).toBeVisible();
+  await expect(deleteAccountDialog).toContainText("İşlem geçmişi denetim amacıyla korunur.");
+  await deleteAccountDialog.getByRole("button", { name: "Hesabı sil" }).click();
+  await expect.poll(() => managerDeleteRequest?.method).toBe("DELETE");
+  expect(managerDeleteRequest.body).toEqual({});
+  expect(managerDeleteRequest.url).toContain("/api/v1/admin/venue-managers/");
+  await expect(page.locator(".js-managers")).toContainText("Henüz salon sorumlusu hesabı yok.");
+  await expect(page.locator(".global-message")).toContainText("Salon sorumlusu hesabı silindi.");
 
   await expect(page.locator('[data-panel="weddings"]')).toHaveCount(0);
   await expect(page.locator('[data-panel-content="weddings"]')).toHaveCount(0);

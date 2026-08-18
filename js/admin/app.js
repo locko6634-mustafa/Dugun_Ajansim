@@ -1692,7 +1692,7 @@ async function loadManagers() {
       ? state.managers
           .map(
             (manager) =>
-              `<article class="staff-card ${manager.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(manager.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${manager.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[manager.status] || manager.status)}</span></div><h3>${escapeHtml(manager.username)}</h3><p>${escapeHtml(manager.venues?.map((venue) => venue.name).join(" · ") || manager.venue?.name || "Salon atanmamış")}</p><small>${manager.lastLoginAt ? `Son giriş: ${formatDate(manager.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${manager.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${manager.id}" data-managed-user-role="SALON_YETKILISI">Düzenle</button></footer></article>`
+              `<article class="staff-card ${manager.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(manager.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${manager.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[manager.status] || manager.status)}</span></div><h3>${escapeHtml(manager.username)}</h3><p>${escapeHtml(manager.venues?.map((venue) => venue.name).join(" · ") || manager.venue?.name || "Salon atanmamış")}</p><small>${manager.lastLoginAt ? `Son giriş: ${formatDate(manager.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${manager.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${manager.id}" data-managed-user-role="SALON_YETKILISI">Düzenle</button><button class="mini-button mini-button--danger" type="button" data-delete-managed-user="${manager.id}" data-managed-user-role="SALON_YETKILISI" data-managed-user-name="${escapeHtml(manager.username)}">Sil</button></footer></article>`
           )
           .join("")
       : empty("Henüz salon sorumlusu hesabı yok.");
@@ -1712,7 +1712,7 @@ async function loadMontageUsers() {
       ? state.montageUsers
           .map(
             (user) =>
-              `<article class="staff-card ${user.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(user.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${user.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[user.status] || user.status)}</span></div><h3>${escapeHtml(user.username)}</h3><p>Tüm etkinlik bilgileri ve teslimat bağlantısı yetkisi</p><small>${user.lastLoginAt ? `Son giriş: ${formatDate(user.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${user.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${user.id}" data-managed-user-role="MONTAJCI">Düzenle</button></footer></article>`
+              `<article class="staff-card ${user.status === "ACTIVE" ? "" : "is-passive"}"><div class="staff-card__head"><span class="avatar">${escapeHtml(user.username.slice(0, 2).toUpperCase())}</span><span class="status-dot" data-status="${user.status === "ACTIVE" ? "TESLIM_EDILDI" : ""}">${escapeHtml(ACCOUNT_STATUS_LABELS[user.status] || user.status)}</span></div><h3>${escapeHtml(user.username)}</h3><p>Tüm etkinlik bilgileri ve teslimat bağlantısı yetkisi</p><small>${user.lastLoginAt ? `Son giriş: ${formatDate(user.lastLoginAt, true)}` : "Henüz giriş yapmadı"}</small><footer><span>${user.mustChangePassword ? "Parola değişimi bekleniyor" : "Hesap hazır"}</span><button class="mini-button" type="button" data-edit-managed-user="${user.id}" data-managed-user-role="MONTAJCI">Düzenle</button><button class="mini-button mini-button--danger" type="button" data-delete-managed-user="${user.id}" data-managed-user-role="MONTAJCI" data-managed-user-name="${escapeHtml(user.username)}">Sil</button></footer></article>`
           )
           .join("")
       : empty("Henüz montajcı hesabı yok.");
@@ -2837,12 +2837,45 @@ document
   .querySelector(".js-add-managed-user")
   .addEventListener("click", () => void openManagedUserForm());
 document.querySelector('[data-panel-content="accounts"]').addEventListener("click", (event) => {
-  const button = event.target.closest("[data-edit-managed-user]");
-  if (!button) return;
-  const role = button.dataset.managedUserRole;
-  const collection = role === "MONTAJCI" ? state.montageUsers : state.managers;
-  const user = collection.find((item) => item.id === button.dataset.editManagedUser);
-  if (user) void openManagedUserForm(user, role);
+  const editButton = event.target.closest("[data-edit-managed-user]");
+  const deleteButton = event.target.closest("[data-delete-managed-user]");
+  if (editButton) {
+    const role = editButton.dataset.managedUserRole;
+    const collection = role === "MONTAJCI" ? state.montageUsers : state.managers;
+    const user = collection.find((item) => item.id === editButton.dataset.editManagedUser);
+    if (user) void openManagedUserForm(user, role);
+  } else if (deleteButton) {
+    void (async () => {
+      const role = deleteButton.dataset.managedUserRole;
+      const isMontageUser = role === "MONTAJCI";
+      const roleLabel = isMontageUser ? "Montajcı" : "Salon sorumlusu";
+      const confirmed = await showCustomConfirm({
+        title: `${roleLabel} hesabını sil`,
+        message: `${deleteButton.dataset.managedUserName} hesabının erişimi kalıcı olarak kaldırılacak. İşlem geçmişi denetim amacıyla korunur.`,
+        confirmText: "Hesabı sil",
+        cancelText: "Vazgeç",
+        isDanger: true
+      });
+      if (!confirmed) return;
+      const finishInFlight = beginInFlight(deleteButton);
+      if (!finishInFlight) return;
+      try {
+        const endpoint = isMontageUser ? "/admin/montage-users" : "/admin/venue-managers";
+        const response = await apiRequestWithAdminStepUp(
+          `${endpoint}/${deleteButton.dataset.deleteManagedUser}`,
+          { method: "DELETE", body: {} },
+          { actionLabel: `${roleLabel} hesabını silme` }
+        );
+        if (!response) return;
+        setMessage(`${roleLabel} hesabı silindi.`, true);
+        await loadManagedUsers();
+      } catch (error) {
+        setMessage(error);
+      } finally {
+        finishInFlight();
+      }
+    })();
+  }
 });
 managedUserForm.elements.role.addEventListener("change", syncManagedUserRole);
 setupVenuePicker(managedUserForm);

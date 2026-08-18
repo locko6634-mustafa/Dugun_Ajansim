@@ -155,6 +155,7 @@ model User {
   managedVenueAssignments    VenueManagerAssignment[]
   createdAt                  DateTime                 @default(now())
   updatedAt                  DateTime                 @updatedAt
+  deletedAt                  DateTime?
   sessions                   AuthSession[]
   trustedDevices             TrustedDevice[]
   customerWedding            Wedding?                 @relation("CustomerWedding")
@@ -174,6 +175,7 @@ model User {
 
   @@index([role, status])
   @@index([venueId])
+  @@index([deletedAt])
   @@map("users")
 }
 

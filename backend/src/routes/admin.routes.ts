@@ -1352,7 +1352,7 @@ router.get(
   validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const managers = await prisma.user.findMany({
-      where: { role: "SALON_YETKILISI" },
+      where: { role: "SALON_YETKILISI", deletedAt: null },
       select: {
         id: true,
         username: true,
@@ -1452,7 +1452,7 @@ router.patch(
     try {
       const manager = await prisma.$transaction(async (transaction) => {
         const current = await transaction.user.findFirst({
-          where: { id: req.params.id, role: "SALON_YETKILISI" },
+          where: { id: req.params.id, role: "SALON_YETKILISI", deletedAt: null },
           include: { managedVenueAssignments: { select: { venueId: true } } }
         });
         if (!current) throw new AppError("Salon sorumlusu bulunamadı.", 404);
@@ -1551,7 +1551,7 @@ router.get(
   validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
   asyncHandler(async (req, res) => {
     const users = await prisma.user.findMany({
-      where: { role: "MONTAJCI" },
+      where: { role: "MONTAJCI", deletedAt: null },
       select: {
         id: true,
         username: true,
@@ -1626,7 +1626,7 @@ router.patch(
     try {
       const user = await prisma.$transaction(async (transaction) => {
         const current = await transaction.user.findFirst({
-          where: { id: req.params.id, role: "MONTAJCI" }
+          where: { id: req.params.id, role: "MONTAJCI", deletedAt: null }
         });
         if (!current) throw new AppError("Montajcı hesabı bulunamadı.", 404);
         if (
@@ -1691,6 +1691,74 @@ router.patch(
       }
       throw error;
     }
+  })
+);
+
+router.delete(
+  ["/venue-managers/:id", "/montage-users/:id"],
+  verifyCsrf,
+  validateRequest(
+    z.object({ body: permanentDeleteBodySchema, query: emptyQuery, params: uuidParamsSchema })
+  ),
+  asyncHandler(async (req, res) => {
+    const isMontageUser = req.path.startsWith("/montage-users/");
+    const role = isMontageUser ? "MONTAJCI" : "SALON_YETKILISI";
+    const accountLabel = isMontageUser ? "Montajcı hesabı" : "Salon sorumlusu";
+    const deletedAt = new Date();
+    const deletedPasswordHash = await hashPassword(createOpaqueToken());
+    await prisma.$transaction(
+      async (transaction) => {
+        const current = await transaction.user.findFirst({
+          where: { id: req.params.id, role, deletedAt: null },
+          select: { id: true, updatedAt: true }
+        });
+        if (!current) throw new AppError(`${accountLabel} bulunamadı.`, 404);
+        const removed = await transaction.user.updateMany({
+          where: { id: current.id, updatedAt: current.updatedAt, deletedAt: null },
+          data: {
+            username: `deleted-${current.id.replaceAll("-", "")}`,
+            passwordHash: deletedPasswordHash,
+            status: "DISABLED",
+            venueId: null,
+            mustChangePassword: false,
+            temporaryPasswordExpiresAt: null,
+            activeAt: null,
+            passwordChangedAt: null,
+            lastLoginAt: null,
+            totpSecretCiphertext: null,
+            totpSecretIv: null,
+            totpSecretAuthTag: null,
+            totpKeyId: null,
+            totpEnrollmentExpiresAt: null,
+            totpEnabledAt: null,
+            totpLastUsedStep: null,
+            deletedAt
+          }
+        });
+        if (removed.count !== 1) {
+          throw new AppError("Kullanıcı hesabı başka bir işlemde değiştirildi.", 409);
+        }
+        await transaction.venueManagerAssignment.deleteMany({ where: { userId: current.id } });
+        await transaction.authSession.updateMany({
+          where: { userId: current.id, revokedAt: null },
+          data: { revokedAt: deletedAt }
+        });
+        await transaction.trustedDevice.updateMany({
+          where: { userId: current.id, revokedAt: null },
+          data: { revokedAt: deletedAt }
+        });
+        await createAudit(transaction, {
+          actorUserId: req.auth!.userId,
+          action: isMontageUser ? "montage_user.deleted" : "venue_manager.deleted",
+          targetType: "User",
+          targetId: current.id,
+          correlationId: req.correlationId,
+          metadata: { accountHistoryRetained: true }
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+    res.json({ success: true, data: { id: req.params.id }, correlationId: req.correlationId });
   })
 );
 
