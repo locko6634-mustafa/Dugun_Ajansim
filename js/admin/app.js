@@ -1755,7 +1755,7 @@ async function openManagedUserForm(user = null, role = "SALON_YETKILISI") {
   managedUserForm.elements.password.required = !user;
   document.querySelector(".js-managed-user-password-note").textContent = user
     ? "Değişmeyecekse boş bırakın"
-    : "En az 15 karakter";
+    : "En az 8 karakter";
   const roleLabel = role === "MONTAJCI" ? "Montajcı" : "Salon sorumlusu";
   document.querySelector(".js-managed-user-form-title").textContent = user
     ? `${roleLabel} hesabını düzenle`

@@ -162,7 +162,7 @@ export const isPasswordSimilarToUsername = (password: string, username: string):
 
 export const strongPasswordSchema = z
   .string()
-  .min(15, "Yeni parola en az 15 karakter olmalıdır.")
+  .min(8, "Yeni parola en az 8 karakter olmalıdır.")
   .max(128)
   .refine(
     (value) => !blockedPasswords.has(normalizePasswordForBlocklist(value)),

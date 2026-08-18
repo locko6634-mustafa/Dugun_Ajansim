@@ -2401,7 +2401,7 @@ test("@frontend-smoke @responsive ortak dialog güvenli içerik, erişilebilir a
   await expect(page.locator("#phase05-dialog-opener")).toBeFocused();
 });
 
-test("@frontend-smoke zorunlu parola değişim ekranı 15–128 karakter sözleşmesini uygular", async ({
+test("@frontend-smoke zorunlu parola değişim ekranı 8–128 karakter sözleşmesini uygular", async ({
   page
 }) => {
   let passwordChangeRequestCount = 0;
@@ -2429,16 +2429,16 @@ test("@frontend-smoke zorunlu parola değişim ekranı 15–128 karakter sözle�
 
   const newPassword = page.locator("#new-password");
   const confirmPassword = page.locator("#confirm-password");
-  await expect(newPassword).toHaveAttribute("minlength", "15");
+  await expect(newPassword).toHaveAttribute("minlength", "8");
   await expect(newPassword).toHaveAttribute("maxlength", "128");
-  await expect(confirmPassword).toHaveAttribute("minlength", "15");
+  await expect(confirmPassword).toHaveAttribute("minlength", "8");
   await expect(confirmPassword).toHaveAttribute("maxlength", "128");
 
-  await newPassword.fill("12345678901234");
-  await confirmPassword.fill("12345678901234");
+  await newPassword.fill("Yedi!A9");
+  await confirmPassword.fill("Yedi!A9");
   await page.getByRole("button", { name: "Parolayı Kaydet" }).click();
   await expect(page.locator(".password-change-message")).toHaveText(
-    "Yeni parolanız 15–128 karakter arasında olmalıdır."
+    "Yeni parolanız 8–128 karakter arasında olmalıdır."
   );
   expect(passwordChangeRequestCount).toBe(0);
 });
@@ -2459,9 +2459,9 @@ test("@frontend-smoke tek kullanımlık parola bağlantısı fragmenti temizleni
   await page.goto(`/login.html#setup=${setupToken}&purpose=ACCOUNT_ACTIVATION`);
   await expect(page).toHaveURL(/\/login\.html$/);
   await expect(page.getByLabel("Geçici / mevcut parola")).toBeHidden();
-  await page.getByLabel("Yeni parola (15–128 karakter)").fill("Kurulum-Icin-Guvenli-Parola-2026!");
+  await page.getByLabel("Yeni parola (8–128 karakter)").fill("Kurulum-Icin-Guvenli-Parola-2026!");
   await page
-    .getByLabel("Yeni parola tekrar (15–128 karakter)")
+    .getByLabel("Yeni parola tekrar (8–128 karakter)")
     .fill("Kurulum-Icin-Guvenli-Parola-2026!");
   await page.getByRole("button", { name: "Parolayı Kaydet" }).click();
 

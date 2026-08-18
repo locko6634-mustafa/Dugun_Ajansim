@@ -192,8 +192,8 @@ changeForm.addEventListener("submit", async (event) => {
     changeForm.elements.currentPassword.focus();
     return;
   }
-  if (newPassword.length < 15 || newPassword.length > 128) {
-    changeMessage.textContent = "Yeni parolanız 15–128 karakter arasında olmalıdır.";
+  if (newPassword.length < 8 || newPassword.length > 128) {
+    changeMessage.textContent = "Yeni parolanız 8–128 karakter arasında olmalıdır.";
     changeForm.elements.newPassword.focus();
     return;
   }

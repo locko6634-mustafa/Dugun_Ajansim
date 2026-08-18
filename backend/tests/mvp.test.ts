@@ -263,10 +263,11 @@ test("kalıcı parola uzunluk ve normalize edilmiş blocklist kurallarını uygu
   assert.equal(
     passwordChangeBodySchema.safeParse({
       currentPassword: "gecici-parola",
-      newPassword: "ondortkarakter"
+      newPassword: "Yedi!A9"
     }).success,
     false
   );
+  assert.equal(strongPasswordSchema.safeParse("Sekiz!A9").success, true);
   assert.equal(strongPasswordSchema.safeParse("DUGUNAJANSIM123").success, false);
   assert.equal(
     strongPasswordSchema.safeParse("IlkGiristeDegistirilecekGucluParola").success,

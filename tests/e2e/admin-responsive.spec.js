@@ -462,6 +462,10 @@ test("@admin @responsive admin paneli 320px ekranda taşmadan ve dokunma hedefle
   await page.getByRole("button", { name: "+ Kullanıcı hesabı" }).click();
   const accountDialog = page.locator(".js-managed-user-dialog");
   await expect(accountDialog).toBeVisible();
+  await expect(accountDialog.locator('[name="password"]')).toHaveAttribute("minlength", "8");
+  await expect(accountDialog.locator(".js-managed-user-password-note")).toHaveText(
+    "En az 8 karakter"
+  );
   await expectMinimumHeight(accountDialog.getByRole("button", { name: "Kapat" }));
   await accountDialog.locator('[name="role"]').selectOption("MONTAJCI");
   await expect(accountDialog.locator(".js-managed-user-venue")).toBeHidden();
