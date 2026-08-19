@@ -55,10 +55,7 @@ export const getSessionAbsoluteTtlMs = (role: UserRole, remember: boolean): numb
       ? env.REMEMBER_SESSION_TTL_DAYS * 24 * 60 * 60 * 1000
       : env.SESSION_TTL_HOURS * 60 * 60 * 1000;
 
-export const isMfaRequiredRole = (
-  role: UserRole,
-  mfaEnabled = env.MFA_ENABLED
-): boolean => mfaEnabled && role === "ADMIN";
+export const isMfaRequiredRole = (role: UserRole): boolean => role === "ADMIN";
 
 export const isAdminStepUpFresh = (
   verifiedAt: Date | null | undefined,
@@ -85,10 +82,8 @@ export const assertRecentAdminStepUp = (
 export const isMfaEnrollmentRequired = (
   role: UserRole,
   mfaEnabled: boolean,
-  environment = env.NODE_ENV,
-  featureEnabled = env.MFA_ENABLED
-): boolean =>
-  environment === "production" && isMfaRequiredRole(role, featureEnabled) && !mfaEnabled;
+  environment = env.NODE_ENV
+): boolean => environment === "production" && isMfaRequiredRole(role) && !mfaEnabled;
 
 export const isTemporaryPasswordExpired = (
   user: {

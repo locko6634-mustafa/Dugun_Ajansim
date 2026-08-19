@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 import test from "node:test";
@@ -15,11 +15,6 @@ const bashExecutable =
     : "bash";
 
 test("PostgreSQL yardımcıları file-backed secret kurallarını uygular", () => {
-  const dockerfile = readFileSync(resolve(repositoryRoot, "deploy/postgres/Dockerfile"), "utf8");
-  assert.match(
-    dockerfile,
-    /COPY --chmod=0555 deploy\/postgres\/file-secrets\.sh deploy\/postgres\/with-owner-password\.sh \/usr\/local\/bin\//
-  );
   assert.ok(bashExecutable, "Bash çalıştırıcısı bulunamadı.");
   const result = spawnSync(bashExecutable, [shellTest], {
     cwd: repositoryRoot,

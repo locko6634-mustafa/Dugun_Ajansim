@@ -94,39 +94,8 @@ postgres_owner_exec() {
   [[ "$#" -gt 0 ]] || fail "PostgreSQL komutu eksik."
 
   if [[ "$use_file_secrets" == "1" ]]; then
-    "${compose[@]}" exec -T "${compose_exec_options[@]}" postgres sh -eu -c '
-      if [ -x /usr/local/bin/with-owner-password.sh ]; then
-        exec /usr/local/bin/with-owner-password.sh "$@"
-      fi
-
-      if [ "${USE_FILE_SECRETS:-0}" != "1" ]; then
-        [ -n "${POSTGRES_PASSWORD:-}" ] || {
-          printf "%s\n" "PostgreSQL owner parolası eski container geçişi için bulunamadı." >&2
-          exit 1
-        }
-        PGPASSWORD="$POSTGRES_PASSWORD"
-        export PGPASSWORD
-        exec "$@"
-      fi
-
-      secret_file="${PGPASSWORD_FILE:-${POSTGRES_PASSWORD_FILE:-}}"
-      [ -n "$secret_file" ] && [ -f "$secret_file" ] && [ ! -L "$secret_file" ] || {
-        printf "%s\n" "PostgreSQL owner parola dosyası geçersiz." >&2
-        exit 1
-      }
-      file_size="$(wc -c <"$secret_file" | tr -d "[:space:]")"
-      case "$file_size" in
-        ""|*[!0-9]*) exit 1 ;;
-      esac
-      [ "$file_size" -ge 1 ] && [ "$file_size" -le 65536 ] || exit 1
-      if od -An -v -tx1 "$secret_file" | grep -Eq "(^|[[:space:]])00([[:space:]]|$)"; then
-        exit 1
-      fi
-      PGPASSWORD="$(cat "$secret_file")"
-      [ -n "$PGPASSWORD" ] || exit 1
-      export PGPASSWORD
-      exec "$@"
-    ' sh "$@"
+    "${compose[@]}" exec -T "${compose_exec_options[@]}" postgres \
+      sh /usr/local/bin/with-owner-password.sh "$@"
   else
     "${compose[@]}" exec -T "${compose_exec_options[@]}" postgres sh -eu -c \
       'PGPASSWORD="$POSTGRES_PASSWORD"; export PGPASSWORD; exec "$@"' sh "$@"

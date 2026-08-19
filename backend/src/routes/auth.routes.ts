@@ -1,4 +1,4 @@
-import { Router, type NextFunction, type Request, type Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { env, parseDataEncryptionKeyring } from '../config/env.config.js';
@@ -82,18 +82,6 @@ const mfaProtectedRequestSchema = z.object({
   query: z.object({}).strict(),
   params: z.object({}).strict(),
 });
-
-const requireMfaFeatureEnabled = (
-  _req: Request,
-  _res: Response,
-  next: NextFunction,
-): void => {
-  if (!env.MFA_ENABLED) {
-    next(new AppError('İki adımlı doğrulama özelliği etkin değil.', 404));
-    return;
-  }
-  next();
-};
 
 router.use((_req, res, next) => {
   res.set('Cache-Control', 'no-store');
@@ -411,7 +399,6 @@ router.post(
   authenticate,
   requireChangedPassword,
   requireRole('ADMIN'),
-  requireMfaFeatureEnabled,
   adminStepUpLimiter,
   adminStepUpAccountLimiter,
   verifyCsrf,
@@ -885,7 +872,6 @@ router.post(
   mfaManagementLimiter,
   authenticate,
   requireRole('ADMIN'),
-  requireMfaFeatureEnabled,
   verifyCsrf,
   validateRequest(
     z.object({
@@ -980,7 +966,6 @@ router.post(
   mfaManagementLimiter,
   authenticate,
   requireRole('ADMIN'),
-  requireMfaFeatureEnabled,
   verifyCsrf,
   validateRequest(mfaProtectedRequestSchema),
   asyncHandler(async (req, res) => {
@@ -1109,7 +1094,6 @@ router.post(
   mfaManagementLimiter,
   authenticate,
   requireRole('ADMIN'),
-  requireMfaFeatureEnabled,
   verifyCsrf,
   validateRequest(mfaProtectedRequestSchema),
   asyncHandler(async (req, res) => {

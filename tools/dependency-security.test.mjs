@@ -75,7 +75,6 @@ test("kalite workflow'u en az yetki, audit ve immutable action SHA'ları kullan�
 
 test("Phase06 cache kapsamları ve süre ölçümlü aşamalar korunur", () => {
   const workflow = readProjectFile(".github/workflows/quality.yml");
-  const phase06Compose = readProjectFile("compose.quality.yaml");
   const phase06Script = readProjectFile("tools/run-phase06-quality.ps1");
 
   assert.match(
@@ -94,7 +93,6 @@ test("Phase06 cache kapsamları ve süre ölçümlü aşamalar korunur", () => {
     );
   }
   assert.match(workflow, /if: always\(\) && steps\.phase06-boot\.outcome != 'skipped'/);
-  assert.match(phase06Compose, /MFA_ENABLED: "true"/);
   assert.match(phase06Script, /ValidateSet\("all", "build", "boot", "test", "cleanup"\)/);
   assert.match(phase06Script, /PHASE06_TIMING phase=\$name durationSeconds=\$seconds/);
   assert.match(phase06Script, /GITHUB_STEP_SUMMARY/);
