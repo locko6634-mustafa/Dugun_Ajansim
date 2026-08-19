@@ -99,10 +99,16 @@ postgres_owner_exec() {
         exec /usr/local/bin/with-owner-password.sh "$@"
       fi
 
-      [ "${USE_FILE_SECRETS:-0}" = "1" ] || {
-        printf "%s\n" "PostgreSQL file-backed secret modu etkin değil." >&2
-        exit 1
-      }
+      if [ "${USE_FILE_SECRETS:-0}" != "1" ]; then
+        [ -n "${POSTGRES_PASSWORD:-}" ] || {
+          printf "%s\n" "PostgreSQL owner parolası eski container geçişi için bulunamadı." >&2
+          exit 1
+        }
+        PGPASSWORD="$POSTGRES_PASSWORD"
+        export PGPASSWORD
+        exec "$@"
+      fi
+
       secret_file="${PGPASSWORD_FILE:-${POSTGRES_PASSWORD_FILE:-}}"
       [ -n "$secret_file" ] && [ -f "$secret_file" ] && [ ! -L "$secret_file" ] || {
         printf "%s\n" "PostgreSQL owner parola dosyası geçersiz." >&2

@@ -95,4 +95,35 @@ fallback_output="$(
 [[ "$fallback_output" == 'Synthetic-Runtime-Only-2026_' ]] ||
   fail_test "Eski PostgreSQL imajı uyumluluk yolu owner parolasını aktarmadı."
 
+legacy_output="$(
+  export DEPLOY_PRODUCTION_LIBRARY_ONLY=1 USE_FILE_SECRETS=1
+  unset POSTGRES_PASSWORD PGPASSWORD PGPASSWORD_FILE
+  source "$repository_root/deploy/deploy-production.sh"
+  fake_legacy_compose() {
+    [[ "$1" == "exec" && "$2" == "-T" && "$3" == "postgres" ]] || return 1
+    shift 3
+    env -u USE_FILE_SECRETS -u POSTGRES_PASSWORD_FILE -u PGPASSWORD_FILE \
+      POSTGRES_PASSWORD='Synthetic-Legacy-Owner-2026_' "$@"
+  }
+  compose=(fake_legacy_compose)
+  postgres_owner_exec -- sh -eu -c 'printf "%s" "$PGPASSWORD"'
+)"
+[[ "$legacy_output" == 'Synthetic-Legacy-Owner-2026_' ]] ||
+  fail_test "File-secret öncesi PostgreSQL container geçişi owner parolasını aktarmadı."
+
+if (
+  export DEPLOY_PRODUCTION_LIBRARY_ONLY=1 USE_FILE_SECRETS=1
+  unset POSTGRES_PASSWORD PGPASSWORD PGPASSWORD_FILE
+  source "$repository_root/deploy/deploy-production.sh"
+  fake_secretless_compose() {
+    [[ "$1" == "exec" && "$2" == "-T" && "$3" == "postgres" ]] || return 1
+    shift 3
+    env -u USE_FILE_SECRETS -u POSTGRES_PASSWORD -u POSTGRES_PASSWORD_FILE -u PGPASSWORD_FILE "$@"
+  }
+  compose=(fake_secretless_compose)
+  postgres_owner_exec -- true >/dev/null 2>&1
+); then
+  fail_test "Secret içermeyen eski PostgreSQL container geçişi kabul edildi."
+fi
+
 printf '%s\n' "PostgreSQL file-backed secret testleri geçti."
