@@ -94,7 +94,18 @@ postgres_owner_exec() {
   [[ "$#" -gt 0 ]] || fail "PostgreSQL komutu eksik."
 
   if [[ "$use_file_secrets" == "1" ]]; then
-    "${compose[@]}" exec -T "${compose_exec_options[@]}" postgres sh -eu -c '
+    if "${compose[@]}" exec -T "${compose_exec_options[@]}" postgres sh -eu -c '
+      if [ -x /usr/local/bin/with-owner-password.sh ]; then
+        exit 0
+      fi
+      if [ "${USE_FILE_SECRETS:-0}" != "1" ]; then
+        [ -n "${POSTGRES_PASSWORD:-}" ]
+        exit
+      fi
+      secret_file="${PGPASSWORD_FILE:-${POSTGRES_PASSWORD_FILE:-}}"
+      [ -n "$secret_file" ] && [ -f "$secret_file" ] && [ ! -L "$secret_file" ]
+    '; then
+      "${compose[@]}" exec -T "${compose_exec_options[@]}" postgres sh -eu -c '
       if [ -x /usr/local/bin/with-owner-password.sh ]; then
         exec /usr/local/bin/with-owner-password.sh "$@"
       fi
@@ -126,7 +137,11 @@ postgres_owner_exec() {
       [ -n "$PGPASSWORD" ] || exit 1
       export PGPASSWORD
       exec "$@"
-    ' sh "$@"
+      ' sh "$@"
+    else
+      "${compose[@]}" run --rm --no-deps -T "${compose_exec_options[@]}" \
+        -e PGHOST=postgres postgres sh /usr/local/bin/with-owner-password.sh "$@"
+    fi
   else
     "${compose[@]}" exec -T "${compose_exec_options[@]}" postgres sh -eu -c \
       'PGPASSWORD="$POSTGRES_PASSWORD"; export PGPASSWORD; exec "$@"' sh "$@"

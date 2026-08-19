@@ -267,6 +267,10 @@ test("file-backed secret modu production ve rollback için fail-closed zorunludu
     /USE_FILE_SECRETS:-0.*POSTGRES_PASSWORD:-.*PGPASSWORD="\$POSTGRES_PASSWORD"/s
   );
   assert.match(deployScript, /secret_file="\$\{PGPASSWORD_FILE:-\$\{POSTGRES_PASSWORD_FILE:-\}\}"/);
+  assert.match(
+    deployScript,
+    /run --rm --no-deps -T.*-e PGHOST=postgres postgres sh \/usr\/local\/bin\/with-owner-password\.sh/s
+  );
   assert.match(overlay, /DATABASE_URL: !reset null/);
   assert.match(overlay, /DATA_ENCRYPTION_KEY: !reset null/);
   assert.match(overlay, /BACKUP_ENCRYPTION_KEYRING_JSON: !reset null/);

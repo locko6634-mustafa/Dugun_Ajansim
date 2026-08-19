@@ -111,6 +111,33 @@ legacy_output="$(
 [[ "$legacy_output" == 'Synthetic-Legacy-Owner-2026_' ]] ||
   fail_test "File-secret öncesi PostgreSQL container geçişi owner parolasını aktarmadı."
 
+detached_fallback_output="$(
+  export DEPLOY_PRODUCTION_LIBRARY_ONLY=1 USE_FILE_SECRETS=1
+  unset POSTGRES_PASSWORD PGPASSWORD PGPASSWORD_FILE POSTGRES_PASSWORD_FILE
+  source "$repository_root/deploy/deploy-production.sh"
+  fake_unmounted_compose() {
+    if [[ "$1" == "exec" && "$2" == "-T" && "$3" == "postgres" ]]; then
+      shift 3
+      env -u USE_FILE_SECRETS -u POSTGRES_PASSWORD -u POSTGRES_PASSWORD_FILE -u PGPASSWORD_FILE "$@"
+      return
+    fi
+    [[ "$1" == "run" && "$2" == "--rm" && "$3" == "--no-deps" && "$4" == "-T" ]] ||
+      return 1
+    shift 4
+    [[ "$1" == "-e" && "$2" == "PGHOST=postgres" && "$3" == "postgres" ]] || return 1
+    shift 3
+    [[ "$1" == "sh" && "$2" == "/usr/local/bin/with-owner-password.sh" ]] || return 1
+    shift 2
+    USE_FILE_SECRETS=1 POSTGRES_PASSWORD_FILE="$valid_path" \
+      FILE_SECRET_HELPER_PATH="$repository_root/deploy/postgres/file-secrets.sh" \
+      sh "$repository_root/deploy/postgres/with-owner-password.sh" "$@"
+  }
+  compose=(fake_unmounted_compose)
+  postgres_owner_exec -- sh -eu -c 'printf "%s" "$PGPASSWORD"'
+)"
+[[ "$detached_fallback_output" == 'Synthetic-Runtime-Only-2026_' ]] ||
+  fail_test "Secretsiz çalışan PostgreSQL container'ı tek kullanımlık file-secret yolu üzerinden okunamadı."
+
 if (
   export DEPLOY_PRODUCTION_LIBRARY_ONLY=1 USE_FILE_SECRETS=1
   unset POSTGRES_PASSWORD PGPASSWORD PGPASSWORD_FILE
