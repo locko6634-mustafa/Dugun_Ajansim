@@ -80,4 +80,19 @@ owner_output="$({
 [[ "$owner_output" == 'Synthetic-Runtime-Only-2026_' ]] ||
   fail_test "Owner yardımcı betiği POSTGRES_PASSWORD_FILE değerini PGPASSWORD olarak aktarmadı."
 
+fallback_output="$(
+  export DEPLOY_PRODUCTION_LIBRARY_ONLY=1 USE_FILE_SECRETS=1
+  unset POSTGRES_PASSWORD PGPASSWORD PGPASSWORD_FILE
+  source "$repository_root/deploy/deploy-production.sh"
+  fake_compose() {
+    [[ "$1" == "exec" && "$2" == "-T" && "$3" == "postgres" ]] || return 1
+    shift 3
+    USE_FILE_SECRETS=1 POSTGRES_PASSWORD_FILE="$valid_path" "$@"
+  }
+  compose=(fake_compose)
+  postgres_owner_exec -- sh -eu -c 'printf "%s" "$PGPASSWORD"'
+)"
+[[ "$fallback_output" == 'Synthetic-Runtime-Only-2026_' ]] ||
+  fail_test "Eski PostgreSQL imajı uyumluluk yolu owner parolasını aktarmadı."
+
 printf '%s\n' "PostgreSQL file-backed secret testleri geçti."
