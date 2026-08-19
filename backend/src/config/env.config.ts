@@ -307,6 +307,7 @@ const envSchema = z
     ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES: booleanStringSchema(
       'ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES',
     ).default('false'),
+    MFA_ENABLED: booleanStringSchema('MFA_ENABLED').default('false'),
     SESSION_COOKIE_NAME: z
       .string()
       .regex(/^[A-Za-z0-9_-]+$/)

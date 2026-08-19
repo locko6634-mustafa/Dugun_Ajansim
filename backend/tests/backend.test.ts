@@ -35,6 +35,7 @@ import {
   getSessionIdleTimeoutMs,
   getSessionTouchIntervalMs,
   isMfaEnrollmentRequired,
+  isMfaRequiredRole,
   isAdminStepUpFresh,
   isTemporaryPasswordExpired,
   sessionCookieOptions,
@@ -451,6 +452,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
     'https://challenges.cloudflare.com/turnstile/v0/siteverify',
   );
   assert.equal(parsed.DELIVERY_LINK_VERIFICATION_MODE, 'remote');
+  assert.equal(parsed.MFA_ENABLED, false);
   assert.equal(parsed.ADMIN_SESSION_TTL_HOURS, 8);
   assert.equal(parsed.ADMIN_SESSION_IDLE_MINUTES, 240);
   assert.equal(parsed.SALON_SESSION_IDLE_MINUTES, 60);
@@ -463,6 +465,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   assert.equal(parsed.PAYMENT_MODE, 'test');
   assert.equal(parsed.PAYMENT_IBAN, 'TR000000000000000000000000');
   assert.throws(() => parseEnvironment({ ...validEnvironment, PORT: '5000abc' }));
+  assert.throws(() => parseEnvironment({ ...validEnvironment, MFA_ENABLED: 'yes' }));
   assert.throws(() => parseEnvironment({ ...validEnvironment, CORS_ORIGIN: '*' }));
   assert.throws(() =>
     parseEnvironment({ ...validEnvironment, DATABASE_URL: 'mysql://localhost/test' }),
@@ -702,7 +705,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   );
 });
 
-authTest('MFA yalnız admin rolünde zorunludur ve ayrıcalıklı remember isteği yok sayılır', () => {
+authTest('MFA özellik anahtarıyla tamamen kapatılır ve ayrıcalıklı remember isteği yok sayılır', () => {
   assert.equal(getSessionIdleTimeoutMs('ADMIN'), 240 * 60 * 1000);
   assert.equal(getSessionIdleTimeoutMs('SALON_YETKILISI'), 60 * 60 * 1000);
   assert.equal(getSessionIdleTimeoutMs('MUSTERI'), 12 * 60 * 60 * 1000);
@@ -716,7 +719,12 @@ authTest('MFA yalnız admin rolünde zorunludur ve ayrıcalıklı remember iste�
   assert.ok(getSessionTouchIntervalMs('ADMIN') < getSessionIdleTimeoutMs('ADMIN'));
   assert.ok(getSessionTouchIntervalMs('MUSTERI') < getSessionIdleTimeoutMs('MUSTERI'));
   assert.equal(calculateSessionTouchIntervalMs(5 * 60 * 1000), 2.5 * 60 * 1000);
-  assert.equal(isMfaEnrollmentRequired('ADMIN', false, 'production'), true);
+  assert.equal(isMfaRequiredRole('ADMIN', false), false);
+  assert.equal(isMfaRequiredRole('ADMIN', true), true);
+  assert.equal(isMfaRequiredRole('SALON_YETKILISI', true), false);
+  assert.equal(isMfaRequiredRole('MUSTERI', true), false);
+  assert.equal(isMfaEnrollmentRequired('ADMIN', false, 'production', false), false);
+  assert.equal(isMfaEnrollmentRequired('ADMIN', false, 'production', true), true);
   assert.equal(isMfaEnrollmentRequired('SALON_YETKILISI', false, 'production'), false);
   assert.equal(isMfaEnrollmentRequired('MUSTERI', false, 'production'), false);
   assert.equal(isMfaEnrollmentRequired('ADMIN', true, 'production'), false);
