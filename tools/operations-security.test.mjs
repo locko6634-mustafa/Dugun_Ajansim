@@ -261,6 +261,12 @@ test("file-backed secret modu production ve rollback için fail-closed zorunludu
   assert.match(watchdog, /validate_production_secret_sources/);
   assert.match(deployScript, /compose=.*compose\.production\.secrets\.yaml/s);
   assert.match(deployScript, /rollback_compose=.*compose\.production\.secrets\.yaml/s);
+  assert.match(deployScript, /\[ -x \/usr\/local\/bin\/with-owner-password\.sh \]/);
+  assert.match(
+    deployScript,
+    /USE_FILE_SECRETS:-0.*POSTGRES_PASSWORD:-.*PGPASSWORD="\$POSTGRES_PASSWORD"/s
+  );
+  assert.match(deployScript, /secret_file="\$\{PGPASSWORD_FILE:-\$\{POSTGRES_PASSWORD_FILE:-\}\}"/);
   assert.match(overlay, /DATABASE_URL: !reset null/);
   assert.match(overlay, /DATA_ENCRYPTION_KEY: !reset null/);
   assert.match(overlay, /BACKUP_ENCRYPTION_KEYRING_JSON: !reset null/);

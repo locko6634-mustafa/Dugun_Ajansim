@@ -12,6 +12,7 @@ RUN apk upgrade --no-cache \
 FROM scratch
 
 COPY --from=patched / /
+COPY --chmod=0555 deploy/postgres/file-secrets.sh deploy/postgres/with-owner-password.sh /usr/local/bin/
 
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     LANG=en_US.utf8 \
