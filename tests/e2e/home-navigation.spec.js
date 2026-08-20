@@ -38,18 +38,19 @@ test("@responsive tum mobil section gecisleri kompakt dikey ritmi korur", async 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/index.html");
 
-  const galleryAction = page.locator(".gallery-cta");
+  const galleryProgress = page.locator(".gallery-mobile-progress");
   const shootsKicker = page.locator(".shoots-kicker");
-  const [galleryActionBox, shootsKickerBox] = await Promise.all([
-    galleryAction.boundingBox(),
+  const [galleryProgressBox, shootsKickerBox] = await Promise.all([
+    galleryProgress.boundingBox(),
     shootsKicker.boundingBox()
   ]);
 
-  expect(galleryActionBox).not.toBeNull();
+  await expect(page.locator(".gallery-cta")).toHaveCount(0);
+  expect(galleryProgressBox).not.toBeNull();
   expect(shootsKickerBox).not.toBeNull();
-  expect(shootsKickerBox.y - (galleryActionBox.y + galleryActionBox.height)).toBeLessThanOrEqual(
-    60
-  );
+  expect(
+    shootsKickerBox.y - (galleryProgressBox.y + galleryProgressBox.height)
+  ).toBeLessThanOrEqual(60);
 
   const spacing = await page.evaluate(() => {
     const pixels = (value) => Number.parseFloat(value) || 0;

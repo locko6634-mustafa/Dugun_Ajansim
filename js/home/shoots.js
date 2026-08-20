@@ -1,6 +1,5 @@
 const shootCards = [...document.querySelectorAll(".shoot-card")];
 const videoLightbox = document.querySelector(".video-lightbox");
-const videoLightboxCaption = videoLightbox.querySelector("figcaption");
 const videoLightboxClose = videoLightbox.querySelector(".video-lightbox__close");
 let activeVideo = null;
 let activeVideoPlaceholder = null;
@@ -40,7 +39,6 @@ function openVideoLightbox(video) {
   video.currentTime = 0;
   video.muted = false;
   videoLightbox.querySelector("figure").prepend(video);
-  videoLightboxCaption.textContent = video.getAttribute("aria-label") || "Video çekimi";
   videoLightbox.showModal();
   playVideo(video);
 }

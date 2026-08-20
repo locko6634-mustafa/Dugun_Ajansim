@@ -122,7 +122,7 @@ for (const pagePath of pages) {
     }
     if (pagePath === "/index.html") {
       await expect(page.locator(".shoot-card__open").first()).toHaveAccessibleName(
-        "Talia düğün çekimini büyüt ve oynat"
+        "Cess Orman düğün çekimini büyüt ve oynat"
       );
       await expect(page.locator(".shoot-card__sound").first()).toHaveAttribute(
         "aria-pressed",
@@ -133,16 +133,26 @@ for (const pagePath of pages) {
       const videoUrls = await videoSources.evaluateAll((sources) =>
         sources.map((source) => source.getAttribute("data-src") ?? source.getAttribute("src"))
       );
-      expect(new Set(videoUrls).size).toBe(5);
-      expect(videoUrls.every((url) => url?.startsWith("/media/videos/"))).toBe(true);
+      expect(videoUrls).toEqual([
+        "/media/videos/cess-orman-dugun-2026-06-20.mp4",
+        "/media/videos/rojda-sinematik-dugun-2026.mp4",
+        "/media/videos/talia-dugun-2026-06-04.mp4",
+        "/media/videos/rena-aksam-nisan-2026-07-19.mp4",
+        "/media/videos/bella-aksam-dugun-2026-08-01.mp4"
+      ]);
       await expect(page.locator(".shoot-card__caption h3")).toHaveText([
-        "Mustafa & Sude",
-        "Emir & Zeynep",
         "Mert & Elif",
+        "Can & Ece",
+        "Mustafa & Sude",
         "Kerem & Duru",
-        "Can & Ece"
+        "Emir & Zeynep"
       ]);
       await expect(page.locator(".shoot-card__caption p")).toHaveCount(0);
+      await expect(page.locator(".video-lightbox figcaption")).toHaveCount(0);
+      await page.locator(".shoot-card__open").first().click();
+      await expect(page.locator(".video-lightbox")).toBeVisible();
+      await expect(page.locator(".video-lightbox figure")).toHaveText("");
+      await page.locator(".video-lightbox__close").click();
     }
   });
 

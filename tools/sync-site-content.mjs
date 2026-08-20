@@ -84,8 +84,6 @@ const iconPaths = {
 function renderFaqHeading() {
   const faq = content.home.faq;
   return `          <header class="faq-heading">
-            <p class="faq-heading__eyebrow">${escapeHtml(faq.eyebrow)}</p>
-            <div class="faq-heading__rule" aria-hidden="true"><span>♧</span></div>
             <h2 id="faq-title">${escapeHtml(faq.title)}<br /><em>${escapeHtml(faq.titleEmphasis)}</em></h2>
             <p>${escapeHtml(faq.description)}</p>
           </header>`;

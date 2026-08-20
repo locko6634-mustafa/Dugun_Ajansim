@@ -116,7 +116,7 @@ function initNonHeroMotion() {
   motionHeadings.forEach(splitHeadingIntoLines);
 
   registerMotionGroup(".gallery-kicker, .gallery-heading > p:last-of-type", { stagger: 85 });
-  registerMotionGroup(".gallery-track, .gallery-cta", { stagger: 110 });
+  registerMotionGroup(".gallery-track", { stagger: 110 });
   registerMotionGroup(".shoots-kicker, .shoots-heading > p", { stagger: 85 });
   registerMotionGroup(".shoot-card", {
     direction: (index) => (index % 2 === 0 ? "left" : "right"),
