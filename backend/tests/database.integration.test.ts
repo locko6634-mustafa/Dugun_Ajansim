@@ -1137,10 +1137,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.notEqual(firstApproval.username, secondApproval.username);
   assert.match(firstApproval.decisionTaskId, /^[0-9a-f-]{36}$/i);
   assert.match(firstApproval.activationTaskId, /^[0-9a-f-]{36}$/i);
-  assert.match(firstApproval.username, /^m-[a-f0-9]{32}$/);
-  assert.match(secondApproval.username, /^m-[a-f0-9]{32}$/);
-  assert.equal(firstApproval.username.toLocaleLowerCase("tr-TR").includes("yilmaz"), false);
-  assert.equal(firstApproval.username.toLocaleLowerCase("tr-TR").includes("demir"), false);
+  assert.equal(firstApproval.username, "ayse&mehmet");
+  assert.equal(secondApproval.username, "elif&can");
 
   const wedding = await prisma.wedding.findUniqueOrThrow({
     where: { id: firstApproval.weddingId },

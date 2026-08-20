@@ -40,7 +40,8 @@ export const normalizeUsername = (value: string): string =>
     .replaceAll('ü', 'u')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/\s*&\s*/g, '&')
+    .replace(/[^a-z0-9&]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 64);
 

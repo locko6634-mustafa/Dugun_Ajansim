@@ -3099,7 +3099,7 @@ router.patch(
         });
     const updated = regenerateCredentials
       ? await retryUsernameConflict(
-          () => createUniqueCustomerUsername(req.body.brideLastName, req.body.groomLastName),
+          () => createUniqueCustomerUsername(req.body.brideFirstName, req.body.groomFirstName),
           async (username) => {
             nextUsername = username;
             return updateWedding();

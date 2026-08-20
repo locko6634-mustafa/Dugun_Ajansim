@@ -17,7 +17,11 @@ import {
   venueManagerBodySchema,
   weddingUpdateBodySchema
 } from "../src/schemas/api.schemas.js";
-import { calculatePayment, paymentPolicy } from "../src/services/booking.service.js";
+import {
+  calculatePayment,
+  createCustomerUsernameCandidate,
+  paymentPolicy
+} from "../src/services/booking.service.js";
 import {
   deliveryAutomationPolicy,
   getAdminDeliveryTransitions,
@@ -155,6 +159,9 @@ test("Drive bağlantısı uyarısı teslimden iki gün önce başlayıp gecikinc
 
 test("müşteri kullanıcı adı ve geçici parola kuralları güvenli çalışır", () => {
   assert.equal(normalizeUsername("Yılmaz ÇAĞLAR"), "yilmaz-caglar");
+  assert.equal(normalizeUsername("Sudenaz & Mustafa"), "sudenaz&mustafa");
+  assert.equal(createCustomerUsernameCandidate("Sude Naz", "Mustafa"), "sudenaz&mustafa");
+  assert.equal(createCustomerUsernameCandidate("Sude Naz", "Mustafa", 2), "sudenaz&mustafa-2");
   const firstPassword = randomTemporaryPassword();
   const secondPassword = randomTemporaryPassword();
   assert.match(firstPassword, /^Da![A-HJ-NP-Za-km-z2-9]{18}$/);

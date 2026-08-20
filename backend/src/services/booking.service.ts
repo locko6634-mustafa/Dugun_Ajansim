@@ -1,5 +1,5 @@
 import { Prisma, type BookingSource, type EventType, type User } from "@prisma/client";
-import { randomBytes, randomInt, randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { setTimeout as wait } from "node:timers/promises";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.config.js";
@@ -22,6 +22,7 @@ import {
   getIstanbulDate,
   isStrictGregorianDate,
   normalizePhone,
+  normalizeUsername,
   randomReferenceCode
 } from "../utils/domain.js";
 import {
@@ -1176,12 +1177,27 @@ export const markWhatsappHandoff = async (
   });
 };
 
+export const createCustomerUsernameCandidate = (
+  brideFirstName: string,
+  groomFirstName: string,
+  sequence = 1
+): string => {
+  const bride = normalizeUsername(brideFirstName).replace(/[^a-z0-9]/g, "") || "gelin";
+  const groom = normalizeUsername(groomFirstName).replace(/[^a-z0-9]/g, "") || "damat";
+  const suffix = sequence > 1 ? `-${sequence}` : "";
+  const availableNameLength = 63 - suffix.length;
+  let brideLength = Math.min(bride.length, Math.ceil(availableNameLength / 2));
+  const groomLength = Math.min(groom.length, availableNameLength - brideLength);
+  brideLength = Math.min(bride.length, availableNameLength - groomLength);
+  return `${bride.slice(0, brideLength)}&${groom.slice(0, groomLength)}${suffix}`;
+};
+
 export const createUniqueCustomerUsername = async (
-  _brideLastName?: string,
-  _groomLastName?: string
+  brideFirstName: string,
+  groomFirstName: string
 ): Promise<string> => {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const username = `m-${randomBytes(16).toString("hex")}`;
+  for (let sequence = 1; sequence <= 20; sequence += 1) {
+    const username = createCustomerUsernameCandidate(brideFirstName, groomFirstName, sequence);
     const exists = await prisma.user.findUnique({ where: { username }, select: { id: true } });
     if (!exists) return username;
   }
@@ -1189,7 +1205,7 @@ export const createUniqueCustomerUsername = async (
 };
 
 type ApprovalDependencies = {
-  createUsername?: () => Promise<string>;
+  createUsername?: (brideFirstName: string, groomFirstName: string) => Promise<string>;
 };
 
 const isUsernameUniqueConflict = (error: unknown): boolean => {
@@ -1226,18 +1242,25 @@ export const approveBookingApplication = async (
   dependencies: ApprovalDependencies = {}
 ) => {
   const applicationIdentity = await prisma.bookingApplication.findFirst({
-    where: { id: applicationId, deletedAt: null },
-    select: { status: true }
+    where: { id: applicationId, deletedAt: null }
   });
   if (!applicationIdentity) throw new AppError("Başvuru bulunamadı.", 404);
   if (applicationIdentity.status !== "ONAY_BEKLIYOR") {
     throw new AppError("Yalnızca onay bekleyen başvurular onaylanabilir.", 409);
   }
+  const applicationIdentityPii = decryptBookingApplicationPii(
+    applicationIdentity.id,
+    applicationIdentity
+  );
 
   const passwordHash = await hashPassword(createOpaqueToken(48));
   const createUsername = dependencies.createUsername ?? createUniqueCustomerUsername;
   return retryUsernameConflict(
-    () => createUsername(),
+    () =>
+      createUsername(
+        applicationIdentityPii.brideFirstName,
+        applicationIdentityPii.groomFirstName
+      ),
     (username) =>
       prisma.$transaction(
         async (transaction) => {
