@@ -117,7 +117,7 @@ function initNonHeroMotion() {
 
   registerMotionGroup(".gallery-kicker, .gallery-heading > p:last-of-type", { stagger: 85 });
   registerMotionGroup(".gallery-track", { stagger: 110 });
-  registerMotionGroup(".shoots-kicker, .shoots-heading > p", { stagger: 85 });
+  registerMotionGroup(".shoots-heading > p", { stagger: 85 });
   registerMotionGroup(".shoot-card", {
     direction: (index) => (index % 2 === 0 ? "left" : "right"),
     stagger: 90

@@ -39,17 +39,17 @@ test("@responsive tum mobil section gecisleri kompakt dikey ritmi korur", async 
   await page.goto("/index.html");
 
   const galleryProgress = page.locator(".gallery-mobile-progress");
-  const shootsKicker = page.locator(".shoots-kicker");
-  const [galleryProgressBox, shootsKickerBox] = await Promise.all([
+  const shootsHeading = page.locator("#shoots-title");
+  const [galleryProgressBox, shootsHeadingBox] = await Promise.all([
     galleryProgress.boundingBox(),
-    shootsKicker.boundingBox()
+    shootsHeading.boundingBox()
   ]);
 
   await expect(page.locator(".gallery-cta")).toHaveCount(0);
   expect(galleryProgressBox).not.toBeNull();
-  expect(shootsKickerBox).not.toBeNull();
+  expect(shootsHeadingBox).not.toBeNull();
   expect(
-    shootsKickerBox.y - (galleryProgressBox.y + galleryProgressBox.height)
+    shootsHeadingBox.y - (galleryProgressBox.y + galleryProgressBox.height)
   ).toBeLessThanOrEqual(60);
 
   const spacing = await page.evaluate(() => {
