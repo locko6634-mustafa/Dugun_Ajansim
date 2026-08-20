@@ -1,7 +1,18 @@
 const EXPECTED_TEST_DATABASE_GUARD = 'dugun_ajansim_local_test_only';
 const EXPECTED_TEST_DATABASE_HOST = 'localhost';
-const EXPECTED_TEST_DATABASE_PORT = '55632';
+const DEFAULT_TEST_DATABASE_PORT = '55632';
 const EXPECTED_TEST_DATABASE_NAME = 'dugun_ajansim_test';
+
+const resolveExpectedTestDatabasePort = (environment: NodeJS.ProcessEnv): string => {
+  const configuredPort = environment.TEST_DATABASE_PORT?.trim() || DEFAULT_TEST_DATABASE_PORT;
+  const portNumber = Number(configuredPort);
+
+  if (!/^\d{1,5}$/.test(configuredPort) || portNumber < 1 || portNumber > 65535) {
+    throw new Error('TEST_DATABASE_PORT 1-65535 aralığında geçerli bir port olmalıdır.');
+  }
+
+  return configuredPort;
+};
 
 export const assertSafeLocalTestDatabase = (environment: NodeJS.ProcessEnv = process.env): URL => {
   const databaseUrl = environment.DATABASE_URL;
@@ -17,10 +28,11 @@ export const assertSafeLocalTestDatabase = (environment: NodeJS.ProcessEnv = pro
   }
 
   const databaseName = decodeURIComponent(parsedDatabaseUrl.pathname.replace(/^\/+/, ''));
+  const expectedPort = resolveExpectedTestDatabasePort(environment);
   const isPostgreSqlProtocol = ['postgres:', 'postgresql:'].includes(parsedDatabaseUrl.protocol);
   const isExpectedTarget =
     parsedDatabaseUrl.hostname === EXPECTED_TEST_DATABASE_HOST &&
-    parsedDatabaseUrl.port === EXPECTED_TEST_DATABASE_PORT &&
+    parsedDatabaseUrl.port === expectedPort &&
     databaseName === EXPECTED_TEST_DATABASE_NAME;
 
   if (
@@ -30,7 +42,7 @@ export const assertSafeLocalTestDatabase = (environment: NodeJS.ProcessEnv = pro
     !isExpectedTarget
   ) {
     throw new Error(
-      'Test veritabanı işlemi yalnızca açık guard ile localhost:55632/dugun_ajansim_test hedefinde çalıştırılabilir.',
+      `Test veritabanı işlemi yalnızca açık guard ile localhost:${expectedPort}/dugun_ajansim_test hedefinde çalıştırılabilir.`,
     );
   }
 

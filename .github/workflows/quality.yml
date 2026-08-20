@@ -38,7 +38,7 @@ jobs:
           POSTGRES_PASSWORD: test_password
           POSTGRES_DB: dugun_ajansim_test
         ports:
-          - 55632:5432
+          - 5432/tcp
         options: >-
           --health-cmd "pg_isready -U test_user -d dugun_ajansim_test"
           --health-interval 10s
@@ -51,7 +51,6 @@ jobs:
       NODE_ENV: test
       PORT: 5001
       CORS_ORIGIN: http://localhost:3000
-      DATABASE_URL: postgresql://test_user:test_password@localhost:55632/dugun_ajansim_test
       TEST_DATABASE_GUARD: dugun_ajansim_local_test_only
       TRUST_PROXY: 0
       HEALTHCHECK_TIMEOUT_MS: 3000
@@ -64,13 +63,19 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npm run audit:dependencies
+      - name: Configure dynamic PostgreSQL port
+        env:
+          POSTGRES_HOST_PORT: ${{ job.services.postgres.ports[5432] }}
+        run: |
+          echo "TEST_DATABASE_PORT=${POSTGRES_HOST_PORT}" >> "$GITHUB_ENV"
+          echo "DATABASE_URL=postgresql://test_user:test_password@localhost:${POSTGRES_HOST_PORT}/dugun_ajansim_test" >> "$GITHUB_ENV"
       - run: npx prisma migrate deploy
       - run: npm test
       - run: npm run test:integration
       - name: Install synthetic least-privilege runtime role
         env:
           PGHOST: localhost
-          PGPORT: "55632"
+          PGPORT: ${{ job.services.postgres.ports[5432] }}
           PGPASSWORD: test_password
           POSTGRES_USER: test_user
           POSTGRES_DB: dugun_ajansim_test
@@ -79,7 +84,7 @@ jobs:
         run: sh ../deploy/postgres/init-runtime-role.sh
       - name: Verify runtime role privileges on PostgreSQL
         env:
-          RUNTIME_DATABASE_URL: postgresql://ci_runtime:Ci-Runtime-Only-2026_@localhost:55632/dugun_ajansim_test
+          RUNTIME_DATABASE_URL: postgresql://ci_runtime:Ci-Runtime-Only-2026_@localhost:${{ job.services.postgres.ports[5432] }}/dugun_ajansim_test
           RUNTIME_DATABASE_ROLE: ci_runtime
         run: npm run test:runtime-role
 

@@ -56,6 +56,11 @@ test("kalite workflow'u en az yetki, audit ve immutable action SHA'larÄ± kullanÄ
     workflow,
     /image: postgres:17\.10-alpine3\.23@sha256:8189a1f6e40904781fc9e2612687877791d21679866db58b1de996b31fc312e4/
   );
+  assert.match(workflow, /ports:\s*\n\s+- 5432\/tcp/);
+  assert.doesNotMatch(workflow, /55632:5432/);
+  assert.match(workflow, /POSTGRES_HOST_PORT: \$\{\{ job\.services\.postgres\.ports\[5432\] \}\}/);
+  assert.match(workflow, /TEST_DATABASE_PORT=\$\{POSTGRES_HOST_PORT\}/);
+  assert.match(workflow, /DATABASE_URL=.*localhost:\$\{POSTGRES_HOST_PORT\}/);
   assert.match(productionCompose, /image: dugun-ajansim-postgres/);
   assert.match(
     postgresDockerfile,

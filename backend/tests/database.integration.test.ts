@@ -171,6 +171,11 @@ after(async () => {
 
 test("test veritabanı guard yalnızca açık yerel hedefi kabul eder", () => {
   const safeEnvironment = { ...process.env };
+  const dynamicPortEnvironment = {
+    ...safeEnvironment,
+    TEST_DATABASE_PORT: "49152",
+    DATABASE_URL: "postgresql://test_user:test_password@localhost:49152/dugun_ajansim_test"
+  };
   const unsafeEnvironments = [
     { ...safeEnvironment, TEST_DATABASE_GUARD: undefined },
     {
@@ -184,10 +189,19 @@ test("test veritabanı guard yalnızca açık yerel hedefi kabul eder", () => {
     {
       ...safeEnvironment,
       DATABASE_URL: "postgresql://test_user:test_password@localhost:55632/baska_test"
+    },
+    {
+      ...dynamicPortEnvironment,
+      TEST_DATABASE_PORT: "65536"
+    },
+    {
+      ...dynamicPortEnvironment,
+      TEST_DATABASE_PORT: "gecersiz"
     }
   ];
 
   assert.doesNotThrow(() => assertSafeLocalTestDatabase(safeEnvironment));
+  assert.doesNotThrow(() => assertSafeLocalTestDatabase(dynamicPortEnvironment));
   for (const unsafeEnvironment of unsafeEnvironments) {
     assert.throws(() => assertSafeLocalTestDatabase(unsafeEnvironment));
   }
