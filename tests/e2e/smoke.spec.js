@@ -121,6 +121,30 @@ for (const pagePath of pages) {
       );
     }
     if (pagePath === "/index.html") {
+      const galleryImages = page.locator(".gallery-card img");
+      await expect(galleryImages).toHaveCount(8);
+      const galleryUrls = await galleryImages.evaluateAll((images) =>
+        images.map((image) => image.getAttribute("src"))
+      );
+      expect(galleryUrls).toEqual([
+        "/media/images/wedding-gallery-01.webp",
+        "/media/images/wedding-gallery-02.webp",
+        "/media/images/wedding-gallery-03.webp",
+        "/media/images/wedding-gallery-04.webp",
+        "/media/images/wedding-gallery-05.webp",
+        "/media/images/wedding-gallery-06.webp",
+        "/media/images/wedding-gallery-07.webp",
+        "/media/images/wedding-gallery-08.webp"
+      ]);
+      expect(galleryUrls.every((url) => !url?.includes("drive.google.com"))).toBe(true);
+      await page.locator(".gallery-card").first().click();
+      await expect(page.locator(".gallery-lightbox")).toBeVisible();
+      await expect(page.locator(".gallery-lightbox img")).toHaveAttribute(
+        "src",
+        /\/media\/images\/wedding-gallery-01\.webp$/
+      );
+      await page.locator(".gallery-lightbox__close").click();
+
       await expect(page.locator(".shoot-card__open").first()).toHaveAccessibleName(
         "Cess Orman düğün çekimini büyüt ve oynat"
       );

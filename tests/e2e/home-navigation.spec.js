@@ -33,6 +33,26 @@ test("@responsive kaldirilan tanitim bolumleri sayfada ve navigasyonda yer almaz
   await expect(page.locator('a[href="#hakkimizda"], a[href="#konseptler"]')).toHaveCount(0);
 });
 
+test("@responsive mobil galeri ve video kartlari ayni olcuyu kullanir", async ({ page }) => {
+  for (const viewport of [
+    { width: 375, height: 812 },
+    { width: 600, height: 900 }
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/index.html");
+
+    const [galleryCardBox, videoCardBox] = await Promise.all([
+      page.locator(".gallery-card").first().boundingBox(),
+      page.locator(".shoot-card__media").first().boundingBox()
+    ]);
+
+    expect(galleryCardBox).not.toBeNull();
+    expect(videoCardBox).not.toBeNull();
+    expect(galleryCardBox.width).toBeCloseTo(videoCardBox.width, 0);
+    expect(galleryCardBox.height).toBeCloseTo(videoCardBox.height, 0);
+  }
+});
+
 test("@responsive tum mobil section gecisleri kompakt dikey ritmi korur", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.emulateMedia({ reducedMotion: "reduce" });

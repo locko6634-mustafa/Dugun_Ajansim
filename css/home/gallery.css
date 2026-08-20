@@ -390,10 +390,11 @@
 
   .gallery-card,
   .gallery-card:nth-child(n) {
-    width: min(78vw, 390px);
-    height: min(108vw, 520px);
+    width: clamp(220px, 35vw, 290px);
+    height: auto;
+    aspect-ratio: 9 / 16;
     border-radius: 18px;
-    flex: 0 0 min(78vw, 390px);
+    flex: 0 0 clamp(220px, 35vw, 290px);
     grid-column: auto;
     grid-row: auto;
     scroll-snap-align: center;
@@ -482,5 +483,13 @@
     right: 14px;
     width: 44px;
     height: 44px;
+  }
+}
+
+@media (max-width: 560px) {
+  .gallery-card,
+  .gallery-card:nth-child(n) {
+    width: 210px;
+    flex-basis: 210px;
   }
 }
