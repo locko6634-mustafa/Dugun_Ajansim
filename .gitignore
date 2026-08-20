@@ -88,6 +88,7 @@ desktop.ini
 *.mp4
 *.avi
 *.mov
+/storage/public-media/
 
 # Yedekler & Belgeler
 backups/

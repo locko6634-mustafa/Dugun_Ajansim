@@ -72,6 +72,11 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(compose).toContain("dist/scripts/bootstrapAdmin.js");
   expect(compose).not.toMatch(/ADMIN_BOOTSTRAP_PASSWORD\s*:/);
   expect(compose).toContain("loadbalancer.server.port=8080");
+  expect(compose).toContain("source: ${PUBLIC_MEDIA_DIR:-./storage/public-media}");
+  expect(compose).toContain("target: /srv/dugun-ajansim-media");
+  expect(compose).toMatch(
+    /target: \/srv\/dugun-ajansim-media\s+read_only: true\s+bind:\s+create_host_path: false/
+  );
   expect(compose).toContain("pids_limit:");
   expect(compose).toContain("stop_grace_period:");
   expect(compose.match(/^\s+image: dugun-ajansim-postgres$/gm)).toHaveLength(3);
@@ -160,6 +165,10 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(nginx).toContain("max-age=3600, must-revalidate");
   expect(nginx).toContain('Cache-Control "no-store"');
   expect(nginx).toContain("Content-Security-Policy");
+  expect(nginx).toContain("location ^~ /media/");
+  expect(nginx).toContain("alias /srv/dugun-ajansim-media/");
+  expect(nginx).toContain('Cache-Control "public, max-age=86400, must-revalidate"');
+  expect(nginx).not.toContain("supabase.co");
   expect(nginx.match(/script-src [^;]+/g)).not.toBeNull();
   expect(nginx.match(/script-src [^;]+/g)).toEqual(
     expect.arrayContaining([expect.not.stringContaining("'unsafe-inline'")])
@@ -171,6 +180,8 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(nginx).not.toContain("expires 1y");
 
   expect(homePage).toContain('<script src="js/home/bootstrap.js"></script>');
+  expect(homePage.match(/data-src="\/media\/videos\/[a-z0-9-]+\.mp4"/g)).toHaveLength(5);
+  expect(homePage).not.toContain("supabase.co");
   expect(homePage).not.toMatch(/\sonload\s*=/i);
   expect(homePage).not.toContain('document.documentElement.classList.add("js")');
   expect(homeBootstrap).toContain('document.documentElement.classList.add("js")');
@@ -191,6 +202,7 @@ test("production container ve dağıtım korumaları yapılandırmada kalır", a
   expect(deliveryLink).toContain('normalized.endsWith(".wetransfer.com")');
 
   expect(exampleEnv).toMatch(/^POSTGRES_PASSWORD=$/m);
+  expect(exampleEnv).toMatch(/^PUBLIC_MEDIA_DIR=\.\/storage\/public-media$/m);
   expect(exampleEnv).toMatch(/^POSTGRES_RUNTIME_USER=dugun_runtime$/m);
   expect(exampleEnv).toMatch(/^POSTGRES_RUNTIME_PASSWORD=$/m);
   expect(exampleEnv).toMatch(/^DATA_ENCRYPTION_KEY=$/m);

@@ -65,6 +65,25 @@ Traefik'e bu ağda sabit bir IP verin, aynı kesin IP'yi `TRUST_PROXY` olarak ku
 `forwardedHeaders.insecure` ayarını etkinleştirmeyin. Sayısal `TRUST_PROXY=1` kullanımı, ağa
 erişebilen başka bir container'ın istemci IP başlığını sahtelemesine izin verebilir.
 
+### Sunucu tabanlı genel medya alanı
+
+Tanıtım videoları ve ileride eklenecek genel görseller üçüncü taraf depolamadan çekilmez.
+`PUBLIC_MEDIA_DIR` ile belirtilen, Git dışında tutulan sunucu dizini frontend container'ına salt
+okunur bağlanır ve aynı alan adında `/media/` altında servis edilir. Varsayılan dizin
+`./storage/public-media` olup önerilen yapı şöyledir:
+
+```text
+storage/public-media/
+├── videos/
+└── images/
+```
+
+İlk dağıtımdan önce dizini deploy kullanıcısıyla oluşturun; Compose eksik bir host dizinini otomatik
+oluşturmaz. Dosyayı önce `.part` adıyla indirip boyut/özet doğrulamasından sonra son adına atomik
+olarak taşıyın. Medya alanını uygulama ve veritabanı yedeklerinden ayrı, şifreli sunucu dışı yedekleme
+politikasına dahil edin. Kaynak dosya adlarını URL güvenli kebab-case adlara dönüştürün ve HTML'de
+yalnız `/media/videos/...` veya `/media/images/...` yollarını kullanın.
+
 ### API giriş katmanı trafik sınırları
 
 Traefik, `/api/v1` trafiğini backend'e aktarmadan önce IP tabanlı token-bucket hız sınırını ve

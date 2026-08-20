@@ -122,12 +122,19 @@ for (const pagePath of pages) {
     }
     if (pagePath === "/index.html") {
       await expect(page.locator(".shoot-card__open").first()).toHaveAccessibleName(
-        "Talia akşam düğün çekimini büyüt ve oynat"
+        "Talia düğün çekimini büyüt ve oynat"
       );
       await expect(page.locator(".shoot-card__sound").first()).toHaveAttribute(
         "aria-pressed",
         "false"
       );
+      const videoSources = page.locator('.shoot-card source[type="video/mp4"]');
+      await expect(videoSources).toHaveCount(5);
+      const videoUrls = await videoSources.evaluateAll((sources) =>
+        sources.map((source) => source.getAttribute("data-src") ?? source.getAttribute("src"))
+      );
+      expect(new Set(videoUrls).size).toBe(5);
+      expect(videoUrls.every((url) => url?.startsWith("/media/videos/"))).toBe(true);
     }
   });
 
