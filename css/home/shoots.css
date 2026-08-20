@@ -151,31 +151,13 @@
   isolation: isolate;
 }
 
-.shoot-card__media--talia {
-  --shoot-poster: url("../../assets/images/venues/talia-garden.webp");
-}
-
-.shoot-card__media--bella {
-  --shoot-poster: url("../../assets/images/venues/bella-garden.webp");
-}
-
-.shoot-card__media--cess {
-  --shoot-poster: url("../../assets/images/venues/cess.webp");
-}
-
-.shoot-card__media--rena {
-  --shoot-poster: url("../../assets/images/venues/rena-garden.webp");
-}
-
-.shoot-card__media--rojda {
-  --shoot-poster: url("../../assets/images/venue-pavilion.webp");
-}
-
 .shoot-card__media::before {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: var(--shoot-poster) center / cover no-repeat;
+  background:
+    radial-gradient(circle at 30% 25%, hsl(35 28% 28% / 0.55), transparent 42%),
+    linear-gradient(145deg, hsl(28 18% 17%), hsl(30 13% 9%));
   content: "";
   pointer-events: none;
   transition: opacity 320ms ease;

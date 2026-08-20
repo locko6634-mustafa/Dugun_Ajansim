@@ -130,6 +130,16 @@ for (const pagePath of pages) {
       );
       const videoSources = page.locator('.shoot-card source[type="video/mp4"]');
       await expect(videoSources).toHaveCount(5);
+      const videoPosters = await page
+        .locator(".shoot-card video")
+        .evaluateAll((videos) => videos.map((video) => video.getAttribute("poster")));
+      expect(videoPosters).toEqual([null, null, null, null, null]);
+      const loadingBackgrounds = await page
+        .locator(".shoot-card__media")
+        .evaluateAll((media) =>
+          media.map((item) => getComputedStyle(item, "::before").backgroundImage)
+        );
+      expect(loadingBackgrounds.every((background) => !background.includes("url("))).toBe(true);
       const videoUrls = await videoSources.evaluateAll((sources) =>
         sources.map((source) => source.getAttribute("data-src") ?? source.getAttribute("src"))
       );
