@@ -19,6 +19,7 @@ const emptyResult = (): DataRetentionBatchResult => ({
   authSessions: 0,
   trustedDevices: 0,
   passwordSetupTokens: 0,
+  passwordResetChallenges: 0,
   publicApplications: 0,
   archivedApplications: 0,
   archivedWeddings: 0,

@@ -110,12 +110,29 @@ const booleanStringSchema = (name: string) =>
     })
     .transform((value) => value === 'true');
 
+const smtpHostnameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .refine(
+    (value) =>
+      value === '' ||
+      isIP(value) !== 0 ||
+      /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(
+        value,
+      ),
+    'SMTP_HOST geçerli bir hostname veya IP adresi olmalıdır',
+  );
+
 const DEVELOPMENT_ENCRYPTION_KEY =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const DEVELOPMENT_PII_BLIND_INDEX_KEY =
   'f1e2d3c4b5a69788776655443322110089abcdef0123456776543210fedcba98';
 const DEVELOPMENT_RATE_LIMIT_HMAC_KEY =
   'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789';
+const DEVELOPMENT_PASSWORD_RESET_CODE_HMAC_KEY =
+  '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
 const DEFAULT_DATA_ENCRYPTION_KEYRING_JSON = JSON.stringify({
   legacy: DEVELOPMENT_ENCRYPTION_KEY,
 });
@@ -194,9 +211,7 @@ export const parsePiiBlindIndexKeyring = (rawValue: string): Record<string, stri
     }
     const normalizedKey = rawKey.toLowerCase();
     if (!HEX_32_BYTE_PATTERN.test(normalizedKey) || uniqueKeyMaterial.has(normalizedKey)) {
-      throw new Error(
-        'PII_BLIND_INDEX_KEYRING_JSON anahtarları benzersiz 32 bayt hex olmalıdır',
-      );
+      throw new Error('PII_BLIND_INDEX_KEYRING_JSON anahtarları benzersiz 32 bayt hex olmalıdır');
     }
     uniqueKeyMaterial.add(normalizedKey);
     keyring[keyId] = normalizedKey;
@@ -247,16 +262,22 @@ const envSchema = z
       1_000,
       120_000,
     ).default('15000'),
-    HTTP_HEADERS_TIMEOUT_MS: boundedIntegerSchema(
-      'HTTP_HEADERS_TIMEOUT_MS',
-      1_000,
-      60_000,
-    ).default('10000'),
+    HTTP_HEADERS_TIMEOUT_MS: boundedIntegerSchema('HTTP_HEADERS_TIMEOUT_MS', 1_000, 60_000).default(
+      '10000',
+    ),
     HTTP_KEEP_ALIVE_TIMEOUT_MS: boundedIntegerSchema(
       'HTTP_KEEP_ALIVE_TIMEOUT_MS',
       1_000,
       30_000,
     ).default('5000'),
+    MAIL_TRANSPORT_MODE: z.enum(['disabled', 'smtp']).default('disabled'),
+    SMTP_HOST: smtpHostnameSchema.default(''),
+    SMTP_PORT: portSchema.default('465'),
+    SMTP_SECURE: booleanStringSchema('SMTP_SECURE').default('true'),
+    SMTP_USER: z.string().trim().toLowerCase().max(254).default(''),
+    SMTP_PASSWORD: z.string().min(1).max(1024).default('smtp-disabled'),
+    MAIL_FROM_ADDRESS: z.string().trim().toLowerCase().max(254).default(''),
+    MAIL_FROM_NAME: z.string().trim().min(2).max(100).default('Düğün Ajansım'),
     DATA_ENCRYPTION_KEY: z
       .string()
       .regex(/^[a-fA-F0-9]{64}$/, 'DATA_ENCRYPTION_KEY 32 baytlık hex değer olmalıdır')
@@ -303,6 +324,10 @@ const envSchema = z
       .string()
       .regex(HEX_32_BYTE_PATTERN, 'RATE_LIMIT_HMAC_KEY 32 baytlık hex değer olmalıdır')
       .default(DEVELOPMENT_RATE_LIMIT_HMAC_KEY),
+    PASSWORD_RESET_CODE_HMAC_KEY: z
+      .string()
+      .regex(HEX_32_BYTE_PATTERN, 'PASSWORD_RESET_CODE_HMAC_KEY 32 baytlık hex değer olmalıdır')
+      .default(DEVELOPMENT_PASSWORD_RESET_CODE_HMAC_KEY),
     PII_ENCRYPTION_MODE: z.enum(['dual', 'encrypted', 'strict']).default('encrypted'),
     ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES: booleanStringSchema(
       'ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES',
@@ -332,6 +357,11 @@ const envSchema = z
       1,
       168,
     ).default('24'),
+    PASSWORD_RESET_CODE_TTL_MINUTES: boundedIntegerSchema(
+      'PASSWORD_RESET_CODE_TTL_MINUTES',
+      5,
+      30,
+    ).default('10'),
     PUBLIC_APPLICATION_RETENTION_DAYS: boundedIntegerSchema(
       'PUBLIC_APPLICATION_RETENTION_DAYS',
       30,
@@ -352,11 +382,9 @@ const envSchema = z
       7,
       365,
     ).default('30'),
-    DATA_RETENTION_BATCH_SIZE: boundedIntegerSchema(
-      'DATA_RETENTION_BATCH_SIZE',
-      10,
-      500,
-    ).default('100'),
+    DATA_RETENTION_BATCH_SIZE: boundedIntegerSchema('DATA_RETENTION_BATCH_SIZE', 10, 500).default(
+      '100',
+    ),
     DATA_RETENTION_MAX_BATCHES: boundedIntegerSchema(
       'DATA_RETENTION_MAX_BATCHES',
       1,
@@ -405,6 +433,44 @@ const envSchema = z
       });
     }
 
+    if (environment.MAIL_TRANSPORT_MODE === 'smtp') {
+      if (!environment.SMTP_HOST) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['SMTP_HOST'],
+          message: 'SMTP gönderiminde SMTP_HOST zorunludur',
+        });
+      }
+      if (!z.string().email().safeParse(environment.SMTP_USER).success) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['SMTP_USER'],
+          message: 'SMTP gönderiminde geçerli SMTP_USER zorunludur',
+        });
+      }
+      if (!z.string().email().safeParse(environment.MAIL_FROM_ADDRESS).success) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MAIL_FROM_ADDRESS'],
+          message: 'SMTP gönderiminde geçerli MAIL_FROM_ADDRESS zorunludur',
+        });
+      }
+      if (environment.SMTP_USER !== environment.MAIL_FROM_ADDRESS) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MAIL_FROM_ADDRESS'],
+          message: 'MAIL_FROM_ADDRESS SMTP_USER ile aynı olmalıdır',
+        });
+      }
+      if (environment.SMTP_PASSWORD === 'smtp-disabled') {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['SMTP_PASSWORD'],
+          message: 'SMTP gönderiminde gerçek SMTP_PASSWORD zorunludur',
+        });
+      }
+    }
+
     if (
       environment.NODE_ENV === 'production' &&
       environment.ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES
@@ -442,6 +508,34 @@ const envSchema = z
     // Eğer ortam production değilse ekstra parola/SSL kontrollerini atla
     if (environment.NODE_ENV !== 'production') {
       return;
+    }
+
+    if (environment.APP_PROCESS_ROLE === 'api' && environment.MAIL_TRANSPORT_MODE !== 'smtp') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['MAIL_TRANSPORT_MODE'],
+        message: 'Production API için SMTP gönderimi zorunludur',
+      });
+    }
+    if (
+      environment.APP_PROCESS_ROLE === 'api' &&
+      (!environment.SMTP_SECURE || environment.SMTP_PORT !== 465)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SMTP_SECURE'],
+        message: 'Production SMTP bağlantısı 465 portunda implicit TLS kullanmalıdır',
+      });
+    }
+    if (
+      environment.APP_PROCESS_ROLE === 'api' &&
+      environment.SMTP_HOST !== 'mail.kurumsaleposta.com'
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SMTP_HOST'],
+        message: 'Production SMTP sunucusu mail.kurumsaleposta.com olmalıdır',
+      });
     }
 
     if (environment.APP_PROCESS_ROLE === 'api' && environment.PII_ENCRYPTION_MODE !== 'strict') {
@@ -653,6 +747,30 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['RATE_LIMIT_HMAC_KEY'],
         message: 'Production rate-limit HMAC anahtarı benzersiz ve rastgele olmalıdır',
+      });
+    }
+    if (
+      environment.APP_PROCESS_ROLE === 'api' &&
+      (environment.PASSWORD_RESET_CODE_HMAC_KEY === DEVELOPMENT_PASSWORD_RESET_CODE_HMAC_KEY ||
+        environment.PASSWORD_RESET_CODE_HMAC_KEY.toLowerCase() ===
+          environment.SMTP_PASSWORD.toLowerCase() ||
+        environment.PASSWORD_RESET_CODE_HMAC_KEY.toLowerCase() ===
+          environment.RATE_LIMIT_HMAC_KEY.toLowerCase() ||
+        environment.PASSWORD_RESET_CODE_HMAC_KEY.toLowerCase() ===
+          environment.PII_BLIND_INDEX_KEY.toLowerCase() ||
+        Object.values(blindIndexKeyring ?? {}).some(
+          (blindIndexKey) =>
+            blindIndexKey === environment.PASSWORD_RESET_CODE_HMAC_KEY.toLowerCase(),
+        ) ||
+        Object.values(keyring ?? {}).some(
+          (encryptionKey) =>
+            encryptionKey === environment.PASSWORD_RESET_CODE_HMAC_KEY.toLowerCase(),
+        ))
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PASSWORD_RESET_CODE_HMAC_KEY'],
+        message: 'Production parola sıfırlama HMAC anahtarı benzersiz ve rastgele olmalıdır',
       });
     }
 

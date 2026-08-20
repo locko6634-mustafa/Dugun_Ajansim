@@ -50,7 +50,7 @@ const withRuntimeContext = <Result>(
 
 const expectPermissionDenied = async (operation: () => Promise<unknown>): Promise<void> => {
   await assert.rejects(operation, (error: unknown) => {
-    const serialized = JSON.stringify(error);
+    const serialized = `${error instanceof Error ? error.message : ""} ${JSON.stringify(error)}`;
     return (
       serialized.includes("42501") ||
       serialized.toLowerCase().includes("permission denied") ||
@@ -164,6 +164,76 @@ test("sentetik runtime rolü uygulama CRUD yetkilerini korur ve yönetim işleml
     (await ownerPrisma.auditLog.findUniqueOrThrow({ where: { id: auditLog.id } })).action,
     "runtime-role.integration"
   );
+});
+
+test("parola sıfırlama challenge RLS ve runtime DELETE yetkisi auth ile retentionı ayırır", async (context) => {
+  const marker = randomUUID();
+  const user = await ownerPrisma.user.create({
+    data: {
+      username: `reset-challenge-${marker}`,
+      passwordHash: "runtime-reset-challenge-not-for-authentication",
+      role: "MUSTERI",
+      mustChangePassword: false
+    }
+  });
+  const challengeId = randomUUID();
+  const codeHash = marker.replaceAll("-", "").padEnd(64, "0");
+
+  context.after(async () => {
+    await ownerPrisma.passwordResetChallenge.deleteMany({ where: { userId: user.id } });
+    await ownerPrisma.user.deleteMany({ where: { id: user.id } });
+  });
+
+  await withRuntimeContext({ actorRole: "auth", purpose: "http.auth" }, async (transaction) => {
+    const lockedUsers = await transaction.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "users" WHERE "id" = ${user.id} FOR UPDATE
+    `;
+    assert.deepEqual(lockedUsers, [{ id: user.id }]);
+    await transaction.passwordResetChallenge.create({
+      data: {
+        id: challengeId,
+        codeHash,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1_000)
+      }
+    });
+  });
+  assert.equal(
+    await withRuntimeContext({ actorRole: "auth", purpose: "http.auth" }, (transaction) =>
+      transaction.passwordResetChallenge.count({ where: { id: challengeId } })
+    ),
+    1
+  );
+  assert.equal(
+    await withRuntimeContext({ actorRole: "public", purpose: "http.public" }, (transaction) =>
+      transaction.passwordResetChallenge.count({ where: { id: challengeId } })
+    ),
+    0
+  );
+  assert.equal(
+    await withRuntimeContext(
+      { actorRole: "customer", actorUserId: user.id, purpose: "http.customer" },
+      (transaction) => transaction.passwordResetChallenge.count({ where: { id: challengeId } })
+    ),
+    0
+  );
+  await expectPermissionDenied(() =>
+    withRuntimeContext({ actorRole: "public", purpose: "http.public" }, (transaction) =>
+      transaction.passwordResetChallenge.create({
+        data: {
+          id: randomUUID(),
+          codeHash,
+          userId: user.id,
+          expiresAt: new Date(Date.now() + 10 * 60 * 1_000)
+        }
+      })
+    )
+  );
+  const deleted = await withRuntimeContext(
+    { actorRole: "maintenance", purpose: "maintenance.retention" },
+    (transaction) => transaction.passwordResetChallenge.deleteMany({ where: { id: challengeId } })
+  );
+  assert.equal(deleted.count, 1);
 });
 
 test("admin dışı HTTP bağlamları audit kaydı ekler ancak kaydı okuyamaz", async (context) => {

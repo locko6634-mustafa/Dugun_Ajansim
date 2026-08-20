@@ -9,8 +9,9 @@ export const issuePasswordSetupToken = async (
   input: {
     userId: string;
     purpose: PasswordSetupPurpose;
-    createdById: string;
+    createdById?: string | null;
     notBefore?: Date | null;
+    ttlMinutes?: number;
   },
 ): Promise<{ id: string; token: string; expiresAt: Date }> => {
   const now = new Date();
@@ -21,16 +22,18 @@ export const issuePasswordSetupToken = async (
 
   const token = createOpaqueToken();
   const validityStartsAt = input.notBefore && input.notBefore > now ? input.notBefore : now;
-  const expiresAt = new Date(
-    validityStartsAt.valueOf() + env.TEMPORARY_PASSWORD_TTL_HOURS * 60 * 60 * 1_000,
-  );
+  const ttlMinutes = input.ttlMinutes ?? env.TEMPORARY_PASSWORD_TTL_HOURS * 60;
+  if (!Number.isSafeInteger(ttlMinutes) || ttlMinutes < 1 || ttlMinutes > 7 * 24 * 60) {
+    throw new Error('Parola kurulum tokenı geçerlilik süresi geçersiz.');
+  }
+  const expiresAt = new Date(validityStartsAt.valueOf() + ttlMinutes * 60 * 1_000);
   const setupToken = await transaction.passwordSetupToken.create({
     data: {
       tokenHash: hashToken(token),
       userId: input.userId,
       purpose: input.purpose,
       expiresAt,
-      createdById: input.createdById,
+      createdById: input.createdById ?? null,
     },
   });
   return { id: setupToken.id, token, expiresAt };

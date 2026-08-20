@@ -38,6 +38,8 @@ install -m 600 .env.production.example .env.production
 # DATA_ENCRYPTION_KEY ve ondan farklı BACKUP_ENCRYPTION_KEY için ayrı ayrı: openssl rand -hex 32
 # TRUST_PROXY değerini edge_proxy ağındaki sabit Traefik container IP'si olarak ayarlayın.
 # PAYMENT_MODE=live kullanın; banka, hesap sahibi, IBAN ve WhatsApp alanlarının beşi de zorunludur.
+# SMTP parolasını .env.production içine yazmayın; smtp-password secret dosyasında tutun.
+# Parola sıfırlama HMAC anahtarını `openssl rand -hex 32` ile ayrı bir secret dosyası için üretin.
 docker compose --env-file .env.production -f compose.production.yaml \
   -f compose.production.secrets.yaml config -q
 docker compose --env-file .env.production -f compose.production.yaml \
@@ -199,6 +201,16 @@ okunabilmesi için dosyalar `0444`, onları çevreleyen secret kökü ise `0700`
 kullanılıyorsa dosyalar root erişimli kalıcı kaynaktan Docker başlamadan önce yeniden
 oluşturulmalıdır. Alternatif olarak dağıtım kullanıcısının home dizininde rebootta kalıcı,
 `0700` izinli bir dizin seçilip tüm `*_SECRET_FILE` yolları aynı köke yönlendirilebilir.
+
+SMTP gönderimi `mail.kurumsaleposta.com:465` üzerinde doğrudan TLS ile yapılır.
+`.env.production` içinde `MAIL_TRANSPORT_MODE=smtp`, `SMTP_SECURE=true`, SMTP kullanıcı/gönderen
+alanları ve `SMTP_PASSWORD_SECRET_FILE` bulunmalı; `SMTP_PASSWORD` boş kalmalıdır. Gerçek parola,
+secret kökündeki normal ve symlink olmayan `smtp-password` dosyasına satır sonu eklenmeden yazılmalı
+ve diğer Compose secret dosyalarıyla aynı sahiplik/izin kurallarını kullanmalıdır.
+`PASSWORD_RESET_CODE_HMAC_KEY` de `.env.production` içinde boş kalmalı; 32 baytlık hex değeri
+`password-reset-code-hmac-key` secret dosyasında tutulmalı ve SMTP parolasıyla aynı olmamalıdır.
+Canlı runtime imajı `npm` içermez. Test gönderimi, deploy sonrasında backend containerında
+`SMTP_TEST_RECIPIENT=<test-adresi> node dist/scripts/sendTestPasswordResetEmail.js` komutuyla yapılır.
 
 Uygulama ve yardımcı betikler yalnız allowlist'teki `*_FILE` değişkenlerini kabul eder. Doğrudan
 değer ile karşılık gelen `_FILE` aynı anda verilirse; dosya boşsa, aşırı büyükse, NUL içeriyorsa,

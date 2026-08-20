@@ -3,9 +3,22 @@ import { fetchSession, getPanelUrlForRole } from "../shared/auth-session.js";
 
 const loginForm = document.querySelector(".login-form");
 const changeForm = document.querySelector(".password-change-form");
+const resetForm = document.querySelector(".password-reset-form");
 const usernameInput = document.querySelector("#username");
 const passwordInput = document.querySelector("#password");
 const passwordToggle = document.querySelector(".password-toggle");
+const forgotButton = document.querySelector(".forgot-button");
+const resetRequestStep = resetForm.querySelector(".password-reset-request-step");
+const resetConfirmStep = resetForm.querySelector(".password-reset-confirm-step");
+const resetUsernameInput = resetForm.querySelector("#reset-username");
+const resetCodeInput = resetForm.querySelector("#reset-code");
+const resetNewPasswordInput = resetForm.querySelector("#reset-new-password");
+const resetConfirmPasswordInput = resetForm.querySelector("#reset-confirm-password");
+const resetInstruction = resetForm.querySelector(".password-reset-instruction");
+const resetMessage = resetForm.querySelector(".password-reset-message");
+const resetRequestSubmit = resetForm.querySelector(".password-reset-request-submit");
+const resetConfirmSubmit = resetForm.querySelector(".password-reset-confirm-submit");
+const resetBackButton = resetForm.querySelector(".password-reset-back");
 const mfaLoginField = document.querySelector(".mfa-login-field");
 const totpCodeInput = document.querySelector("#totp-code");
 const formMessage = loginForm.querySelector(".form-message");
@@ -21,6 +34,8 @@ let authenticatedRole = "";
 let mfaEnrollmentStarted = false;
 let passwordSetupToken = "";
 let passwordSetupPurpose = "";
+let resetChallengeId = "";
+let resetSetupToken = "";
 
 async function checkExistingSession() {
   const session = await fetchSession();
@@ -72,6 +87,125 @@ function validatePassword() {
   return valid;
 }
 
+function validateResetUsername() {
+  const length = resetUsernameInput.value.trim().length;
+  const valid = length >= 3 && length <= 64;
+  setFieldError(resetUsernameInput, valid ? "" : "Kullanıcı adınız 3–64 karakter olmalıdır.");
+  return valid;
+}
+
+function validateResetCode() {
+  const valid = /^\d{6}$/.test(resetCodeInput.value.trim());
+  setFieldError(resetCodeInput, valid ? "" : "6 haneli doğrulama kodunu girin.");
+  return valid;
+}
+
+function validateResetNewPassword() {
+  const valid =
+    resetNewPasswordInput.value.length >= 8 && resetNewPasswordInput.value.length <= 128;
+  setFieldError(
+    resetNewPasswordInput,
+    valid ? "" : "Yeni parolanız 8–128 karakter arasında olmalıdır."
+  );
+  return valid;
+}
+
+function validateResetConfirmPassword() {
+  const valid =
+    resetConfirmPasswordInput.value.length >= 8 &&
+    resetConfirmPasswordInput.value.length <= 128 &&
+    resetConfirmPasswordInput.value === resetNewPasswordInput.value;
+  setFieldError(resetConfirmPasswordInput, valid ? "" : "Yeni parolalar birbiriyle eşleşmelidir.");
+  return valid;
+}
+
+function clearResetFieldErrors() {
+  [resetUsernameInput, resetCodeInput, resetNewPasswordInput, resetConfirmPasswordInput].forEach(
+    (input) => setFieldError(input, "")
+  );
+}
+
+function setResetStageRequirements(isConfirmStep) {
+  resetUsernameInput.required = !isConfirmStep;
+  resetCodeInput.required = isConfirmStep;
+  resetNewPasswordInput.required = isConfirmStep;
+  resetConfirmPasswordInput.required = isConfirmStep;
+}
+
+function setResetBusy(isBusy) {
+  resetForm.toggleAttribute("aria-busy", isBusy);
+  resetRequestSubmit.disabled = isBusy;
+  resetConfirmSubmit.disabled = isBusy;
+  resetBackButton.disabled = isBusy;
+}
+
+function resetPasswordResetState() {
+  resetChallengeId = "";
+  resetSetupToken = "";
+  resetForm.reset();
+  resetCodeInput.readOnly = false;
+  clearResetFieldErrors();
+  resetRequestStep.hidden = false;
+  resetConfirmStep.hidden = true;
+  setResetStageRequirements(false);
+  resetInstruction.textContent = "";
+  resetMessage.textContent = "";
+  resetMessage.classList.remove("is-info");
+  setResetBusy(false);
+}
+
+function showLoginForm({
+  username = "",
+  message = "",
+  focusPassword = false,
+  resetLoginState = false
+} = {}) {
+  resetPasswordResetState();
+  resetForm.hidden = true;
+  changeForm.hidden = true;
+  mfaEnrollmentForm.hidden = true;
+  loginForm.hidden = false;
+  if (resetLoginState) {
+    passwordInput.value = "";
+    setFieldError(passwordInput, "");
+    mfaLoginField.hidden = true;
+    totpCodeInput.required = false;
+    totpCodeInput.value = "";
+    setFieldError(totpCodeInput, "");
+    loginForm.elements.trustDevice.checked = false;
+  }
+  if (username) usernameInput.value = username;
+  formMessage.classList.toggle("is-info", Boolean(message));
+  formMessage.textContent = message;
+  (focusPassword ? passwordInput : usernameInput).focus();
+}
+
+function showPasswordResetRequest() {
+  const currentUsername = usernameInput.value.trim();
+  resetPasswordResetState();
+  if (currentUsername.length >= 3 && currentUsername.length <= 64) {
+    resetUsernameInput.value = currentUsername;
+  }
+  loginForm.hidden = true;
+  changeForm.hidden = true;
+  mfaEnrollmentForm.hidden = true;
+  resetForm.hidden = false;
+  resetUsernameInput.focus();
+}
+
+function showPasswordResetConfirm(challengeId, expiresInMinutes) {
+  resetChallengeId = challengeId;
+  resetSetupToken = "";
+  resetCodeInput.readOnly = false;
+  resetRequestStep.hidden = true;
+  resetConfirmStep.hidden = false;
+  setResetStageRequirements(true);
+  const validExpiry = Number.isInteger(expiresInMinutes) && expiresInMinutes > 0;
+  const expiryCopy = validExpiry ? ` Kod ${expiresInMinutes} dakika geçerlidir.` : "";
+  resetInstruction.textContent = `Hesap bilgileriniz eşleşiyorsa kayıtlı e-posta adresinize 6 haneli kod gönderdik.${expiryCopy}`;
+  resetCodeInput.focus();
+}
+
 function redirectForRole(role) {
   window.location.href = getPanelUrlForRole(role);
 }
@@ -81,6 +215,7 @@ function showPasswordChange(role, currentPassword = "") {
   passwordSetupToken = "";
   passwordSetupPurpose = "";
   loginForm.hidden = true;
+  resetForm.hidden = true;
   changeForm.hidden = false;
   mfaEnrollmentForm.hidden = true;
   changeCurrentPasswordField.hidden = false;
@@ -94,6 +229,7 @@ function showPasswordSetup(token, purpose) {
   passwordSetupToken = token;
   passwordSetupPurpose = purpose;
   loginForm.hidden = true;
+  resetForm.hidden = true;
   changeForm.hidden = false;
   mfaEnrollmentForm.hidden = true;
   changeCurrentPasswordField.hidden = true;
@@ -112,6 +248,7 @@ function showMfaCodeField() {
 function showMfaEnrollment(role, currentPassword = "") {
   authenticatedRole = role;
   loginForm.hidden = true;
+  resetForm.hidden = true;
   changeForm.hidden = true;
   mfaEnrollmentForm.hidden = false;
   mfaEnrollmentStarted = false;
@@ -133,8 +270,15 @@ passwordToggle.addEventListener("click", () => {
   passwordInput.focus();
 });
 
+forgotButton.addEventListener("click", showPasswordResetRequest);
+resetBackButton.addEventListener("click", () => showLoginForm());
+
 usernameInput.addEventListener("blur", validateUsername);
 passwordInput.addEventListener("blur", validatePassword);
+resetUsernameInput.addEventListener("blur", validateResetUsername);
+resetCodeInput.addEventListener("blur", validateResetCode);
+resetNewPasswordInput.addEventListener("blur", validateResetNewPassword);
+resetConfirmPasswordInput.addEventListener("blur", validateResetConfirmPassword);
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -174,6 +318,89 @@ loginForm.addEventListener("submit", async (event) => {
     formMessage.textContent = error.message;
   } finally {
     submitButton.disabled = false;
+  }
+});
+
+resetForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  resetMessage.textContent = "";
+  resetMessage.classList.remove("is-info");
+
+  if (!resetChallengeId) {
+    if (!validateResetUsername()) return;
+
+    setResetBusy(true);
+    try {
+      const response = await apiRequest("/auth/password/reset/request", {
+        method: "POST",
+        body: { username: resetUsernameInput.value.trim() }
+      });
+      const challengeId =
+        typeof response?.data?.challengeId === "string" ? response.data.challengeId.trim() : "";
+      if (!challengeId) {
+        throw new Error("Doğrulama işlemi başlatılamadı. Lütfen tekrar deneyin.");
+      }
+      showPasswordResetConfirm(challengeId, response.data.expiresInMinutes);
+    } catch (error) {
+      resetMessage.textContent = error.message;
+      resetUsernameInput.focus();
+    } finally {
+      setResetBusy(false);
+    }
+    return;
+  }
+
+  const codeIsValid = resetSetupToken ? true : validateResetCode();
+  const passwordIsValid = validateResetNewPassword();
+  const confirmationIsValid = validateResetConfirmPassword();
+  if (!codeIsValid || !passwordIsValid || !confirmationIsValid) return;
+
+  setResetBusy(true);
+  try {
+    if (!resetSetupToken) {
+      const verification = await apiRequest("/auth/password/reset/verify", {
+        method: "POST",
+        body: {
+          challengeId: resetChallengeId,
+          code: resetCodeInput.value.trim()
+        }
+      });
+      const setupToken =
+        typeof verification?.data?.token === "string" ? verification.data.token.trim() : "";
+      if (!setupToken || verification?.data?.purpose !== "PASSWORD_RESET") {
+        throw new Error("Doğrulama işlemi tamamlanamadı. Lütfen yeni bir kod isteyin.");
+      }
+      resetSetupToken = setupToken;
+      resetCodeInput.readOnly = true;
+      resetInstruction.textContent =
+        "Kod doğrulandı. Parolanız kaydedilene kadar yeni parolanızı güvenle yeniden deneyebilirsiniz.";
+    }
+
+    const response = await apiRequest("/auth/password/setup", {
+      method: "POST",
+      body: {
+        token: resetSetupToken,
+        purpose: "PASSWORD_RESET",
+        newPassword: resetNewPasswordInput.value
+      }
+    });
+    const returnedUsername =
+      typeof response?.data?.username === "string" ? response.data.username.trim() : "";
+    const username =
+      returnedUsername.length >= 3 && returnedUsername.length <= 64
+        ? returnedUsername
+        : resetUsernameInput.value.trim();
+    showLoginForm({
+      username,
+      message: "Parolanız yenilendi. Şimdi yeni parolanızla giriş yapabilirsiniz.",
+      focusPassword: true,
+      resetLoginState: true
+    });
+  } catch (error) {
+    resetMessage.textContent = error.message;
+    (resetSetupToken ? resetNewPasswordInput : resetCodeInput).focus();
+  } finally {
+    setResetBusy(false);
   }
 });
 

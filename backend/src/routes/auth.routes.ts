@@ -1,8 +1,10 @@
+import { randomInt, randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { env, parseDataEncryptionKeyring } from '../config/env.config.js';
-import { prisma } from '../config/prisma.js';
+import { prisma, runWithRlsContext } from '../config/prisma.js';
 import {
   ADMIN_STEP_UP_TTL_MS,
   authenticate,
@@ -32,6 +34,8 @@ import {
   mfaEnrollmentBodySchema,
   mfaProtectedActionBodySchema,
   passwordChangeBodySchema,
+  passwordResetRequestBodySchema,
+  passwordResetVerifyBodySchema,
   passwordSetupBodySchema,
 } from '../schemas/api.schemas.js';
 import {
@@ -47,8 +51,19 @@ import { AppError } from '../utils/appError.js';
 import { writeAuditLog } from '../utils/audit.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { normalizeUsername } from '../utils/domain.js';
+import { trackPendingBackgroundTask } from '../utils/pendingTasks.js';
+import { decryptWeddingPii } from '../utils/pii-crypto.js';
+import {
+  createPasswordResetChallenge,
+  verifyPasswordResetCode,
+} from '../utils/passwordResetChallenge.js';
+import { issuePasswordSetupToken } from '../utils/passwordSetup.js';
 import { logFailedLoginSecurityEvent } from '../utils/securityLogger.js';
 import { cleanupStaleSessions } from '../utils/sessionMaintenance.js';
+import {
+  sendPasswordResetCodeEmail,
+  type PasswordResetEmailSender,
+} from '../services/mail.service.js';
 import {
   createTotpEnrollmentUri,
   createTotpSecret,
@@ -160,6 +175,97 @@ const passwordSetupLimiter = rateLimit({
   handler: createRateLimitHandler('Çok fazla parola kurulum denemesi yaptınız.'),
 });
 
+const passwordResetRequestIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: rateLimitKeyGenerator,
+  store: new DatabaseRateLimitStore('auth-password-reset-request-ip'),
+  handler: createRateLimitHandler('Çok fazla şifre sıfırlama isteği gönderdiniz.'),
+});
+
+const passwordResetRequestAccountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => normalizeUsername(String(req.body?.username ?? '')) || 'invalid-account',
+  store: new DatabaseRateLimitStore('auth-password-reset-request-account'),
+  handler: createRateLimitHandler('Çok fazla şifre sıfırlama isteği gönderdiniz.'),
+});
+
+const passwordResetVerifyIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: rateLimitKeyGenerator,
+  store: new DatabaseRateLimitStore('auth-password-reset-verify-ip'),
+  handler: createRateLimitHandler('Çok fazla doğrulama denemesi yaptınız.'),
+});
+
+const passwordResetVerifyChallengeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.body?.challengeId ?? 'invalid-challenge'),
+  store: new DatabaseRateLimitStore('auth-password-reset-verify-challenge'),
+  handler: createRateLimitHandler('Çok fazla doğrulama denemesi yaptınız.'),
+});
+
+const PASSWORD_RESET_REQUEST_MESSAGE =
+  'Bu kullanıcı adıyla eşleşen bir hesap varsa kayıtlı e-posta adresine doğrulama kodu gönderdik.';
+const INVALID_PASSWORD_RESET_CODE_MESSAGE = 'Doğrulama kodu geçersiz veya süresi dolmuş.';
+const PASSWORD_RESET_RESPONSE_FLOOR_MS = env.NODE_ENV === 'test' ? 0 : 500;
+const PASSWORD_RESET_RESPONSE_JITTER_MS = env.NODE_ENV === 'test' ? 0 : 200;
+
+const createPasswordResetResponseDeadline = (): number =>
+  Date.now() +
+  PASSWORD_RESET_RESPONSE_FLOOR_MS +
+  (PASSWORD_RESET_RESPONSE_JITTER_MS > 0 ? randomInt(0, PASSWORD_RESET_RESPONSE_JITTER_MS + 1) : 0);
+
+const waitForPasswordResetResponseDeadline = async (deadline: number): Promise<void> => {
+  const remainingMilliseconds = deadline - Date.now();
+  if (remainingMilliseconds > 0) await delay(remainingMilliseconds);
+};
+
+const passwordResetWeddingSelect = {
+  id: true,
+  brideFirstName: true,
+  brideLastName: true,
+  bridePhone: true,
+  groomFirstName: true,
+  groomLastName: true,
+  groomPhone: true,
+  primaryEmail: true,
+  note: true,
+  piiCiphertext: true,
+  piiIv: true,
+  piiAuthTag: true,
+  piiKeyId: true,
+  piiEncryptionVersion: true,
+  piiSchemaVersion: true,
+  deletedAt: true,
+} as const;
+
+const getPasswordResetEmailSender = (req: Request): PasswordResetEmailSender =>
+  (req.app.locals.passwordResetEmailSender as PasswordResetEmailSender | undefined) ??
+  sendPasswordResetCodeEmail;
+
+const logPasswordResetDeliveryFailure = (correlationId: string): void => {
+  console.error(
+    JSON.stringify({
+      level: 'error',
+      event: 'auth_password_reset_delivery_failed',
+      timestamp: new Date().toISOString(),
+      correlationId,
+      reasonCode: 'SMTP_DELIVERY_FAILED',
+    }),
+  );
+};
+
 const decryptTotpSecret = (user: {
   id: string;
   totpSecretCiphertext: string | null;
@@ -237,8 +343,7 @@ router.post(
     }
     const mfaApplies = isMfaRequiredRole(user.role) && user.totpEnabledAt !== null;
     let matchedTotpStep: bigint | undefined;
-    const usableDevice =
-      !mfaApplies ? null : await findUsableDevice(prisma, req, user.id, now);
+    const usableDevice = !mfaApplies ? null : await findUsableDevice(prisma, req, user.id, now);
     if (mfaApplies && !usableDevice && readTrustedDeviceToken(req)) clearTrustedDeviceCookie(res);
     let rotatedTotpSecret:
       { ciphertext: string; iv: string; authTag: string; keyId: string } | undefined;
@@ -559,6 +664,242 @@ router.get(
         mustEnrollMfa: req.auth!.mustEnrollMfa,
         venueId: req.auth!.venueId,
         venueIds: req.auth!.venueIds,
+      },
+      correlationId: req.correlationId,
+    });
+  }),
+);
+
+router.post(
+  '/password/reset/request',
+  passwordResetRequestIpLimiter,
+  passwordResetRequestAccountLimiter,
+  validateRequest(
+    z.object({
+      body: passwordResetRequestBodySchema,
+      query: z.object({}).strict(),
+      params: z.object({}).strict(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const responseDeadline = createPasswordResetResponseDeadline();
+    const fallbackChallengeId = randomUUID();
+    const username = normalizeUsername(req.body.username);
+    const now = new Date();
+    const user = await prisma.user.findUnique({
+      where: { username },
+      select: {
+        id: true,
+        role: true,
+        status: true,
+        activeAt: true,
+        deletedAt: true,
+      },
+    });
+
+    let responseChallengeId: string = fallbackChallengeId;
+    const eligibleUser =
+      user?.role === 'MUSTERI' &&
+      user.status === 'ACTIVE' &&
+      user.deletedAt === null &&
+      (user.activeAt === null || user.activeAt <= now)
+        ? user
+        : undefined;
+    if (eligibleUser) {
+      let recipient: string | undefined;
+      try {
+        const wedding = await runWithRlsContext(
+          {
+            actorRole: 'customer',
+            actorUserId: eligibleUser.id,
+            purpose: 'http.auth.password-reset',
+          },
+          () =>
+            prisma.wedding.findFirst({
+              where: { customerUserId: eligibleUser.id, deletedAt: null },
+              select: passwordResetWeddingSelect,
+            }),
+        );
+        if (wedding) recipient = decryptWeddingPii(wedding.id, wedding).primaryEmail;
+      } catch {
+        logPasswordResetDeliveryFailure(req.correlationId);
+      }
+
+      if (recipient) {
+        const challenge = createPasswordResetChallenge();
+        const expiresAt = new Date(
+          now.valueOf() + env.PASSWORD_RESET_CODE_TTL_MINUTES * 60 * 1_000,
+        );
+        await prisma.$transaction(async (transaction) => {
+          await transaction.$queryRaw`
+            SELECT "id" FROM "users" WHERE "id" = ${eligibleUser.id} FOR UPDATE
+          `;
+          await transaction.passwordSetupToken.updateMany({
+            where: {
+              userId: eligibleUser.id,
+              purpose: 'PASSWORD_RESET',
+              usedAt: null,
+              revokedAt: null,
+            },
+            data: { revokedAt: now },
+          });
+          await transaction.passwordResetChallenge.updateMany({
+            where: {
+              userId: eligibleUser.id,
+              verifiedAt: null,
+              revokedAt: null,
+            },
+            data: { revokedAt: now },
+          });
+          await transaction.passwordResetChallenge.create({
+            data: {
+              id: challenge.challengeId,
+              codeHash: challenge.codeHash,
+              userId: eligibleUser.id,
+              expiresAt,
+              attemptsRemaining: 5,
+            },
+          });
+          await writeAuditLog(transaction, {
+            data: {
+              action: 'auth.password_reset_requested',
+              targetType: 'User',
+              targetId: eligibleUser.id,
+              correlationId: req.correlationId,
+            },
+          });
+        });
+        responseChallengeId = challenge.challengeId;
+
+        trackPendingBackgroundTask(
+          getPasswordResetEmailSender(req)({
+            recipient,
+            code: challenge.code,
+            expiresInMinutes: env.PASSWORD_RESET_CODE_TTL_MINUTES,
+          }).catch(async () => {
+            try {
+              await prisma.passwordResetChallenge.updateMany({
+                where: {
+                  id: challenge.challengeId,
+                  verifiedAt: null,
+                  revokedAt: null,
+                },
+                data: { revokedAt: new Date() },
+              });
+            } catch {
+              // Teslimat ve iptal hataları kişisel veri içermeyen tek bir güvenlik olayı olarak kaydedilir.
+            }
+            logPasswordResetDeliveryFailure(req.correlationId);
+          }),
+        );
+      }
+    }
+
+    await waitForPasswordResetResponseDeadline(responseDeadline);
+    res.status(202).json({
+      success: true,
+      data: {
+        challengeId: responseChallengeId,
+        expiresInMinutes: env.PASSWORD_RESET_CODE_TTL_MINUTES,
+        message: PASSWORD_RESET_REQUEST_MESSAGE,
+      },
+      correlationId: req.correlationId,
+    });
+  }),
+);
+
+router.post(
+  '/password/reset/verify',
+  passwordResetVerifyIpLimiter,
+  passwordResetVerifyChallengeLimiter,
+  validateRequest(
+    z.object({
+      body: passwordResetVerifyBodySchema,
+      query: z.object({}).strict(),
+      params: z.object({}).strict(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const now = new Date();
+    const challenge = await prisma.passwordResetChallenge.findUnique({
+      where: { id: req.body.challengeId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            status: true,
+            activeAt: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+    const challengeIsActive =
+      challenge !== null &&
+      challenge.verifiedAt === null &&
+      challenge.revokedAt === null &&
+      challenge.expiresAt > now &&
+      challenge.attemptsRemaining > 0 &&
+      challenge.user.status === 'ACTIVE' &&
+      challenge.user.deletedAt === null &&
+      (challenge.user.activeAt === null || challenge.user.activeAt <= now);
+
+    if (!challengeIsActive || !challenge) {
+      throw new AppError(INVALID_PASSWORD_RESET_CODE_MESSAGE, 410);
+    }
+
+    if (!verifyPasswordResetCode(challenge.id, req.body.code, challenge.codeHash)) {
+      await prisma.passwordResetChallenge.updateMany({
+        where: {
+          id: challenge.id,
+          verifiedAt: null,
+          revokedAt: null,
+          expiresAt: { gt: now },
+          attemptsRemaining: { gt: 0 },
+        },
+        data: { attemptsRemaining: { decrement: 1 } },
+      });
+      throw new AppError(INVALID_PASSWORD_RESET_CODE_MESSAGE, 410);
+    }
+
+    const setup = await prisma.$transaction(async (transaction) => {
+      const claimedChallenge = await transaction.passwordResetChallenge.updateMany({
+        where: {
+          id: challenge.id,
+          codeHash: challenge.codeHash,
+          verifiedAt: null,
+          revokedAt: null,
+          expiresAt: { gt: now },
+          attemptsRemaining: { gt: 0 },
+        },
+        data: { verifiedAt: now },
+      });
+      if (claimedChallenge.count !== 1) {
+        throw new AppError(INVALID_PASSWORD_RESET_CODE_MESSAGE, 410);
+      }
+
+      const token = await issuePasswordSetupToken(transaction, {
+        userId: challenge.user.id,
+        purpose: 'PASSWORD_RESET',
+        createdById: null,
+        ttlMinutes: env.PASSWORD_RESET_CODE_TTL_MINUTES,
+      });
+      await writeAuditLog(transaction, {
+        data: {
+          action: 'auth.password_reset_code_verified',
+          targetType: 'User',
+          targetId: challenge.user.id,
+          correlationId: req.correlationId,
+        },
+      });
+      return token;
+    });
+
+    res.json({
+      success: true,
+      data: {
+        token: setup.token,
+        purpose: 'PASSWORD_RESET',
       },
       correlationId: req.correlationId,
     });

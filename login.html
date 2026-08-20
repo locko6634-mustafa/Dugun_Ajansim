@@ -113,14 +113,7 @@
             <div class="form-field">
               <div class="label-row">
                 <label for="password">Şifre</label>
-                <a
-                  class="forgot-button"
-                  href="https://wa.me/905386888306?text=Parolam%C4%B1%20s%C4%B1f%C4%B1rlamak%20i%C3%A7in%20destek%20istiyorum."
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="WhatsApp üzerinden parola sıfırlama desteği iste"
-                  >Şifremi unuttum</a
-                >
+                <button class="forgot-button" type="button">Şifremi unuttum</button>
               </div>
               <div class="input-shell">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -204,6 +197,125 @@
             </button>
 
             <p class="form-message" role="status" aria-live="polite"></p>
+          </form>
+
+          <form
+            class="password-reset-form"
+            aria-labelledby="password-reset-title"
+            novalidate
+            hidden
+          >
+            <div class="login-card__heading login-card__heading--compact">
+              <span class="login-card__number" aria-hidden="true">02</span>
+              <div>
+                <p class="eyebrow">Hesabınıza yeniden erişin</p>
+                <h2 id="password-reset-title">Parolanızı sıfırlayın</h2>
+              </div>
+            </div>
+
+            <div class="password-reset-request-step">
+              <p class="password-reset-copy">
+                Kullanıcı adınızı girin. Hesap bilgileriniz eşleşiyorsa kayıtlı e-posta adresinize
+                doğrulama kodu göndereceğiz.
+              </p>
+              <div class="form-field">
+                <label for="reset-username">Hesap adınız</label>
+                <div class="input-shell">
+                  <input
+                    id="reset-username"
+                    name="username"
+                    type="text"
+                    autocomplete="username"
+                    minlength="3"
+                    maxlength="64"
+                    aria-describedby="reset-username-error"
+                    required
+                  />
+                </div>
+                <span class="field-error" id="reset-username-error" aria-live="polite"></span>
+              </div>
+              <button class="submit-button password-reset-request-submit" type="submit">
+                <span>Kod Gönder</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14M14 7l5 5-5 5" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="password-reset-confirm-step" hidden>
+              <p
+                class="password-reset-copy password-reset-instruction"
+                id="password-reset-instruction"
+              ></p>
+              <div class="form-field">
+                <label for="reset-code">6 haneli doğrulama kodu</label>
+                <div class="input-shell">
+                  <input
+                    id="reset-code"
+                    name="code"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    minlength="6"
+                    maxlength="6"
+                    placeholder="000000"
+                    aria-describedby="password-reset-instruction reset-code-error"
+                  />
+                </div>
+                <span class="field-error" id="reset-code-error" aria-live="polite"></span>
+              </div>
+              <div class="form-field">
+                <label for="reset-new-password">Yeni parolanız (8–128 karakter)</label>
+                <div class="input-shell">
+                  <input
+                    id="reset-new-password"
+                    name="newPassword"
+                    type="password"
+                    autocomplete="new-password"
+                    minlength="8"
+                    maxlength="128"
+                    aria-describedby="reset-new-password-error"
+                  />
+                </div>
+                <span class="field-error" id="reset-new-password-error" aria-live="polite"></span>
+              </div>
+              <div class="form-field">
+                <label for="reset-confirm-password">Yeni parolanız tekrar (8–128 karakter)</label>
+                <div class="input-shell">
+                  <input
+                    id="reset-confirm-password"
+                    name="confirmPassword"
+                    type="password"
+                    autocomplete="new-password"
+                    minlength="8"
+                    maxlength="128"
+                    aria-describedby="reset-confirm-password-error"
+                  />
+                </div>
+                <span
+                  class="field-error"
+                  id="reset-confirm-password-error"
+                  aria-live="polite"
+                ></span>
+              </div>
+              <button class="submit-button password-reset-confirm-submit" type="submit">
+                <span>Parolayı Yenile</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14M14 7l5 5-5 5" />
+                </svg>
+              </button>
+            </div>
+
+            <button class="form-secondary-button password-reset-back" type="button">
+              Giriş ekranına dön
+            </button>
+            <p
+              class="form-message password-reset-message"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            ></p>
           </form>
 
           <form class="password-change-form" novalidate hidden>
@@ -329,6 +441,13 @@
           </form>
 
           <p class="support-note">
+            Yönetici, salon veya montaj hesabınız için
+            <a
+              href="https://wa.me/905386888306?text=Kurumsal%20hesab%C4%B1m%20i%C3%A7in%20parola%20s%C4%B1f%C4%B1rlama%20deste%C4%9Fi%20istiyorum."
+              target="_blank"
+              rel="noopener noreferrer"
+              >WhatsApp desteği alın</a
+            >.<br />
             Henüz hesabınız yok mu?
             <a href="index.html#iletisim">Bizimle iletişime geçin</a>
           </p>

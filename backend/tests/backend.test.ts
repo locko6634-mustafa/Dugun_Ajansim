@@ -95,7 +95,18 @@ import {
   removeStaffPhoto,
   storeStaffPhoto,
 } from '../src/services/staff-photo.service.js';
+import { buildPasswordResetEmail } from '../src/services/mail.service.js';
+import {
+  drainPendingBackgroundTasks,
+  getPendingBackgroundTaskCount,
+  trackPendingBackgroundTask,
+} from '../src/utils/pendingTasks.js';
 import { cleanupStaleSessions } from '../src/utils/sessionMaintenance.js';
+import {
+  createPasswordResetChallenge,
+  verifyPasswordResetCode,
+} from '../src/utils/passwordResetChallenge.js';
+import { issuePasswordSetupToken } from '../src/utils/passwordSetup.js';
 import {
   createTotpEnrollmentUri,
   createTotpSecret,
@@ -140,6 +151,14 @@ const validEnvironment: NodeJS.ProcessEnv = {
   HTTP_REQUEST_TIMEOUT_MS: '15000',
   HTTP_HEADERS_TIMEOUT_MS: '10000',
   HTTP_KEEP_ALIVE_TIMEOUT_MS: '5000',
+  MAIL_TRANSPORT_MODE: 'smtp',
+  SMTP_HOST: 'mail.kurumsaleposta.com',
+  SMTP_PORT: '465',
+  SMTP_SECURE: 'true',
+  SMTP_USER: 'info@example.test',
+  SMTP_PASSWORD: 'Synthetic-Smtp-Password-2026!',
+  MAIL_FROM_ADDRESS: 'info@example.test',
+  MAIL_FROM_NAME: 'Düğün Ajansım Test',
   DATA_ENCRYPTION_KEY: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   DATA_ENCRYPTION_ACTIVE_KEY_ID: 'active-2026',
   DATA_ENCRYPTION_KEYRING_JSON:
@@ -149,6 +168,7 @@ const validEnvironment: NodeJS.ProcessEnv = {
   PII_BLIND_INDEX_KEYRING_JSON:
     '{"blind-active-2026":"b6d18a03f74ce9521a6b8d309f5e7c124a8d60f3b91e5c72d4a09b6e38f157c2"}',
   RATE_LIMIT_HMAC_KEY: 'c7e29b14a85df0632b7c9e401a6f8d235b9e71c4a02d6f83e5b1a9c60d347f28',
+  PASSWORD_RESET_CODE_HMAC_KEY: '8f3c1d7a5b9e2f604c8a6d1e3b7f9052a4c6e8d0f1b3a5c7e9d2f4a6081b3c5d',
   PII_ENCRYPTION_MODE: 'strict',
 };
 const validProductionEncryptionKey =
@@ -160,6 +180,75 @@ authTest('login kotası yalnız tam MFA dahil başarılı oturumu sayaçtan dü�
   assert.equal(isSuccessfulLoginAttempt(requestStub, { statusCode: 200 } as Response), true);
   assert.equal(isSuccessfulLoginAttempt(requestStub, { statusCode: 401 } as Response), false);
   assert.equal(isSuccessfulLoginAttempt(requestStub, { statusCode: 429 } as Response), false);
+});
+
+authTest('parola sıfırlama kodu altı haneli üretilir ve HMAC doğrulaması bağlama bağlıdır', () => {
+  const challenge = createPasswordResetChallenge();
+  const wrongCode = challenge.code === '000000' ? '000001' : '000000';
+
+  assert.match(challenge.challengeId, /^[0-9a-f-]{36}$/i);
+  assert.match(challenge.code, /^\d{6}$/);
+  assert.match(challenge.codeHash, /^[0-9a-f]{64}$/);
+  assert.equal(
+    verifyPasswordResetCode(challenge.challengeId, challenge.code, challenge.codeHash),
+    true,
+  );
+  assert.equal(
+    verifyPasswordResetCode(challenge.challengeId, wrongCode, challenge.codeHash),
+    false,
+  );
+  assert.equal(verifyPasswordResetCode(randomUUID(), challenge.code, challenge.codeHash), false);
+  assert.equal(verifyPasswordResetCode(challenge.challengeId, '12345', challenge.codeHash), false);
+  assert.equal(verifyPasswordResetCode(challenge.challengeId, challenge.code, 'invalid'), false);
+});
+
+authTest('parola sıfırlama e-postası yalnız kodu ve güvenli süre bilgisini içerir', () => {
+  const message = buildPasswordResetEmail({
+    recipient: 'customer@example.test',
+    code: '004219',
+    expiresInMinutes: 10,
+  });
+
+  assert.match(message.subject, /şifre sıfırlama/i);
+  assert.match(message.text, /004219/);
+  assert.match(message.text, /10 dakika/);
+  assert.match(message.html, />004219</);
+  assert.doesNotMatch(message.text, /customer@example\.test/);
+  assert.throws(() =>
+    buildPasswordResetEmail({
+      recipient: 'customer@example.test',
+      code: '12345',
+      expiresInMinutes: 10,
+    }),
+  );
+});
+
+authTest('self-service parola tokenı kısa TTL ve null issuer ile üretilebilir', async () => {
+  const writes: Array<Record<string, unknown>> = [];
+  const before = Date.now();
+  const result = await issuePasswordSetupToken(
+    {
+      passwordSetupToken: {
+        updateMany: async () => ({ count: 0 }),
+        create: async ({ data }: { data: Record<string, unknown> }) => {
+          writes.push(data);
+          return { id: randomUUID() };
+        },
+      },
+    } as never,
+    {
+      userId: randomUUID(),
+      purpose: 'PASSWORD_RESET',
+      createdById: null,
+      ttlMinutes: 10,
+    },
+  );
+
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0]?.createdById, null);
+  assert.ok(result.expiresAt.valueOf() >= before + 10 * 60 * 1_000);
+  assert.ok(result.expiresAt.valueOf() <= Date.now() + 10 * 60 * 1_000);
+  assert.match(result.token, /^[A-Za-z0-9_-]{43}$/);
 });
 
 authTest('production oturum ve CSRF cookie bayrakları güvenli kalır', () => {
@@ -444,6 +533,11 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   assert.equal(parsed.HTTP_REQUEST_TIMEOUT_MS, 15000);
   assert.equal(parsed.HTTP_HEADERS_TIMEOUT_MS, 10000);
   assert.equal(parsed.HTTP_KEEP_ALIVE_TIMEOUT_MS, 5000);
+  assert.equal(parsed.MAIL_TRANSPORT_MODE, 'smtp');
+  assert.equal(parsed.SMTP_HOST, 'mail.kurumsaleposta.com');
+  assert.equal(parsed.SMTP_PORT, 465);
+  assert.equal(parsed.SMTP_SECURE, true);
+  assert.equal(parsed.MAIL_FROM_ADDRESS, 'info@example.test');
   assert.equal(parsed.BOT_PROTECTION_MODE, 'turnstile');
   assert.equal(parsed.TURNSTILE_EXPECTED_HOSTNAME, 'example.com');
   assert.equal(
@@ -456,6 +550,7 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   assert.equal(parsed.SALON_SESSION_IDLE_MINUTES, 60);
   assert.equal(parsed.CUSTOMER_SESSION_IDLE_HOURS, 12);
   assert.equal(parsed.TEMPORARY_PASSWORD_TTL_HOURS, 24);
+  assert.equal(parsed.PASSWORD_RESET_CODE_TTL_MINUTES, 10);
   assert.equal(parsed.PUBLIC_APPLICATION_RETENTION_DAYS, 90);
   assert.equal(parsed.ARCHIVED_APPLICATION_RETENTION_DAYS, 365);
   assert.equal(parsed.ARCHIVED_WEDDING_RETENTION_DAYS, 3650);
@@ -550,6 +645,39 @@ test('ortam değişkenleri doğrulanır ve CORS origin adresleri normalize edili
   const productionEnvironment = parseEnvironment(productionEnvironmentInput);
   assert.equal(productionEnvironment.NODE_ENV, 'production');
   assert.equal(productionEnvironment.PII_ENCRYPTION_MODE, 'strict');
+  assert.equal(productionEnvironment.MAIL_TRANSPORT_MODE, 'smtp');
+  assert.throws(() =>
+    parseEnvironment({
+      ...productionEnvironmentInput,
+      MAIL_TRANSPORT_MODE: 'disabled',
+    }),
+  );
+  assert.throws(() =>
+    parseEnvironment({
+      ...productionEnvironmentInput,
+      SMTP_PORT: '587',
+      SMTP_SECURE: 'false',
+    }),
+  );
+  assert.throws(() =>
+    parseEnvironment({
+      ...productionEnvironmentInput,
+      SMTP_HOST: 'mail.dugunajansim.com',
+    }),
+  );
+  assert.throws(() =>
+    parseEnvironment({
+      ...productionEnvironmentInput,
+      SMTP_PASSWORD: productionEnvironmentInput.PASSWORD_RESET_CODE_HMAC_KEY,
+    }),
+  );
+  assert.throws(() =>
+    parseEnvironment({
+      ...productionEnvironmentInput,
+      PASSWORD_RESET_CODE_HMAC_KEY:
+        '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+    }),
+  );
   assert.throws(
     () =>
       parseEnvironment({
@@ -886,6 +1014,10 @@ test('veri saklama politikası yalnız süresi dolan ve ilişkisiz kayıtları s
       findMany: async () => [{ id: 'setup-token' }],
       deleteMany: async () => ({ count: 1 }),
     },
+    passwordResetChallenge: {
+      findMany: async () => [{ id: 'reset-challenge' }],
+      deleteMany: async () => ({ count: 1 }),
+    },
     bookingApplication: {
       findMany: async () => bookingFindResponses.shift() ?? [],
       deleteMany: async (args: { where: unknown }) => {
@@ -922,7 +1054,8 @@ test('veri saklama politikası yalnız süresi dolan ve ilişkisiz kayıtları s
   } as unknown as PrismaClient;
 
   const result = await runDataRetentionBatch(client, policy, now);
-  assert.equal(countRetentionDeletes(result), 9);
+  assert.equal(countRetentionDeletes(result), 10);
+  assert.equal(result.passwordResetChallenges, 1);
   assert.equal(result.archivedApplications, 2);
   assert.equal(isolationLevel, 'Serializable');
   assert.equal(bookingDeleteWhere.length, 3);
@@ -1642,12 +1775,9 @@ test('backend-unit [pagination] cursor sıralama alanlarını güvenli ve deği�
 });
 
 test('backend-unit [delivery-link] yayın öncesi erişim smoke kontrolü kapalı bağlantıyı reddeder', async () => {
-  const accessible = await verifyDeliveryLinkAccess(
-    'https://drive.google.com/file/d/demo/view',
-    {
-      fetchImpl: async () => new Response(null, { status: 200 }),
-    },
-  );
+  const accessible = await verifyDeliveryLinkAccess('https://drive.google.com/file/d/demo/view', {
+    fetchImpl: async () => new Response(null, { status: 200 }),
+  });
   assert.equal(accessible.status, 200);
 
   const weTransferRedirect = await verifyDeliveryLinkAccess('https://we.tl/t-demo', {
@@ -1834,6 +1964,27 @@ test('güvenli kapanış kaynakları bir kez kapatır ve yinelenen sinyalleri te
   assert.equal(closeCalls, 1);
   assert.equal(disconnectCalls, 1);
   assert.deepEqual(exitCodes, [0]);
+});
+
+test('güvenli kapanış bekleyen e-posta işlerini veritabanından önce tamamlayabilir', async () => {
+  let completeTask: (() => void) | undefined;
+  const pendingTask = new Promise<void>((resolve) => {
+    completeTask = resolve;
+  });
+  trackPendingBackgroundTask(pendingTask);
+  assert.equal(getPendingBackgroundTaskCount(), 1);
+
+  let drainCompleted = false;
+  const drain = drainPendingBackgroundTasks().then(() => {
+    drainCompleted = true;
+  });
+  await Promise.resolve();
+  assert.equal(drainCompleted, false);
+
+  completeTask?.();
+  await drain;
+  assert.equal(drainCompleted, true);
+  assert.equal(getPendingBackgroundTaskCount(), 0);
 });
 
 test('kapanış zaman aşımı tek disconnect ile kesin olarak hata kodu döndürür', async () => {

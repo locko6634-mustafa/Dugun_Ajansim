@@ -294,7 +294,14 @@ button {
 }
 
 .login-form,
-.password-change-form {
+.password-change-form,
+.password-reset-form {
+  display: grid;
+  gap: 22px;
+}
+
+.password-reset-request-step,
+.password-reset-confirm-step {
   display: grid;
   gap: 22px;
 }
@@ -303,8 +310,16 @@ button {
   margin-bottom: 8px;
 }
 
-.password-change-form .input-shell input {
+.password-change-form .input-shell input,
+.password-reset-form .input-shell input {
   padding-left: 16px;
+}
+
+.password-reset-copy {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.65;
 }
 
 .form-field {
@@ -326,7 +341,8 @@ button {
 }
 
 .forgot-button {
-  padding: 0;
+  min-height: 44px;
+  padding: 0 4px;
   border: 0;
   color: var(--gold-dark);
   background: transparent;
@@ -550,6 +566,42 @@ button {
 
 .submit-button:hover svg {
   transform: translateX(3px);
+}
+
+.submit-button:disabled,
+.form-secondary-button:disabled {
+  box-shadow: none;
+  cursor: wait;
+  opacity: 0.58;
+  transform: none;
+}
+
+.submit-button:disabled svg {
+  transform: none;
+}
+
+.form-secondary-button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink-soft);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.form-secondary-button:hover,
+.form-secondary-button:focus-visible {
+  border-color: var(--gold);
+  color: var(--gold-dark);
+  background: hsl(35 42% 93% / 0.58);
+}
+
+#reset-code {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.18em;
 }
 
 .form-message {

@@ -31,6 +31,7 @@ const protectedModels = new Set([
   "authSession",
   "trustedDevice",
   "passwordSetupToken",
+  "passwordResetChallenge",
   "package",
   "service",
   "bookingApplication",

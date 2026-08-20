@@ -267,6 +267,7 @@ test("RLS politikaları açık enforcement ve transaction-local sunucu bağlamı
     "users",
     "auth_sessions",
     "password_setup_tokens",
+    "password_reset_challenges",
     "packages",
     "services",
     "booking_applications",
@@ -3995,6 +3996,123 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
     true
   );
 
+  const deliveredResetEmails: Array<{
+    recipient: string;
+    code: string;
+    expiresInMinutes: number;
+  }> = [];
+  finalApp.locals.passwordResetEmailSender = async (input: {
+    recipient: string;
+    code: string;
+    expiresInMinutes: number;
+  }) => {
+    deliveredResetEmails.push(input);
+  };
+  const unknownResetRequest = await request(finalApp)
+    .post("/api/v1/auth/password/reset/request")
+    .send({ username: `${marker}-olmayan-hesap` });
+  assert.equal(unknownResetRequest.status, 202);
+  assert.equal(deliveredResetEmails.length, 0);
+  assert.match(unknownResetRequest.body.data.challengeId, /^[0-9a-f-]{36}$/i);
+
+  const selfServiceResetRequest = await request(finalApp)
+    .post("/api/v1/auth/password/reset/request")
+    .send({ username: wedding.customerUser.username });
+  assert.equal(selfServiceResetRequest.status, 202);
+  assert.equal(selfServiceResetRequest.body.data.message, unknownResetRequest.body.data.message);
+  assert.equal(deliveredResetEmails.length, 1);
+  const deliveredResetEmail = deliveredResetEmails[0]!;
+  assert.equal(deliveredResetEmail.recipient, applicationInput.primaryEmail);
+  assert.match(deliveredResetEmail.code, /^\d{6}$/);
+  assert.equal(deliveredResetEmail.expiresInMinutes, 10);
+  const selfServiceChallengeId = String(selfServiceResetRequest.body.data.challengeId);
+
+  const wrongSelfServiceCode = deliveredResetEmail.code === "000000" ? "000001" : "000000";
+  const rejectedSelfServiceVerification = await request(finalApp)
+    .post("/api/v1/auth/password/reset/verify")
+    .send({ challengeId: selfServiceChallengeId, code: wrongSelfServiceCode });
+  assert.equal(rejectedSelfServiceVerification.status, 410);
+  assert.equal(
+    (
+      await prisma.passwordResetChallenge.findUniqueOrThrow({
+        where: { id: selfServiceChallengeId }
+      })
+    ).attemptsRemaining,
+    4
+  );
+
+  const selfServiceVerification = await request(finalApp)
+    .post("/api/v1/auth/password/reset/verify")
+    .send({ challengeId: selfServiceChallengeId, code: deliveredResetEmail.code });
+  assert.equal(selfServiceVerification.status, 200);
+  assert.equal(selfServiceVerification.body.data.purpose, "PASSWORD_RESET");
+  assert.match(selfServiceVerification.body.data.token, /^[A-Za-z0-9_-]{43}$/);
+  const replayedSelfServiceVerification = await request(finalApp)
+    .post("/api/v1/auth/password/reset/verify")
+    .send({ challengeId: selfServiceChallengeId, code: deliveredResetEmail.code });
+  assert.equal(replayedSelfServiceVerification.status, 410);
+
+  const supersedingResetRequests = await Promise.all([
+    request(finalApp)
+      .post("/api/v1/auth/password/reset/request")
+      .send({ username: wedding.customerUser.username }),
+    request(finalApp)
+      .post("/api/v1/auth/password/reset/request")
+      .send({ username: wedding.customerUser.username })
+  ]);
+  assert.deepEqual(
+    supersedingResetRequests.map(({ status }) => status),
+    [202, 202]
+  );
+  assert.notEqual(
+    (
+      await prisma.passwordSetupToken.findUniqueOrThrow({
+        where: { tokenHash: hashToken(selfServiceVerification.body.data.token) }
+      })
+    ).revokedAt,
+    null
+  );
+  const activeResetChallenges = await prisma.passwordResetChallenge.findMany({
+    where: {
+      userId: wedding.customerUserId,
+      verifiedAt: null,
+      revokedAt: null,
+      expiresAt: { gt: new Date() }
+    }
+  });
+  assert.equal(activeResetChallenges.length, 1);
+  assert.equal(
+    supersedingResetRequests
+      .map(({ body }) => String(body.data.challengeId))
+      .includes(activeResetChallenges[0]!.id),
+    true
+  );
+  assert.equal(deliveredResetEmails.length, 3);
+  const latestDeliveredResetEmail = deliveredResetEmails.at(-1)!;
+  const latestSelfServiceVerification = await request(finalApp)
+    .post("/api/v1/auth/password/reset/verify")
+    .send({
+      challengeId: activeResetChallenges[0]!.id,
+      code: latestDeliveredResetEmail.code
+    });
+  assert.equal(latestSelfServiceVerification.status, 200);
+
+  const selfServicePassword = "eposta-koduyla-yenilenen-guvenli-parola";
+  const selfServiceSetup = await request(finalApp).post("/api/v1/auth/password/setup").send({
+    token: latestSelfServiceVerification.body.data.token,
+    purpose: "PASSWORD_RESET",
+    newPassword: selfServicePassword
+  });
+  assert.equal(selfServiceSetup.status, 200);
+  assert.equal(selfServiceSetup.body.data.username, wedding.customerUser.username);
+  assert.equal(
+    await verifyPassword(
+      (await prisma.user.findUniqueOrThrow({ where: { id: wedding.customerUserId } })).passwordHash,
+      selfServicePassword
+    ),
+    true
+  );
+
   const auditLogs = await prisma.auditLog.findMany({ where: { correlationId } });
   const serializedLogs = JSON.stringify(auditLogs);
   assert.equal(serializedLogs.includes(driveUrl), false);
@@ -4931,6 +5049,35 @@ test("retention gerçek PostgreSQL üzerinde süre, batch, izolasyon ve audit to
       { keyHash: freshBucketKey, hits: 1, expiresAt: new Date(now.valueOf() + 60_000) }
     ]
   });
+  const expiredResetChallenge = await prisma.passwordResetChallenge.create({
+    data: {
+      id: randomUUID(),
+      codeHash: hashToken(`${marker}-expired-reset-challenge`),
+      userId: freshCustomer.id,
+      createdAt: new Date(expiredAt.valueOf() - 10 * 60 * 1_000),
+      expiresAt: expiredAt
+    }
+  });
+  const freshResetChallenge = await prisma.passwordResetChallenge.create({
+    data: {
+      id: randomUUID(),
+      codeHash: hashToken(`${marker}-fresh-reset-challenge`),
+      userId: freshCustomer.id,
+      expiresAt: new Date(now.valueOf() + 10 * 60 * 1_000)
+    }
+  });
+  assert.equal(freshResetChallenge.attemptsRemaining, 5);
+  await assert.rejects(
+    prisma.passwordResetChallenge.create({
+      data: {
+        id: randomUUID(),
+        codeHash: hashToken(`${marker}-invalid-reset-challenge`),
+        userId: freshCustomer.id,
+        attemptsRemaining: 6,
+        expiresAt: new Date(now.valueOf() + 10 * 60 * 1_000)
+      }
+    })
+  );
 
   let observedIsolation: string | undefined;
   const retentionClient = {
@@ -4964,6 +5111,7 @@ test("retention gerçek PostgreSQL üzerinde süre, batch, izolasyon ve audit to
     authSessions: 0,
     trustedDevices: 0,
     passwordSetupTokens: 0,
+    passwordResetChallenges: 1,
     publicApplications: 0,
     archivedApplications: 2,
     archivedWeddings: 1,
@@ -4988,6 +5136,14 @@ test("retention gerçek PostgreSQL üzerinde süre, batch, izolasyon ve audit to
   assert.equal(await prisma.user.count({ where: { id: freshCustomer.id } }), 1);
   assert.equal(await prisma.rateLimitBucket.count({ where: { keyHash: expiredBucketKey } }), 0);
   assert.equal(await prisma.rateLimitBucket.count({ where: { keyHash: freshBucketKey } }), 1);
+  assert.equal(
+    await prisma.passwordResetChallenge.count({ where: { id: expiredResetChallenge.id } }),
+    0
+  );
+  assert.equal(
+    await prisma.passwordResetChallenge.count({ where: { id: freshResetChallenge.id } }),
+    1
+  );
 
   const auditLog = await prisma.auditLog.findFirstOrThrow({
     where: { action: "maintenance.data_retention", createdAt: { gte: auditStartedAt } },
@@ -5006,10 +5162,13 @@ test("retention gerçek PostgreSQL üzerinde süre, batch, izolasyon ve audit to
         'password_setup_tokens_retention_expires_created_idx',
         'password_setup_tokens_retention_used_created_idx',
         'password_setup_tokens_retention_revoked_created_idx',
+        'password_reset_challenges_retention_expires_created_idx',
+        'password_reset_challenges_retention_verified_created_idx',
+        'password_reset_challenges_retention_revoked_created_idx',
         'booking_applications_retention_public_updated_idx',
         'booking_applications_retention_archived_idx',
         'weddings_retention_archived_idx'
       )
   `;
-  assert.equal(retentionIndexes.length, 8);
+  assert.equal(retentionIndexes.length, 11);
 });

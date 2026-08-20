@@ -115,7 +115,10 @@ for (const pagePath of pages) {
     if (pagePath === "/login.html") {
       await expect(page.locator("#username")).toHaveAttribute("maxlength", "64");
       await expect(page.locator("#password")).toHaveAttribute("maxlength", "256");
-      await expect(page.locator(".forgot-button")).toHaveAttribute("href", /^https:\/\/wa\.me\//);
+      await expect(page.getByRole("button", { name: "Şifremi unuttum" })).toHaveAttribute(
+        "type",
+        "button"
+      );
     }
     if (pagePath === "/index.html") {
       await expect(page.locator(".shoot-card__open").first()).toHaveAccessibleName(
@@ -2578,6 +2581,166 @@ test("@frontend-smoke tek kullanımlık parola bağlantısı fragmenti temizleni
     });
   await expect(page.getByLabel("Kullanıcı adı")).toHaveValue("m-guvenlihesap");
   await expect(page.getByText("Parolanız belirlendi. Şimdi giriş yapabilirsiniz.")).toBeVisible();
+});
+
+test("@frontend-smoke @responsive e-posta koduyla parola sıfırlama iki güvenli aşamada tamamlanır", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  const requestBodies = [];
+  const verificationBodies = [];
+  const setupBodies = [];
+  const challengeId = "password-reset-challenge-2026";
+  const setupToken = "b".repeat(43);
+
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ success: false, message: "Oturum bulunamadı." })
+    })
+  );
+  await page.route("**/api/v1/auth/password/reset/request", async (route) => {
+    requestBodies.push(route.request().postDataJSON());
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { challengeId, expiresInMinutes: 10 }
+      })
+    });
+  });
+  await page.route("**/api/v1/auth/password/reset/verify", async (route) => {
+    verificationBodies.push(route.request().postDataJSON());
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { token: setupToken, purpose: "PASSWORD_RESET" }
+      })
+    });
+  });
+  await page.route("**/api/v1/auth/password/setup", async (route) => {
+    setupBodies.push(route.request().postDataJSON());
+    if (setupBodies.length === 1) {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          message: "Yeni parola kullanıcı adına benzememelidir."
+        })
+      });
+      return;
+    }
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { username: "m-guvenlihesap" } })
+    });
+  });
+
+  await page.goto("/login.html");
+  await page.getByRole("button", { name: "Şifremi unuttum" }).click();
+  await expect(page.locator(".password-reset-form")).toBeVisible();
+  await expect(page.locator(".login-form")).toBeHidden();
+  await expect(page.locator("#reset-username")).toBeFocused();
+
+  await page.getByRole("button", { name: "Giriş ekranına dön" }).click();
+  await expect(page.locator(".login-form")).toBeVisible();
+  await expect(page.locator("#username")).toBeFocused();
+
+  await page.getByRole("button", { name: "Şifremi unuttum" }).click();
+  await page.locator("#reset-username").fill("m-guvenlihesap");
+  await page.getByRole("button", { name: "Kod Gönder" }).click();
+  await expect.poll(() => requestBodies).toEqual([{ username: "m-guvenlihesap" }]);
+  await expect(page.locator(".password-reset-instruction")).toContainText(
+    "Hesap bilgileriniz eşleşiyorsa"
+  );
+  await expect(page.locator(".password-reset-instruction")).toContainText("10 dakika");
+  await expect(page.locator(".password-reset-instruction")).not.toContainText("@");
+  await expect(page.locator("#reset-code")).toBeFocused();
+
+  const resetOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(resetOverflow).toBe(false);
+  const resetA11yResults = await new AxeBuilder({ page }).analyze();
+  expect(
+    resetA11yResults.violations.filter((violation) => violation.impact === "critical")
+  ).toEqual([]);
+
+  await page.locator("#reset-code").fill("12345");
+  await page.locator("#reset-new-password").fill("Yedi!A9");
+  await page.locator("#reset-confirm-password").fill("Yedi!A9");
+  await page.getByRole("button", { name: "Parolayı Yenile" }).click();
+  await expect(page.locator("#reset-code-error")).toHaveText("6 haneli doğrulama kodunu girin.");
+  await expect(page.locator("#reset-new-password-error")).toHaveText(
+    "Yeni parolanız 8–128 karakter arasında olmalıdır."
+  );
+  expect(verificationBodies).toEqual([]);
+  expect(setupBodies).toEqual([]);
+
+  await page.locator("#reset-code").fill("012345");
+  await page.locator("#reset-new-password").fill("Yeni-Guvenli-Parola-2026!");
+  await page.locator("#reset-confirm-password").fill("Farkli-Guvenli-Parola-2026!");
+  await page.getByRole("button", { name: "Parolayı Yenile" }).click();
+  await expect(page.locator("#reset-confirm-password-error")).toHaveText(
+    "Yeni parolalar birbiriyle eşleşmelidir."
+  );
+  expect(verificationBodies).toEqual([]);
+  expect(setupBodies).toEqual([]);
+
+  await page.locator("#reset-confirm-password").fill("Yeni-Guvenli-Parola-2026!");
+  await page.getByRole("button", { name: "Parolayı Yenile" }).click();
+
+  await expect.poll(() => verificationBodies).toEqual([{ challengeId, code: "012345" }]);
+  await expect
+    .poll(() => setupBodies)
+    .toEqual([
+      {
+        token: setupToken,
+        purpose: "PASSWORD_RESET",
+        newPassword: "Yeni-Guvenli-Parola-2026!"
+      }
+    ]);
+  await expect(page.locator(".password-reset-form")).toBeVisible();
+  await expect(page.locator("#reset-code")).toHaveAttribute("readonly", "");
+  await expect(page.locator("#reset-new-password")).toBeFocused();
+  await expect(page.locator(".password-reset-message")).toHaveText(
+    "Yeni parola kullanıcı adına benzememelidir."
+  );
+
+  await page.locator("#reset-new-password").fill("Ikinci-Guvenli-Parola-2026!");
+  await page.locator("#reset-confirm-password").fill("Ikinci-Guvenli-Parola-2026!");
+  await page.getByRole("button", { name: "Parolayı Yenile" }).click();
+  await expect.poll(() => verificationBodies).toEqual([{ challengeId, code: "012345" }]);
+  await expect
+    .poll(() => setupBodies)
+    .toEqual([
+      {
+        token: setupToken,
+        purpose: "PASSWORD_RESET",
+        newPassword: "Yeni-Guvenli-Parola-2026!"
+      },
+      {
+        token: setupToken,
+        purpose: "PASSWORD_RESET",
+        newPassword: "Ikinci-Guvenli-Parola-2026!"
+      }
+    ]);
+  await expect(page.locator(".login-form")).toBeVisible();
+  await expect(page.locator("#username")).toHaveValue("m-guvenlihesap");
+  await expect(page.locator("#password")).toBeFocused();
+  await expect(page.locator(".login-form .form-message")).toHaveText(
+    "Parolanız yenilendi. Şimdi yeni parolanızla giriş yapabilirsiniz."
+  );
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(overflow).toBe(false);
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
 });
 
 test("@frontend-smoke ayrıcalıklı giriş MFA kodunu yalnız challenge sonrasında gönderir", async ({

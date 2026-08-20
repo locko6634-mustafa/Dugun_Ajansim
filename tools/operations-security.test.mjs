@@ -253,6 +253,14 @@ test("file-backed secret modu production ve rollback için fail-closed zorunludu
     exampleEnvironment,
     /^PII_BLIND_INDEX_KEYRING_SECRET_FILE=\/run\/dugun-ajansim-secrets\/pii-blind-index-keyring$/m
   );
+  assert.match(
+    exampleEnvironment,
+    /^SMTP_PASSWORD_SECRET_FILE=\/run\/dugun-ajansim-secrets\/smtp-password$/m
+  );
+  assert.match(
+    exampleEnvironment,
+    /^PASSWORD_RESET_CODE_HMAC_KEY_SECRET_FILE=\/run\/dugun-ajansim-secrets\/password-reset-code-hmac-key$/m
+  );
   assert.match(deployWorkflow, /^\s*USE_FILE_SECRETS: "1"$/m);
   assert.match(backupWorkflow, /^\s*USE_FILE_SECRETS: "1"$/m);
   assert.match(deployScript, /USE_FILE_SECRETS=1 olmadan çalıştırılamaz/);
@@ -273,13 +281,25 @@ test("file-backed secret modu production ve rollback için fail-closed zorunludu
   );
   assert.match(overlay, /DATABASE_URL: !reset null/);
   assert.match(overlay, /DATA_ENCRYPTION_KEY: !reset null/);
+  assert.match(overlay, /SMTP_PASSWORD: !reset null/);
+  assert.match(overlay, /SMTP_PASSWORD_FILE: \/run\/secrets\/smtp_password/);
+  assert.match(overlay, /smtp_password:[\s\S]*?SMTP_PASSWORD_SECRET_FILE/);
+  assert.match(overlay, /PASSWORD_RESET_CODE_HMAC_KEY: !reset null/);
+  assert.match(
+    overlay,
+    /PASSWORD_RESET_CODE_HMAC_KEY_FILE: \/run\/secrets\/password_reset_code_hmac_key/
+  );
+  assert.match(
+    overlay,
+    /password_reset_code_hmac_key:[\s\S]*?PASSWORD_RESET_CODE_HMAC_KEY_SECRET_FILE/
+  );
   assert.match(overlay, /BACKUP_ENCRYPTION_KEYRING_JSON: !reset null/);
   assert.match(
     overlay,
     /PII_BLIND_INDEX_KEYRING_JSON_FILE: \/run\/secrets\/pii_blind_index_keyring/
   );
   assert.match(overlay, /DATABASE_URL_FILE: \/run\/secrets\/database_url_runtime/);
-  assert.match(validator, /izinleri yalnız 400, 440, 444 veya 600 olabilir/);
+  assert.match(validator, /izinleri non-root container erişimi için 444 olmalıdır/);
   assert.match(validator, /birden fazla hard link içeremez/);
   assert.match(validator, /dağıtım kullanıcısına ait olmalıdır/);
   assert.match(validator, /1-65536 bayt aralığında olmalıdır/);

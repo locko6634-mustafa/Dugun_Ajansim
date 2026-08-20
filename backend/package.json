@@ -29,6 +29,7 @@
     "seed:test": "tsx --env-file=tests/test.env src/scripts/seedTestDatabase.ts",
     "admin:bootstrap": "tsx src/scripts/bootstrapAdmin.ts",
     "mfa:recovery-reset": "tsx src/scripts/resetPrivilegedMfa.ts",
+    "smtp:test": "node dist/scripts/sendTestPasswordResetEmail.js",
     "pii:backfill": "tsx src/scripts/maintainPiiEncryption.ts --backfill",
     "pii:redact-legacy": "tsx src/scripts/maintainPiiEncryption.ts --redact-legacy",
     "pii:verify-backfill": "tsx src/scripts/maintainPiiEncryption.ts --verify-backfill",
@@ -44,6 +45,7 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "hpp": "^0.2.3",
+    "nodemailer": "9.0.5",
     "sharp": "^0.35.3",
     "zod": "^3.24.1"
   },
@@ -52,6 +54,7 @@
     "@types/express": "^4.17.21",
     "@types/hpp": "^0.2.6",
     "@types/node": "^22.13.0",
+    "@types/nodemailer": "8.0.1",
     "@types/supertest": "^7.2.1",
     "prisma": "^6.3.0",
     "supertest": "^7.2.2",

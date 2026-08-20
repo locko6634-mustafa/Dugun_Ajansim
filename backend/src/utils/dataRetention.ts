@@ -24,6 +24,7 @@ export type DataRetentionBatchResult = {
   authSessions: number;
   trustedDevices: number;
   passwordSetupTokens: number;
+  passwordResetChallenges: number;
   publicApplications: number;
   archivedApplications: number;
   archivedWeddings: number;
@@ -97,6 +98,22 @@ export const runDataRetentionBatch = async (
         where: { id: { in: staleSetupTokens.map(({ id }) => id) } },
       });
 
+      const staleResetChallenges = await transaction.passwordResetChallenge.findMany({
+        where: {
+          OR: [
+            { expiresAt: { lt: cutoffs.securityArtifact } },
+            { verifiedAt: { lt: cutoffs.securityArtifact } },
+            { revokedAt: { lt: cutoffs.securityArtifact } },
+          ],
+        },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+        take: policy.batchSize,
+      });
+      const passwordResetChallenges = await transaction.passwordResetChallenge.deleteMany({
+        where: { id: { in: staleResetChallenges.map(({ id }) => id) } },
+      });
+
       const stalePublicApplications = await transaction.bookingApplication.findMany({
         where: {
           source: 'PUBLIC_FORM',
@@ -161,6 +178,7 @@ export const runDataRetentionBatch = async (
         authSessions: authSessions.count,
         trustedDevices: trustedDevices.count,
         passwordSetupTokens: passwordSetupTokens.count,
+        passwordResetChallenges: passwordResetChallenges.count,
         publicApplications: publicApplications.count,
         archivedApplications: archivedApplications.count + linkedArchivedApplications.count,
         archivedWeddings: archivedWeddings.count,

@@ -290,6 +290,19 @@ export const passwordSetupBodySchema = z
   })
   .strict();
 
+export const passwordResetRequestBodySchema = z
+  .object({
+    username: z.string().trim().min(3).max(64)
+  })
+  .strict();
+
+export const passwordResetVerifyBodySchema = z
+  .object({
+    challengeId: z.string().uuid(),
+    code: z.string().regex(/^\d{6}$/, "Doğrulama kodu 6 haneli olmalıdır")
+  })
+  .strict();
+
 export const mfaEnrollmentBodySchema = z
   .object({ currentPassword: z.string().min(6).max(256) })
   .strict();

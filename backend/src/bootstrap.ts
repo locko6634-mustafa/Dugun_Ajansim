@@ -6,11 +6,12 @@ import { env } from "./config/env.config.js";
 import { prisma, runWithRlsContext } from "./config/prisma.js";
 // Graceful shutdown oluşturucusunu ve tipini içe aktar
 import { createGracefulShutdown, type GracefulShutdown } from "./utils/processLifecycle.js";
+import { drainPendingBackgroundTasks } from "./utils/pendingTasks.js";
 import { expireStalePaymentFlows } from "./services/booking.service.js";
 import { synchronizeAutomaticDeliveryStatuses } from "./services/delivery-automation.service.js";
 
-// Kapanış süreci için maksimum bekleme süresi (10 saniye)
-const SHUTDOWN_TIMEOUT_MS = 10_000;
+// Kapanış süreci için maksimum bekleme süresi (25 saniye)
+const SHUTDOWN_TIMEOUT_MS = 25_000;
 const PAYMENT_FLOW_SWEEP_INTERVAL_MS = 60_000;
 const DELIVERY_STATUS_SWEEP_INTERVAL_MS = 60 * 60 * 1_000;
 
@@ -114,7 +115,10 @@ export const startServer = (): GracefulShutdown => {
   const baseGracefulShutdown = createGracefulShutdown({
     closeHttpServer,
     forceCloseHttpConnections: () => server.closeAllConnections(),
-    disconnectDatabase: () => prisma.$disconnect(),
+    disconnectDatabase: async () => {
+      await drainPendingBackgroundTasks();
+      await prisma.$disconnect();
+    },
     logInfo: console.log,
     logError: logShutdownError,
     timeoutMs: SHUTDOWN_TIMEOUT_MS

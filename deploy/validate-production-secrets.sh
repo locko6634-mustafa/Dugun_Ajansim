@@ -116,6 +116,8 @@ POSTGRES_RUNTIME_PASSWORD
 DATABASE_URL
 TURNSTILE_SITE_KEY
 TURNSTILE_SECRET_KEY
+SMTP_PASSWORD
+PASSWORD_RESET_CODE_HMAC_KEY
 DATA_ENCRYPTION_KEY
 APPLICATION_DATA_ENCRYPTION_KEY_FINGERPRINTS
 DATA_ENCRYPTION_KEYRING_JSON
@@ -162,9 +164,8 @@ DIRECT_SECRET_CONTRACT
     secret_owner="$(stat -c '%u' -- "$secret_path")"
     secret_links="$(stat -c '%h' -- "$secret_path")"
     secret_size="$(stat -c '%s' -- "$secret_path")"
-    [[ "$secret_mode" == "400" || "$secret_mode" == "440" || "$secret_mode" == "444" ||
-      "$secret_mode" == "600" ]] || {
-      production_secret_error "$variable_name izinleri yalnız 400, 440, 444 veya 600 olabilir."
+    [[ "$secret_mode" == "444" ]] || {
+      production_secret_error "$variable_name izinleri non-root container erişimi için 444 olmalıdır."
       return 1
     }
     [[ "$secret_owner" == "$expected_owner_id" ]] || {
@@ -190,6 +191,8 @@ DATABASE_URL_OWNER_SECRET_FILE:database-url-owner
 DATABASE_URL_RUNTIME_SECRET_FILE:database-url-runtime
 TURNSTILE_SITE_KEY_SECRET_FILE:turnstile-site-key
 TURNSTILE_SECRET_KEY_SECRET_FILE:turnstile-secret-key
+SMTP_PASSWORD_SECRET_FILE:smtp-password
+PASSWORD_RESET_CODE_HMAC_KEY_SECRET_FILE:password-reset-code-hmac-key
 DATA_ENCRYPTION_KEY_SECRET_FILE:data-encryption-key
 APPLICATION_KEY_FINGERPRINTS_SECRET_FILE:application-key-fingerprints
 DATA_ENCRYPTION_KEYRING_SECRET_FILE:data-encryption-keyring
