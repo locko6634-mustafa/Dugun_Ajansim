@@ -33,7 +33,7 @@ test("@responsive kaldirilan tanitim bolumleri sayfada ve navigasyonda yer almaz
   await expect(page.locator('a[href="#hakkimizda"], a[href="#konseptler"]')).toHaveCount(0);
 });
 
-test("@responsive mobil section gecisleri gereksiz dikey bosluk birakmaz", async ({ page }) => {
+test("@responsive tum mobil section gecisleri kompakt dikey ritmi korur", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/index.html");
@@ -48,8 +48,48 @@ test("@responsive mobil section gecisleri gereksiz dikey bosluk birakmaz", async
   expect(galleryActionBox).not.toBeNull();
   expect(shootsKickerBox).not.toBeNull();
   expect(shootsKickerBox.y - (galleryActionBox.y + galleryActionBox.height)).toBeLessThanOrEqual(
-    80
+    60
   );
+
+  const spacing = await page.evaluate(() => {
+    const pixels = (value) => Number.parseFloat(value) || 0;
+    const padding = (selector) => {
+      const styles = getComputedStyle(document.querySelector(selector));
+      return {
+        start: pixels(styles.paddingBlockStart),
+        end: pixels(styles.paddingBlockEnd)
+      };
+    };
+
+    const sections = [
+      ".gallery-section",
+      ".shoots-section",
+      ".services-section",
+      ".venues-section",
+      ".faq-section"
+    ].map(padding);
+    const packageCopy = padding(".package-invitation__copy");
+    const footerInner = padding(".site-footer__inner");
+    const footerTopStyles = getComputedStyle(document.querySelector(".site-footer__top"));
+    const footerCtaStyles = getComputedStyle(document.querySelector(".site-footer__cta"));
+
+    return {
+      sections,
+      servicesToPackage: sections[2].end + packageCopy.start,
+      faqToFooter: sections[4].end + footerInner.start,
+      footerGridGap: pixels(footerTopStyles.rowGap),
+      footerCtaPaddingTop: pixels(footerCtaStyles.paddingTop)
+    };
+  });
+
+  for (const section of spacing.sections) {
+    expect(section.start).toBeLessThanOrEqual(32);
+    expect(section.end).toBeLessThanOrEqual(24);
+  }
+  expect(spacing.servicesToPackage).toBeLessThanOrEqual(56);
+  expect(spacing.faqToFooter).toBeLessThanOrEqual(56);
+  expect(spacing.footerGridGap).toBeLessThanOrEqual(28);
+  expect(spacing.footerCtaPaddingTop).toBeLessThanOrEqual(24);
 });
 
 test("@responsive masaustu ve mobil navigasyon ayni bolumleri ayni sirada kullanir", async ({

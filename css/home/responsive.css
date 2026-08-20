@@ -2,8 +2,8 @@
 @media (max-width: 640px) {
   :root {
     --header-height: 74px;
-    --home-section-space-start: clamp(40px, 11vw, 48px);
-    --home-section-space-end: clamp(32px, 9vw, 40px);
+    --home-section-space-start: clamp(26px, 8vw, 32px);
+    --home-section-space-end: clamp(18px, 6vw, 24px);
   }
 
   .site-header {
@@ -92,6 +92,26 @@
 
   .services-section {
     padding-inline: clamp(9px, 2.7vw, 14px);
+  }
+
+  .package-invitation__copy {
+    padding-block: 32px 22px;
+  }
+
+  .site-footer__inner {
+    padding-top: 32px;
+  }
+
+  .site-footer__top {
+    gap: 28px;
+  }
+
+  .site-footer__cta {
+    padding-top: 24px;
+  }
+
+  .site-footer__signature {
+    margin-top: 34px;
   }
 
   .services-heading {
