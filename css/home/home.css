@@ -446,6 +446,36 @@ button {
   margin-left: 5px;
 }
 
+.horizontal-scroll-cue {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .horizontal-scroll-cue {
+    display: inline-flex;
+    align-items: center;
+    gap: 11px;
+    margin-top: 17px;
+    padding-top: 11px;
+    border-top: 1px solid currentColor;
+    color: var(--gold-dark);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .horizontal-scroll-cue svg {
+    width: 34px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.6;
+  }
+}
+
 .hero-collage {
   position: relative;
   align-self: center;

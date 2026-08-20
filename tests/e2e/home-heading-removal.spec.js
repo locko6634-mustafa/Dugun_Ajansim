@@ -12,3 +12,15 @@ test("@responsive ana sayfadaki dekoratif ust basliklar kaldirilir", async ({ pa
   await expect(page.locator("#venues-title")).toBeVisible();
   await expect(page.locator("#faq-title")).toBeVisible();
 });
+
+test("@responsive yatay galeriler mobilde devam yonlendirmesini gosterir", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/index.html");
+
+  const cues = page.locator(".horizontal-scroll-cue");
+
+  await expect(cues).toHaveCount(2);
+  await expect(cues).toHaveText(["Yana kaydır", "Yana kaydır"]);
+  await expect(cues.first().locator("svg")).toBeVisible();
+  await expect(cues.last().locator("svg")).toBeVisible();
+});

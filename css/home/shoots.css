@@ -40,13 +40,26 @@
 .shoots-heading h2 {
   margin: 0;
   font-family: var(--serif);
-  font-size: clamp(46px, 4.2vw, 68px);
+  font-size: clamp(52px, 4.7vw, 74px);
   font-weight: 400;
   letter-spacing: -0.045em;
-  line-height: 1.02;
+  line-height: 0.94;
+}
+
+.shoots-heading h2 .section-title__lead {
+  display: block;
+  margin-bottom: 0.7em;
+  color: var(--shoots-ink);
+  font-family: var(--sans);
+  font-size: 0.18em;
+  font-weight: 750;
+  letter-spacing: 0.34em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .shoots-heading h2 em {
+  display: block;
   color: var(--gold-dark);
   font-style: normal;
 }
@@ -416,7 +429,7 @@
   }
 
   .shoots-heading h2 {
-    font-size: clamp(39px, 11vw, 52px);
+    font-size: clamp(44px, 12.5vw, 58px);
   }
 
   .shoots-heading > p {
