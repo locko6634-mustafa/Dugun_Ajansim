@@ -402,32 +402,15 @@
 }
 
 .shoot-card__caption {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 14px;
   padding: 18px 3px 0;
 }
 
-.shoot-card__caption h3,
-.shoot-card__caption p {
-  margin: 0;
-}
-
 .shoot-card__caption h3 {
+  margin: 0;
   font-family: var(--serif);
   font-size: clamp(24px, 2vw, 32px);
   font-weight: 400;
   letter-spacing: -0.02em;
-}
-
-.shoot-card__caption p {
-  color: var(--shoots-muted);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.1em;
-  text-align: right;
-  text-transform: uppercase;
 }
 
 @media (max-width: 960px) {
@@ -525,19 +508,11 @@
   }
 
   .shoot-card__caption {
-    display: block;
     padding: 11px 2px 0;
   }
 
   .shoot-card__caption h3 {
     font-size: clamp(20px, 6vw, 27px);
-  }
-
-  .shoot-card__caption p {
-    margin-top: 5px;
-    font-size: 8px;
-    line-height: 1.45;
-    text-align: left;
   }
 }
 

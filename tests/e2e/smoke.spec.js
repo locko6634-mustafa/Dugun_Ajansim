@@ -135,6 +135,14 @@ for (const pagePath of pages) {
       );
       expect(new Set(videoUrls).size).toBe(5);
       expect(videoUrls.every((url) => url?.startsWith("/media/videos/"))).toBe(true);
+      await expect(page.locator(".shoot-card__caption h3")).toHaveText([
+        "Mustafa & Sude",
+        "Emir & Zeynep",
+        "Mert & Elif",
+        "Kerem & Duru",
+        "Can & Ece"
+      ]);
+      await expect(page.locator(".shoot-card__caption p")).toHaveCount(0);
     }
   });
 
