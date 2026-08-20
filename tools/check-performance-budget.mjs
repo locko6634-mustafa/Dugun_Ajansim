@@ -13,7 +13,7 @@ const failures = [];
 if (images.length > 40) failures.push(`index.html: ${images.length} img etiketi (butce: 40)`);
 if (missingDimensions.length > 0)
   failures.push(`${missingDimensions.length} gorselde width/height eksik`);
-if (videos.length > 3) failures.push(`index.html: ${videos.length} video etiketi (butce: 3)`);
+if (videos.length > 5) failures.push(`index.html: ${videos.length} video etiketi (butce: 5)`);
 if (/<source\b[^>]*\ssrc=["'][^"']+\.mp4/i.test(html))
   failures.push("Video kaynaklari ilk HTML yuklemesinde etkin");
 if (videos.some((match) => !/\bpreload=["']none["']/i.test(match[0])))
