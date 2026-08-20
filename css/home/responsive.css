@@ -2,6 +2,8 @@
 @media (max-width: 640px) {
   :root {
     --header-height: 74px;
+    --home-section-space-start: clamp(40px, 11vw, 48px);
+    --home-section-space-end: clamp(32px, 9vw, 40px);
   }
 
   .site-header {
@@ -80,12 +82,16 @@
     min-height: 43px;
   }
 
-  .benefits-section {
-    padding-top: 22px;
+  .gallery-section,
+  .shoots-section,
+  .services-section,
+  .venues-section,
+  .faq-section {
+    padding-block: var(--home-section-space-start) var(--home-section-space-end);
   }
 
   .services-section {
-    padding: clamp(48px, 12vw, 60px) clamp(9px, 2.7vw, 14px) clamp(54px, 13vw, 68px);
+    padding-inline: clamp(9px, 2.7vw, 14px);
   }
 
   .services-heading {
@@ -135,7 +141,7 @@
   }
 
   .faq-section {
-    padding: clamp(56px, 14vw, 70px) 10px clamp(38px, 9vw, 48px);
+    padding-inline: 10px;
   }
 
   .faq-heading {
@@ -200,9 +206,5 @@
 
   .brand__year {
     display: none;
-  }
-
-  .benefits-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }

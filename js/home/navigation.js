@@ -63,8 +63,6 @@ setMenu(false, { restoreFocus: false });
 
 const sectionIds = [
   "anasayfa",
-  "hakkimizda",
-  "konseptler",
   "galeri",
   "cekimler",
   "hizmetler",

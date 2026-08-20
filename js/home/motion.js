@@ -115,8 +115,6 @@ requestAnimationFrame(() => {
 function initNonHeroMotion() {
   motionHeadings.forEach(splitHeadingIntoLines);
 
-  registerMotionGroup(".benefit-card", { stagger: 80 });
-  registerMotionGroup(".legacy-value", { stagger: 85 });
   registerMotionGroup(".gallery-kicker, .gallery-heading > p:last-of-type", { stagger: 85 });
   registerMotionGroup(".gallery-track, .gallery-cta", { stagger: 110 });
   registerMotionGroup(".shoots-kicker, .shoots-heading > p", { stagger: 85 });

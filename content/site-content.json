@@ -93,7 +93,7 @@
         {
           "title": "Keşfedin",
           "links": [
-            { "label": "Hakkımızda", "href": "#hakkimizda" },
+            { "label": "Çekimler", "href": "#cekimler" },
             { "label": "Galeri", "href": "#galeri" },
             { "label": "Sıkça Sorulanlar", "href": "#sss" }
           ]

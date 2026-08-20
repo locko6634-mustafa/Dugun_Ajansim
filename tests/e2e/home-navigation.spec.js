@@ -2,8 +2,6 @@ import { expect, test } from "@playwright/test";
 
 const expectedSectionOrder = [
   "#anasayfa",
-  "#hakkimizda",
-  "#konseptler",
   "#galeri",
   "#cekimler",
   "#hizmetler",
@@ -23,6 +21,35 @@ test("@responsive mobil navigasyon sayfa bolumlerini dogru sirada listeler", asy
     .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
 
   expect(mobileSectionOrder).toEqual(expectedSectionOrder);
+});
+
+test("@responsive kaldirilan tanitim bolumleri sayfada ve navigasyonda yer almaz", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/index.html");
+
+  await expect(page.locator("#hakkimizda, #konseptler")).toHaveCount(0);
+  await expect(page.locator('a[href="#hakkimizda"], a[href="#konseptler"]')).toHaveCount(0);
+});
+
+test("@responsive mobil section gecisleri gereksiz dikey bosluk birakmaz", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/index.html");
+
+  const galleryAction = page.locator(".gallery-cta");
+  const shootsKicker = page.locator(".shoots-kicker");
+  const [galleryActionBox, shootsKickerBox] = await Promise.all([
+    galleryAction.boundingBox(),
+    shootsKicker.boundingBox()
+  ]);
+
+  expect(galleryActionBox).not.toBeNull();
+  expect(shootsKickerBox).not.toBeNull();
+  expect(shootsKickerBox.y - (galleryActionBox.y + galleryActionBox.height)).toBeLessThanOrEqual(
+    80
+  );
 });
 
 test("@responsive masaustu ve mobil navigasyon ayni bolumleri ayni sirada kullanir", async ({
