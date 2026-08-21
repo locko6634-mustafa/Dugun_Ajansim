@@ -1,16 +1,20 @@
-/* KiÅŸiselleÅŸtirilebilir paket daveti */
+/* Hazır paketler ve kişiselleştirilebilir paket daveti */
 .package-invitation {
   --package-surface: hsl(28 18% 8%);
-  --package-panel: hsl(28 15% 12%);
+  --package-panel: hsl(28 15% 11%);
+  --package-panel-soft: hsl(29 13% 14%);
   --package-ink: hsl(38 34% 94%);
   --package-muted: hsl(35 14% 72%);
   --package-accent: hsl(37 58% 63%);
+  --package-line: hsl(37 44% 70% / 0.28);
   position: relative;
   overflow: hidden;
-  padding: clamp(56px, 6.5vw, 96px) clamp(18px, 5vw, 72px);
+  padding: clamp(60px, 7vw, 104px) clamp(18px, 5vw, 72px);
   border-block: 1px solid hsl(37 32% 26%);
   color: var(--package-ink);
-  background: linear-gradient(135deg, var(--package-surface), hsl(25 20% 6%));
+  background:
+    radial-gradient(circle at 80% 12%, hsl(37 50% 31% / 0.12), transparent 28%),
+    linear-gradient(135deg, var(--package-surface), hsl(25 20% 6%));
 }
 
 .package-invitation::before {
@@ -25,140 +29,322 @@
 
 .package-invitation__inner {
   position: relative;
-  display: grid;
-  width: min(1320px, 100%);
+  width: min(1180px, 100%);
   margin: 0 auto;
-  overflow: hidden;
   scroll-margin-top: calc(var(--header-height) + 24px);
-  border: 1px solid hsl(37 44% 70% / 0.22);
-  border-radius: clamp(18px, 2vw, 26px);
-  background: var(--package-panel);
-  box-shadow: 0 22px 60px hsl(25 30% 4% / 0.32);
-  grid-template-columns: minmax(0, 1.16fr) minmax(360px, 0.84fr);
 }
 
-.package-invitation__copy {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: clamp(42px, 5vw, 72px);
-  flex-direction: column;
+.package-invitation__heading {
+  max-width: 900px;
 }
 
 .package-invitation__eyebrow {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
   margin: 0 0 20px;
   color: var(--package-accent);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.19em;
   text-transform: uppercase;
 }
 
 .package-invitation__eyebrow span {
-  width: 32px;
+  width: 34px;
   height: 1px;
   background: currentColor;
 }
 
 .package-invitation h2 {
+  max-width: 840px;
   margin: 0;
   font-family: var(--serif);
-  max-width: 700px;
-  font-size: clamp(43px, 4.3vw, 64px);
+  font-size: clamp(45px, 5.2vw, 72px);
   font-weight: 400;
   letter-spacing: -0.045em;
-  line-height: 1.02;
+  line-height: 1.03;
 }
 
 .package-invitation h2 em {
-  display: block;
   color: var(--package-accent);
   font-style: normal;
 }
 
-.package-invitation__copy > p:not(.package-invitation__eyebrow) {
-  max-width: 610px;
+.package-invitation__heading > p:last-child {
+  max-width: 650px;
   margin: 22px 0 0;
   color: var(--package-muted);
-  font-size: clamp(13px, 1vw, 15px);
+  font-size: clamp(13px, 1.15vw, 16px);
   line-height: 1.7;
 }
 
-.package-invitation__steps {
+.package-invitation__divider {
   display: grid;
-  width: 100%;
-  max-width: 640px;
-  margin: 30px 0 0;
-  padding: 0;
-  list-style: none;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(30px, 1fr) auto auto minmax(30px, 1fr);
+  align-items: center;
+  gap: 13px;
+  width: min(650px, 82%);
+  margin: clamp(42px, 5vw, 64px) auto 24px;
+  color: var(--package-accent);
+  text-align: center;
 }
 
-.package-invitation__steps li {
+.package-invitation__divider span {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--package-line));
+}
+
+.package-invitation__divider span:last-child {
+  background: linear-gradient(90deg, var(--package-line), transparent);
+}
+
+.package-invitation__divider b {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.package-invitation__divider i {
+  font-family: var(--serif);
+  font-size: 13px;
+  font-style: normal;
+}
+
+.package-invitation__packages {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(16px, 2.2vw, 28px);
+}
+
+.package-card {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--package-line);
+  border-radius: 20px;
+  background: linear-gradient(155deg, hsl(29 14% 15%), var(--package-panel));
+  box-shadow: 0 22px 50px hsl(25 30% 4% / 0.24);
+  grid-template-rows: auto 1fr;
+}
+
+.package-card__media {
   position: relative;
-  display: grid;
-  align-content: start;
-  min-height: 58px;
-  padding: 14px 16px 0 0;
-  border-top: 1px solid hsl(37 44% 70% / 0.25);
-  color: var(--package-muted);
-  font-size: 10px;
-  line-height: 1.45;
-  gap: 5px;
+  aspect-ratio: 16 / 7;
+  margin: 10px 10px 0;
+  overflow: hidden;
+  border-radius: 13px;
 }
 
-.package-invitation__steps li:not(:first-child) {
-  padding-left: 16px;
+.package-card__media::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 58%, hsl(27 26% 8% / 0.3));
+  content: "";
 }
 
-.package-invitation__steps span {
+.package-card__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 700ms var(--ease);
+}
+
+.package-card--classic .package-card__media img {
+  object-position: center 47%;
+}
+
+.package-card:hover .package-card__media img {
+  transform: scale(1.025);
+}
+
+.package-card__body {
+  display: flex;
+  align-items: stretch;
+  padding: clamp(24px, 3vw, 34px);
+  flex-direction: column;
+}
+
+.package-card__label {
+  margin: 0 0 9px;
   color: var(--package-accent);
   font-size: 9px;
-  font-weight: 750;
-  letter-spacing: 0.14em;
+  font-weight: 700;
+  letter-spacing: 0.17em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.package-card h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.package-card__ornament {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 14px 0 17px;
+  color: var(--package-accent);
+  font-family: var(--serif);
+  font-size: 12px;
+}
+
+.package-card__ornament::before,
+.package-card__ornament::after {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--package-line));
+  content: "";
+  flex: 1;
+}
+
+.package-card__ornament::after {
+  background: linear-gradient(90deg, var(--package-line), transparent);
+}
+
+.package-card ul {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.package-card li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  color: var(--package-ink);
+  font-size: clamp(12px, 1.15vw, 15px);
+  line-height: 1.45;
+}
+
+.package-card li small {
+  color: var(--package-accent);
+  font-size: 0.83em;
+  font-style: italic;
+}
+
+.package-card li small::before {
+  content: " (";
+}
+
+.package-card li small::after {
+  content: ")";
+}
+
+.package-card__check {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  border: 1px solid hsl(37 58% 63% / 0.72);
+  border-radius: 50%;
+  color: var(--package-accent);
+  font-size: 11px;
+  line-height: 1;
+  place-items: center;
+}
+
+.package-card__note {
+  margin: auto 0 0;
+  padding: 19px 0 0 32px;
+  color: var(--package-accent);
+  font-size: 10px;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.package-invitation__custom {
+  margin-top: clamp(18px, 2.4vw, 28px);
+  padding: clamp(22px, 3vw, 34px);
+  border: 1px solid var(--package-line);
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--package-panel-soft), hsl(28 16% 10%));
+  box-shadow: 0 18px 45px hsl(25 30% 4% / 0.2);
+}
+
+.package-invitation__custom > div {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.package-invitation__custom-icon {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  border: 1px solid var(--package-line);
+  color: var(--package-accent);
+  font-family: var(--serif);
+  font-size: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.package-invitation__custom h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(24px, 2.6vw, 36px);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+.package-invitation__custom p {
+  margin: 8px 0 0;
+  color: var(--package-muted);
+  font-size: clamp(12px, 1vw, 14px);
+  line-height: 1.6;
 }
 
 .package-invitation__action {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: min(100%, 270px);
-  min-height: 54px;
-  margin-top: 30px;
-  padding: 0 17px 0 21px;
+  justify-content: center;
+  gap: 22px;
+  width: 100%;
+  min-height: 62px;
+  margin-top: 24px;
+  padding: 0 22px;
   border: 1px solid var(--package-accent);
-  border-radius: 2px;
+  border-radius: 5px;
   color: hsl(28 18% 9%);
-  background: var(--package-accent);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  background: linear-gradient(115deg, hsl(38 64% 68%), hsl(35 53% 55%));
+  box-shadow: 0 14px 30px hsl(37 58% 42% / 0.15);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   transition:
-    background 240ms var(--ease),
-    border-color 240ms var(--ease),
-    transform 240ms var(--ease),
-    box-shadow 240ms var(--ease);
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms var(--ease);
 }
 
 .package-invitation__action svg {
-  width: 19px;
+  width: 21px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.5;
-  transition: transform 240ms var(--ease);
+  transition: transform 220ms var(--ease);
 }
 
 .package-invitation__action:hover,
 .package-invitation__action:focus-visible {
-  border-color: hsl(38 63% 72%);
-  background: hsl(38 63% 72%);
-  box-shadow: 0 12px 24px hsl(37 58% 42% / 0.2);
+  border-color: hsl(38 75% 79%);
+  box-shadow: 0 16px 32px hsl(37 58% 42% / 0.24);
   outline: 2px solid transparent;
   transform: translateY(-2px);
 }
@@ -172,197 +358,105 @@
   transform: translateX(4px);
 }
 
-.package-invitation__visual {
-  position: relative;
-  display: grid;
-  min-width: 0;
-  padding: clamp(14px, 1.8vw, 22px);
-  background: hsl(28 14% 15%);
-  grid-template-rows: minmax(340px, 1fr) auto;
-}
-
-.package-invitation__photo {
-  position: relative;
-  margin: 0;
-  overflow: hidden;
-  border-radius: clamp(12px, 1.4vw, 18px);
-}
-
-.package-invitation__photo::after {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, transparent 68%, hsl(27 26% 8% / 0.24));
-  content: "";
-}
-
-.package-invitation__photo img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 54% center;
-  transition: transform 900ms var(--ease);
-}
-
-.package-invitation__inner:hover .package-invitation__photo img {
-  transform: scale(1.025);
-}
-
-.package-invitation__note {
-  display: grid;
-  gap: 7px 14px;
-  padding: 17px 3px 2px;
-  border: 0;
-  color: var(--package-ink);
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.package-invitation__note span {
-  color: var(--package-accent);
-  font-size: 9px;
-  font-weight: 750;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.package-invitation__note strong {
-  min-width: 0;
-  font-size: clamp(14px, 1.2vw, 17px);
-  font-weight: 650;
-  grid-column: 1 / -1;
-  grid-row: 2;
-  line-height: 1.35;
-}
-
-.package-invitation__note small {
-  color: var(--package-muted);
-  font-size: 9px;
-  text-align: right;
-}
-
-@media (max-width: 900px) {
-  .package-invitation__inner {
-    grid-template-columns: 1fr;
-  }
-
-  .package-invitation__copy {
-    padding: clamp(38px, 7vw, 58px);
-  }
-
-  .package-invitation__visual {
-    grid-template-rows: auto auto;
-  }
-
-  .package-invitation__photo {
-    aspect-ratio: 16 / 7;
-  }
-}
-
-@media (max-width: 640px) {
+@media (max-width: 760px) {
   .package-invitation {
-    padding: 24px 10px;
+    padding-inline: 12px;
+  }
+
+  .package-invitation__heading {
+    padding-inline: 8px;
+  }
+
+  .package-card__body {
+    padding: 22px 18px 25px;
+  }
+
+  .package-card li {
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .package-invitation__custom {
+    padding: 22px;
+  }
+}
+
+@media (max-width: 560px) {
+  .package-invitation {
+    padding-block: 46px;
     background: var(--package-surface);
   }
 
   .package-invitation::before {
-    right: 10px;
-    left: 10px;
-  }
-
-  .package-invitation__inner {
-    border-radius: 18px;
-    background: var(--package-panel);
-    box-shadow: 0 16px 38px hsl(25 30% 4% / 0.26);
-  }
-
-  .package-invitation__copy {
-    padding: 32px 20px 22px;
-  }
-
-  .package-invitation__eyebrow {
-    margin-bottom: 17px;
-    font-size: 9px;
+    right: 12px;
+    left: 12px;
   }
 
   .package-invitation h2 {
-    font-size: clamp(36px, 10.8vw, 48px);
-    line-height: 1.03;
+    font-size: clamp(36px, 10.8vw, 49px);
   }
 
-  .package-invitation__copy > p:not(.package-invitation__eyebrow) {
-    max-width: 420px;
-    margin-top: 18px;
+  .package-invitation__heading > p:last-child {
+    margin-top: 17px;
     font-size: 12px;
-    line-height: 1.6;
   }
 
-  .package-invitation__steps {
-    margin-top: 24px;
+  .package-invitation__divider {
+    width: 94%;
+    margin-block: 34px 18px;
+    gap: 9px;
   }
 
-  .package-invitation__steps li {
-    min-height: 62px;
-    padding: 11px 7px 0 0;
+  .package-invitation__divider b {
     font-size: 9px;
   }
 
+  .package-invitation__packages {
+    grid-template-columns: 1fr;
+  }
+
+  .package-card {
+    border-radius: 16px;
+  }
+
+  .package-card__media {
+    aspect-ratio: 16 / 7.4;
+    margin: 8px 8px 0;
+    border-radius: 11px;
+  }
+
+  .package-card__body {
+    padding: 22px 18px 26px;
+  }
+
+  .package-card h3 {
+    font-size: 29px;
+  }
+
+  .package-card li {
+    font-size: 12px;
+  }
+
+  .package-invitation__custom > div {
+    align-items: flex-start;
+  }
+
+  .package-invitation__custom-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 16px;
+  }
+
   .package-invitation__action {
-    width: 100%;
-    max-width: none;
-    min-height: 52px;
-    margin-top: 24px;
-  }
-
-  .package-invitation__visual {
-    padding: 10px;
-  }
-
-  .package-invitation__photo {
-    aspect-ratio: 4 / 3;
-    border-radius: 12px;
-  }
-
-  .package-invitation__photo img {
-    object-position: 58% center;
-  }
-
-  .package-invitation__note {
-    padding: 14px 3px 2px;
-  }
-
-  .package-invitation__note span,
-  .package-invitation__note small {
-    font-size: 8px;
-  }
-
-  .package-invitation__note strong {
-    font-size: 13px;
+    min-height: 56px;
+    margin-top: 20px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .package-invitation__photo img,
+  .package-card__media img,
   .package-invitation__action,
   .package-invitation__action svg {
     transition: none;
-  }
-}
-
-@keyframes loader-emblem {
-  0%,
-  100% {
-    opacity: 0.7;
-    transform: scale(0.96);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes loader-progress {
-  55%,
-  100% {
-    transform: translateX(100%);
   }
 }

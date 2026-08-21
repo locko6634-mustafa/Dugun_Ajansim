@@ -627,52 +627,114 @@
         aria-labelledby="package-invitation-title"
       >
         <div class="package-invitation__inner" id="paket-olustur">
-          <div class="package-invitation__copy">
+          <header class="package-invitation__heading">
             <p class="package-invitation__eyebrow">
               <span aria-hidden="true"></span>
               Paket planlayıcı
             </p>
             <h2 id="package-invitation-title">
-              Size özel bir çekim paketi,
-              <em>birkaç adımda.</em>
+              Size uygun paketi seçin,
+              <em>isterseniz kendiniz oluşturun.</em>
             </h2>
             <p>
-              İhtiyacınız olan hizmetleri seçin, güncel fiyatı anında görün ve rezervasyon
-              talebinizi tek yerden başlatın.
+              Hazır paketlerimizi inceleyin veya ihtiyaçlarınıza göre size özel paketinizi
+              oluşturun.
             </p>
+          </header>
 
-            <ol class="package-invitation__steps" aria-label="Paket oluşturma adımları">
-              <li><span>1</span> Hizmetleri seç</li>
-              <li><span>2</span> Fiyatı anında gör</li>
-              <li><span>3</span> Rezervasyonu başlat</li>
-            </ol>
+          <div class="package-invitation__divider" aria-hidden="true">
+            <span></span><b>Hazır Paketler</b><i>◇</i><span></span>
+          </div>
 
+          <div class="package-invitation__packages">
+            <article class="package-card">
+              <figure class="package-card__media">
+                <img
+                  src="assets/images/why-digital-delivery.webp"
+                  alt="Düğün çekimi için kamera ve fotoğraf baskıları"
+                  width="700"
+                  height="350"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <div class="package-card__body">
+                <p class="package-card__label">Hazır çekim paketi</p>
+                <h3>Mini Paket</h3>
+                <span class="package-card__ornament" aria-hidden="true">◇</span>
+                <ul>
+                  <li>
+                    <span class="package-card__check" aria-hidden="true">✓</span>
+                    <span>Aktüel Kamera <small>Full Çekim 1080p</small></span>
+                  </li>
+                  <li>
+                    <span class="package-card__check" aria-hidden="true">✓</span>
+                    <span>10 Poz Dijital Aile Pozu <small>Düğün Sonunda</small></span>
+                  </li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="package-card package-card--classic">
+              <figure class="package-card__media">
+                <img
+                  src="assets/images/hero-couple.webp"
+                  alt="Çiçekli nikâh alanında gelin ve damat"
+                  width="650"
+                  height="433"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <div class="package-card__body">
+                <p class="package-card__label">Kapsamlı çekim paketi</p>
+                <h3>Classic Paket</h3>
+                <span class="package-card__ornament" aria-hidden="true">◇</span>
+                <ul>
+                  <li>
+                    <span class="package-card__check" aria-hidden="true">✓</span>
+                    <span>Aktüel Kamera <small>Full Çekim 1080p</small></span>
+                  </li>
+                  <li>
+                    <span class="package-card__check" aria-hidden="true">✓</span>
+                    <span>10 Poz Dijital Aile Pozu <small>Düğün Sonunda</small></span>
+                  </li>
+                  <li>
+                    <span class="package-card__check" aria-hidden="true">✓</span>
+                    <span>Drone Çekimi <small>Düğün Anında</small></span>
+                  </li>
+                  <li>
+                    <span class="package-card__check" aria-hidden="true">✓</span>
+                    <span>Düğün Hikayesi <small>Düğün Anında</small></span>
+                  </li>
+                  <li>
+                    <span class="package-card__check" aria-hidden="true">✓</span>
+                    <span>Gelin Damat Ön Çekim</span>
+                  </li>
+                  <li>
+                    <span class="package-card__check" aria-hidden="true">✓</span>
+                    <span>Gelin Damat Fotoğraf Arşivi</span>
+                  </li>
+                </ul>
+                <p class="package-card__note">Takı ve 3. şahıs fotoğrafları verilmez.</p>
+              </div>
+            </article>
+          </div>
+
+          <div class="package-invitation__custom">
+            <div>
+              <span class="package-invitation__custom-icon" aria-hidden="true">◇</span>
+              <div>
+                <h3>Size özel bir paket mi istiyorsunuz?</h3>
+                <p>İhtiyacınıza uygun hizmetleri seçerek paketinizi birkaç adımda oluşturun.</p>
+              </div>
+            </div>
             <a class="package-invitation__action" href="paketini-olustur.html">
               <span>Paketini Oluştur</span>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M5 12h14M13 6l6 6-6 6" />
               </svg>
             </a>
-          </div>
-
-          <div
-            class="package-invitation__visual"
-            aria-label="Kişiselleştirilebilir düğün çekimi paketi"
-          >
-            <figure class="package-invitation__photo">
-              <img
-                src="assets/images/why-digital-delivery.webp"
-                alt="Kamera, düğün fotoğrafları ve teslimat albümü"
-                width="700"
-                height="350"
-                loading="lazy"
-              />
-            </figure>
-            <div class="package-invitation__note">
-              <span>Başlangıç paketi</span>
-              <strong class="js-starting-price">Güncel fiyat yükleniyor</strong>
-              <small>Ek hizmetlerle kişiselleştirin</small>
-            </div>
           </div>
         </div>
       </section>
@@ -1097,7 +1159,6 @@
           <strong class="js-detail-delivery"></strong>
         </div>
         <div class="service-detail__footer">
-          <strong class="js-detail-price"></strong>
           <a class="builder-primary js-detail-action" href="paketini-olustur.html">
             <span>Paket Oluştur</span>
             <svg viewBox="0 0 24 24" aria-hidden="true">

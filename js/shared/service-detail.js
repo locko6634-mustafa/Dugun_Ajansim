@@ -22,7 +22,9 @@ export function renderServiceDetail({ service, formatPrice, elements }) {
     })
   );
   delivery.textContent = service.delivery;
-  price.textContent = formatPrice(service.price);
+  if (price && typeof formatPrice === "function") {
+    price.textContent = formatPrice(service.price);
+  }
   thumbs.replaceChildren(
     ...service.gallery.map((image, index) => {
       const button = document.createElement("button");

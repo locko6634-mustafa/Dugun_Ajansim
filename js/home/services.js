@@ -1,14 +1,8 @@
 import { apiRequest, hasApiEndpoint } from "../shared/api-client.js";
 import { isSafeImageAssetPath, safeImageAssetPath } from "../shared/asset-url.js";
-import { formatAppCurrency } from "../shared/runtime-config.js";
 import { renderServiceDetail } from "../shared/service-detail.js";
 
 const fallbackImage = "assets/images/hero-couple.webp";
-
-function formatPrice(amount) {
-  if (!Number.isFinite(amount)) return "Güncel fiyatı paket oluşturucuda görün";
-  return formatAppCurrency(amount, { maximumFractionDigits: 0 });
-}
 
 document.addEventListener("DOMContentLoaded", () => {
   const detailDialog = document.getElementById("home-service-detail");
@@ -24,9 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const detailDescription = detailDialog.querySelector(".js-detail-description");
   const detailFeatures = detailDialog.querySelector(".js-detail-features");
   const detailDelivery = detailDialog.querySelector(".js-detail-delivery");
-  const detailPrice = detailDialog.querySelector(".js-detail-price");
   const detailAction = detailDialog.querySelector(".js-detail-action");
-  const startingPrice = document.querySelector(".js-starting-price");
   let catalogServices = [];
   let activeServiceId = null;
 
@@ -135,31 +127,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function hydrateCatalog() {
     if (!hasApiEndpoint()) {
-      if (startingPrice) startingPrice.textContent = "Paket oluşturucuda güncel fiyatı görün";
       renderCatalogUnavailable();
       return;
     }
     try {
       const response = await apiRequest("/catalog");
-      const packages = Array.isArray(response.data?.packages) ? response.data.packages : [];
       catalogServices = normalizeCatalogServices(response.data?.services);
       renderServiceCards();
-
-      const packagePrices = packages
-        .map((item) => item.priceCents)
-        .filter((priceCents) => Number.isSafeInteger(priceCents) && priceCents >= 0);
-      if (startingPrice) {
-        startingPrice.textContent = packagePrices.length
-          ? formatPrice(Math.min(...packagePrices) / 100)
-          : "Paket oluşturucuda güncel fiyatı görün";
-      }
       if (activeServiceId) {
         const activeService = catalogServices.find((item) => item.id === activeServiceId);
         if (activeService) openHomeServiceDetail(activeServiceId);
         else detailDialog.close();
       }
     } catch {
-      if (startingPrice) startingPrice.textContent = "Paket oluşturucuda güncel fiyatı görün";
       renderCatalogUnavailable();
     }
   }
@@ -171,14 +151,12 @@ document.addEventListener("DOMContentLoaded", () => {
     activeServiceId = serviceId;
     renderServiceDetail({
       service,
-      formatPrice,
       elements: {
         eyebrow: detailEyebrow,
         title: detailTitle,
         description: detailDescription,
         features: detailFeatures,
         delivery: detailDelivery,
-        price: detailPrice,
         thumbs: detailThumbs,
         mainImage: detailMainImage,
         number: detailNumber

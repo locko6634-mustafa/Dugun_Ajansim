@@ -572,16 +572,9 @@ body:has(.service-detail[open]) {
 .service-detail__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-top: 30px;
   gap: 18px;
-}
-
-.service-detail__footer > strong {
-  font-family: var(--serif);
-  font-size: 31px;
-  font-weight: 400;
-  white-space: nowrap;
 }
 
 .service-detail__footer .builder-primary {
@@ -676,10 +669,6 @@ body:has(.service-detail[open]) {
     border-top: 1px solid var(--service-detail-line);
     background: hsl(28 17% 12% / 0.95);
     backdrop-filter: blur(14px);
-  }
-
-  .service-detail__footer > strong {
-    font-size: 25px;
   }
 
   .service-detail__footer .builder-primary {
