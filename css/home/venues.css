@@ -96,6 +96,29 @@
   line-height: 0.98;
 }
 
+.venues-heading h2::before {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: var(--venues-accent);
+  content: "Referanslarımız";
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.venues-heading h2::after {
+  display: block;
+  width: 58px;
+  height: 1px;
+  margin-top: 22px;
+  background: linear-gradient(90deg, var(--venues-accent), transparent);
+  content: "";
+}
+
 .venues-heading h2 em {
   display: block;
   margin-top: 14px;
@@ -120,8 +143,15 @@
 
 .venues-grid {
   display: grid;
+  position: relative;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(12px, 1.7vw, 24px);
+  padding: clamp(12px, 1.4vw, 20px);
+  border: 1px solid hsl(32 40% 48% / 0.2);
+  background: hsl(42 42% 99% / 0.56);
+  box-shadow:
+    0 28px 70px hsl(30 24% 28% / 0.09),
+    inset 0 0 0 1px hsl(0 0% 100% / 0.7);
 }
 
 .venues-status {
@@ -163,6 +193,18 @@
   transition: background 350ms var(--ease);
 }
 
+.venue-card::after {
+  position: absolute;
+  inset: 10px;
+  z-index: 1;
+  border: 1px solid hsl(0 0% 100% / 0.24);
+  content: "";
+  pointer-events: none;
+  transition:
+    border-color 260ms var(--ease),
+    inset 260ms var(--ease);
+}
+
 .venue-card__image {
   position: absolute;
   inset: 0;
@@ -186,6 +228,12 @@
   background: linear-gradient(180deg, hsl(29 25% 10% / 0.12) 25%, hsl(29 25% 8% / 0.88) 100%);
 }
 
+.venue-card:hover::after,
+.venue-card:focus-visible::after {
+  inset: 14px;
+  border-color: hsl(0 0% 100% / 0.52);
+}
+
 .venue-card:hover .venue-card__image,
 .venue-card:focus-visible .venue-card__image {
   transform: scale(1.055);
@@ -200,6 +248,15 @@
   letter-spacing: -0.04em;
   line-height: 1;
   text-shadow: 0 2px 16px hsl(0 0% 0% / 0.45);
+}
+
+.venue-card__name::before {
+  display: block;
+  width: 34px;
+  height: 1px;
+  margin-bottom: 13px;
+  background: hsl(37 60% 72%);
+  content: "";
 }
 
 .venues-toggle-wrapper {
@@ -264,6 +321,14 @@
     text-align: center;
   }
 
+  .venues-heading h2::before {
+    justify-content: center;
+  }
+
+  .venues-heading h2::after {
+    margin-inline: auto;
+  }
+
   .venues-heading > p:last-child {
     max-width: 620px;
     margin: 18px auto 0;
@@ -274,6 +339,7 @@
   .venues-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
+    padding: 10px;
   }
 
   .venue-card {
@@ -283,6 +349,10 @@
 
   .venue-card__name {
     font-size: clamp(20px, 4.5vw, 28px);
+  }
+
+  .venue-card__name::before {
+    margin-bottom: 9px;
   }
 
   .venues-toggle-wrapper {
@@ -320,11 +390,21 @@
   .venues-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+    padding: 7px;
   }
 
   .venue-card {
     min-height: 155px;
     padding: 14px 16px;
+  }
+
+  .venue-card::after {
+    inset: 6px;
+  }
+
+  .venue-card:hover::after,
+  .venue-card:focus-visible::after {
+    inset: 8px;
   }
 
   .venue-card__name {
@@ -335,6 +415,7 @@
 @media (prefers-reduced-motion: reduce) {
   .venue-card,
   .venue-card::before,
+  .venue-card::after,
   .venue-card__image,
   .venues-toggle-btn,
   .venues-toggle-btn__icon {
