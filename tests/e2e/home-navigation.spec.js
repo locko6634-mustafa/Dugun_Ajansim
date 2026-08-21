@@ -436,7 +436,13 @@ test("@responsive header bulundugu yuzeye gore acik ve koyu kontrasta gecer", as
   await expect.poll(textBrightness).toBeGreaterThan(180);
 
   await moveSurfaceUnderHeader(".venues-section");
+  await expect(header).toHaveAttribute("data-current-surface", "light");
+  await expect(header).not.toHaveClass(/is-on-dark/);
+  await expect.poll(textBrightness).toBeLessThan(100);
+
+  await moveSurfaceUnderHeader(".package-invitation");
   await expect(header).toHaveAttribute("data-current-surface", "dark");
+  await expect(header).toHaveClass(/is-on-dark/);
   await expect.poll(textBrightness).toBeGreaterThan(180);
 
   await moveSurfaceUnderHeader(".faq-section");

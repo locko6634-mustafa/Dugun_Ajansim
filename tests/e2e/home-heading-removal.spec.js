@@ -39,24 +39,24 @@ test("@responsive ana sayfa acik ve koyu yuzeyleri istenen sirada kullanir", asy
 
   expect(surfaces).toEqual([
     { className: "hero", surface: "light" },
-    { className: "gallery-section", surface: "dark" },
-    { className: "shoots-section", surface: "light" },
+    { className: "shoots-section", surface: "dark" },
+    { className: "gallery-section", surface: "light" },
     { className: "services-section", surface: "dark" },
-    { className: "venues-section", surface: "dark" },
-    { className: "package-invitation", surface: "light" },
+    { className: "venues-section", surface: "light" },
+    { className: "package-invitation", surface: "dark" },
     { className: "faq-section", surface: "light" },
     { className: "site-footer", surface: "dark" }
   ]);
 });
 
-test("@responsive mobil hero ile galeri arasinda nefes payi birakir", async ({ page }) => {
+test("@responsive mobil hero ile ilk vitrin arasinda nefes payi birakir", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/index.html");
 
   const sectionGap = await page.evaluate(() => {
     const heroBounds = document.querySelector(".hero").getBoundingClientRect();
-    const galleryBounds = document.querySelector(".gallery-section").getBoundingClientRect();
-    return galleryBounds.top - heroBounds.bottom;
+    const firstShowcaseBounds = document.querySelector(".shoots-section").getBoundingClientRect();
+    return firstShowcaseBounds.top - heroBounds.bottom;
   });
   const heroPaddingEnd = await page
     .locator(".hero")
