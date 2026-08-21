@@ -6,11 +6,11 @@
   --venues-accent: hsl(32 56% 40%);
   position: relative;
   overflow: hidden;
-  padding: clamp(86px, 9vw, 144px) clamp(24px, 5vw, 84px);
+  padding: clamp(78px, 8vw, 126px) clamp(24px, 5vw, 84px);
   color: var(--venues-ink);
   background:
-    radial-gradient(circle at 8% 48%, hsl(35 58% 88% / 0.48), transparent 23%),
-    radial-gradient(circle at 93% 13%, hsl(39 65% 91% / 0.64), transparent 22%),
+    linear-gradient(90deg, transparent 0 7%, hsl(34 30% 62% / 0.14) 7.05%, transparent 7.1%),
+    radial-gradient(circle at 93% 13%, hsl(39 45% 91% / 0.54), transparent 24%),
     linear-gradient(143deg, var(--venues-surface), hsl(35 40% 96%));
 }
 
@@ -18,7 +18,7 @@
 .venues-section::after {
   position: absolute;
   border: 1px solid hsl(32 56% 40% / 0.14);
-  border-radius: 50%;
+  border-radius: 2px;
   content: "";
   pointer-events: none;
 }
@@ -39,14 +39,18 @@
 
 .venues-section__inner {
   position: relative;
-  width: min(1280px, 100%);
+  width: min(1480px, 100%);
   margin: 0 auto;
 }
 
 .venues-heading {
-  max-width: 720px;
-  margin: 0 auto clamp(46px, 5vw, 72px);
-  text-align: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.6fr);
+  align-items: end;
+  gap: clamp(30px, 6vw, 100px);
+  max-width: none;
+  margin: 0 0 clamp(46px, 5vw, 72px);
+  text-align: left;
 }
 
 .venues-heading__eyebrow {
@@ -86,7 +90,7 @@
 .venues-heading h2 {
   margin: 0;
   font-family: var(--serif);
-  font-size: clamp(44px, 5vw, 72px);
+  font-size: clamp(50px, 5.8vw, 84px);
   font-weight: 400;
   letter-spacing: -0.05em;
   line-height: 0.98;
@@ -97,7 +101,7 @@
   margin-top: 14px;
   color: var(--venues-accent);
   font-family: var(--serif);
-  font-size: 0.5em;
+  font-size: 0.42em;
   font-weight: 500;
   font-style: normal;
   letter-spacing: 0.01em;
@@ -106,7 +110,9 @@
 
 .venues-heading > p:last-child {
   max-width: 620px;
-  margin: 25px auto 0;
+  margin: 0 0 5px;
+  padding: 10px 0 10px 26px;
+  border-left: 1px solid hsl(32 56% 40% / 0.38);
   color: var(--venues-muted);
   font-size: clamp(14px, 1.15vw, 17px);
   line-height: 1.72;
@@ -114,7 +120,7 @@
 
 .venues-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: clamp(12px, 1.7vw, 24px);
 }
 
@@ -131,12 +137,13 @@
 .venue-card {
   position: relative;
   display: flex;
-  min-height: clamp(270px, 26vw, 370px);
+  min-height: 0;
+  aspect-ratio: 2 / 3;
   padding: clamp(22px, 2.5vw, 34px);
   isolation: isolate;
   overflow: hidden;
   border: 1px solid hsl(0 0% 100% / 0.26);
-  border-radius: 5px;
+  border-radius: 2px;
   color: hsl(0 0% 100%);
   background: hsl(29 16% 17%);
   box-shadow: 0 18px 38px hsl(30 24% 28% / 0.13);
@@ -172,7 +179,7 @@
   border-color: hsl(0 0% 100% / 0.62);
   box-shadow: 0 25px 48px hsl(30 24% 28% / 0.22);
   outline: none;
-  transform: translateY(-5px);
+  transform: translateY(-3px);
 }
 
 .venue-card:hover::before,
@@ -202,6 +209,10 @@
   text-align: center;
 }
 
+.venues-toggle-wrapper[hidden] {
+  display: none;
+}
+
 .venues-toggle-btn {
   display: inline-flex;
   align-items: center;
@@ -209,7 +220,7 @@
   gap: 10px;
   padding: 13px 28px;
   border: 1px solid hsl(32 56% 40% / 0.38);
-  border-radius: 999px;
+  border-radius: 2px;
   background: hsl(0 0% 100% / 0.72);
   color: var(--venues-ink);
   font-family: inherit;
@@ -249,13 +260,26 @@
     padding-inline: clamp(14px, 4vw, 28px);
   }
 
+  .venues-heading {
+    display: block;
+    text-align: center;
+  }
+
+  .venues-heading > p:last-child {
+    max-width: 620px;
+    margin: 18px auto 0;
+    padding: 0;
+    border-left: 0;
+  }
+
   .venues-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
   }
 
   .venue-card {
-    min-height: clamp(160px, 36vw, 220px);
+    min-height: 0;
+    aspect-ratio: 2 / 3;
     padding: 18px;
   }
 
@@ -301,7 +325,7 @@
   }
 
   .venue-card {
-    min-height: 155px;
+    min-height: 0;
     padding: 14px 16px;
   }
 

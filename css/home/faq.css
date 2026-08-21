@@ -5,12 +5,9 @@
   --faq-line: hsl(34 43% 84%);
   position: relative;
   overflow: hidden;
-  padding: clamp(84px, 8vw, 132px) clamp(24px, 6vw, 108px) clamp(60px, 6vw, 92px);
+  padding: clamp(78px, 7vw, 112px) clamp(24px, 6vw, 108px) clamp(54px, 5vw, 78px);
   isolation: isolate;
-  background:
-    radial-gradient(circle at 52% 38%, hsl(40 60% 100% / 0.95), transparent 40%),
-    radial-gradient(circle at 6% 78%, hsl(33 53% 91% / 0.4), transparent 26%),
-    linear-gradient(135deg, hsl(42 52% 99%), hsl(35 36% 97%));
+  background: linear-gradient(135deg, hsl(42 42% 98%), hsl(35 27% 95%));
 }
 
 .faq-section::before {
@@ -30,13 +27,14 @@
 .faq-section__inner {
   position: relative;
   z-index: 1;
-  width: min(1040px, 100%);
+  width: min(1180px, 100%);
   margin: 0 auto;
 }
 
 .faq-heading {
-  margin-bottom: clamp(28px, 3vw, 42px);
-  text-align: center;
+  max-width: 820px;
+  margin: 0 0 clamp(36px, 4vw, 56px);
+  text-align: left;
 }
 
 .faq-heading__eyebrow {
@@ -77,7 +75,7 @@
 .faq-heading h2 {
   margin: 0;
   font-family: var(--serif);
-  font-size: clamp(54px, 5.2vw, 82px);
+  font-size: clamp(50px, 5.4vw, 78px);
   font-weight: 400;
   letter-spacing: -0.045em;
   line-height: 0.92;
@@ -96,16 +94,18 @@
 
 .faq-list {
   display: grid;
-  gap: 10px;
+  gap: 0;
+  border-top: 1px solid var(--faq-line);
 }
 
 .faq-item {
   position: relative;
   overflow: hidden;
-  border: 1px solid transparent;
-  border-radius: 14px;
-  background: hsl(40 45% 100% / 0.82);
-  box-shadow: 0 11px 30px hsl(31 22% 42% / 0.075);
+  border: 0;
+  border-bottom: 1px solid var(--faq-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   transition:
     border-color 240ms var(--ease),
     background-color 240ms var(--ease),
@@ -113,9 +113,9 @@
 }
 
 .faq-item.is-open {
-  border-color: hsl(33 55% 68%);
-  background: linear-gradient(110deg, hsl(39 64% 98%), hsl(35 52% 96% / 0.9));
-  box-shadow: 0 15px 34px hsl(31 27% 42% / 0.09);
+  border-color: var(--faq-gold-soft);
+  background: hsl(40 45% 100% / 0.34);
+  box-shadow: none;
 }
 
 .faq-item h3 {
@@ -153,9 +153,9 @@
   display: grid;
   width: 52px;
   height: 52px;
-  border-radius: 50%;
+  border-radius: 2px;
   color: var(--faq-gold);
-  background: hsl(37 52% 96% / 0.9);
+  background: transparent;
   place-items: center;
 }
 
@@ -173,7 +173,7 @@
   width: 38px;
   height: 38px;
   border: 1.4px solid var(--faq-gold);
-  border-radius: 50%;
+  border-radius: 2px;
 }
 
 .faq-toggle::before,
@@ -254,7 +254,7 @@
   gap: 18px;
   min-height: 52px;
   padding: 12px 24px;
-  border-radius: 999px;
+  border-radius: 2px;
   cursor: pointer;
   font: 600 16px/1 var(--sans);
   text-decoration: none;
@@ -295,6 +295,7 @@
 }
 
 .faq-botanical {
+  display: none;
   position: absolute;
   z-index: 0;
   width: clamp(130px, 18vw, 275px);
@@ -328,6 +329,7 @@
 
   .faq-heading {
     margin-bottom: 28px;
+    text-align: center;
   }
 
   .faq-heading__eyebrow {
@@ -356,7 +358,7 @@
   }
 
   .faq-item {
-    border-radius: 15px;
+    border-radius: 0;
   }
 
   .faq-question {

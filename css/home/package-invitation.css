@@ -7,10 +7,11 @@
   --package-accent: hsl(37 58% 63%);
   position: relative;
   overflow: hidden;
-  padding: clamp(72px, 8vw, 132px) clamp(20px, 5vw, 80px);
+  padding: clamp(78px, 8.5vw, 138px) clamp(20px, 5vw, 80px);
   color: var(--package-ink);
   background:
-    radial-gradient(circle at 8% 20%, hsl(35 52% 38% / 0.18), transparent 25%),
+    linear-gradient(90deg, transparent 0 7%, hsl(38 35% 62% / 0.12) 7.05%, transparent 7.1%),
+    radial-gradient(circle at 8% 20%, hsl(35 52% 38% / 0.16), transparent 25%),
     radial-gradient(circle at 92% 82%, hsl(37 58% 42% / 0.1), transparent 24%),
     linear-gradient(143deg, var(--package-surface), hsl(25 20% 5%));
 }
@@ -29,14 +30,14 @@
 .package-invitation__inner {
   position: relative;
   display: grid;
-  width: min(1360px, 100%);
-  min-height: 680px;
+  width: min(1480px, 100%);
+  min-height: 760px;
   margin: 0 auto;
   scroll-margin-top: calc(var(--header-height) + 24px);
   border: 1px solid hsl(37 44% 70% / 0.22);
   background: var(--package-panel);
   box-shadow: 0 32px 84px hsl(25 30% 4% / 0.34);
-  grid-template-columns: minmax(0, 0.92fr) minmax(420px, 1.08fr);
+  grid-template-columns: minmax(0, 1.03fr) minmax(420px, 0.97fr);
 }
 
 .package-invitation__copy {
@@ -178,7 +179,7 @@
 
 .package-invitation__visual {
   position: relative;
-  min-height: 680px;
+  min-height: 760px;
   padding: clamp(28px, 3vw, 48px);
   background: hsl(28 14% 15%);
 }
@@ -218,7 +219,7 @@
   z-index: 1;
   display: grid;
   padding: 25px 28px;
-  border-top: 1px solid hsl(0 0% 100% / 0.58);
+  border: 1px solid hsl(0 0% 100% / 0.34);
   color: hsl(0 0% 100%);
   backdrop-filter: blur(10px);
   background: hsl(27 18% 15% / 0.28);
@@ -272,7 +273,8 @@
   }
 
   .package-invitation__visual {
-    min-height: 540px;
+    min-height: 0;
+    aspect-ratio: 4 / 5;
     grid-row: 1;
   }
 }
@@ -341,6 +343,7 @@
 
   .package-invitation__visual {
     min-height: min(126vw, 590px);
+    aspect-ratio: auto;
     padding: 16px;
     grid-row: auto;
   }
@@ -357,7 +360,10 @@
     right: 26px;
     bottom: 18px;
     left: 26px;
+    gap: 5px;
     padding: 18px 16px;
+    background: hsl(27 18% 15% / 0.68);
+    grid-template-columns: 1fr;
   }
 
   .package-invitation__note span,
@@ -366,7 +372,10 @@
   }
 
   .package-invitation__note strong {
+    margin-top: 2px;
     font-size: 21px;
+    grid-row: auto;
+    line-height: 1.15;
   }
 
   .package-invitation__monogram {
