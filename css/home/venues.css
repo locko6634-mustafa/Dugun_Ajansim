@@ -163,7 +163,7 @@
   display: grid;
   overflow: hidden;
   border: 1px solid hsl(33 25% 82% / 0.74);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   color: var(--venues-ink);
   background: hsl(42 45% 99%);
   box-shadow: 0 16px 34px hsl(30 24% 28% / 0.11);
@@ -184,6 +184,7 @@
   inset: 8px;
   z-index: 2;
   border: 1px solid hsl(0 0% 100% / 0.46);
+  border-radius: calc(var(--radius-md) - 8px);
   content: "";
   pointer-events: none;
   transition:
@@ -258,7 +259,7 @@
   gap: 10px;
   padding: 13px 28px;
   border: 1px solid hsl(32 56% 40% / 0.38);
-  border-radius: 2px;
+  border-radius: 999px;
   background: hsl(0 0% 100% / 0.72);
   color: var(--venues-ink);
   font-family: inherit;
