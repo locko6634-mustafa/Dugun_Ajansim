@@ -39,6 +39,10 @@
     gap: clamp(4px, 0.8dvh, 7px);
   }
 
+  .hero {
+    padding-bottom: clamp(14px, 4vw, 18px);
+  }
+
   .hero-collage {
     height: clamp(210px, 65vw, 254px);
   }

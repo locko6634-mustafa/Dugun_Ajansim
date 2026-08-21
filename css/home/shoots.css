@@ -4,30 +4,17 @@
   --shoots-muted: hsl(28 8% 39%);
   --shoots-line: hsl(34 34% 78%);
   position: relative;
-  overflow: hidden;
-  padding: clamp(34px, 4.8vw, 76px) clamp(14px, 2.8vw, 44px);
-  background: hsl(33 19% 13%);
-}
-
-.shoots-stage {
-  position: relative;
   isolation: isolate;
-  width: min(1500px, 100%);
-  margin-inline: auto;
   overflow: hidden;
-  border: 1px solid hsl(34 28% 78%);
-  border-radius: clamp(28px, 3.5vw, 54px);
+  padding: 0;
   color: var(--shoots-ink);
   background:
     radial-gradient(circle at 86% 8%, hsl(36 67% 87% / 0.78), transparent 23%),
     radial-gradient(circle at 12% 82%, hsl(39 42% 91% / 0.72), transparent 26%),
     linear-gradient(137deg, hsl(42 43% 99%), hsl(34 34% 94%));
-  box-shadow:
-    0 42px 100px hsl(24 24% 4% / 0.3),
-    inset 0 1px hsl(0 0% 100% / 0.88);
 }
 
-.shoots-stage::before {
+.shoots-section::before {
   position: absolute;
   inset: 0;
   z-index: -1;
@@ -37,7 +24,7 @@
   mask-image: linear-gradient(145deg, black, transparent 72%);
 }
 
-.shoots-stage::after {
+.shoots-section::after {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -568,14 +555,10 @@
 
 @media (max-width: 640px) {
   .shoots-section {
-    padding-inline: clamp(6px, 2.2vw, 12px);
+    padding-inline: 0;
   }
 
-  .shoots-stage {
-    border-radius: clamp(22px, 7vw, 32px);
-  }
-
-  .shoots-stage::after {
+  .shoots-section::after {
     left: 17px;
   }
 

@@ -132,7 +132,7 @@
     </div>
 
     <main>
-      <section class="hero" id="anasayfa" aria-labelledby="hero-title">
+      <section class="hero" id="anasayfa" data-header-surface="light" aria-labelledby="hero-title">
         <div class="hero__inner">
           <div class="hero__copy">
             <div class="proof-pill" aria-label="Hizmet özeti">
@@ -240,400 +240,374 @@
         </div>
       </section>
 
-      <section class="gallery-section" id="galeri" aria-labelledby="gallery-title">
-        <div class="gallery-stage gallery-stage--dark">
-          <div class="gallery-section__inner">
-            <header class="gallery-heading">
-              <h2 id="gallery-title">
-                <span class="section-title__lead">Düğün</span> <em>Fotoğrafları</em>
-              </h2>
-              <p>Gerçek düğünlerden öne çıkan kareler.</p>
-            </header>
+      <section
+        class="gallery-section"
+        id="galeri"
+        data-header-surface="dark"
+        aria-labelledby="gallery-title"
+      >
+        <div class="gallery-section__inner">
+          <header class="gallery-heading">
+            <h2 id="gallery-title">
+              <span class="section-title__lead">Düğün</span> <em>Fotoğrafları</em>
+            </h2>
+            <p>Gerçek düğünlerden öne çıkan kareler.</p>
+          </header>
 
-            <div class="gallery-viewport" id="gallery-collection" data-gallery-viewport>
-              <div class="gallery-track" aria-label="Düğün fotoğrafları galerisi">
-                <button
-                  class="gallery-card gallery-card--tall"
-                  type="button"
-                  data-gallery-index="0"
-                >
-                  <img
-                    src="/media/images/wedding-gallery-01.webp"
-                    alt="Çiçek yaprakları arasında yürüyen gelin ve damat"
-                    width="1280"
-                    height="1920"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-                </button>
-                <button
-                  class="gallery-card gallery-card--medium"
-                  type="button"
-                  data-gallery-index="1"
-                >
-                  <img
-                    src="/media/images/wedding-gallery-02.webp"
-                    alt="Hareketli davetliler arasında birbirini öpen gelin ve damat"
-                    width="1280"
-                    height="1920"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-                </button>
-                <button
-                  class="gallery-card gallery-card--hero"
-                  type="button"
-                  data-gallery-index="2"
-                >
-                  <img
-                    src="/media/images/wedding-gallery-03.webp"
-                    alt="Düğün eğlencesinde renkli gözlüklerle poz veren çift"
-                    width="1280"
-                    height="1920"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-                </button>
-                <button
-                  class="gallery-card gallery-card--short"
-                  type="button"
-                  data-gallery-index="3"
-                >
-                  <img
-                    src="/media/images/wedding-gallery-04.webp"
-                    alt="Çiçek yaprakları altında el ele yürüyen gelin ve damat"
-                    width="1280"
-                    height="1920"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-                </button>
-                <button
-                  class="gallery-card gallery-card--medium"
-                  type="button"
-                  data-gallery-index="4"
-                >
-                  <img
-                    src="/media/images/wedding-gallery-05.webp"
-                    alt="Düğün eğlencesinde dans eden gelin ve damat"
-                    width="1280"
-                    height="1920"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-                </button>
-                <button
-                  class="gallery-card gallery-card--tall"
-                  type="button"
-                  data-gallery-index="5"
-                >
-                  <img
-                    src="/media/images/wedding-gallery-06.webp"
-                    alt="Çiçekli nikâh kapısında gelin ve damat"
-                    width="1280"
-                    height="1920"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-                </button>
-                <button
-                  class="gallery-card gallery-card--hero"
-                  type="button"
-                  data-gallery-index="6"
-                >
-                  <img
-                    src="/media/images/wedding-gallery-07.webp"
-                    alt="Açık hava düğününde birbirine sarılan gelin ve damat"
-                    width="1280"
-                    height="1920"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-                </button>
-                <button
-                  class="gallery-card gallery-card--short"
-                  type="button"
-                  data-gallery-index="7"
-                >
-                  <img
-                    src="/media/images/wedding-gallery-08.webp"
-                    alt="Çiçekli nikâh alanında poz veren gelin ve damat"
-                    width="1280"
-                    height="1920"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="gallery-reveal-row">
+          <div class="gallery-viewport" id="gallery-collection" data-gallery-viewport>
+            <div class="gallery-track" aria-label="Düğün fotoğrafları galerisi">
+              <button class="gallery-card gallery-card--tall" type="button" data-gallery-index="0">
+                <img
+                  src="/media/images/wedding-gallery-01.webp"
+                  alt="Çiçek yaprakları arasında yürüyen gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
               <button
-                class="gallery-reveal"
+                class="gallery-card gallery-card--medium"
                 type="button"
-                aria-controls="gallery-collection"
-                aria-expanded="false"
-                data-gallery-reveal
-                hidden
+                data-gallery-index="1"
               >
-                <span data-gallery-reveal-label>Tümünü Gör</span>
-                <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <path d="m5.5 7.5 4.5 4.25 4.5-4.25" />
-                </svg>
+                <img
+                  src="/media/images/wedding-gallery-02.webp"
+                  alt="Hareketli davetliler arasında birbirini öpen gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button class="gallery-card gallery-card--hero" type="button" data-gallery-index="2">
+                <img
+                  src="/media/images/wedding-gallery-03.webp"
+                  alt="Düğün eğlencesinde renkli gözlüklerle poz veren çift"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button class="gallery-card gallery-card--short" type="button" data-gallery-index="3">
+                <img
+                  src="/media/images/wedding-gallery-04.webp"
+                  alt="Çiçek yaprakları altında el ele yürüyen gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button
+                class="gallery-card gallery-card--medium"
+                type="button"
+                data-gallery-index="4"
+              >
+                <img
+                  src="/media/images/wedding-gallery-05.webp"
+                  alt="Düğün eğlencesinde dans eden gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button class="gallery-card gallery-card--tall" type="button" data-gallery-index="5">
+                <img
+                  src="/media/images/wedding-gallery-06.webp"
+                  alt="Çiçekli nikâh kapısında gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button class="gallery-card gallery-card--hero" type="button" data-gallery-index="6">
+                <img
+                  src="/media/images/wedding-gallery-07.webp"
+                  alt="Açık hava düğününde birbirine sarılan gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button class="gallery-card gallery-card--short" type="button" data-gallery-index="7">
+                <img
+                  src="/media/images/wedding-gallery-08.webp"
+                  alt="Çiçekli nikâh alanında poz veren gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
               </button>
             </div>
           </div>
+
+          <div class="gallery-reveal-row">
+            <button
+              class="gallery-reveal"
+              type="button"
+              aria-controls="gallery-collection"
+              aria-expanded="false"
+              data-gallery-reveal
+              hidden
+            >
+              <span data-gallery-reveal-label>Tümünü Gör</span>
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="m5.5 7.5 4.5 4.25 4.5-4.25" />
+              </svg>
+            </button>
+          </div>
         </div>
       </section>
 
-      <section class="shoots-section" id="cekimler" aria-labelledby="shoots-title">
-        <div class="shoots-stage shoots-stage--light">
-          <div class="shoots-section__inner">
-            <header class="shoots-heading">
-              <h2 id="shoots-title">
-                <span class="section-title__lead">Düğün</span> <em>Filmleri</em>
-              </h2>
-              <p>Gerçek düğünlerden öne çıkan kısa filmler.</p>
-            </header>
+      <section
+        class="shoots-section"
+        id="cekimler"
+        data-header-surface="light"
+        aria-labelledby="shoots-title"
+      >
+        <div class="shoots-section__inner">
+          <header class="shoots-heading">
+            <h2 id="shoots-title">
+              <span class="section-title__lead">Düğün</span> <em>Filmleri</em>
+            </h2>
+            <p>Gerçek düğünlerden öne çıkan kısa filmler.</p>
+          </header>
 
-            <div class="shoots-gallery" aria-label="Düğün ve nişan video çekimleri">
-              <div class="shoots-grid">
-                <article class="shoot-card">
-                  <div class="shoot-card__media shoot-card__media--cess">
-                    <video
-                      muted
-                      loop
-                      playsinline
-                      preload="none"
-                      aria-label="Cess Orman düğün çekimi"
-                    >
-                      <source
-                        data-src="/media/videos/cess-orman-dugun-2026-06-20.mp4"
-                        type="video/mp4"
+          <div class="shoots-gallery" aria-label="Düğün ve nişan video çekimleri">
+            <div class="shoots-grid">
+              <article class="shoot-card">
+                <div class="shoot-card__media shoot-card__media--cess">
+                  <video muted loop playsinline preload="none" aria-label="Cess Orman düğün çekimi">
+                    <source
+                      data-src="/media/videos/cess-orman-dugun-2026-06-20.mp4"
+                      type="video/mp4"
+                    />
+                  </video>
+                  <button
+                    class="shoot-card__open"
+                    type="button"
+                    aria-label="Cess Orman düğün çekimini büyüt ve oynat"
+                  ></button>
+                  <button
+                    class="shoot-card__sound is-muted"
+                    type="button"
+                    aria-label="Cess Orman çekiminin sesini aç"
+                    aria-pressed="false"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
+                      <path
+                        class="shoot-card__waves"
+                        d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6"
                       />
-                    </video>
-                    <button
-                      class="shoot-card__open"
-                      type="button"
-                      aria-label="Cess Orman düğün çekimini büyüt ve oynat"
-                    ></button>
-                    <button
-                      class="shoot-card__sound is-muted"
-                      type="button"
-                      aria-label="Cess Orman çekiminin sesini aç"
-                      aria-pressed="false"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
-                        <path
-                          class="shoot-card__waves"
-                          d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6"
-                        />
-                        <path class="shoot-card__slash" d="m5 5 14 14" />
-                      </svg>
-                    </button>
-                    <span class="shoot-card__index" aria-hidden="true">01</span>
-                  </div>
-                  <div class="shoot-card__caption">
-                    <h3>Mert &amp; Elif</h3>
-                  </div>
-                </article>
+                      <path class="shoot-card__slash" d="m5 5 14 14" />
+                    </svg>
+                  </button>
+                  <span class="shoot-card__index" aria-hidden="true">01</span>
+                </div>
+                <div class="shoot-card__caption">
+                  <h3>Mert &amp; Elif</h3>
+                </div>
+              </article>
 
-                <article class="shoot-card">
-                  <div class="shoot-card__media shoot-card__media--rojda">
-                    <video
-                      muted
-                      loop
-                      playsinline
-                      preload="none"
-                      aria-label="Rojda sinematik düğün çekimi"
-                    >
-                      <source
-                        data-src="/media/videos/rojda-sinematik-dugun-2026.mp4"
-                        type="video/mp4"
+              <article class="shoot-card">
+                <div class="shoot-card__media shoot-card__media--rojda">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    aria-label="Rojda sinematik düğün çekimi"
+                  >
+                    <source
+                      data-src="/media/videos/rojda-sinematik-dugun-2026.mp4"
+                      type="video/mp4"
+                    />
+                  </video>
+                  <button
+                    class="shoot-card__open"
+                    type="button"
+                    aria-label="Rojda sinematik düğün çekimini büyüt ve oynat"
+                  ></button>
+                  <button
+                    class="shoot-card__sound is-muted"
+                    type="button"
+                    aria-label="Rojda çekiminin sesini aç"
+                    aria-pressed="false"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
+                      <path
+                        class="shoot-card__waves"
+                        d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6"
                       />
-                    </video>
-                    <button
-                      class="shoot-card__open"
-                      type="button"
-                      aria-label="Rojda sinematik düğün çekimini büyüt ve oynat"
-                    ></button>
-                    <button
-                      class="shoot-card__sound is-muted"
-                      type="button"
-                      aria-label="Rojda çekiminin sesini aç"
-                      aria-pressed="false"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
-                        <path
-                          class="shoot-card__waves"
-                          d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6"
-                        />
-                        <path class="shoot-card__slash" d="m5 5 14 14" />
-                      </svg>
-                    </button>
-                    <span class="shoot-card__index" aria-hidden="true">02</span>
-                  </div>
-                  <div class="shoot-card__caption">
-                    <h3>Can &amp; Ece</h3>
-                  </div>
-                </article>
+                      <path class="shoot-card__slash" d="m5 5 14 14" />
+                    </svg>
+                  </button>
+                  <span class="shoot-card__index" aria-hidden="true">02</span>
+                </div>
+                <div class="shoot-card__caption">
+                  <h3>Can &amp; Ece</h3>
+                </div>
+              </article>
 
-                <article class="shoot-card">
-                  <div class="shoot-card__media shoot-card__media--talia">
-                    <video muted loop playsinline preload="none" aria-label="Talia düğün çekimi">
-                      <source
-                        data-src="/media/videos/talia-dugun-2026-06-04.mp4"
-                        type="video/mp4"
+              <article class="shoot-card">
+                <div class="shoot-card__media shoot-card__media--talia">
+                  <video muted loop playsinline preload="none" aria-label="Talia düğün çekimi">
+                    <source data-src="/media/videos/talia-dugun-2026-06-04.mp4" type="video/mp4" />
+                  </video>
+                  <button
+                    class="shoot-card__open"
+                    type="button"
+                    aria-label="Talia düğün çekimini büyüt ve oynat"
+                  ></button>
+                  <button
+                    class="shoot-card__sound is-muted"
+                    type="button"
+                    aria-label="Talia çekiminin sesini aç"
+                    aria-pressed="false"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
+                      <path
+                        class="shoot-card__waves"
+                        d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6"
                       />
-                    </video>
-                    <button
-                      class="shoot-card__open"
-                      type="button"
-                      aria-label="Talia düğün çekimini büyüt ve oynat"
-                    ></button>
-                    <button
-                      class="shoot-card__sound is-muted"
-                      type="button"
-                      aria-label="Talia çekiminin sesini aç"
-                      aria-pressed="false"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
-                        <path
-                          class="shoot-card__waves"
-                          d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6"
-                        />
-                        <path class="shoot-card__slash" d="m5 5 14 14" />
-                      </svg>
-                    </button>
-                    <span class="shoot-card__index" aria-hidden="true">03</span>
-                  </div>
-                  <div class="shoot-card__caption">
-                    <h3>Mustafa &amp; Sude</h3>
-                  </div>
-                </article>
+                      <path class="shoot-card__slash" d="m5 5 14 14" />
+                    </svg>
+                  </button>
+                  <span class="shoot-card__index" aria-hidden="true">03</span>
+                </div>
+                <div class="shoot-card__caption">
+                  <h3>Mustafa &amp; Sude</h3>
+                </div>
+              </article>
 
-                <article class="shoot-card">
-                  <div class="shoot-card__media shoot-card__media--rena">
-                    <video
-                      muted
-                      loop
-                      playsinline
-                      preload="none"
-                      aria-label="Rena akşam nişan çekimi"
-                    >
-                      <source
-                        data-src="/media/videos/rena-aksam-nisan-2026-07-19.mp4"
-                        type="video/mp4"
+              <article class="shoot-card">
+                <div class="shoot-card__media shoot-card__media--rena">
+                  <video muted loop playsinline preload="none" aria-label="Rena akşam nişan çekimi">
+                    <source
+                      data-src="/media/videos/rena-aksam-nisan-2026-07-19.mp4"
+                      type="video/mp4"
+                    />
+                  </video>
+                  <button
+                    class="shoot-card__open"
+                    type="button"
+                    aria-label="Rena akşam nişan çekimini büyüt ve oynat"
+                  ></button>
+                  <button
+                    class="shoot-card__sound is-muted"
+                    type="button"
+                    aria-label="Rena çekiminin sesini aç"
+                    aria-pressed="false"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
+                      <path
+                        class="shoot-card__waves"
+                        d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6"
                       />
-                    </video>
-                    <button
-                      class="shoot-card__open"
-                      type="button"
-                      aria-label="Rena akşam nişan çekimini büyüt ve oynat"
-                    ></button>
-                    <button
-                      class="shoot-card__sound is-muted"
-                      type="button"
-                      aria-label="Rena çekiminin sesini aç"
-                      aria-pressed="false"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
-                        <path
-                          class="shoot-card__waves"
-                          d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6"
-                        />
-                        <path class="shoot-card__slash" d="m5 5 14 14" />
-                      </svg>
-                    </button>
-                    <span class="shoot-card__index" aria-hidden="true">04</span>
-                  </div>
-                  <div class="shoot-card__caption">
-                    <h3>Kerem &amp; Duru</h3>
-                  </div>
-                </article>
+                      <path class="shoot-card__slash" d="m5 5 14 14" />
+                    </svg>
+                  </button>
+                  <span class="shoot-card__index" aria-hidden="true">04</span>
+                </div>
+                <div class="shoot-card__caption">
+                  <h3>Kerem &amp; Duru</h3>
+                </div>
+              </article>
 
-                <article class="shoot-card">
-                  <div class="shoot-card__media shoot-card__media--bella">
-                    <video
-                      muted
-                      loop
-                      playsinline
-                      preload="none"
-                      aria-label="Bella akşam düğün çekimi"
-                    >
-                      <source
-                        data-src="/media/videos/bella-aksam-dugun-2026-08-01.mp4"
-                        type="video/mp4"
+              <article class="shoot-card">
+                <div class="shoot-card__media shoot-card__media--bella">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    aria-label="Bella akşam düğün çekimi"
+                  >
+                    <source
+                      data-src="/media/videos/bella-aksam-dugun-2026-08-01.mp4"
+                      type="video/mp4"
+                    />
+                  </video>
+                  <button
+                    class="shoot-card__open"
+                    type="button"
+                    aria-label="Bella akşam düğün çekimini büyüt ve oynat"
+                  ></button>
+                  <button
+                    class="shoot-card__sound is-muted"
+                    type="button"
+                    aria-label="Bella çekiminin sesini aç"
+                    aria-pressed="false"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
+                      <path
+                        class="shoot-card__waves"
+                        d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6"
                       />
-                    </video>
-                    <button
-                      class="shoot-card__open"
-                      type="button"
-                      aria-label="Bella akşam düğün çekimini büyüt ve oynat"
-                    ></button>
-                    <button
-                      class="shoot-card__sound is-muted"
-                      type="button"
-                      aria-label="Bella çekiminin sesini aç"
-                      aria-pressed="false"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path class="shoot-card__speaker" d="M4 9v6h4l5 4V5L8 9H4Z" />
-                        <path
-                          class="shoot-card__waves"
-                          d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.7a7.5 7.5 0 0 1 0 10.6"
-                        />
-                        <path class="shoot-card__slash" d="m5 5 14 14" />
-                      </svg>
-                    </button>
-                    <span class="shoot-card__index" aria-hidden="true">05</span>
-                  </div>
-                  <div class="shoot-card__caption">
-                    <h3>Emir &amp; Zeynep</h3>
-                  </div>
-                </article>
-              </div>
+                      <path class="shoot-card__slash" d="m5 5 14 14" />
+                    </svg>
+                  </button>
+                  <span class="shoot-card__index" aria-hidden="true">05</span>
+                </div>
+                <div class="shoot-card__caption">
+                  <h3>Emir &amp; Zeynep</h3>
+                </div>
+              </article>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="services-section" id="hizmetler" aria-labelledby="services-title">
-        <div class="services-stage services-stage--dark">
-          <div class="services-section__inner">
-            <header class="services-heading">
-              <h2 id="services-title"><em>Hizmetlerimiz</em></h2>
-              <p>
-                Fotoğraf, sinematik film, drone, Jimmy Jib, aktüel kamera, albüm ve sıcak baskı tek
-                çatı altında.
-              </p>
-              <div class="services-divider" aria-hidden="true">
-                <span></span><b>✦</b><span></span>
-              </div>
-            </header>
-
-            <!-- site-content:services-catalog:start -->
-            <div class="services-grid" aria-live="polite">
-              <p class="services-empty">Hizmet kataloğu yükleniyor…</p>
+      <section
+        class="services-section"
+        id="hizmetler"
+        data-header-surface="dark"
+        aria-labelledby="services-title"
+      >
+        <div class="services-section__inner">
+          <header class="services-heading">
+            <h2 id="services-title"><em>Hizmetlerimiz</em></h2>
+            <p>
+              Fotoğraf, sinematik film, drone, Jimmy Jib, aktüel kamera, albüm ve sıcak baskı tek
+              çatı altında.
+            </p>
+            <div class="services-divider" aria-hidden="true">
+              <span></span><b>✦</b><span></span>
             </div>
-            <!-- site-content:services-catalog:end -->
+          </header>
+
+          <!-- site-content:services-catalog:start -->
+          <div class="services-grid" aria-live="polite">
+            <p class="services-empty">Hizmet kataloğu yükleniyor…</p>
           </div>
+          <!-- site-content:services-catalog:end -->
         </div>
       </section>
 
-      <section class="package-invitation" aria-labelledby="package-invitation-title">
+      <section
+        class="package-invitation"
+        data-header-surface="light"
+        aria-labelledby="package-invitation-title"
+      >
         <div class="package-invitation__inner" id="paket-olustur">
           <div class="package-invitation__copy">
             <p class="package-invitation__eyebrow">
@@ -686,7 +660,12 @@
         </div>
       </section>
 
-      <section class="venues-section" id="mekanlar" aria-labelledby="venues-title">
+      <section
+        class="venues-section"
+        id="mekanlar"
+        data-header-surface="dark"
+        aria-labelledby="venues-title"
+      >
         <div class="venues-section__inner">
           <header class="venues-heading">
             <h2 id="venues-title">
@@ -730,7 +709,7 @@
         </div>
       </section>
 
-      <section class="faq-section" id="sss" aria-labelledby="faq-title">
+      <section class="faq-section" id="sss" data-header-surface="light" aria-labelledby="faq-title">
         <svg class="faq-botanical faq-botanical--left" viewBox="0 0 250 430" aria-hidden="true">
           <path d="M12 423C55 342 78 270 92 184C102 120 126 62 173 9" />
           <path d="M77 278C38 258 20 225 18 184C58 196 79 228 77 278Z" />
@@ -990,7 +969,7 @@
       </section>
     </main>
 
-    <footer class="site-footer" id="iletisim">
+    <footer class="site-footer" id="iletisim" data-header-surface="dark">
       <div class="site-footer__glow" aria-hidden="true"></div>
       <div class="site-footer__inner">
         <div class="site-footer__top">

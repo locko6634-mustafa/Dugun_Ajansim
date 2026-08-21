@@ -75,6 +75,8 @@ const navLinks = document.querySelectorAll(
   ".desktop-nav a[data-nav-sections], .mobile-menu nav a[data-nav-sections]"
 );
 const sectionsToTrack = sectionIds.map((id) => document.getElementById(id)).filter(Boolean);
+const siteHeader = document.querySelector(".site-header");
+const headerSurfaces = [...document.querySelectorAll("[data-header-surface]")];
 let isManualClick = false;
 let manualClickTimer = null;
 let scrollFrame = null;
@@ -183,12 +185,28 @@ function getActiveSectionId() {
   return activeSectionId;
 }
 
+function syncHeaderSurface() {
+  if (!siteHeader) return;
+
+  const probeY = Math.min(siteHeader.getBoundingClientRect().bottom + 1, window.innerHeight - 1);
+  const activeSurface = headerSurfaces.find((surface) => {
+    const bounds = surface.getBoundingClientRect();
+    return bounds.top <= probeY && bounds.bottom > probeY;
+  });
+  const surfaceName = activeSurface?.dataset.headerSurface === "dark" ? "dark" : "light";
+
+  siteHeader.classList.toggle("is-on-dark", surfaceName === "dark");
+  siteHeader.dataset.currentSurface = surfaceName;
+}
+
 function syncActiveNav() {
   scrollFrame = null;
+  syncHeaderSurface();
   if (!isManualClick) setActiveNav(getActiveSectionId());
 }
 
 initActiveNav();
+syncHeaderSurface();
 
 window.addEventListener("hashchange", () => {
   const hash = window.location.hash.replace("#", "");
@@ -198,6 +216,7 @@ window.addEventListener("hashchange", () => {
 });
 
 document.addEventListener("home:layoutchange", () => {
+  syncHeaderSurface();
   const targetId = window.location.hash.replace("#", "");
   if (sectionIds.indexOf(targetId) <= sectionIds.indexOf("hizmetler")) return;
 

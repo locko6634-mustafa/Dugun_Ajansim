@@ -34,8 +34,64 @@ button {
   min-height: var(--header-height);
   padding: 0 clamp(30px, 3.2vw, 66px);
   border-bottom: 1px solid var(--line);
+  color: var(--ink);
   background: hsl(39 38% 98% / 0.88);
   backdrop-filter: blur(16px);
+  transition:
+    color 260ms ease,
+    border-color 260ms ease,
+    background-color 260ms ease;
+}
+
+.site-header.is-on-dark {
+  border-bottom-color: hsl(37 44% 70% / 0.2);
+  color: hsl(39 30% 94%);
+  background: hsl(28 18% 9% / 0.9);
+}
+
+.site-header.is-on-dark .brand__mark {
+  stroke: var(--gold-light);
+}
+
+.site-header.is-on-dark .brand__year,
+.site-header.is-on-dark .desktop-nav a:hover,
+.site-header.is-on-dark .desktop-nav a:focus-visible,
+.site-header.is-on-dark .desktop-nav a.is-active {
+  color: var(--gold-light);
+}
+
+.site-header.is-on-dark .desktop-nav a::after {
+  background: var(--gold-light);
+}
+
+.site-header.is-on-dark .header-login,
+.site-header.is-on-dark .header-logout {
+  border-color: hsl(37 44% 70% / 0.28);
+  color: hsl(39 30% 94%);
+  background: hsl(0 0% 100% / 0.07);
+}
+
+.site-header.is-on-dark .header-login:hover,
+.site-header.is-on-dark .header-login:focus-visible {
+  border-color: var(--gold-light);
+  color: hsl(28 18% 9%);
+  background: var(--gold-light);
+}
+
+.site-header.is-on-dark .header-logout:hover,
+.site-header.is-on-dark .header-logout:focus-visible {
+  border-color: hsl(0 67% 74%);
+  color: hsl(0 75% 91%);
+  background: hsl(0 54% 36% / 0.42);
+}
+
+.site-header.is-on-dark .menu-toggle {
+  border-color: hsl(37 44% 70% / 0.28);
+  background: hsl(0 0% 100% / 0.08);
+}
+
+.site-header.is-on-dark .menu-toggle span {
+  background: var(--gold-light);
 }
 
 .brand {

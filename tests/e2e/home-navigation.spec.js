@@ -183,7 +183,7 @@ test("@responsive mobil hizmet kartları koyu sahnede kompakt kalır", async ({ 
     };
   });
 
-  await expect(page.locator(".services-stage--dark")).toBeVisible();
+  await expect(page.locator(".services-section")).toBeVisible();
   expect(dimensions.cardWidth).toBeLessThan(180);
   expect(dimensions.cardHeight).toBeLessThan(290);
   expect(dimensions.mediaHeight).toBeLessThanOrEqual(130);
@@ -195,17 +195,19 @@ test("@responsive tum mobil section gecisleri kompakt dikey ritmi korur", async 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/index.html");
 
-  const galleryStage = page.locator(".gallery-stage");
-  const shootsStage = page.locator(".shoots-stage");
-  const [galleryStageBox, shootsStageBox] = await Promise.all([
-    galleryStage.boundingBox(),
-    shootsStage.boundingBox()
+  const gallerySection = page.locator(".gallery-section");
+  const shootsSection = page.locator(".shoots-section");
+  const [gallerySectionBox, shootsSectionBox] = await Promise.all([
+    gallerySection.boundingBox(),
+    shootsSection.boundingBox()
   ]);
 
   await expect(page.locator(".gallery-cta")).toHaveCount(0);
-  expect(galleryStageBox).not.toBeNull();
-  expect(shootsStageBox).not.toBeNull();
-  expect(shootsStageBox.y - (galleryStageBox.y + galleryStageBox.height)).toBeLessThanOrEqual(60);
+  expect(gallerySectionBox).not.toBeNull();
+  expect(shootsSectionBox).not.toBeNull();
+  expect(shootsSectionBox.y - (gallerySectionBox.y + gallerySectionBox.height)).toBeLessThanOrEqual(
+    60
+  );
 
   const spacing = await page.evaluate(() => {
     const pixels = (value) => Number.parseFloat(value) || 0;
@@ -369,6 +371,48 @@ test("@responsive scroll konumu masaustu navigasyonunun ust basligini gunceller"
     "aria-current",
     "location"
   );
+});
+
+test("@responsive header bulundugu yuzeye gore acik ve koyu kontrasta gecer", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/index.html");
+
+  const header = page.locator(".site-header");
+  const moveSurfaceUnderHeader = (selector) =>
+    page.locator(selector).evaluate((target) => {
+      const headerHeight = document.querySelector(".site-header").getBoundingClientRect().height;
+      const targetTop = target.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: Math.max(0, targetTop - headerHeight), behavior: "instant" });
+    });
+  const textBrightness = () =>
+    header.evaluate((element) => {
+      const channels = getComputedStyle(element)
+        .color.match(/[\d.]+/g)
+        .slice(0, 3)
+        .map(Number);
+      return channels.reduce((sum, channel) => sum + channel, 0) / channels.length;
+    });
+
+  await expect(header).toHaveAttribute("data-current-surface", "light");
+  await expect.poll(textBrightness).toBeLessThan(100);
+
+  await moveSurfaceUnderHeader(".gallery-section");
+  await expect(header).toHaveAttribute("data-current-surface", "dark");
+  await expect(header).toHaveClass(/is-on-dark/);
+  await expect.poll(textBrightness).toBeGreaterThan(180);
+
+  await moveSurfaceUnderHeader(".shoots-section");
+  await expect(header).toHaveAttribute("data-current-surface", "light");
+  await expect(header).not.toHaveClass(/is-on-dark/);
+  await expect.poll(textBrightness).toBeLessThan(100);
+
+  await moveSurfaceUnderHeader(".venues-section");
+  await expect(header).toHaveAttribute("data-current-surface", "dark");
+  await expect.poll(textBrightness).toBeGreaterThan(180);
+
+  await moveSurfaceUnderHeader(".faq-section");
+  await expect(header).toHaveAttribute("data-current-surface", "light");
+  await expect.poll(textBrightness).toBeLessThan(100);
 });
 
 test("@responsive pazarlama metinleri doğrulanmamış iddialar içermez ve copyright yılı günceldir", async ({

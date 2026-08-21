@@ -9,31 +9,16 @@
   --gallery-row-height: clamp(130px, 10.5vw, 170px);
   --gallery-collapsed-height: clamp(195px, 16.5vw, 250px);
   position: relative;
-  overflow: hidden;
-  padding: clamp(34px, 4.8vw, 76px) clamp(14px, 2.8vw, 44px);
-  background:
-    linear-gradient(90deg, hsl(34 38% 91% / 0.56) 1px, transparent 1px) center / 9vw 100%,
-    hsl(38 38% 96%);
-}
-
-.gallery-stage {
-  position: relative;
   isolation: isolate;
-  width: min(1500px, 100%);
-  margin-inline: auto;
   overflow: hidden;
-  border: 1px solid hsl(37 42% 55% / 0.34);
-  border-radius: clamp(28px, 3.5vw, 54px);
+  padding: 0;
   color: var(--gallery-ink);
   background:
     radial-gradient(circle at 12% 8%, hsl(35 52% 38% / 0.24), transparent 26%),
     linear-gradient(143deg, var(--gallery-stage), var(--gallery-stage-deep));
-  box-shadow:
-    0 40px 90px hsl(27 24% 14% / 0.24),
-    inset 0 1px hsl(42 54% 82% / 0.12);
 }
 
-.gallery-stage::before {
+.gallery-section::before {
   position: absolute;
   top: -26%;
   right: -8%;
@@ -50,7 +35,7 @@
   animation: gallery-ambient 12s ease-in-out infinite alternate;
 }
 
-.gallery-stage::after {
+.gallery-section::after {
   position: absolute;
   top: clamp(36px, 4.5vw, 72px);
   right: clamp(32px, 5vw, 82px);
@@ -529,21 +514,17 @@
   .gallery-section {
     --gallery-row-height: clamp(90px, 24vw, 144px);
     --gallery-collapsed-height: clamp(250px, 66vw, 396px);
-    padding-inline: clamp(6px, 2.2vw, 12px);
+    padding-inline: 0;
   }
 
-  .gallery-stage {
-    border-radius: clamp(22px, 7vw, 32px);
-  }
-
-  .gallery-stage::before {
+  .gallery-section::before {
     top: -5%;
     right: -42%;
     width: 122vw;
     height: 122vw;
   }
 
-  .gallery-stage::after {
+  .gallery-section::after {
     top: 34px;
     right: 24px;
     width: 54px;
@@ -663,7 +644,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gallery-stage::before {
+  .gallery-section::before {
     animation: none;
   }
 
