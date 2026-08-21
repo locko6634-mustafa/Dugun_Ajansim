@@ -33,7 +33,7 @@ test("@responsive kaldirilan tanitim bolumleri sayfada ve navigasyonda yer almaz
   await expect(page.locator('a[href="#hakkimizda"], a[href="#konseptler"]')).toHaveCount(0);
 });
 
-test("@responsive mobil fotoğraf ve film alanları yatay taşmadan bento vurgusu kullanır", async ({
+test("@responsive mobil fotoğraf alanı eşit yatay kartlar, film alanı bento vurgusu kullanır", async ({
   page
 }) => {
   for (const viewport of [
@@ -52,8 +52,8 @@ test("@responsive mobil fotoğraf ve film alanları yatay taşmadan bento vurgus
       return {
         galleryOverflow: galleryTrack.scrollWidth - galleryTrack.clientWidth,
         shootsOverflow: shootsGrid.scrollWidth - shootsGrid.clientWidth,
-        galleryFeaturedWidth: galleryCards[0].getBoundingClientRect().width,
-        gallerySupportWidth: galleryCards[1].getBoundingClientRect().width,
+        galleryWidths: galleryCards.map((card) => card.getBoundingClientRect().width),
+        galleryHeights: galleryCards.map((card) => card.getBoundingClientRect().height),
         shootsFeaturedWidth: shootCards[0].getBoundingClientRect().width,
         shootsSupportWidth: shootCards[1].getBoundingClientRect().width
       };
@@ -61,7 +61,15 @@ test("@responsive mobil fotoğraf ve film alanları yatay taşmadan bento vurgus
 
     expect(layout.galleryOverflow).toBeLessThanOrEqual(1);
     expect(layout.shootsOverflow).toBeLessThanOrEqual(1);
-    expect(layout.galleryFeaturedWidth).toBeGreaterThan(layout.gallerySupportWidth * 1.85);
+    expect(
+      Math.max(...layout.galleryWidths) - Math.min(...layout.galleryWidths)
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.max(...layout.galleryHeights) - Math.min(...layout.galleryHeights)
+    ).toBeLessThanOrEqual(1);
+    expect(
+      layout.galleryWidths.every((width, index) => width / layout.galleryHeights[index] > 1.6)
+    ).toBe(true);
     expect(layout.shootsFeaturedWidth).toBeGreaterThan(layout.shootsSupportWidth * 1.85);
   }
 });
@@ -95,7 +103,9 @@ test("@responsive fotoğraf vitrini seçkiden tüm galeriye akıcı biçimde aç
         frameHeight: frameRect.height,
         trackHeight: track.getBoundingClientRect().height,
         partialCardPixels: frameRect.bottom - fifthRect.top,
-        fifthCardInert: fifthCard.inert
+        fifthCardInert: fifthCard.inert,
+        cardWidths: [...track.children].map((card) => card.getBoundingClientRect().width),
+        cardHeights: [...track.children].map((card) => card.getBoundingClientRect().height)
       };
     });
 
@@ -103,6 +113,15 @@ test("@responsive fotoğraf vitrini seçkiden tüm galeriye akıcı biçimde aç
     expect(collapsed.partialCardPixels).toBeGreaterThan(32);
     expect(collapsed.partialCardPixels).toBeLessThan(collapsed.frameHeight);
     expect(collapsed.fifthCardInert).toBe(true);
+    expect(
+      Math.max(...collapsed.cardWidths) - Math.min(...collapsed.cardWidths)
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.max(...collapsed.cardHeights) - Math.min(...collapsed.cardHeights)
+    ).toBeLessThanOrEqual(1);
+    expect(
+      collapsed.cardWidths.every((width, index) => width / collapsed.cardHeights[index] > 1.6)
+    ).toBe(true);
 
     await reveal.click();
     await expect(reveal).toHaveAttribute("aria-expanded", "true");
