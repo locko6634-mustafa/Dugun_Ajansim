@@ -196,11 +196,11 @@
   width: 48px;
   height: 48px;
   margin: 0;
-  border: 1px solid hsl(38 34% 70% / 0.28);
+  border: 1px solid hsl(39 58% 76%);
   border-radius: 2px;
-  color: var(--services-stage-accent);
-  background: transparent;
-  box-shadow: none;
+  color: hsl(27 22% 12%);
+  background: linear-gradient(145deg, hsl(39 66% 74%), hsl(34 52% 57%));
+  box-shadow: 0 9px 20px hsl(27 28% 3% / 0.32);
   place-items: center;
   transform: translateY(-50%);
 }
@@ -421,6 +421,10 @@ body:has(.service-detail[open]) {
 }
 
 .service-detail {
+  --service-detail-surface: hsl(27 19% 9%);
+  --service-detail-panel: hsl(28 17% 12%);
+  --service-detail-muted: hsl(35 14% 72%);
+  --service-detail-line: hsl(37 38% 70% / 0.22);
   position: fixed;
   inset: 0;
   margin: auto;
@@ -429,10 +433,10 @@ body:has(.service-detail[open]) {
   max-height: min(820px, calc(100vh - 40px));
   padding: 0;
   overflow: hidden;
-  border: 1px solid hsl(34 24% 77%);
-  color: var(--ink, hsl(27 20% 12%));
-  background: var(--surface, hsl(42 34% 99%));
-  box-shadow: 0 40px 100px hsl(27 20% 12% / 0.28);
+  border: 1px solid hsl(37 38% 70% / 0.34);
+  color: var(--ivory, hsl(42 38% 96%));
+  background: var(--service-detail-surface);
+  box-shadow: 0 40px 100px hsl(27 30% 3% / 0.62);
   z-index: 1000;
 }
 
@@ -488,7 +492,7 @@ body:has(.service-detail[open]) {
   display: grid;
   min-height: 680px;
   padding: 16px;
-  background: hsl(38 32% 96%);
+  background: hsl(28 20% 7%);
   grid-template-rows: 1fr 92px;
 }
 
@@ -533,13 +537,13 @@ body:has(.service-detail[open]) {
   min-width: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid transparent;
-  background: transparent;
+  border: 1px solid var(--service-detail-line);
+  background: var(--service-detail-panel);
   cursor: pointer;
 }
 
 .service-detail__thumbs button.is-active {
-  border-color: var(--services-accent, hsl(31 55% 46%));
+  border-color: var(--services-stage-accent, hsl(38 54% 64%));
 }
 
 .service-detail__thumbs img {
@@ -551,7 +555,7 @@ body:has(.service-detail[open]) {
 
 .service-detail__eyebrow {
   margin: 0 0 8px;
-  color: var(--services-accent, hsl(31 55% 46%));
+  color: var(--services-stage-accent, hsl(38 54% 64%));
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.25em;
@@ -563,6 +567,9 @@ body:has(.service-detail[open]) {
   justify-content: center;
   padding: clamp(48px, 5vw, 76px);
   flex-direction: column;
+  background:
+    radial-gradient(circle at 100% 0%, hsl(36 42% 30% / 0.18), transparent 34%),
+    var(--service-detail-panel);
 }
 
 .service-detail__content h2 {
@@ -575,7 +582,7 @@ body:has(.service-detail[open]) {
 
 .service-detail__description {
   margin: 20px 0 0;
-  color: hsl(27 7% 32%);
+  color: var(--service-detail-muted);
   font-size: 13px;
   line-height: 1.75;
 }
@@ -598,7 +605,7 @@ body:has(.service-detail[open]) {
   position: absolute;
   top: -1px;
   left: 0;
-  color: var(--services-accent, hsl(31 55% 46%));
+  color: var(--services-stage-accent, hsl(38 54% 64%));
   content: "✓";
   font-size: 13px;
 }
@@ -607,13 +614,13 @@ body:has(.service-detail[open]) {
   display: flex;
   justify-content: space-between;
   padding: 18px 0;
-  border-top: 1px solid hsl(33 36% 88%);
-  border-bottom: 1px solid hsl(33 36% 88%);
+  border-top: 1px solid var(--service-detail-line);
+  border-bottom: 1px solid var(--service-detail-line);
   font-size: 10px;
 }
 
 .service-detail__delivery span {
-  color: hsl(27 7% 42%);
+  color: var(--service-detail-muted);
 }
 
 .service-detail__footer {
@@ -685,7 +692,7 @@ body:has(.service-detail[open]) {
   .service-detail__media {
     min-height: 0;
     padding: 0 12px;
-    background: var(--surface, hsl(42 34% 99%));
+    background: var(--service-detail-surface);
     grid-template-rows: min(122vw, 530px) 84px;
   }
 
@@ -720,7 +727,8 @@ body:has(.service-detail[open]) {
     bottom: 0;
     margin: 24px -20px -28px;
     padding: 12px 20px;
-    background: hsl(42 34% 99% / 0.95);
+    border-top: 1px solid var(--service-detail-line);
+    background: hsl(28 17% 12% / 0.95);
     backdrop-filter: blur(14px);
   }
 
