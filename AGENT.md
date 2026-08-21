@@ -70,27 +70,37 @@ Kod veya belge düzenlemeden önce:
 
 ## 5. Test Bütünlüğü — Testi Yeşile Boyamak Yasaktır
 
-Testler ürün sözleşmesidir. Bir özelliği düzeltmek yerine testi etkisizleştirmek ağır hata kabul edilir.
+Testler risk azaltma aracıdır; test sayısı veya coverage yüzdesi tek başına kalite hedefi değildir. Bir özelliği düzeltmek yerine testi etkisizleştirmek ağır hata kabul edilir ancak düşük değerli, tekrarlı veya güncelliğini yitirmiş testleri kontrollü biçimde kaldırmak test portföyü bakımının parçasıdır.
 
 ### Kesinlikle yasak olanlar
 
-- Test silmek veya kapsamını daraltmak.
+- Yalnız başarısızlığı gizlemek veya kapıyı yeşile boyamak amacıyla test silmek ya da kapsamını daraltmak.
 - `test.skip`, `describe.skip`, `test.only`, `describe.only`, `fixme`, `todo` ya da eşdeğer odaklama/atlama eklemek.
 - `--passWithNoTests`, `|| exit 0`, `continue-on-error` veya hata kodunu yutan wrapper kullanmak.
 - Assertionı zayıflatmak, beklenen sonucu hatalı davranışa uydurmak veya kritik kontrolü mocklamak.
 - Test verisini gerçekçi olmayan biçimde kolaylaştırmak; auth, CSRF, rol, fiyat, ödeme veya veri izolasyonunu devre dışı bırakmak.
-- Sırf test geçsin diye timeout/retry artırmak, worker/tarayıcı matrisi azaltmak veya testi koşula bağlamak.
+- Sırf test geçsin diye timeout/retry artırmak, ölçüm ve risk gerekçesi olmadan worker/tarayıcı matrisini azaltmak veya testi koşula bağlamak.
 - Test runner, Playwright config, test environment, Docker Compose veya CI dosyasını kullanıcı talebi olmadan geçiş kapısını gevşetecek şekilde değiştirmek.
 - Başarısız, atlanmış, çalışmamış, zaman aşımına uğramış veya rapor üretmemiş testi “geçti” saymak.
 - Hedefli veya hızlı yerel kontrolü çalıştırmadan değişikliği push etmek.
 - Push sonrasında GitHub Actions durumunu CLI, API, connector veya tarayıcıyla sorgulamak ya da izlemek. CI sorunu oluşursa kullanıcı agent'a bildirir.
 
-`tests/e2e/production-hardening.spec.js` içindeki Chromium dışı proje için mevcut, gerekçeli tek-proje istisnası yeni skip kullanımı için emsal değildir. Bu istisna genişletilemez veya başka testlere kopyalanamaz. Yeni bir test atlama ihtiyacı varsa agent değişiklik yapmadan önce kullanıcıdan açık onay alır.
+Playwright'ın varsayılan portföyünde kritik smoke ve sözleşme testleri Chromium'da; yalnız `@responsive` etiketli senaryolar ayrıca mobil Chromium'da çalışır. `tests/e2e/production-hardening.spec.js` yalnız masaüstü Chromium'da kalır. Yeni bir test atlama ihtiyacı varsa agent değişiklik yapmadan önce kullanıcıdan açık onay alır.
+
+### Yalın test portföyü
+
+- Frontend E2E testleri temel sayfa açılışı, kritik erişilebilirlik, güvenli hata gösterimi, API'nin veri otoritesi, oturum yönlendirmesi ve production hardening ile sınırlı tutulur.
+- Renk, boşluk, tam piksel ölçüsü, pazarlama metni, bölüm sırası, animasyon ayrıntısı veya her viewportta aynı sonucu tekrarlayan görsel kontroller için varsayılan olarak otomatik E2E eklenmez. Bunlar hedefli manuel/visual QA ile doğrulanır.
+- Aynı sözleşme unit, integration ve E2E katmanlarında tekrar ediyorsa riski en düşük maliyetle yakalayan katman korunur; diğer kopyalar kaldırılabilir.
+- Auth, CSRF, rol/veri izolasyonu, fiyat/ödeme otoritesi, PII/şifreleme, idempotency/concurrency, migration/RLS, yedek/restore ve üretim secret güvenliği testleri kritik kabul edilir; eşdeğer koruma ve açık kullanıcı yönlendirmesi olmadan kaldırılmaz.
+- CI'a veya belgelenmiş bir release akışına bağlı olmayan testler otomatik olarak değerli sayılmaz. Güncel bir riski korumuyorsa kaldırılır; koruyorsa aktif kalite kapısına bağlanır.
+- Yeni test eklerken yakalanan somut risk, neden daha ucuz bir katmanda doğrulanamadığı ve mevcut testle örtüşüp örtüşmediği değerlendirilir. Test dosyası ve senaryo sayısı gereksiz yere büyütülmez.
 
 ### Test değişikliğine izin verilen durumlar
 
 - İstenen davranış gerçekten değişiyorsa test aynı committe yeni sözleşmeyi doğrulayacak şekilde güncellenir.
-- Bir hata düzeltiliyorsa önce hatayı yakalayan regresyon testi eklenir veya mevcut testin neden yetersiz olduğu gösterilir.
+- Tekrarlı, kozmetik, kırılgan, kullanım dışı veya çalışma/bakım maliyeti koruduğu riskten yüksek olan test kaldırılabilir; kalan güvenlik ağı ve gerekçe diff incelemesinde açık olmalıdır.
+- Bir hata düzeltiliyorsa risk yüksekse veya hata tekrarlamaya yatkınsa onu en ucuz uygun katmanda yakalayan regresyon testi eklenir; düşük riskli görsel düzeltmelerde hedefli manuel doğrulama yeterli olabilir.
 - Test altyapısında gerçek bir hata varsa ürün testleri korunur; altyapı düzeltmesi ayrı ve kanıtlanabilir tutulur.
 - Test dosyasındaki değişiklik, üretim kodu değişikliği kadar dikkatle diff ve kapsam incelemesinden geçer.
 
@@ -130,7 +140,7 @@ Değişen dokümanda komut, dosya yolu veya mimari iddia varsa depodan ayrıca d
 npm run test:quick
 ```
 
-Çalıştırıcı statik doğrulamayı ve `@frontend-smoke`, `@responsive` veya `@admin` etiketli ilgili Playwright grubunu seçer. Responsive değişikliklerde Chromium masaüstü ve mobil projeleri yerelde birlikte çalışır.
+Çalıştırıcı `validate:frontend` statik kapısını ve değişikliğe göre `@frontend-smoke` veya `@responsive` Playwright grubunu seçer. Admin değişikliklerinde temel smoke yalnız masaüstü Chromium'da; responsive değişikliklerde `@responsive` grubu masaüstü ve mobil Chromium'da çalışır. Görsel ayrıntılar için geniş E2E matrisi oluşturulmaz.
 
 ### Backend TypeScript — yerel hızlı kontrol
 
@@ -223,7 +233,7 @@ Commit mesajı kısa ve açıklayıcı olmalıdır. Uygun örnekler: `fix(auth):
 Bir iş ancak aşağıdakilerin tamamı sağlandığında tamamlanmıştır:
 
 - Kullanıcı talebi ve kabul ölçütleri karşılandı.
-- Değişen davranış için uygun regresyon testi mevcut.
+- Değişen davranış riskle orantılı biçimde doğrulandı; kritik veya tekrarlamaya yatkın davranış için uygun regresyon testi mevcut.
 - Değişiklik odaklı yerel hızlı kontrol geçti; skip/only/todo veya yutulmuş hata yok.
 - Diff yalnız amaçlanan dosyaları içeriyor ve sır/kişisel veri içermiyor.
 - Dokümantasyon ve environment örnekleri davranışla uyumlu.
