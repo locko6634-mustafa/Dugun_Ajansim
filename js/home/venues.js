@@ -7,6 +7,60 @@ const FALLBACK_IMAGE = "assets/images/venue-pavilion.webp";
 const toggleText = (expanded, count) =>
   expanded ? "Daha Az Göster" : `Tüm Mekânları Gör (${count} Mekân)`;
 
+function venuePresentation(venue) {
+  const searchText =
+    `${venue.slug || ""} ${venue.name || ""} ${venue.displayName || ""}`.toLocaleLowerCase("tr-TR");
+
+  if (searchText.includes("yeşil nesil") || searchText.includes("yesil-nesil")) {
+    return {
+      description:
+        "Geniş yeşil alanı ve göl manzarasıyla açık hava davetlerine ferah bir atmosfer sunar.",
+      wide: true
+    };
+  }
+  if (searchText.includes("cess")) {
+    return {
+      description: "Modern açık hava düzeniyle özel davetlere şık bir atmosfer sunar.",
+      wide: false
+    };
+  }
+  if (searchText.includes("rena")) {
+    return {
+      description: "Ferahlık hissi veren davet alanıyla kalabalık organizasyonlara uyum sağlar.",
+      wide: false
+    };
+  }
+  if (searchText.includes("talia")) {
+    return {
+      description: "Işıklandırılmış bahçe düzeniyle akşam davetlerine sıcak bir atmosfer katar.",
+      wide: false
+    };
+  }
+  if (searchText.includes("bella")) {
+    return {
+      description: "Zarif bahçe düzeniyle açık hava organizasyonlarına seçkin bir ortam sunar.",
+      wide: false
+    };
+  }
+  if (searchText.includes("mafsel")) {
+    return {
+      description: "Doğayla iç içe bahçe düzeniyle açık hava davetlerine sakin bir atmosfer sunar.",
+      wide: false
+    };
+  }
+  if (searchText.includes("green house")) {
+    return {
+      description: "Yeşil alanlarla çevrili davet düzeniyle özel günlere ferah bir ortam sunar.",
+      wide: false
+    };
+  }
+
+  return {
+    description: "Özel davetler için özenle hazırlanmış seçkin bir buluşma noktasıdır.",
+    wide: false
+  };
+}
+
 function notifyLayoutChange() {
   window.requestAnimationFrame(() => {
     document.dispatchEvent(new window.CustomEvent("home:layoutchange"));
@@ -16,9 +70,10 @@ function notifyLayoutChange() {
 function createVenueCard(venue, index) {
   const card = document.createElement("a");
   const name = venue.displayName || venue.name;
-  const detail = venue.name && venue.name !== name ? venue.name : "Düğün ve davet mekânı";
+  const presentation = venuePresentation(venue);
   card.className = "venue-card";
   if (index >= COLLAPSED_VENUE_COUNT) card.classList.add("venue-card--extra");
+  if (presentation.wide) card.classList.add("venue-card--wide");
   card.href = "#iletisim";
   card.setAttribute("aria-label", `${name} hakkında iletişime geç`);
 
@@ -40,7 +95,7 @@ function createVenueCard(venue, index) {
 
   const info = document.createElement("span");
   info.className = "venue-card__info";
-  info.textContent = detail;
+  info.textContent = presentation.description;
 
   content.append(label, info);
   card.append(image, content);

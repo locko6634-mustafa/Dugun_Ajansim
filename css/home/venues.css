@@ -175,6 +175,10 @@
     transform 260ms var(--ease);
 }
 
+.venue-card--wide {
+  grid-column: span 2;
+}
+
 .venue-card::after {
   position: absolute;
   inset: 8px;
