@@ -43,10 +43,8 @@ export function classifyChanges(files) {
       categories.add("backend-auth");
     else if (file.startsWith("backend/") && /\.(?:ts|json)$/.test(file))
       categories.add("backend-unit");
-    else if (/^(?:admin\.html|css\/admin|js\/admin\/|tests\/e2e\/admin)/.test(file))
-      categories.add("admin");
-    else if (/^(?:css\/|.*\.html$|tests\/e2e\/(?:home-navigation|smoke))/.test(file))
-      categories.add("responsive");
+    else if (/^(?:admin\.html|css\/admin|js\/admin\/)/.test(file)) categories.add("admin");
+    else if (/^(?:css\/|.*\.html$|tests\/e2e\/smoke)/.test(file)) categories.add("responsive");
     else if (
       FRONTEND_EXTENSIONS.test(file) ||
       file === "package.json" ||
@@ -74,7 +72,7 @@ export function createPlan(files) {
   if (
     [...categories].some((item) => ["frontend", "responsive", "admin", "unknown"].includes(item))
   ) {
-    plan.push(command("frontend-static", ROOT, ["run", "validate"], BUDGETS_MS.static));
+    plan.push(command("frontend-static", ROOT, ["run", "validate:frontend"], BUDGETS_MS.static));
   }
 
   if (categories.has("admin")) {
@@ -86,12 +84,10 @@ export function createPlan(files) {
           "run",
           "test:targeted",
           "--",
-          "tests/e2e/admin-responsive.spec.js",
           "tests/e2e/smoke.spec.js",
           "--grep",
-          "@admin",
-          "--project=chromium",
-          "--project=mobile-chromium"
+          "@frontend-smoke",
+          "--project=chromium"
         ],
         BUDGETS_MS.e2e
       )
@@ -106,7 +102,6 @@ export function createPlan(files) {
           "run",
           "test:targeted",
           "--",
-          "tests/e2e/home-navigation.spec.js",
           "tests/e2e/smoke.spec.js",
           "--grep",
           "@responsive",

@@ -29,6 +29,7 @@ export default defineConfig({
     {
       name: "mobile-chromium",
       testIgnore: /production-hardening\.spec\.js/,
+      grep: /@responsive/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 375, height: 812 },

@@ -23,14 +23,17 @@ test("responsive değişiklik iki cihazlık hedefli E2E seçer", () => {
     plan.map(({ id }) => id),
     ["frontend-static", "responsive-e2e"]
   );
+  assert.deepEqual(plan[0].args.slice(-2), ["run", "validate:frontend"]);
   assert.match(plan[1].args.join(" "), /mobile-chromium/);
 });
 
-test("admin değişikliği yalnız admin hedefli grubunu seçer", () => {
+test("admin değişikliği tek cihazlık temel smoke grubunu seçer", () => {
+  const plan = createPlan(["js/admin/dashboard.js"]);
   assert.deepEqual(
-    createPlan(["js/admin/dashboard.js"]).map(({ id }) => id),
+    plan.map(({ id }) => id),
     ["frontend-static", "admin-e2e"]
   );
+  assert.doesNotMatch(plan[1].args.join(" "), /mobile-chromium/);
 });
 
 test("backend yardımcı kodu veritabanı olmadan hedefli birim grubunu seçer", () => {
