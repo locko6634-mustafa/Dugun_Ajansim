@@ -66,6 +66,67 @@ test("@responsive mobil fotoğraf ve film alanları yatay taşmadan bento vurgus
   }
 });
 
+test("@responsive fotoğraf vitrini seçkiden tüm galeriye akıcı biçimde açılır", async ({
+  page
+}) => {
+  for (const viewport of [
+    { width: 375, height: 812 },
+    { width: 1440, height: 900 }
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/index.html");
+
+    const galleryViewport = page.locator("[data-gallery-viewport]");
+    const galleryTrack = page.locator(".gallery-track");
+    const reveal = page.locator("[data-gallery-reveal]");
+
+    await expect(reveal).toBeVisible();
+    await expect(reveal).toHaveAttribute("aria-expanded", "false");
+    await expect(reveal).toContainText("Tümünü Gör");
+
+    const collapsed = await page.evaluate(() => {
+      const frame = document.querySelector("[data-gallery-viewport]");
+      const track = document.querySelector(".gallery-track");
+      const fifthCard = document.querySelector('.gallery-card[data-gallery-index="4"]');
+      const frameRect = frame.getBoundingClientRect();
+      const fifthRect = fifthCard.getBoundingClientRect();
+
+      return {
+        frameHeight: frameRect.height,
+        trackHeight: track.getBoundingClientRect().height,
+        partialCardPixels: frameRect.bottom - fifthRect.top,
+        fifthCardInert: fifthCard.inert
+      };
+    });
+
+    expect(collapsed.frameHeight).toBeLessThan(collapsed.trackHeight - 40);
+    expect(collapsed.partialCardPixels).toBeGreaterThan(32);
+    expect(collapsed.partialCardPixels).toBeLessThan(collapsed.frameHeight);
+    expect(collapsed.fifthCardInert).toBe(true);
+
+    await reveal.click();
+    await expect(reveal).toHaveAttribute("aria-expanded", "true");
+    await expect(reveal).toContainText("Daha Az Göster");
+    await expect
+      .poll(async () => {
+        const [frameBox, trackBox] = await Promise.all([
+          galleryViewport.boundingBox(),
+          galleryTrack.boundingBox()
+        ]);
+        return Math.abs(frameBox.height - trackBox.height);
+      })
+      .toBeLessThanOrEqual(1);
+    await expect(page.locator('.gallery-card[data-gallery-index="4"]')).not.toHaveAttribute(
+      "inert",
+      ""
+    );
+
+    await reveal.click();
+    await expect(reveal).toHaveAttribute("aria-expanded", "false");
+    await expect(reveal).toContainText("Tümünü Gör");
+  }
+});
+
 test("@responsive mobil hizmet kartları koyu sahnede kompakt kalır", async ({ page }) => {
   await page.route("**/api/v1/catalog", (route) =>
     route.fulfill({

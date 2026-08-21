@@ -250,102 +250,144 @@
               <p>Gerçek düğünlerden öne çıkan kareler.</p>
             </header>
 
-            <div class="gallery-track" aria-label="Düğün fotoğrafları galerisi">
-              <button class="gallery-card gallery-card--tall" type="button" data-gallery-index="0">
-                <img
-                  src="/media/images/wedding-gallery-01.webp"
-                  alt="Çiçek yaprakları arasında yürüyen gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
+            <div class="gallery-viewport" id="gallery-collection" data-gallery-viewport>
+              <div class="gallery-track" aria-label="Düğün fotoğrafları galerisi">
+                <button
+                  class="gallery-card gallery-card--tall"
+                  type="button"
+                  data-gallery-index="0"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-01.webp"
+                    alt="Çiçek yaprakları arasında yürüyen gelin ve damat"
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+                </button>
+                <button
+                  class="gallery-card gallery-card--medium"
+                  type="button"
+                  data-gallery-index="1"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-02.webp"
+                    alt="Hareketli davetliler arasında birbirini öpen gelin ve damat"
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+                </button>
+                <button
+                  class="gallery-card gallery-card--hero"
+                  type="button"
+                  data-gallery-index="2"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-03.webp"
+                    alt="Düğün eğlencesinde renkli gözlüklerle poz veren çift"
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+                </button>
+                <button
+                  class="gallery-card gallery-card--short"
+                  type="button"
+                  data-gallery-index="3"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-04.webp"
+                    alt="Çiçek yaprakları altında el ele yürüyen gelin ve damat"
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+                </button>
+                <button
+                  class="gallery-card gallery-card--medium"
+                  type="button"
+                  data-gallery-index="4"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-05.webp"
+                    alt="Düğün eğlencesinde dans eden gelin ve damat"
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+                </button>
+                <button
+                  class="gallery-card gallery-card--tall"
+                  type="button"
+                  data-gallery-index="5"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-06.webp"
+                    alt="Çiçekli nikâh kapısında gelin ve damat"
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+                </button>
+                <button
+                  class="gallery-card gallery-card--hero"
+                  type="button"
+                  data-gallery-index="6"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-07.webp"
+                    alt="Açık hava düğününde birbirine sarılan gelin ve damat"
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+                </button>
+                <button
+                  class="gallery-card gallery-card--short"
+                  type="button"
+                  data-gallery-index="7"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-08.webp"
+                    alt="Çiçekli nikâh alanında poz veren gelin ve damat"
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="gallery-reveal-row">
               <button
-                class="gallery-card gallery-card--medium"
+                class="gallery-reveal"
                 type="button"
-                data-gallery-index="1"
+                aria-controls="gallery-collection"
+                aria-expanded="false"
+                data-gallery-reveal
+                hidden
               >
-                <img
-                  src="/media/images/wedding-gallery-02.webp"
-                  alt="Hareketli davetliler arasında birbirini öpen gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button class="gallery-card gallery-card--hero" type="button" data-gallery-index="2">
-                <img
-                  src="/media/images/wedding-gallery-03.webp"
-                  alt="Düğün eğlencesinde renkli gözlüklerle poz veren çift"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button class="gallery-card gallery-card--short" type="button" data-gallery-index="3">
-                <img
-                  src="/media/images/wedding-gallery-04.webp"
-                  alt="Çiçek yaprakları altında el ele yürüyen gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button
-                class="gallery-card gallery-card--medium"
-                type="button"
-                data-gallery-index="4"
-              >
-                <img
-                  src="/media/images/wedding-gallery-05.webp"
-                  alt="Düğün eğlencesinde dans eden gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button class="gallery-card gallery-card--tall" type="button" data-gallery-index="5">
-                <img
-                  src="/media/images/wedding-gallery-06.webp"
-                  alt="Çiçekli nikâh kapısında gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button class="gallery-card gallery-card--hero" type="button" data-gallery-index="6">
-                <img
-                  src="/media/images/wedding-gallery-07.webp"
-                  alt="Açık hava düğününde birbirine sarılan gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button class="gallery-card gallery-card--short" type="button" data-gallery-index="7">
-                <img
-                  src="/media/images/wedding-gallery-08.webp"
-                  alt="Çiçekli nikâh alanında poz veren gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+                <span data-gallery-reveal-label>Tümünü Gör</span>
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="m5.5 7.5 4.5 4.25 4.5-4.25" />
+                </svg>
               </button>
             </div>
           </div>
