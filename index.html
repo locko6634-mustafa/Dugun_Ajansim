@@ -186,7 +186,7 @@
             </div>
           </div>
 
-          <div class="hero-collage" aria-label="Düğün fotoğraf çekimi örnekleri">
+          <div class="hero-collage" aria-label="Düğün Ajansım çekim ekibi">
             <figure class="photo photo--main">
               <img
                 src="assets/images/hero-team.webp"
@@ -197,45 +197,6 @@
                 decoding="sync"
               />
             </figure>
-            <figure class="photo photo--bride">
-              <img
-                src="assets/images/bride-portrait.webp"
-                alt="Beyaz çiçek buketi taşıyan gelin"
-                width="800"
-                height="1000"
-              />
-            </figure>
-            <figure class="photo photo--venue">
-              <img
-                src="assets/images/venue-pavilion.webp"
-                alt="Deniz manzaralı beyaz nikâh çardağı"
-                width="1200"
-                height="800"
-              />
-            </figure>
-            <figure class="photo photo--groom">
-              <img
-                src="assets/images/groom-portrait.webp"
-                alt="Siyah smokinli damat"
-                width="800"
-                height="1000"
-                loading="lazy"
-              />
-            </figure>
-
-            <div class="anniversary" aria-label="8. yıl">
-              <span class="anniversary__number">8.</span>
-              <span class="anniversary__label">Yıl</span>
-              <svg viewBox="0 0 140 56" aria-hidden="true">
-                <path d="M65 49C40 45 25 33 16 10M75 49c25-4 40-16 49-39" />
-                <path
-                  d="m20 18-8-6 1 10M29 29l-8-3 4 8M39 38l-8 0 6 6M120 18l8-6-1 10M111 29l8-3-4 8M101 38l8 0-6 6"
-                />
-              </svg>
-            </div>
-            <span class="spark spark--one">✦</span>
-            <span class="spark spark--two">✦</span>
-            <span class="spark spark--three">·</span>
           </div>
         </div>
       </section>
@@ -255,7 +216,7 @@
           </header>
 
           <div class="shoots-gallery" aria-label="Düğün ve nişan video çekimleri">
-            <div class="shoots-grid">
+            <div class="shoots-grid" id="shoots-collection" data-shoots-viewport>
               <article class="shoot-card">
                 <div class="shoot-card__media shoot-card__media--cess">
                   <video muted loop playsinline preload="none" aria-label="Cess Orman düğün çekimi">
@@ -439,6 +400,22 @@
                   <h3>Emir &amp; Zeynep</h3>
                 </div>
               </article>
+            </div>
+
+            <div class="shoots-reveal-row">
+              <button
+                class="shoots-reveal"
+                type="button"
+                aria-controls="shoots-collection"
+                aria-expanded="false"
+                data-shoots-reveal
+                hidden
+              >
+                <span data-shoots-reveal-label>Tümünü Gör</span>
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="m5.5 7.5 4.5 4.25 4.5-4.25" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>

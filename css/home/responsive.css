@@ -44,20 +44,7 @@
   }
 
   .hero-collage {
-    height: clamp(210px, 65vw, 254px);
-  }
-
-  .anniversary {
-    width: clamp(76px, 21vw, 94px);
-    height: clamp(76px, 21vw, 94px);
-  }
-
-  .anniversary__number {
-    font-size: clamp(28px, 8vw, 35px);
-  }
-
-  .anniversary__label {
-    font-size: clamp(15px, 4.4vw, 19px);
+    height: auto;
   }
 
   .proof-pill {

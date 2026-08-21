@@ -1,8 +1,57 @@
 const shootCards = [...document.querySelectorAll(".shoot-card")];
+const shootsViewport = document.querySelector("[data-shoots-viewport]");
+const shootsGrid = shootsViewport;
+const shootsReveal = document.querySelector("[data-shoots-reveal]");
+const shootsRevealLabel = shootsReveal?.querySelector("[data-shoots-reveal-label]");
 const videoLightbox = document.querySelector(".video-lightbox");
 const videoLightboxClose = videoLightbox.querySelector(".video-lightbox__close");
 let activeVideo = null;
 let activeVideoPlaceholder = null;
+
+if (shootsViewport && shootsGrid && shootsReveal && shootsRevealLabel && shootCards.length > 4) {
+  const setCollapsedCardAccess = (isExpanded) => {
+    shootCards.slice(4).forEach((card) => {
+      card.toggleAttribute("inert", !isExpanded);
+    });
+  };
+
+  const syncExpandedHeight = () => {
+    const firstCollapsedCard = shootCards[4];
+    const gridTop = shootsGrid.getBoundingClientRect().top;
+    const collapsedCardRect = firstCollapsedCard.getBoundingClientRect();
+    const collapsedPreviewHeight = Math.min(Math.max(collapsedCardRect.height * 0.18, 56), 92);
+
+    shootsViewport.style.setProperty("--shoots-expanded-height", `${shootsGrid.scrollHeight}px`);
+    shootsViewport.style.setProperty(
+      "--shoots-collapsed-height",
+      `${collapsedCardRect.top - gridTop + collapsedPreviewHeight}px`
+    );
+  };
+
+  const setShootsExpanded = (isExpanded) => {
+    syncExpandedHeight();
+    shootsViewport.classList.toggle("is-expanded", isExpanded);
+    shootsReveal.classList.toggle("is-expanded", isExpanded);
+    shootsReveal.setAttribute("aria-expanded", String(isExpanded));
+    shootsRevealLabel.textContent = isExpanded ? "Daha Az Göster" : "Tümünü Gör";
+    setCollapsedCardAccess(isExpanded);
+  };
+
+  syncExpandedHeight();
+  shootsViewport.classList.add("is-collapsible");
+  shootsReveal.hidden = false;
+  setShootsExpanded(false);
+
+  shootsReveal.addEventListener("click", () => {
+    setShootsExpanded(shootsReveal.getAttribute("aria-expanded") !== "true");
+  });
+
+  if ("ResizeObserver" in window) {
+    new window.ResizeObserver(syncExpandedHeight).observe(shootsGrid);
+  } else {
+    window.addEventListener("resize", syncExpandedHeight, { passive: true });
+  }
+}
 
 function loadVideo(video) {
   if (video.dataset.loaded === "true") return;

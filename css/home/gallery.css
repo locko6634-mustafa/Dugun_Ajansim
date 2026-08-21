@@ -55,12 +55,9 @@
 }
 
 .gallery-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.72fr);
-  align-items: end;
-  gap: clamp(24px, 5vw, 80px);
-  max-width: 1040px;
-  margin: 0 0 clamp(36px, 4.5vw, 66px);
+  max-width: 920px;
+  margin: 0 auto clamp(44px, 5vw, 72px);
+  text-align: center;
 }
 
 .gallery-heading h2 {
@@ -91,10 +88,8 @@
 }
 
 .gallery-heading > p {
-  max-width: 410px;
-  margin: 0 0 0.35em;
-  padding-left: clamp(18px, 2.8vw, 42px);
-  border-left: 1px solid hsl(33 46% 46% / 0.4);
+  max-width: 740px;
+  margin: 26px auto 0;
   color: var(--gallery-muted);
   font-size: clamp(13px, 1.1vw, 16px);
   line-height: 1.72;
@@ -298,10 +293,10 @@
   align-items: center;
   gap: 11px;
   color: var(--gallery-ink);
-  background: linear-gradient(135deg, hsl(33 22% 18% / 0.88), hsl(27 17% 11% / 0.92));
+  background: hsl(42 43% 99% / 0.78);
   box-shadow:
-    0 12px 30px hsl(0 0% 0% / 0.22),
-    inset 0 1px hsl(42 54% 82% / 0.1);
+    0 12px 30px hsl(31 23% 34% / 0.12),
+    inset 0 1px hsl(0 0% 100% / 0.86);
   font-family: var(--sans);
   font-size: 10px;
   font-weight: 720;
@@ -330,9 +325,9 @@
 .gallery-reveal:hover,
 .gallery-reveal:focus-visible {
   border-color: var(--gallery-gold);
-  color: hsl(29 22% 8%);
+  color: hsl(0 0% 100%);
   background: var(--gallery-gold);
-  box-shadow: 0 16px 34px hsl(0 0% 0% / 0.28);
+  box-shadow: 0 16px 34px hsl(31 35% 34% / 0.2);
   transform: translateY(-2px);
 }
 
@@ -499,12 +494,6 @@
   }
 }
 
-@media (max-width: 900px) {
-  .gallery-heading {
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 0.7fr);
-  }
-}
-
 @media (max-width: 760px) {
   .gallery-section {
     --gallery-collapsed-height: clamp(500px, 150vw, 900px);
@@ -529,7 +518,6 @@
   }
 
   .gallery-heading {
-    display: block;
     margin-bottom: clamp(28px, 8vw, 38px);
     padding-inline: clamp(7px, 2.5vw, 14px);
   }
@@ -544,8 +532,9 @@
 
   .gallery-heading > p {
     max-width: 290px;
-    margin: 18px 0 0;
-    padding-left: 14px;
+    margin: 18px auto 0;
+    padding-left: 0;
+    border-left: 0;
     font-size: clamp(11px, 3.25vw, 14px);
     line-height: 1.58;
   }
