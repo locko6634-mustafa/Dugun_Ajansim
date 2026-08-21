@@ -21,6 +21,61 @@ for (const pagePath of criticalPages) {
   });
 }
 
+test("@frontend-smoke @responsive ana sayfa dinamik kartları kompakt gridde tutar", async ({
+  page
+}) => {
+  const services = Array.from({ length: 8 }, (_, index) => ({
+    code: `service-${index + 1}`,
+    category: "photo",
+    name: `Hizmet ${index + 1}`,
+    description: "Düğün gününe özel profesyonel çekim hizmeti.",
+    priceCents: 100_000 + index,
+    imagePath: "assets/images/services/fotograf-cekimi.webp"
+  }));
+  const venues = Array.from({ length: 5 }, (_, index) => ({
+    name: `Mekân ${index + 1}`,
+    displayName: `Mekân ${index + 1}`,
+    isFeatured: true,
+    imagePath: "assets/images/venues/cess.webp"
+  }));
+
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { packages: [], services } })
+    })
+  );
+  await page.route("**/api/v1/venues", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: venues })
+    })
+  );
+
+  await page.goto("/index.html");
+  const serviceCards = page.locator(".service-card");
+  await expect(serviceCards).toHaveCount(8);
+
+  const viewportWidth = page.viewportSize()?.width || 1440;
+  const expectedColumns = viewportWidth <= 1060 ? 2 : 4;
+  const serviceTops = await serviceCards.evaluateAll((cards) =>
+    cards.map((card) => Math.round(card.getBoundingClientRect().top))
+  );
+  expect(new Set(serviceTops.slice(0, expectedColumns)).size).toBe(1);
+  expect(serviceTops[expectedColumns]).toBeGreaterThan(serviceTops[0]);
+
+  const venueCards = page.locator(".venue-card");
+  await expect(venueCards).toHaveCount(5);
+  if (viewportWidth <= 780) {
+    await page.locator(".js-venues-toggle").click();
+    await expect(venueCards).toHaveCount(5);
+    const firstVenue = await venueCards.first().boundingBox();
+    const lastVenue = await venueCards.last().boundingBox();
+    expect(Math.abs((lastVenue?.height || 0) - (firstVenue?.height || 0))).toBeLessThanOrEqual(1);
+    expect(lastVenue?.width || 0).toBeGreaterThan(firstVenue?.width || 0);
+  }
+});
+
 test("@frontend-smoke @responsive paket oluşturucu sunucu ayrıntısını gizler", async ({ page }) => {
   const backendFailure = {
     success: false,

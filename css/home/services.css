@@ -88,7 +88,7 @@
 
 .services-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: clamp(10px, 1.1vw, 18px);
   counter-reset: service-card;
 }
@@ -105,7 +105,7 @@
 }
 
 .service-card {
-  display: grid;
+  display: block;
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--services-border);
@@ -114,7 +114,6 @@
   background: hsl(28 18% 11% / 0.86);
   box-shadow: 0 20px 40px hsl(24 28% 3% / 0.24);
   counter-increment: service-card;
-  grid-template-columns: minmax(190px, 0.72fr) minmax(0, 1fr);
   transition:
     transform 360ms var(--ease),
     box-shadow 360ms var(--ease);
@@ -127,8 +126,8 @@
 
 .service-card__media {
   position: relative;
-  min-height: clamp(360px, 33vw, 500px);
-  height: 100%;
+  min-height: 0;
+  height: clamp(160px, 16vw, 230px);
   margin: 0;
   overflow: hidden;
   background: hsl(35 24% 91%);
@@ -173,15 +172,15 @@
 .service-card__body {
   position: relative;
   display: flex;
-  min-height: 0;
-  padding: clamp(30px, 3vw, 46px);
+  min-height: clamp(240px, 21vw, 300px);
+  padding: clamp(34px, 3vw, 44px) clamp(20px, 2vw, 30px) 24px;
   flex-direction: column;
 }
 
 .service-card__body::before {
   position: absolute;
-  top: clamp(25px, 2.5vw, 38px);
-  right: clamp(25px, 2.5vw, 38px);
+  top: clamp(18px, 1.8vw, 25px);
+  right: clamp(18px, 1.8vw, 25px);
   color: hsl(38 46% 72% / 0.62);
   content: counter(service-card, decimal-leading-zero);
   font-size: 10px;
@@ -190,18 +189,20 @@
 }
 
 .service-card__icon {
-  position: static;
+  position: absolute;
+  top: 0;
+  left: clamp(20px, 2vw, 30px);
   display: grid;
   width: 48px;
   height: 48px;
-  margin-bottom: auto;
+  margin: 0;
   border: 1px solid hsl(38 34% 70% / 0.28);
   border-radius: 2px;
   color: var(--services-stage-accent);
   background: transparent;
   box-shadow: none;
   place-items: center;
-  transform: none;
+  transform: translateY(-50%);
 }
 
 .service-card__icon svg {
@@ -214,9 +215,9 @@
 }
 
 .service-card h3 {
-  margin: clamp(38px, 5vw, 74px) 0 14px;
+  margin: 18px 0 12px;
   font-family: var(--serif);
-  font-size: clamp(25px, 2.1vw, 34px);
+  font-size: clamp(22px, 2vw, 30px);
   font-weight: 400;
   letter-spacing: -0.035em;
   line-height: 1.08;
@@ -273,6 +274,18 @@
   .services-heading > p {
     max-width: 560px;
   }
+
+  .services-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .service-card__media {
+    height: clamp(210px, 28vw, 290px);
+  }
+
+  .service-card__body {
+    min-height: 230px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -317,23 +330,28 @@
   }
 
   .services-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: clamp(6px, 1.9vw, 9px);
   }
 
   .service-card {
     border-radius: 2px;
-    grid-template-columns: minmax(118px, 0.72fr) minmax(0, 1.28fr);
   }
 
   .service-card__media {
-    min-height: clamp(220px, 66vw, 284px);
-    height: 100%;
+    min-height: 0;
+    height: clamp(98px, 29vw, 126px);
   }
 
   .service-card__body {
-    min-height: 0;
-    padding: clamp(18px, 5vw, 26px) clamp(12px, 4vw, 20px);
+    min-height: clamp(146px, 40vw, 170px);
+    padding: clamp(24px, 6.5vw, 29px) clamp(8px, 2.5vw, 12px) clamp(9px, 2.8vw, 13px);
+  }
+
+  .service-card__body::before {
+    top: 9px;
+    right: 8px;
+    font-size: 8px;
   }
 
   .service-card__icon {
@@ -346,7 +364,7 @@
   }
 
   .service-card h3 {
-    margin-top: clamp(24px, 7vw, 36px);
+    margin-top: 0;
     margin-bottom: 7px;
     font-size: clamp(15px, 4.5vw, 18px);
     line-height: 1.04;
@@ -379,10 +397,6 @@
   .service-card__body {
     min-height: 144px;
     padding-inline: 7px;
-  }
-
-  .service-card {
-    grid-template-columns: minmax(108px, 0.68fr) minmax(0, 1.32fr);
   }
 }
 
