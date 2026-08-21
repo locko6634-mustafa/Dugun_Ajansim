@@ -74,9 +74,22 @@ test("@frontend-smoke @responsive ana sayfa dinamik kartları kompakt gridde tut
     /Mekân 5/,
     /Mekân 6/
   ]);
-  await expect(page.locator(".venues-toggle-wrapper")).toBeHidden();
-
   const venueColumns = viewportWidth <= 780 ? 2 : 3;
+  const venuesToggle = page.locator(".js-venues-toggle");
+  if (viewportWidth <= 780) {
+    await expect(venueCards.nth(3)).toBeVisible();
+    await expect(venueCards.nth(4)).toBeHidden();
+    await expect(venuesToggle).toBeVisible();
+    await venuesToggle.click();
+    await expect(venueCards.nth(4)).toBeVisible();
+    await expect(venueCards.nth(5)).toBeVisible();
+
+    const firstImage = await venueCards.first().locator(".venue-card__image").boundingBox();
+    expect(firstImage?.height || 0).toBeLessThanOrEqual(220);
+  } else {
+    await expect(page.locator(".venues-toggle-wrapper")).toBeHidden();
+  }
+
   const venueTops = await venueCards.evaluateAll((cards) =>
     cards.map((card) => Math.round(card.getBoundingClientRect().top))
   );

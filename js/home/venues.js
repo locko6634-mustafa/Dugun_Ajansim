@@ -1,7 +1,7 @@
 import { apiRequest } from "../shared/api-client.js";
 import { isSafeImageAssetPath, safeImageAssetPath } from "../shared/asset-url.js";
 
-const COLLAPSED_VENUE_COUNT = 6;
+const COLLAPSED_VENUE_COUNT = 4;
 const FALLBACK_IMAGE = "assets/images/venue-pavilion.webp";
 
 const toggleText = (expanded, count) =>
@@ -13,13 +13,12 @@ function notifyLayoutChange() {
   });
 }
 
-function createVenueCard(venue, index, total) {
+function createVenueCard(venue, index) {
   const card = document.createElement("a");
   const name = venue.displayName || venue.name;
   const detail = venue.name && venue.name !== name ? venue.name : "Düğün ve davet mekânı";
   card.className = "venue-card";
   if (index >= COLLAPSED_VENUE_COUNT) card.classList.add("venue-card--extra");
-  if (total % 2 === 1 && index === total - 1) card.classList.add("venue-card--last-odd");
   card.href = "#iletisim";
   card.setAttribute("aria-label", `${name} hakkında iletişime geç`);
 
@@ -107,7 +106,7 @@ async function loadVenues() {
       return;
     }
 
-    grid.append(...venues.map((venue, index) => createVenueCard(venue, index, venues.length)));
+    grid.append(...venues.map((venue, index) => createVenueCard(venue, index)));
     updateToggle(venues.length);
     notifyLayoutChange();
   } catch {
