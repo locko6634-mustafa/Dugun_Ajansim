@@ -1,24 +1,23 @@
-/* Cinematic light-table video stage */
+/* Uniform portrait darkroom video stage */
 .shoots-section {
-  --shoots-ink: hsl(28 18% 12%);
-  --shoots-muted: hsl(28 8% 39%);
-  --shoots-line: hsl(34 34% 78%);
+  --shoots-ink: hsl(38 34% 94%);
+  --shoots-muted: hsl(35 14% 70%);
+  --shoots-line: hsl(38 32% 34%);
   position: relative;
   isolation: isolate;
   overflow: hidden;
   padding: 0;
   color: var(--shoots-ink);
   background:
-    radial-gradient(circle at 86% 8%, hsl(36 67% 87% / 0.78), transparent 23%),
-    radial-gradient(circle at 12% 82%, hsl(39 42% 91% / 0.72), transparent 26%),
-    linear-gradient(137deg, hsl(42 43% 99%), hsl(34 34% 94%));
+    radial-gradient(circle at 12% 8%, hsl(35 52% 38% / 0.24), transparent 26%),
+    linear-gradient(143deg, hsl(28 18% 9%), hsl(25 20% 5%));
 }
 
 .shoots-section::before {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background-image: radial-gradient(hsl(30 27% 48% / 0.13) 0.65px, transparent 0.75px);
+  background-image: radial-gradient(hsl(38 48% 72% / 0.12) 0.65px, transparent 0.75px);
   background-size: 7px 7px;
   content: "";
   mask-image: linear-gradient(145deg, black, transparent 72%);
@@ -63,7 +62,7 @@
 .shoots-heading h2 .section-title__lead {
   display: block;
   margin-bottom: 1em;
-  color: var(--gold-dark);
+  color: var(--gold-light);
   font-family: var(--sans);
   font-size: 0.14em;
   font-weight: 720;
@@ -82,7 +81,7 @@
   max-width: 410px;
   margin: 0 0 0.35em;
   padding-left: clamp(18px, 2.8vw, 42px);
-  border-left: 1px solid hsl(33 46% 46% / 0.4);
+  border-left: 1px solid hsl(38 54% 66% / 0.42);
   color: var(--shoots-muted);
   font-size: clamp(13px, 1.1vw, 16px);
   line-height: 1.72;
@@ -99,7 +98,7 @@
   inset: clamp(-18px, -1.4vw, -10px) clamp(4px, 1vw, 14px) clamp(-12px, -1vw, -7px)
     clamp(-12px, -1vw, -7px);
   z-index: -1;
-  border: 1px solid hsl(33 43% 57% / 0.3);
+  border: 1px solid hsl(38 57% 65% / 0.22);
   border-radius: clamp(22px, 2.4vw, 36px);
   content: "";
   pointer-events: none;
@@ -113,10 +112,10 @@
   z-index: 2;
   width: clamp(36px, 4vw, 56px);
   height: clamp(36px, 4vw, 56px);
-  border: 1px solid hsl(33 44% 48% / 0.36);
+  border: 1px solid hsl(38 57% 65% / 0.3);
   border-radius: 50%;
-  background: hsl(40 45% 97% / 0.76);
-  box-shadow: inset 0 0 0 7px hsl(40 45% 97% / 0.84);
+  background: hsl(27 18% 12% / 0.82);
+  box-shadow: inset 0 0 0 7px hsl(27 18% 12% / 0.86);
   content: "";
   pointer-events: none;
 }
@@ -125,8 +124,8 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(14, minmax(0, 1fr));
-  grid-template-rows: repeat(4, clamp(132px, 11vw, 174px));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: none;
   gap: clamp(8px, 0.9vw, 14px);
 }
 
@@ -713,5 +712,40 @@
   .shoot-card__open::before,
   .shoot-card__open::after {
     transition: none;
+  }
+}
+
+.shoot-card,
+.shoot-card:nth-child(n) {
+  --shoot-shift-x: 0px;
+  --shoot-shift-y: 0px;
+  aspect-ratio: 3 / 4;
+  border-radius: clamp(12px, 1vw, 18px);
+  grid-column: auto;
+  grid-row: auto;
+}
+
+@media (max-width: 1000px) {
+  .shoots-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .shoots-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+  }
+
+  .shoot-card,
+  .shoot-card:nth-child(n) {
+    border-radius: clamp(10px, 3vw, 14px);
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .shoot-card:not(:first-child) .shoot-card__open::before,
+  .shoot-card:not(:first-child) .shoot-card__open::after {
+    opacity: 1;
   }
 }

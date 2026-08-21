@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 const expectedSectionOrder = [
   "#anasayfa",
-  "#galeri",
   "#cekimler",
+  "#galeri",
   "#hizmetler",
   "#mekanlar",
   "#paket-olustur",
@@ -33,7 +33,7 @@ test("@responsive kaldirilan tanitim bolumleri sayfada ve navigasyonda yer almaz
   await expect(page.locator('a[href="#hakkimizda"], a[href="#konseptler"]')).toHaveCount(0);
 });
 
-test("@responsive mobil fotoğraf alanı eşit dikey kartlar, film alanı bento vurgusu kullanır", async ({
+test("@responsive mobil fotoğraf ve film alanları eşit dikey kartlar kullanır", async ({
   page
 }) => {
   for (const viewport of [
@@ -54,8 +54,8 @@ test("@responsive mobil fotoğraf alanı eşit dikey kartlar, film alanı bento 
         shootsOverflow: shootsGrid.scrollWidth - shootsGrid.clientWidth,
         galleryWidths: galleryCards.map((card) => card.getBoundingClientRect().width),
         galleryHeights: galleryCards.map((card) => card.getBoundingClientRect().height),
-        shootsFeaturedWidth: shootCards[0].getBoundingClientRect().width,
-        shootsSupportWidth: shootCards[1].getBoundingClientRect().width
+        shootsWidths: shootCards.map((card) => card.getBoundingClientRect().width),
+        shootsHeights: shootCards.map((card) => card.getBoundingClientRect().height)
       };
     });
 
@@ -70,7 +70,12 @@ test("@responsive mobil fotoğraf alanı eşit dikey kartlar, film alanı bento 
     expect(
       layout.galleryHeights.every((height, index) => height / layout.galleryWidths[index] > 1.25)
     ).toBe(true);
-    expect(layout.shootsFeaturedWidth).toBeGreaterThan(layout.shootsSupportWidth * 1.85);
+    expect(Math.max(...layout.shootsWidths) - Math.min(...layout.shootsWidths)).toBeLessThanOrEqual(
+      1
+    );
+    expect(
+      layout.shootsHeights.every((height, index) => height / layout.shootsWidths[index] > 1.25)
+    ).toBe(true);
   }
 });
 
@@ -214,7 +219,7 @@ test("@responsive tum mobil section gecisleri kompakt dikey ritmi korur", async 
   await expect(page.locator(".gallery-cta")).toHaveCount(0);
   expect(gallerySectionBox).not.toBeNull();
   expect(shootsSectionBox).not.toBeNull();
-  expect(shootsSectionBox.y - (gallerySectionBox.y + gallerySectionBox.height)).toBeLessThanOrEqual(
+  expect(gallerySectionBox.y - (shootsSectionBox.y + shootsSectionBox.height)).toBeLessThanOrEqual(
     60
   );
 
@@ -406,14 +411,14 @@ test("@responsive header bulundugu yuzeye gore acik ve koyu kontrasta gecer", as
   await expect.poll(textBrightness).toBeLessThan(100);
 
   await moveSurfaceUnderHeader(".gallery-section");
-  await expect(header).toHaveAttribute("data-current-surface", "dark");
-  await expect(header).toHaveClass(/is-on-dark/);
-  await expect.poll(textBrightness).toBeGreaterThan(180);
-
-  await moveSurfaceUnderHeader(".shoots-section");
   await expect(header).toHaveAttribute("data-current-surface", "light");
   await expect(header).not.toHaveClass(/is-on-dark/);
   await expect.poll(textBrightness).toBeLessThan(100);
+
+  await moveSurfaceUnderHeader(".shoots-section");
+  await expect(header).toHaveAttribute("data-current-surface", "dark");
+  await expect(header).toHaveClass(/is-on-dark/);
+  await expect.poll(textBrightness).toBeGreaterThan(180);
 
   await moveSurfaceUnderHeader(".venues-section");
   await expect(header).toHaveAttribute("data-current-surface", "dark");
