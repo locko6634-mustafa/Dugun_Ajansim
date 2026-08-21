@@ -1,22 +1,26 @@
 :root {
-  --paper: hsl(38 38% 98%);
-  --paper-deep: hsl(35 40% 96%);
-  --ink: hsl(28 11% 12%);
-  --ink-soft: hsl(30 6% 34%);
-  --gold: hsl(33 54% 48%);
-  --gold-dark: hsl(32 56% 40%);
-  --gold-light: hsl(37 65% 72%);
-  --line: hsl(34 38% 88%);
+  --paper: hsl(42 35% 97%);
+  --paper-deep: hsl(36 24% 92%);
+  --ink: hsl(24 17% 9%);
+  --ink-soft: hsl(26 8% 34%);
+  --espresso: hsl(24 19% 8%);
+  --espresso-soft: hsl(25 16% 13%);
+  --ivory: hsl(42 38% 96%);
+  --gold: hsl(35 48% 50%);
+  --gold-dark: hsl(33 49% 38%);
+  --gold-light: hsl(38 52% 70%);
+  --gold-muted: hsl(37 28% 76%);
+  --line: hsl(34 24% 82%);
   --white: hsl(0 0% 100%);
   --serif: "Italiana", "Times New Roman", serif;
   --script: "Parisienne", cursive;
   --sans: "Manrope", Arial, sans-serif;
-  --radius-sm: 18px;
-  --radius-md: 28px;
-  --shadow-soft: 0 20px 60px hsl(31 27% 40% / 0.11);
-  --shadow-photo: 0 16px 40px hsl(27 23% 26% / 0.16);
+  --radius-sm: 12px;
+  --radius-md: 22px;
+  --shadow-soft: 0 24px 70px hsl(24 20% 15% / 0.1);
+  --shadow-photo: 0 28px 80px hsl(24 21% 12% / 0.18);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --header-height: 80px;
+  --header-height: 78px;
 }
 
 * {
@@ -34,8 +38,8 @@ body {
   padding-top: var(--header-height);
   color: var(--ink);
   background:
-    radial-gradient(circle at 70% 15%, hsl(36 68% 94% / 0.62), transparent 28%),
-    linear-gradient(135deg, var(--paper) 0%, hsl(42 33% 99%) 52%, var(--paper-deep) 100%);
+    radial-gradient(circle at 68% 10%, hsl(38 50% 90% / 0.45), transparent 30%),
+    linear-gradient(135deg, var(--paper) 0%, hsl(42 40% 99%) 52%, var(--paper-deep) 100%);
   font-family: var(--sans);
   overflow-x: hidden;
 }
