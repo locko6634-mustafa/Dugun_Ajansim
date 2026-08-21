@@ -194,9 +194,12 @@ function syncHeaderSurface() {
     return bounds.top <= probeY && bounds.bottom > probeY;
   });
   const surfaceName = activeSurface?.dataset.headerSurface === "dark" ? "dark" : "light";
+  const isDarkSurface = surfaceName === "dark";
 
-  siteHeader.classList.toggle("is-on-dark", surfaceName === "dark");
+  siteHeader.classList.toggle("is-on-dark", isDarkSurface);
   siteHeader.dataset.currentSurface = surfaceName;
+  mobileMenu.classList.toggle("is-on-dark", isDarkSurface);
+  mobileMenu.dataset.currentSurface = surfaceName;
 }
 
 function syncActiveNav() {

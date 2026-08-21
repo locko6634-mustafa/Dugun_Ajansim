@@ -742,7 +742,17 @@ button {
     transform: translateY(-18px);
     transition:
       opacity 220ms ease,
-      transform 320ms var(--ease);
+      transform 320ms var(--ease),
+      color 260ms ease,
+      border-color 260ms ease,
+      background-color 260ms ease;
+  }
+
+  .mobile-menu.is-on-dark {
+    border-bottom-color: hsl(37 44% 70% / 0.2);
+    color: hsl(39 30% 94%);
+    background: hsl(24 19% 8% / 0.98);
+    box-shadow: 0 25px 40px hsl(24 24% 4% / 0.32);
   }
 
   .mobile-menu.is-open {
@@ -764,7 +774,12 @@ button {
     font-size: 24px;
     transition:
       color 220ms ease,
+      border-color 220ms ease,
       background-color 220ms ease;
+  }
+
+  .mobile-menu.is-on-dark nav a {
+    border-bottom-color: hsl(37 44% 70% / 0.2);
   }
 
   .mobile-menu nav a::before {
@@ -788,6 +803,17 @@ button {
     background: linear-gradient(90deg, hsl(35 58% 93% / 0.72), transparent 72%);
   }
 
+  .mobile-menu.is-on-dark nav a:hover,
+  .mobile-menu.is-on-dark nav a:focus-visible,
+  .mobile-menu.is-on-dark nav a.is-active {
+    color: var(--gold-light);
+    background: linear-gradient(90deg, hsl(37 44% 70% / 0.12), transparent 72%);
+  }
+
+  .mobile-menu.is-on-dark nav a::before {
+    background: var(--gold-light);
+  }
+
   .mobile-menu nav a.is-active::before {
     opacity: 1;
     transform: translateY(-50%) scaleY(1);
@@ -807,6 +833,17 @@ button {
     border: 1px solid hsl(33 45% 79%);
     color: var(--gold-dark);
     background: var(--white);
+  }
+
+  .mobile-menu.is-on-dark .mobile-login-button {
+    border-color: hsl(37 44% 70% / 0.28);
+    color: hsl(39 30% 94%);
+    background: hsl(0 0% 100% / 0.07);
+  }
+
+  .mobile-menu.is-on-dark .button--primary {
+    color: hsl(28 18% 9%);
+    background: var(--gold-light);
   }
 
   @media (prefers-reduced-motion: reduce) {
