@@ -8,15 +8,15 @@ const videoLightboxClose = videoLightbox.querySelector(".video-lightbox__close")
 let activeVideo = null;
 let activeVideoPlaceholder = null;
 
-if (shootsViewport && shootsGrid && shootsReveal && shootsRevealLabel && shootCards.length > 4) {
+if (shootsViewport && shootsGrid && shootsReveal && shootsRevealLabel && shootCards.length > 5) {
   const setCollapsedCardAccess = (isExpanded) => {
-    shootCards.slice(4).forEach((card) => {
+    shootCards.slice(5).forEach((card) => {
       card.toggleAttribute("inert", !isExpanded);
     });
   };
 
   const syncExpandedHeight = () => {
-    const firstCollapsedCard = shootCards[4];
+    const firstCollapsedCard = shootCards[5];
     const gridTop = shootsGrid.getBoundingClientRect().top;
     const collapsedCardRect = firstCollapsedCard.getBoundingClientRect();
     const collapsedPreviewHeight = Math.min(Math.max(collapsedCardRect.height * 0.18, 56), 92);

@@ -1,7 +1,7 @@
 /* Uniform portrait light-table photo stage */
 .gallery-section {
-  --gallery-stage: hsl(42 43% 99%);
-  --gallery-stage-deep: hsl(34 34% 94%);
+  --gallery-stage: hsl(42 35% 98%);
+  --gallery-stage-deep: hsl(36 24% 91%);
   --gallery-ink: hsl(28 18% 12%);
   --gallery-muted: hsl(28 8% 39%);
   --gallery-gold: var(--gold-dark);
@@ -13,8 +13,8 @@
   padding: 0;
   color: var(--gallery-ink);
   background:
-    radial-gradient(circle at 86% 8%, hsl(36 67% 87% / 0.78), transparent 23%),
-    radial-gradient(circle at 12% 82%, hsl(39 42% 91% / 0.72), transparent 26%),
+    linear-gradient(90deg, transparent 0 7%, hsl(34 30% 62% / 0.18) 7.05%, transparent 7.1%),
+    radial-gradient(circle at 86% 8%, hsl(36 47% 87% / 0.62), transparent 25%),
     linear-gradient(137deg, var(--gallery-stage), var(--gallery-stage-deep));
 }
 
@@ -49,32 +49,33 @@
 .gallery-section__inner {
   position: relative;
   z-index: 1;
-  width: min(1340px, 100%);
+  width: min(1480px, 100%);
   margin: 0 auto;
   padding: clamp(58px, 6.5vw, 104px) clamp(18px, 4.5vw, 70px) clamp(34px, 4.5vw, 70px);
 }
 
 .gallery-heading {
-  max-width: 920px;
-  margin: 0 auto clamp(44px, 5vw, 72px);
-  text-align: center;
+  max-width: 900px;
+  margin: 0 0 clamp(50px, 6vw, 86px) auto;
+  padding-right: clamp(12px, 6vw, 84px);
+  text-align: right;
 }
 
 .gallery-heading h2 {
   margin: 0;
   font-family: var(--serif);
-  font-size: clamp(58px, 6.2vw, 96px);
+  font-size: clamp(68px, 8vw, 118px);
   font-weight: 400;
   letter-spacing: -0.055em;
-  line-height: 0.9;
+  line-height: 0.82;
 }
 
 .gallery-heading h2 .section-title__lead {
   display: block;
-  margin-bottom: 1em;
+  margin: 0 0 1.35em;
   color: var(--gallery-gold);
   font-family: var(--sans);
-  font-size: 0.14em;
+  font-size: 0.1em;
   font-weight: 720;
   letter-spacing: 0.42em;
   line-height: 1;
@@ -88,8 +89,10 @@
 }
 
 .gallery-heading > p {
-  max-width: 740px;
-  margin: 26px auto 0;
+  max-width: 420px;
+  margin: 30px 0 0 auto;
+  padding-right: 26px;
+  border-right: 1px solid hsl(34 42% 48% / 0.48);
   color: var(--gallery-muted);
   font-size: clamp(13px, 1.1vw, 16px);
   line-height: 1.72;
@@ -130,20 +133,20 @@
 .gallery-track {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(2, auto);
+  grid-template-rows: none;
   gap: var(--gallery-grid-gap);
 }
 
 .gallery-card {
   position: relative;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 2 / 3;
   min-width: 0;
   min-height: 0;
   margin: 0;
   padding: 0;
   overflow: hidden;
   border: 1px solid hsl(40 28% 82% / 0.12);
-  border-radius: clamp(12px, 1vw, 18px);
+  border-radius: 2px;
   color: var(--gallery-ink);
   background: hsl(27 12% 16%);
   box-shadow: 0 18px 38px hsl(0 0% 0% / 0.2);
@@ -289,7 +292,7 @@
   min-height: 48px;
   padding: 0 20px 0 23px;
   border: 1px solid hsl(38 48% 67% / 0.48);
-  border-radius: 999px;
+  border-radius: 2px;
   align-items: center;
   gap: 11px;
   color: var(--gallery-ink);
@@ -520,6 +523,7 @@
   .gallery-heading {
     margin-bottom: clamp(28px, 8vw, 38px);
     padding-inline: clamp(7px, 2.5vw, 14px);
+    text-align: center;
   }
 
   .gallery-heading h2 {
@@ -535,19 +539,21 @@
     margin: 18px auto 0;
     padding-left: 0;
     border-left: 0;
+    border-right: 0;
     font-size: clamp(11px, 3.25vw, 14px);
     line-height: 1.58;
   }
 
   .gallery-track {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(4, auto);
+    grid-template-rows: none;
     gap: clamp(6px, 2vw, 9px);
   }
 
   .gallery-card,
   .gallery-card:nth-child(n) {
-    border-radius: clamp(10px, 3vw, 14px);
+    aspect-ratio: 2 / 3;
+    border-radius: 2px;
     grid-column: auto;
     grid-row: auto;
   }
