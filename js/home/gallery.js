@@ -19,9 +19,20 @@ if (galleryViewport && galleryTrack && galleryReveal && galleryRevealLabel) {
   };
 
   const syncExpandedHeight = () => {
+    const firstCollapsedCard = galleryCards[4];
+    const trackTop = galleryTrack.getBoundingClientRect().top;
+    const collapsedCardRect = firstCollapsedCard?.getBoundingClientRect();
+    const collapsedPreviewHeight = collapsedCardRect
+      ? Math.min(Math.max(collapsedCardRect.height * 0.2, 64), 96)
+      : 0;
+
     galleryViewport.style.setProperty(
       "--gallery-expanded-height",
       `${galleryTrack.scrollHeight}px`
+    );
+    galleryViewport.style.setProperty(
+      "--gallery-collapsed-height",
+      `${collapsedCardRect ? collapsedCardRect.top - trackTop + collapsedPreviewHeight : galleryTrack.scrollHeight}px`
     );
   };
 

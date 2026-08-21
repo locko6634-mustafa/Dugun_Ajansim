@@ -1,4 +1,4 @@
-/* Uniform darkroom photo stage */
+/* Uniform portrait darkroom photo stage */
 .gallery-section {
   --gallery-stage: hsl(28 18% 9%);
   --gallery-stage-deep: hsl(25 20% 5%);
@@ -6,8 +6,7 @@
   --gallery-muted: hsl(35 14% 70%);
   --gallery-gold: hsl(37 58% 63%);
   --gallery-grid-gap: clamp(8px, 0.9vw, 14px);
-  --gallery-row-height: clamp(130px, 10.5vw, 170px);
-  --gallery-collapsed-height: clamp(195px, 16.5vw, 250px);
+  --gallery-collapsed-height: clamp(400px, 34vw, 540px);
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -135,13 +134,13 @@
 .gallery-track {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(2, var(--gallery-row-height));
+  grid-template-rows: repeat(2, auto);
   gap: var(--gallery-grid-gap);
 }
 
 .gallery-card {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 3 / 4;
   min-width: 0;
   min-height: 0;
   margin: 0;
@@ -500,11 +499,6 @@
 }
 
 @media (max-width: 900px) {
-  .gallery-section {
-    --gallery-row-height: clamp(116px, 14vw, 142px);
-    --gallery-collapsed-height: clamp(156px, 20vw, 190px);
-  }
-
   .gallery-heading {
     grid-template-columns: minmax(0, 1fr) minmax(220px, 0.7fr);
   }
@@ -512,8 +506,7 @@
 
 @media (max-width: 760px) {
   .gallery-section {
-    --gallery-row-height: clamp(90px, 24vw, 144px);
-    --gallery-collapsed-height: clamp(250px, 66vw, 396px);
+    --gallery-collapsed-height: clamp(500px, 150vw, 900px);
     padding-inline: 0;
   }
 
@@ -558,7 +551,7 @@
 
   .gallery-track {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(4, var(--gallery-row-height));
+    grid-template-rows: repeat(4, auto);
     gap: clamp(6px, 2vw, 9px);
   }
 

@@ -33,7 +33,7 @@ test("@responsive kaldirilan tanitim bolumleri sayfada ve navigasyonda yer almaz
   await expect(page.locator('a[href="#hakkimizda"], a[href="#konseptler"]')).toHaveCount(0);
 });
 
-test("@responsive mobil fotoğraf alanı eşit yatay kartlar, film alanı bento vurgusu kullanır", async ({
+test("@responsive mobil fotoğraf alanı eşit dikey kartlar, film alanı bento vurgusu kullanır", async ({
   page
 }) => {
   for (const viewport of [
@@ -68,7 +68,7 @@ test("@responsive mobil fotoğraf alanı eşit yatay kartlar, film alanı bento 
       Math.max(...layout.galleryHeights) - Math.min(...layout.galleryHeights)
     ).toBeLessThanOrEqual(1);
     expect(
-      layout.galleryWidths.every((width, index) => width / layout.galleryHeights[index] > 1.6)
+      layout.galleryHeights.every((height, index) => height / layout.galleryWidths[index] > 1.25)
     ).toBe(true);
     expect(layout.shootsFeaturedWidth).toBeGreaterThan(layout.shootsSupportWidth * 1.85);
   }
@@ -91,6 +91,15 @@ test("@responsive fotoğraf vitrini seçkiden tüm galeriye akıcı biçimde aç
     await expect(reveal).toBeVisible();
     await expect(reveal).toHaveAttribute("aria-expanded", "false");
     await expect(reveal).toContainText("Tümünü Gör");
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const frame = document.querySelector("[data-gallery-viewport]");
+          const fifthCard = document.querySelector('.gallery-card[data-gallery-index="4"]');
+          return frame.getBoundingClientRect().bottom - fifthCard.getBoundingClientRect().top;
+        })
+      )
+      .toBeGreaterThan(32);
 
     const collapsed = await page.evaluate(() => {
       const frame = document.querySelector("[data-gallery-viewport]");
@@ -120,7 +129,7 @@ test("@responsive fotoğraf vitrini seçkiden tüm galeriye akıcı biçimde aç
       Math.max(...collapsed.cardHeights) - Math.min(...collapsed.cardHeights)
     ).toBeLessThanOrEqual(1);
     expect(
-      collapsed.cardWidths.every((width, index) => width / collapsed.cardHeights[index] > 1.6)
+      collapsed.cardHeights.every((height, index) => height / collapsed.cardWidths[index] > 1.25)
     ).toBe(true);
 
     await reveal.click();
