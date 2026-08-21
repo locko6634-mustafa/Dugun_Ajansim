@@ -285,7 +285,7 @@ function renderBasePackages(
         <label class="base-package ${item.code === state.base ? "is-selected" : ""}">
           <input type="radio" name="base-package" value="${escapeHtml(item.code)}" ${item.code === state.base ? "checked" : ""} />
           <span class="base-package__media">
-            <img src="${escapeHtml(item.imagePath || "assets/images/hero-couple.webp")}" alt="${escapeHtml(item.name)} düğün çekimi örneği" />
+            <img src="${escapeHtml(item.imagePath || "assets/images/why-digital-delivery.webp")}" alt="${escapeHtml(item.name)} düğün çekimi örneği" />
             <span class="base-package__check" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" /></svg>
             </span>
