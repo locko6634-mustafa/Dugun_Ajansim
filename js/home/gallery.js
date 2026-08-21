@@ -1,6 +1,4 @@
-const galleryTrack = document.querySelector(".gallery-track");
 const galleryCards = [...document.querySelectorAll(".gallery-card")];
-const galleryProgress = [...document.querySelectorAll(".gallery-mobile-progress span")];
 const galleryLightbox = document.querySelector(".gallery-lightbox");
 const galleryLightboxImage = galleryLightbox.querySelector("img");
 const galleryLightboxCaption = galleryLightbox.querySelector("figcaption");
@@ -36,37 +34,3 @@ galleryLightbox.addEventListener("keydown", (event) => {
   if (event.key === "ArrowLeft") showGalleryImage(activeGalleryIndex - 1);
   if (event.key === "ArrowRight") showGalleryImage(activeGalleryIndex + 1);
 });
-let galleryScrollFrame;
-
-galleryTrack.addEventListener(
-  "scroll",
-  () => {
-    cancelAnimationFrame(galleryScrollFrame);
-    galleryScrollFrame = requestAnimationFrame(() => {
-      if (window.innerWidth > 760) return;
-
-      const trackCenter = galleryTrack.scrollLeft + galleryTrack.clientWidth / 2;
-      let nearestIndex = 0;
-      let nearestDistance = Number.POSITIVE_INFINITY;
-
-      galleryCards.forEach((card, index) => {
-        const cardCenter = card.offsetLeft + card.offsetWidth / 2;
-        const distance = Math.abs(trackCenter - cardCenter);
-
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearestIndex = index;
-        }
-      });
-
-      const progressIndex = Math.round(
-        (nearestIndex / Math.max(galleryCards.length - 1, 1)) * (galleryProgress.length - 1)
-      );
-
-      galleryProgress.forEach((dot, index) => {
-        dot.classList.toggle("is-active", index === progressIndex);
-      });
-    });
-  },
-  { passive: true }
-);

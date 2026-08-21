@@ -33,7 +33,9 @@ test("@responsive kaldirilan tanitim bolumleri sayfada ve navigasyonda yer almaz
   await expect(page.locator('a[href="#hakkimizda"], a[href="#konseptler"]')).toHaveCount(0);
 });
 
-test("@responsive mobil galeri ve video kartlari ayni olcuyu kullanir", async ({ page }) => {
+test("@responsive mobil fotoğraf ve film alanları yatay taşmadan bento vurgusu kullanır", async ({
+  page
+}) => {
   for (const viewport of [
     { width: 375, height: 812 },
     { width: 600, height: 900 }
@@ -41,16 +43,71 @@ test("@responsive mobil galeri ve video kartlari ayni olcuyu kullanir", async ({
     await page.setViewportSize(viewport);
     await page.goto("/index.html");
 
-    const [galleryCardBox, videoCardBox] = await Promise.all([
-      page.locator(".gallery-card").first().boundingBox(),
-      page.locator(".shoot-card__media").first().boundingBox()
-    ]);
+    const layout = await page.evaluate(() => {
+      const galleryTrack = document.querySelector(".gallery-track");
+      const shootsGrid = document.querySelector(".shoots-grid");
+      const galleryCards = [...document.querySelectorAll(".gallery-card")];
+      const shootCards = [...document.querySelectorAll(".shoot-card")];
 
-    expect(galleryCardBox).not.toBeNull();
-    expect(videoCardBox).not.toBeNull();
-    expect(galleryCardBox.width).toBeCloseTo(videoCardBox.width, 0);
-    expect(galleryCardBox.height).toBeCloseTo(videoCardBox.height, 0);
+      return {
+        galleryOverflow: galleryTrack.scrollWidth - galleryTrack.clientWidth,
+        shootsOverflow: shootsGrid.scrollWidth - shootsGrid.clientWidth,
+        galleryFeaturedWidth: galleryCards[0].getBoundingClientRect().width,
+        gallerySupportWidth: galleryCards[1].getBoundingClientRect().width,
+        shootsFeaturedWidth: shootCards[0].getBoundingClientRect().width,
+        shootsSupportWidth: shootCards[1].getBoundingClientRect().width
+      };
+    });
+
+    expect(layout.galleryOverflow).toBeLessThanOrEqual(1);
+    expect(layout.shootsOverflow).toBeLessThanOrEqual(1);
+    expect(layout.galleryFeaturedWidth).toBeGreaterThan(layout.gallerySupportWidth * 1.85);
+    expect(layout.shootsFeaturedWidth).toBeGreaterThan(layout.shootsSupportWidth * 1.85);
   }
+});
+
+test("@responsive mobil hizmet kartları koyu sahnede kompakt kalır", async ({ page }) => {
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          packages: [],
+          services: [
+            {
+              code: "mobil-hizmet",
+              name: "Mobil Hizmet",
+              description: "Düğün gününe özel planlanan profesyonel görsel prodüksiyon hizmeti.",
+              priceCents: 100_000,
+              imagePath: "assets/images/hero-couple.webp"
+            }
+          ]
+        }
+      })
+    })
+  );
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/index.html");
+  await expect(page.locator(".service-card")).toHaveCount(1);
+
+  const dimensions = await page.evaluate(() => {
+    const card = document.querySelector(".service-card").getBoundingClientRect();
+    const media = document.querySelector(".service-card__media").getBoundingClientRect();
+    const action = document.querySelector(".service-card__link").getBoundingClientRect();
+    return {
+      cardHeight: card.height,
+      cardWidth: card.width,
+      mediaHeight: media.height,
+      actionHeight: action.height
+    };
+  });
+
+  await expect(page.locator(".services-stage--dark")).toBeVisible();
+  expect(dimensions.cardWidth).toBeLessThan(180);
+  expect(dimensions.cardHeight).toBeLessThan(290);
+  expect(dimensions.mediaHeight).toBeLessThanOrEqual(130);
+  expect(dimensions.actionHeight).toBeGreaterThanOrEqual(44);
 });
 
 test("@responsive tum mobil section gecisleri kompakt dikey ritmi korur", async ({ page }) => {
@@ -58,19 +115,17 @@ test("@responsive tum mobil section gecisleri kompakt dikey ritmi korur", async 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/index.html");
 
-  const galleryProgress = page.locator(".gallery-mobile-progress");
-  const shootsHeading = page.locator("#shoots-title");
-  const [galleryProgressBox, shootsHeadingBox] = await Promise.all([
-    galleryProgress.boundingBox(),
-    shootsHeading.boundingBox()
+  const galleryStage = page.locator(".gallery-stage");
+  const shootsStage = page.locator(".shoots-stage");
+  const [galleryStageBox, shootsStageBox] = await Promise.all([
+    galleryStage.boundingBox(),
+    shootsStage.boundingBox()
   ]);
 
   await expect(page.locator(".gallery-cta")).toHaveCount(0);
-  expect(galleryProgressBox).not.toBeNull();
-  expect(shootsHeadingBox).not.toBeNull();
-  expect(
-    shootsHeadingBox.y - (galleryProgressBox.y + galleryProgressBox.height)
-  ).toBeLessThanOrEqual(60);
+  expect(galleryStageBox).not.toBeNull();
+  expect(shootsStageBox).not.toBeNull();
+  expect(shootsStageBox.y - (galleryStageBox.y + galleryStageBox.height)).toBeLessThanOrEqual(60);
 
   const spacing = await page.evaluate(() => {
     const pixels = (value) => Number.parseFloat(value) || 0;

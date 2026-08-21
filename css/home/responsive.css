@@ -91,7 +91,7 @@
   }
 
   .services-section {
-    padding-inline: clamp(9px, 2.7vw, 14px);
+    padding-inline: clamp(6px, 2.2vw, 10px);
   }
 
   .package-invitation__copy {
@@ -115,49 +115,50 @@
   }
 
   .services-heading {
-    margin-bottom: clamp(26px, 7vw, 34px);
+    margin-bottom: clamp(24px, 6.5vw, 32px);
   }
 
   .services-heading h2 {
-    font-size: clamp(36px, 10.5vw, 47px);
+    font-size: clamp(34px, 9.8vw, 44px);
   }
 
   .services-heading > p {
-    margin-top: 16px;
-    font-size: clamp(11.5px, 3.2vw, 14px);
-    line-height: 1.58;
+    margin-top: 14px;
+    font-size: clamp(10px, 2.8vw, 12px);
+    line-height: 1.55;
   }
 
   .services-divider {
-    margin-top: 18px;
+    margin-top: 16px;
   }
 
   .service-card__media {
-    height: clamp(138px, 39vw, 176px);
+    height: clamp(98px, 29vw, 126px);
   }
 
   .service-card__body {
-    min-height: clamp(184px, 49vw, 220px);
-    padding: clamp(29px, 8vw, 38px) clamp(12px, 3.4vw, 18px) clamp(15px, 4vw, 21px);
+    min-height: clamp(146px, 40vw, 170px);
+    padding: clamp(24px, 6.5vw, 29px) clamp(8px, 2.5vw, 12px) clamp(9px, 2.8vw, 13px);
   }
 
   .service-card__icon {
-    left: clamp(12px, 3.4vw, 18px);
-    width: clamp(46px, 12.5vw, 56px);
-    height: clamp(46px, 12.5vw, 56px);
+    left: clamp(8px, 2.5vw, 12px);
+    width: clamp(38px, 10.5vw, 44px);
+    height: clamp(38px, 10.5vw, 44px);
   }
 
   .service-card h3 {
-    font-size: clamp(18px, 5.25vw, 23px);
+    font-size: clamp(15px, 4.5vw, 18px);
   }
 
   .service-card p {
-    font-size: clamp(10px, 2.75vw, 12px);
-    line-height: 1.48;
+    font-size: clamp(8.5px, 2.35vw, 10px);
+    line-height: 1.42;
   }
 
   .service-card__link {
-    font-size: clamp(9px, 2.45vw, 10.5px);
+    min-height: 44px;
+    font-size: clamp(8px, 2.2vw, 9.5px);
   }
 
   .faq-section {
@@ -205,17 +206,17 @@
 
 @media (max-width: 480px) {
   .service-card__body {
-    min-height: 178px;
-    padding-inline: 11px;
+    min-height: 144px;
+    padding-inline: 7px;
   }
 
   .service-card h3 {
-    font-size: clamp(17px, 4.8vw, 20px);
+    font-size: clamp(14px, 4.35vw, 17px);
   }
 
   .service-card p {
-    font-size: clamp(9.5px, 2.55vw, 11px);
-    line-height: 1.42;
+    font-size: clamp(8px, 2.3vw, 9.5px);
+    line-height: 1.38;
   }
 }
 

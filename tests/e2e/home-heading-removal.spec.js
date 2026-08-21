@@ -13,14 +13,14 @@ test("@responsive ana sayfadaki dekoratif ust basliklar kaldirilir", async ({ pa
   await expect(page.locator("#faq-title")).toBeVisible();
 });
 
-test("@responsive yatay galeriler mobilde devam yonlendirmesini gosterir", async ({ page }) => {
+test("@responsive fotoğraf ve film alanları yatay kaydırma yönlendirmesi kullanmaz", async ({
+  page
+}) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/index.html");
 
-  const cues = page.locator(".horizontal-scroll-cue");
-
-  await expect(cues).toHaveCount(2);
-  await expect(cues).toHaveText(["Yana kaydır", "Yana kaydır"]);
-  await expect(cues.first().locator("svg")).toBeVisible();
-  await expect(cues.last().locator("svg")).toBeVisible();
+  await expect(page.locator(".horizontal-scroll-cue, .gallery-mobile-progress")).toHaveCount(0);
+  await expect(page.locator(".shoots-gallery__controls, .shoots-gallery__arrow")).toHaveCount(0);
+  await expect(page.locator(".gallery-stage--dark, .services-stage--dark")).toHaveCount(2);
+  await expect(page.locator(".shoots-stage--light")).toHaveCount(1);
 });

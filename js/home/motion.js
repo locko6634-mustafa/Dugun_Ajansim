@@ -115,11 +115,14 @@ requestAnimationFrame(() => {
 function initNonHeroMotion() {
   motionHeadings.forEach(splitHeadingIntoLines);
 
-  registerMotionGroup(".gallery-kicker, .gallery-heading > p:last-of-type", { stagger: 85 });
-  registerMotionGroup(".gallery-track", { stagger: 110 });
+  registerMotionGroup(".gallery-heading > p:last-of-type", { stagger: 85 });
+  registerMotionGroup(".gallery-card", {
+    direction: "up",
+    stagger: 70
+  });
   registerMotionGroup(".shoots-heading > p", { stagger: 85 });
   registerMotionGroup(".shoot-card", {
-    direction: (index) => (index % 2 === 0 ? "left" : "right"),
+    direction: "up",
     stagger: 90
   });
   registerMotionGroup(".services-heading > p, .services-divider", {
