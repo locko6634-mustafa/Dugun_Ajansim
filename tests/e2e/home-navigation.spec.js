@@ -346,11 +346,26 @@ test("@responsive gec yuklenen katalog paket olustur hedefini kaydirmaz", async 
       })
     });
   });
+  await page.route("**/api/v1/venues", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: Array.from({ length: 4 }, (_, index) => ({
+          displayName: `Referans Mekân ${index + 1}`,
+          imagePath: "assets/images/venue-pavilion.webp",
+          isFeatured: true
+        }))
+      })
+    });
+  });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/index.html");
 
   await page.locator('.header-cta[href="#paket-olustur"]').click();
   await expect(page.locator(".service-card")).toHaveCount(8);
+  await expect(page.locator(".venue-card")).toHaveCount(4);
 
   await expect
     .poll(() =>

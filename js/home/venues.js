@@ -7,6 +7,12 @@ const FALLBACK_IMAGE = "assets/images/venue-pavilion.webp";
 const toggleText = (expanded, count) =>
   expanded ? "Daha Az Göster" : `Tüm Mekânları Gör (${count} Mekân)`;
 
+function notifyLayoutChange() {
+  window.requestAnimationFrame(() => {
+    document.dispatchEvent(new window.CustomEvent("home:layoutchange"));
+  });
+}
+
 function createVenueCard(venue, index, total) {
   const card = document.createElement("a");
   const name = venue.displayName || venue.name;
@@ -87,11 +93,13 @@ async function loadVenues() {
       status.textContent = "Yayında olan referans mekân bulunmuyor.";
       grid.append(status);
       updateToggle(0);
+      notifyLayoutChange();
       return;
     }
 
     grid.append(...venues.map((venue, index) => createVenueCard(venue, index, venues.length)));
     updateToggle(venues.length);
+    notifyLayoutChange();
   } catch {
     grid.replaceChildren();
     const status = document.createElement("p");
@@ -99,6 +107,7 @@ async function loadVenues() {
     status.textContent = "Referans mekânlarımız şu anda yüklenemedi.";
     grid.append(status);
     updateToggle(0);
+    notifyLayoutChange();
   }
 }
 
