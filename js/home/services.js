@@ -4,59 +4,6 @@ import { formatAppCurrency } from "../shared/runtime-config.js";
 import { renderServiceDetail } from "../shared/service-detail.js";
 
 const fallbackImage = "assets/images/hero-couple.webp";
-const svgNamespace = "http://www.w3.org/2000/svg";
-
-const serviceIconShapes = {
-  fotograf: [
-    ["path", { d: "M8 16h8l3-5h10l3 5h8v23H8V16Z" }],
-    ["circle", { cx: "24", cy: "27", r: "7" }]
-  ],
-  video: [
-    ["rect", { x: "7", y: "13", width: "25", height: "22", rx: "3" }],
-    ["path", { d: "m32 21 9-5v16l-9-5M18 20l8 4-8 4v-8Z" }]
-  ],
-  drone: [
-    ["path", { d: "M15 20h18l-3 12H18l-3-12ZM24 20v-6M11 14h10M27 14h10" }],
-    ["circle", { cx: "10", cy: "14", r: "3" }],
-    ["circle", { cx: "38", cy: "14", r: "3" }],
-    ["path", { d: "M19 32v4m10-4v4M17 36h14" }]
-  ],
-  "jimmy-jib": [
-    ["path", { d: "M7 36h34M15 36l8-22 6 22M12 19l25-8M34 9l5 5" }],
-    ["rect", { x: "6", y: "17", width: "8", height: "6", rx: "1" }]
-  ],
-  "dis-cekim": [
-    ["path", { d: "M8 37 19 24l7 8 5-6 9 11H8ZM11 15h8l2-3h7l2 3h7" }],
-    ["circle", { cx: "24", cy: "19", r: "5" }]
-  ],
-  organizasyon: [
-    ["path", { d: "m24 7 2.6 8.4L35 18l-8.4 2.6L24 29l-2.6-8.4L13 18l8.4-2.6L24 7Z" }],
-    [
-      "path",
-      {
-        d: "m37 27 1.4 4.6L43 33l-4.6 1.4L37 39l-1.4-4.6L31 33l4.6-1.4L37 27ZM10 27l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3Z"
-      }
-    ]
-  ],
-  album: [
-    ["path", { d: "M9 10h13a5 5 0 0 1 5 5v24H14a5 5 0 0 1-5-5V10Z" }],
-    ["path", { d: "M27 15a5 5 0 0 1 5-5h7v29H27M14 31h8" }]
-  ],
-  "aninda-baski": [
-    ["path", { d: "M14 17V8h20v9M12 34H8V18h32v16h-4" }],
-    ["rect", { x: "14", y: "27", width: "20", height: "13" }],
-    ["path", { d: "m18 36 4-4 3 3 3-3 3 4" }],
-    ["circle", { cx: "35", cy: "22", r: "1" }]
-  ],
-  production: [
-    ["rect", { x: "8", y: "11", width: "32", height: "26", rx: "3" }],
-    ["path", { d: "m20 18 10 6-10 6V18Z" }]
-  ],
-  experience: [
-    ["path", { d: "m24 8 3.2 10.8L38 22l-10.8 3.2L24 36l-3.2-10.8L10 22l10.8-3.2L24 8Z" }]
-  ],
-  other: [["path", { d: "M24 39S9 30 9 18a8 8 0 0 1 15-4 8 8 0 0 1 15 4c0 12-15 21-15 21Z" }]]
-};
 
 function formatPrice(amount) {
   if (!Number.isFinite(amount)) return "Güncel fiyatı paket oluşturucuda görün";
@@ -80,13 +27,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const detailPrice = detailDialog.querySelector(".js-detail-price");
   const detailAction = detailDialog.querySelector(".js-detail-action");
   const startingPrice = document.querySelector(".js-starting-price");
-  const cardIcons = new Map(
-    [...servicesGrid.querySelectorAll(".service-card")].flatMap((card) => {
-      const code = card.querySelector("[data-open-service]")?.dataset.openService;
-      const icon = card.querySelector(".service-card__icon");
-      return code && icon ? [[code, icon.cloneNode(true)]] : [];
-    })
-  );
   let catalogServices = [];
   let activeServiceId = null;
 
@@ -94,26 +34,6 @@ document.addEventListener("DOMContentLoaded", () => {
     window.requestAnimationFrame(() => {
       document.dispatchEvent(new window.CustomEvent("home:layoutchange"));
     });
-  }
-
-  function createServiceIcon(service) {
-    const icon = document.createElement("span");
-    icon.className = "service-card__icon";
-    icon.setAttribute("aria-hidden", "true");
-
-    const svg = document.createElementNS(svgNamespace, "svg");
-    svg.setAttribute("viewBox", "0 0 48 48");
-    const shapes =
-      serviceIconShapes[service.id] ||
-      serviceIconShapes[service.category] ||
-      serviceIconShapes.other;
-    shapes.forEach(([elementName, attributes]) => {
-      const shape = document.createElementNS(svgNamespace, elementName);
-      Object.entries(attributes).forEach(([name, value]) => shape.setAttribute(name, value));
-      svg.append(shape);
-    });
-    icon.append(svg);
-    return icon;
   }
 
   function createServiceCard(service) {
@@ -132,7 +52,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const body = document.createElement("div");
     body.className = "service-card__body";
-    const icon = cardIcons.get(service.id)?.cloneNode(true) || createServiceIcon(service);
     const title = document.createElement("h3");
     title.textContent = service.name;
     const description = document.createElement("p");
@@ -147,7 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
     arrow.setAttribute("aria-hidden", "true");
     arrow.textContent = "→";
     button.append(arrow);
-    body.append(icon, title, description, button);
+    body.append(title, description, button);
     card.append(media, body);
     return card;
   }

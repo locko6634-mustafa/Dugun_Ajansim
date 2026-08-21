@@ -132,12 +132,6 @@
     padding: clamp(24px, 6.5vw, 29px) clamp(8px, 2.5vw, 12px) clamp(9px, 2.8vw, 13px);
   }
 
-  .service-card__icon {
-    left: clamp(8px, 2.5vw, 12px);
-    width: clamp(38px, 10.5vw, 44px);
-    height: clamp(38px, 10.5vw, 44px);
-  }
-
   .service-card h3 {
     font-size: clamp(15px, 4.5vw, 18px);
   }
