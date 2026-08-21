@@ -78,8 +78,8 @@
         <a href="#galeri" data-nav-sections="galeri">Galeri</a>
         <a href="#cekimler" data-nav-sections="cekimler">Çekimler</a>
         <a href="#hizmetler" data-nav-sections="hizmetler">Hizmetlerimiz</a>
-        <a href="#paket-olustur" data-nav-sections="paket-olustur">Paket Oluştur</a>
         <a href="#mekanlar" data-nav-sections="mekanlar">Mekânlar</a>
+        <a href="#paket-olustur" data-nav-sections="paket-olustur">Paket Oluştur</a>
         <a href="#sss" data-nav-sections="sss">Sıkça Sorulanlar</a>
         <a href="#iletisim" data-nav-sections="iletisim">İletişim</a>
       </nav>
@@ -120,8 +120,8 @@
         <a href="#galeri" data-nav-sections="galeri">Galeri</a>
         <a href="#cekimler" data-nav-sections="cekimler">Çekimler</a>
         <a href="#hizmetler" data-nav-sections="hizmetler">Hizmetlerimiz</a>
-        <a href="#paket-olustur" data-nav-sections="paket-olustur">Paket Oluştur</a>
         <a href="#mekanlar" data-nav-sections="mekanlar">Mekânlar</a>
+        <a href="#paket-olustur" data-nav-sections="paket-olustur">Paket Oluştur</a>
         <a href="#sss" data-nav-sections="sss">Sıkça Sorulanlar</a>
         <a href="#iletisim" data-nav-sections="iletisim">İletişim</a>
       </nav>
@@ -604,6 +604,55 @@
       </section>
 
       <section
+        class="venues-section"
+        id="mekanlar"
+        data-header-surface="dark"
+        aria-labelledby="venues-title"
+      >
+        <div class="venues-section__inner">
+          <header class="venues-heading">
+            <h2 id="venues-title">
+              Güvenle Tercih Edilen İş Ortaklarımız
+              <em>İstanbul’un Seçkin Düğün Mekânlarıyla Yan Yanayız</em>
+            </h2>
+            <p>
+              Birlikte çalıştığımız ve kataloğumuzda yayında olan düğün mekânlarını burada
+              inceleyebilirsiniz. Güncel iş ortaklarımız doğrudan sistemden listelenir.
+            </p>
+          </header>
+
+          <div class="venues-grid" id="venues-grid" aria-live="polite">
+            <p class="venues-status">Referans mekânlarımız yükleniyor…</p>
+          </div>
+
+          <div class="venues-toggle-wrapper">
+            <button
+              type="button"
+              class="venues-toggle-btn js-venues-toggle"
+              aria-expanded="false"
+              aria-controls="venues-grid"
+            >
+              <span>Tüm Mekânları Gör</span>
+              <svg
+                class="venues-toggle-btn__icon"
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section
         class="package-invitation"
         data-header-surface="light"
         aria-labelledby="package-invitation-title"
@@ -656,55 +705,6 @@
               <small>Ek hizmetlerle kişiselleştirin</small>
             </div>
             <span class="package-invitation__monogram" aria-hidden="true">D·A</span>
-          </div>
-        </div>
-      </section>
-
-      <section
-        class="venues-section"
-        id="mekanlar"
-        data-header-surface="dark"
-        aria-labelledby="venues-title"
-      >
-        <div class="venues-section__inner">
-          <header class="venues-heading">
-            <h2 id="venues-title">
-              Güvenle Tercih Edilen İş Ortaklarımız
-              <em>İstanbul’un Seçkin Düğün Mekânlarıyla Yan Yanayız</em>
-            </h2>
-            <p>
-              Birlikte çalıştığımız ve kataloğumuzda yayında olan düğün mekânlarını burada
-              inceleyebilirsiniz. Güncel iş ortaklarımız doğrudan sistemden listelenir.
-            </p>
-          </header>
-
-          <div class="venues-grid" id="venues-grid" aria-live="polite">
-            <p class="venues-status">Referans mekânlarımız yükleniyor…</p>
-          </div>
-
-          <div class="venues-toggle-wrapper">
-            <button
-              type="button"
-              class="venues-toggle-btn js-venues-toggle"
-              aria-expanded="false"
-              aria-controls="venues-grid"
-            >
-              <span>Tüm Mekânları Gör</span>
-              <svg
-                class="venues-toggle-btn__icon"
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
           </div>
         </div>
       </section>

@@ -42,8 +42,8 @@ test("@responsive ana sayfa acik ve koyu yuzeyleri istenen sirada kullanir", asy
     { className: "gallery-section", surface: "dark" },
     { className: "shoots-section", surface: "light" },
     { className: "services-section", surface: "dark" },
-    { className: "package-invitation", surface: "light" },
     { className: "venues-section", surface: "dark" },
+    { className: "package-invitation", surface: "light" },
     { className: "faq-section", surface: "light" },
     { className: "site-footer", surface: "dark" }
   ]);

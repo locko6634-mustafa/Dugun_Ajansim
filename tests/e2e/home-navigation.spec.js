@@ -5,8 +5,8 @@ const expectedSectionOrder = [
   "#galeri",
   "#cekimler",
   "#hizmetler",
-  "#paket-olustur",
   "#mekanlar",
+  "#paket-olustur",
   "#sss",
   "#iletisim"
 ];

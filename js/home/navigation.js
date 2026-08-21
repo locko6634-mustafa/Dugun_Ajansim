@@ -66,8 +66,8 @@ const sectionIds = [
   "galeri",
   "cekimler",
   "hizmetler",
-  "paket-olustur",
   "mekanlar",
+  "paket-olustur",
   "sss",
   "iletisim"
 ];
