@@ -172,12 +172,13 @@
   .faq-question {
     grid-template-columns: 44px minmax(0, 1fr) 32px;
     gap: 9px;
-    min-height: clamp(68px, 18vw, 78px);
-    padding: 9px 10px;
+    min-height: clamp(80px, 21vw, 92px);
+    padding: 13px 10px;
   }
 
   .faq-question > span:nth-child(2) {
     font-size: clamp(15px, 4.5vw, 19px);
+    line-height: 1.45;
   }
 
   .faq-item__icon {
@@ -191,7 +192,9 @@
   }
 
   .faq-answer {
+    margin-top: 4px;
     margin-left: 63px;
+    padding-bottom: 28px;
   }
 }
 
