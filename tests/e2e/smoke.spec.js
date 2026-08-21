@@ -32,7 +32,7 @@ test("@frontend-smoke @responsive ana sayfa dinamik kartları kompakt gridde tut
     priceCents: 100_000 + index,
     imagePath: "assets/images/services/fotograf-cekimi.webp"
   }));
-  const venues = Array.from({ length: 5 }, (_, index) => ({
+  const venues = Array.from({ length: 6 }, (_, index) => ({
     name: `Mekân ${index + 1}`,
     displayName: `Mekân ${index + 1}`,
     isFeatured: true,
@@ -65,15 +65,23 @@ test("@frontend-smoke @responsive ana sayfa dinamik kartları kompakt gridde tut
   expect(serviceTops[expectedColumns]).toBeGreaterThan(serviceTops[0]);
 
   const venueCards = page.locator(".venue-card");
-  await expect(venueCards).toHaveCount(5);
-  if (viewportWidth <= 780) {
-    await page.locator(".js-venues-toggle").click();
-    await expect(venueCards).toHaveCount(5);
-    const firstVenue = await venueCards.first().boundingBox();
-    const lastVenue = await venueCards.last().boundingBox();
-    expect(Math.abs((lastVenue?.height || 0) - (firstVenue?.height || 0))).toBeLessThanOrEqual(1);
-    expect(lastVenue?.width || 0).toBeGreaterThan(firstVenue?.width || 0);
-  }
+  await expect(venueCards).toHaveCount(6);
+  await expect(venueCards).toHaveText([
+    /Mekân 1/,
+    /Mekân 2/,
+    /Mekân 3/,
+    /Mekân 4/,
+    /Mekân 5/,
+    /Mekân 6/
+  ]);
+  await expect(page.locator(".venues-toggle-wrapper")).toBeHidden();
+
+  const venueColumns = viewportWidth <= 780 ? 2 : 3;
+  const venueTops = await venueCards.evaluateAll((cards) =>
+    cards.map((card) => Math.round(card.getBoundingClientRect().top))
+  );
+  expect(new Set(venueTops.slice(0, venueColumns)).size).toBe(1);
+  expect(venueTops[venueColumns]).toBeGreaterThan(venueTops[0]);
 });
 
 test("@frontend-smoke @responsive paket oluşturucu sunucu ayrıntısını gizler", async ({ page }) => {
