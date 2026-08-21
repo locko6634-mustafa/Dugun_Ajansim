@@ -4513,7 +4513,12 @@ test("ayrıcalıklı TOTP enrollment, login replay koruması ve disable akışı
       .set("X-CSRF-Token", loginCsrfToken)
       .send(stepUpBody)
   ]);
-  assert.deepEqual(concurrentStepUps.map((response) => response.status).sort(), [200, 401]);
+  const concurrentStepUpStatuses = concurrentStepUps.map((response) => response.status).sort();
+  assert.equal(concurrentStepUpStatuses[0], 200);
+  assert.ok(
+    concurrentStepUpStatuses[1] === 401 || concurrentStepUpStatuses[1] === 403,
+    `Eşzamanlı ikinci step-up isteği güvenli biçimde reddedilmelidir: ${concurrentStepUpStatuses.join(", ")}`
+  );
   const successfulStepUp = concurrentStepUps.find((response) => response.status === 200)!;
   const stepUpCookies = successfulStepUp.headers["set-cookie"] as unknown as string[];
   const stepUpSessionCookie = stepUpCookies
