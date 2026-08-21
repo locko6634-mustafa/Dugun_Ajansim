@@ -384,6 +384,7 @@
 @media (max-width: 560px) {
   .package-invitation {
     padding-block: 46px;
+    padding-inline: 8px;
     background: var(--package-surface);
   }
 
@@ -412,29 +413,74 @@
   }
 
   .package-invitation__packages {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 8px;
   }
 
   .package-card {
-    border-radius: 16px;
+    align-self: start;
+    border-radius: 12px;
   }
 
   .package-card__media {
-    aspect-ratio: 16 / 7.4;
-    margin: 8px 8px 0;
-    border-radius: 11px;
+    aspect-ratio: 4 / 3;
+    margin: 5px 5px 0;
+    border-radius: 8px;
   }
 
   .package-card__body {
-    padding: 22px 18px 26px;
+    padding: 13px 8px 15px;
+  }
+
+  .package-card__label {
+    margin-bottom: 5px;
+    font-size: clamp(6px, 1.8vw, 7px);
+    letter-spacing: 0.1em;
   }
 
   .package-card h3 {
-    font-size: 29px;
+    font-size: clamp(18px, 5.6vw, 22px);
+  }
+
+  .package-card__ornament {
+    gap: 5px;
+    margin: 8px 0 10px;
+    font-size: 8px;
+  }
+
+  .package-card ul {
+    gap: 7px;
   }
 
   .package-card li {
-    font-size: 12px;
+    grid-template-columns: 15px minmax(0, 1fr);
+    gap: 5px;
+    font-size: clamp(8px, 2.4vw, 10px);
+    line-height: 1.35;
+  }
+
+  .package-card li small {
+    display: block;
+    margin-top: 1px;
+    font-size: 0.76em;
+  }
+
+  .package-card li small::before {
+    content: "(";
+  }
+
+  .package-card__check {
+    width: 15px;
+    height: 15px;
+    font-size: 8px;
+  }
+
+  .package-card__note {
+    margin-top: 11px;
+    padding: 9px 0 0;
+    border-top: 1px solid var(--package-line);
+    font-size: clamp(7px, 1.9vw, 8px);
   }
 
   .package-invitation__custom > div {
