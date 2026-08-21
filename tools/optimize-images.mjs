@@ -43,6 +43,7 @@ async function processDirectory(dirPath, options = {}) {
 
 async function main() {
   const rules = {
+    "hero-team.webp": { maxWidth: 1200, quality: 78 },
     "hero-couple.webp": { maxWidth: 650, quality: 76 },
     "venue-pavilion.webp": { maxWidth: 400, quality: 76 },
     "bride-portrait.webp": { maxWidth: 380, quality: 76 },

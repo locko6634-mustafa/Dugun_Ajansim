@@ -20,7 +20,7 @@ if (videos.some((match) => !/\bpreload=["']none["']/i.test(match[0])))
   failures.push("Tum videolar preload=none kullanmiyor");
 if (/@import\s+/i.test(homeCss)) failures.push("Ana CSS paketinde render-blocking @import var");
 if (
-  !/<img\b[^>]*\bsrc=["']assets\/images\/hero-couple\.webp["'][^>]*\bfetchpriority=["']high/i.test(
+  !/<img\b[^>]*\bsrc=["']assets\/images\/hero-team\.webp["'][^>]*\bfetchpriority=["']high/i.test(
     html
   )
 )
