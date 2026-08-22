@@ -177,6 +177,22 @@
   text-transform: uppercase;
 }
 
+.package-card__price {
+  margin: 10px 0 0;
+  color: var(--package-accent);
+  font-family: var(--serif);
+  font-size: clamp(19px, 2vw, 27px);
+  text-align: center;
+}
+
+.package-card__description {
+  margin: 0 0 18px;
+  color: var(--package-muted);
+  font-size: clamp(11px, 1vw, 14px);
+  line-height: 1.6;
+  text-align: center;
+}
+
 .package-card h3 {
   margin: 0;
   font-family: var(--serif);
@@ -260,6 +276,17 @@
   font-size: 10px;
   font-style: italic;
   line-height: 1.5;
+}
+
+.package-invitation__status {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 34px;
+  border: 1px solid var(--package-line);
+  border-radius: 18px;
+  color: var(--package-muted);
+  background: var(--package-panel);
+  text-align: center;
 }
 
 .package-invitation__custom {

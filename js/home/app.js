@@ -3,6 +3,7 @@ import "./faq.js";
 import "./gallery.js";
 import "./shoots.js";
 import "./services.js";
+import "./packages.js";
 import "./venues.js";
 import "./motion.js";
 import { initHeaderAuth } from "../shared/auth-session.js";

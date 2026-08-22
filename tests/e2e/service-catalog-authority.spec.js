@@ -13,6 +13,42 @@ test("@frontend-smoke ana sayfa API hatasında eski hizmet kataloğunu gösterme
   );
 });
 
+test("@frontend-smoke ana sayfa hazır paketleri yalnız backend kataloğundan gösterir", async ({
+  page
+}) => {
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          packages: [
+            {
+              code: "classic",
+              name: "API Classic Paket",
+              subtitle: "API kapsam etiketi",
+              description: "API paket açıklaması",
+              imagePath: "assets/images/hero-couple.webp",
+              priceCents: 4_500_000,
+              deliveryText: "API teslim notu",
+              features: ["API kamera kapsamı", "API drone kapsamı"]
+            }
+          ],
+          services: []
+        }
+      })
+    })
+  );
+
+  await page.goto("/index.html");
+
+  const packageCard = page.locator('[data-package-code="classic"]');
+  await expect(packageCard).toContainText("API Classic Paket");
+  await expect(packageCard).toContainText("₺45.000");
+  await expect(packageCard).toContainText("API kamera kapsamı");
+  await expect(page.getByText("Mini Paket", { exact: true })).toHaveCount(0);
+});
+
 test("@frontend-smoke paket oluşturucu eksik API alanlarını yerel katalogdan tamamlamaz", async ({
   page
 }) => {
@@ -51,7 +87,8 @@ test("@frontend-smoke paket oluşturucu eksik API alanlarını yerel katalogdan 
               code: "mini",
               name: "API Mini Paket",
               priceCents: 2_000_000,
-              imagePath: "assets/images/hero-couple.webp"
+              imagePath: "assets/images/hero-couple.webp",
+              features: ["API paket kapsamı"]
             }
           ],
           services: [
@@ -74,6 +111,7 @@ test("@frontend-smoke paket oluşturucu eksik API alanlarını yerel katalogdan 
   );
 
   await page.goto("/paketini-olustur.html");
+  await expect(page.locator(".base-package")).toContainText("API paket kapsamı");
   await page
     .locator('[data-service="fotograf"] .builder-service__open')
     .evaluate((button) => button.click());

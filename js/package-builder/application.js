@@ -280,12 +280,20 @@ function renderBasePackages(
     state.base = packages[0].code;
   }
   container.innerHTML = packages
-    .map(
-      (item) => `
+    .map((item) => {
+      const featureItems = Array.isArray(item.features)
+        ? item.features.filter((feature) => typeof feature === "string" && feature.trim())
+        : [];
+      const details = [
+        item.description || "Düğün gününüze özel profesyonel çekim planı",
+        ...featureItems,
+        item.deliveryText || "Teslim planı paket detaylarına göre belirlenir"
+      ];
+      return `
         <label class="base-package ${item.code === state.base ? "is-selected" : ""}">
           <input type="radio" name="base-package" value="${escapeHtml(item.code)}" ${item.code === state.base ? "checked" : ""} />
           <span class="base-package__media">
-            <img src="${escapeHtml(item.imagePath || "assets/images/why-digital-delivery.webp")}" alt="${escapeHtml(item.name)} düğün çekimi örneği" />
+            <img src="${escapeHtml(safeImageAssetPath(item.imagePath, "assets/images/why-digital-delivery.webp"))}" alt="${escapeHtml(item.name)} düğün çekimi örneği" />
             <span class="base-package__check" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" /></svg>
             </span>
@@ -296,12 +304,11 @@ function renderBasePackages(
               <b>${formatPrice(item.priceCents / 100)}</b>
             </span>
             <span class="base-package__features">
-              <span>${escapeHtml(item.description || "Düğün gününüze özel profesyonel çekim planı")}</span>
-              <span>${escapeHtml(item.deliveryText || "En geç 21 takvim gününde dijital teslim")}</span>
+              ${details.map((detail) => `<span>${escapeHtml(detail)}</span>`).join("")}
             </span>
           </span>
-        </label>`
-    )
+        </label>`;
+    })
     .join("");
   bindBaseInputs();
 }

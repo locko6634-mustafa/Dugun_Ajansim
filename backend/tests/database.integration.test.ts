@@ -273,6 +273,27 @@ test("migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalış�
     siteKey: null,
     action: "booking_application"
   });
+  const miniPackage = catalogResponse.body.data.packages.find(
+    (packageItem: { code: string }) => packageItem.code === "mini"
+  );
+  assert.equal(miniPackage?.name, "Mini Paket");
+  assert.deepEqual(miniPackage?.features, [
+    "Aktüel Kamera (Full Çekim 1080p)",
+    "10 Poz Dijital Aile Pozu (Düğün Sonunda)"
+  ]);
+  const classicPackage = catalogResponse.body.data.packages.find(
+    (packageItem: { code: string }) => packageItem.code === "classic"
+  );
+  assert.equal(classicPackage?.name, "Classic Paket");
+  assert.equal(classicPackage?.priceCents, 4_500_000);
+  assert.deepEqual(classicPackage?.features, [
+    "Aktüel Kamera (Full Çekim 1080p)",
+    "10 Poz Dijital Aile Pozu (Düğün Sonunda)",
+    "Drone Çekimi (Düğün Anında)",
+    "Düğün Hikayesi (Düğün Anında)",
+    "Gelin Damat Ön Çekim",
+    "Gelin Damat Fotoğraf Arşivi"
+  ]);
 });
 
 test("RLS politikaları açık enforcement ve transaction-local sunucu bağlamıyla çalışır", async () => {

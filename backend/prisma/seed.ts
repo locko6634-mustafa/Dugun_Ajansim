@@ -129,6 +129,35 @@ const services = [
   ]
 ] as const;
 
+const packages: Prisma.PackageCreateInput[] = [
+  {
+    code: "mini",
+    name: "Mini Paket",
+    subtitle: "Hazır çekim paketi",
+    description: "Düğün gününüz için temel çekim kapsamı.",
+    imagePath: "assets/images/why-digital-delivery.webp",
+    priceCents: 2_000_000,
+    features: ["Aktüel Kamera (Full Çekim 1080p)", "10 Poz Dijital Aile Pozu (Düğün Sonunda)"]
+  },
+  {
+    code: "classic",
+    name: "Classic Paket",
+    subtitle: "Kapsamlı çekim paketi",
+    description: "Düğün gününün temel çekimlerini geniş prodüksiyon kapsamıyla birleştirir.",
+    imagePath: "assets/images/hero-couple.webp",
+    priceCents: 4_500_000,
+    deliveryText: "Takı ve 3. şahıs fotoğrafları verilmez.",
+    features: [
+      "Aktüel Kamera (Full Çekim 1080p)",
+      "10 Poz Dijital Aile Pozu (Düğün Sonunda)",
+      "Drone Çekimi (Düğün Anında)",
+      "Düğün Hikayesi (Düğün Anında)",
+      "Gelin Damat Ön Çekim",
+      "Gelin Damat Fotoğraf Arşivi"
+    ]
+  }
+];
+
 const main = async () => {
   await prisma.$transaction([
     prisma.$queryRaw(Prisma.sql`
@@ -143,16 +172,13 @@ const main = async () => {
         update: {}
       })
     ),
-    prisma.package.upsert({
-      where: { code: "mini" },
-      create: {
-        code: "mini",
-        name: "Mini Paket",
-        priceCents: 2_000_000,
-        imagePath: "assets/images/hero-couple.webp"
-      },
-      update: {}
-    }),
+    ...packages.map((packageItem) =>
+      prisma.package.upsert({
+        where: { code: packageItem.code },
+        create: packageItem,
+        update: {}
+      })
+    ),
     ...services.map(([code, category, name, priceCents, imagePath]) =>
       prisma.service.upsert({
         where: { code },
