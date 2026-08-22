@@ -24,6 +24,15 @@ test("@frontend-smoke ana sayfa hazır paketleri yalnız backend kataloğundan g
         data: {
           packages: [
             {
+              code: "mini",
+              name: "API Mini Paket",
+              subtitle: "API mini etiketi",
+              description: "API mini açıklaması",
+              imagePath: "assets/images/why-digital-delivery.webp",
+              priceCents: 2_000_000,
+              features: ["API mini kapsamı"]
+            },
+            {
               code: "classic",
               name: "API Classic Paket",
               subtitle: "API kapsam etiketi",
@@ -42,6 +51,7 @@ test("@frontend-smoke ana sayfa hazır paketleri yalnız backend kataloğundan g
 
   await page.goto("/index.html");
 
+  await expect(page.locator(".package-card").first()).toHaveAttribute("data-package-code", "mini");
   const packageCard = page.locator('[data-package-code="classic"]');
   await expect(packageCard).toContainText("API Classic Paket");
   await expect(packageCard).toContainText("₺45.000");
@@ -89,6 +99,13 @@ test("@frontend-smoke paket oluşturucu eksik API alanlarını yerel katalogdan 
               priceCents: 2_000_000,
               imagePath: "assets/images/hero-couple.webp",
               features: ["API paket kapsamı"]
+            },
+            {
+              code: "classic",
+              name: "API Classic Paket",
+              priceCents: 4_500_000,
+              imagePath: "assets/images/hero-couple.webp",
+              features: ["API classic kapsamı"]
             }
           ],
           services: [
@@ -111,7 +128,9 @@ test("@frontend-smoke paket oluşturucu eksik API alanlarını yerel katalogdan 
   );
 
   await page.goto("/paketini-olustur.html");
-  await expect(page.locator(".base-package")).toContainText("API paket kapsamı");
+  await expect(page.locator(".base-package").first()).toContainText("API Mini Paket");
+  await expect(page.locator(".base-package").nth(1)).toContainText("API Classic Paket");
+  await expect(page.locator(".base-package").first()).toContainText("API paket kapsamı");
   await page
     .locator('[data-service="fotograf"] .builder-service__open')
     .evaluate((button) => button.click());

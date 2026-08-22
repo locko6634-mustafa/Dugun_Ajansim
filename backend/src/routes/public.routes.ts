@@ -212,6 +212,9 @@ router.get(
         orderBy: [{ category: "asc" }, { name: "asc" }]
       })
     ]);
+    packages.sort(
+      (left, right) => Number(right.code === "mini") - Number(left.code === "mini")
+    );
     res.json({
       success: true,
       data: {

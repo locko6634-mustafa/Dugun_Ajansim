@@ -273,6 +273,7 @@ test("migration ile oluşturulan tablo ve gerçek healthcheck birlikte çalış�
     siteKey: null,
     action: "booking_application"
   });
+  assert.equal(catalogResponse.body.data.packages[0]?.code, "mini");
   const miniPackage = catalogResponse.body.data.packages.find(
     (packageItem: { code: string }) => packageItem.code === "mini"
   );
