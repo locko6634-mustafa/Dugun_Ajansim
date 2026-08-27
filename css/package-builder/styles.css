@@ -113,7 +113,7 @@ button {
   gap: 11px;
 }
 
-.builder-brand > svg {
+.builder-brand > img {
   width: 42px;
   fill: none;
   stroke: var(--gold-dark);
@@ -2183,7 +2183,7 @@ body.is-summary-open .package-summary__close svg {
     padding-inline: 12px;
   }
 
-  .builder-brand > svg {
+  .builder-brand > img {
     display: none;
   }
 
@@ -2709,8 +2709,8 @@ body.is-summary-open .package-summary__close svg {
   gap: 9px;
 }
 
-.completion-brand svg,
-.showcase-brand svg {
+.completion-brand img,
+.showcase-brand img {
   width: 34px;
   fill: none;
   stroke: currentColor;
@@ -3505,7 +3505,7 @@ body.is-summary-open .package-summary__close svg {
     font-size: 19px;
   }
 
-  .completion-brand svg {
+  .completion-brand img {
     width: 29px;
   }
 
