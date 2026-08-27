@@ -141,6 +141,7 @@ ${group.links.map((link) => `              <a href="${escapeHtml(link.href)}">${
                 alt=""
                 width="128"
                 height="128"
+                loading="lazy"
                 aria-hidden="true"
               />
               <span><strong>${escapeHtml(content.brand.name)}</strong><small>${escapeHtml(content.brand.footerTagline)}</small></span>
