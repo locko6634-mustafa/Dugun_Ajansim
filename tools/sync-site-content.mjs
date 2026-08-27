@@ -135,11 +135,14 @@ ${group.links.map((link) => `              <a href="${escapeHtml(link.href)}">${
 
   return `          <div class="site-footer__brand">
             <a class="footer-brand" href="#anasayfa" aria-label="${escapeHtml(content.brand.name)} ana sayfa">
-              <svg class="footer-brand__mark" viewBox="0 0 64 64" aria-hidden="true">
-                <path d="M11 7h19c16 0 27 10 27 25S46 57 30 57H11V7Z" />
-                <path d="M19 28 31 16l12 12a7 7 0 0 1 0 10L31 50 19 38a7 7 0 0 1 0-10Z" />
-                <path d="m25 30 6-6 7 7a3 3 0 0 1 0 4l-7 7-6-6a4 4 0 0 1 0-6Z" />
-              </svg>
+              <img
+                class="footer-brand__mark"
+                src="assets/favicon.svg"
+                alt=""
+                width="128"
+                height="128"
+                aria-hidden="true"
+              />
               <span><strong>${escapeHtml(content.brand.name)}</strong><small>${escapeHtml(content.brand.footerTagline)}</small></span>
             </a>
             <p>${escapeHtml(content.brand.footerDescription)}</p>
