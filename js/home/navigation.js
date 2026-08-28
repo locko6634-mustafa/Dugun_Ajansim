@@ -77,6 +77,7 @@ const navLinks = document.querySelectorAll(
 const sectionsToTrack = sectionIds.map((id) => document.getElementById(id)).filter(Boolean);
 const siteHeader = document.querySelector(".site-header");
 const headerSurfaces = [...document.querySelectorAll("[data-header-surface]")];
+const fixedSectionId = document.body.dataset.navSection;
 let isManualClick = false;
 let manualClickTimer = null;
 let scrollFrame = null;
@@ -158,6 +159,11 @@ document.addEventListener("click", (event) => {
 });
 
 function initActiveNav() {
+  if (fixedSectionId && sectionIds.includes(fixedSectionId)) {
+    setActiveNav(fixedSectionId);
+    return;
+  }
+
   const hash = window.location.hash.replace("#", "");
   if (hash && sectionIds.includes(hash)) {
     setActiveNav(hash);
@@ -167,6 +173,7 @@ function initActiveNav() {
 }
 
 function getActiveSectionId() {
+  if (fixedSectionId && sectionIds.includes(fixedSectionId)) return fixedSectionId;
   if (window.scrollY < 80) return "anasayfa";
 
   const pageBottom = window.innerHeight + window.scrollY;

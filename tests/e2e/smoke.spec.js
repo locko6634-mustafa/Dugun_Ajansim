@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
-const criticalPages = ["/index.html", "/login.html", "/paketini-olustur.html"];
+const criticalPages = ["/index.html", "/galeri.html", "/login.html", "/paketini-olustur.html"];
 
 for (const pagePath of criticalPages) {
   test(`@frontend-smoke @responsive ${pagePath} temel sözleşmesi`, async ({ page }) => {
@@ -20,6 +20,45 @@ for (const pagePath of criticalPages) {
     expect(results.violations.filter(({ impact }) => impact === "critical")).toEqual([]);
   });
 }
+
+test("@frontend-smoke @responsive galeri önizlemesi tam galeri sayfasına açılır", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/index.html#galeri");
+
+  const galleryLink = page.locator("[data-gallery-page-link]");
+  const previewItems = page.locator("[data-gallery-preview-item]");
+  const mainPreview = page.locator("[data-gallery-preview-main]");
+  await expect(previewItems).toHaveCount(8);
+
+  const initialImage = await mainPreview.getAttribute("src");
+  await page.locator(".gallery-preview__stage").dispatchEvent("pointerdown", {
+    pointerId: 1,
+    clientX: 300,
+    clientY: 300
+  });
+  await page.locator(".gallery-preview__stage").dispatchEvent("pointerup", {
+    pointerId: 1,
+    clientX: 100,
+    clientY: 305
+  });
+  await expect(mainPreview).not.toHaveAttribute("src", initialImage);
+
+  await expect(galleryLink).toHaveAttribute("href", "galeri.html");
+  await galleryLink.click();
+
+  await expect(page).toHaveURL(/\/galeri\.html$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Düğün Fotoğrafları" })).toBeVisible();
+  await expect(page.locator(".gallery-card")).toHaveCount(8);
+  await expect(page.locator("[data-gallery-reveal]")).toHaveCount(0);
+  await expect(page.locator("[data-gallery-viewport]")).not.toHaveClass(/is-collapsible/);
+
+  await page.getByRole("button", { name: "Kına", exact: true }).click();
+  await expect(page.locator(".gallery-card:visible")).toHaveCount(4);
+  await page.getByRole("button", { name: "Tümü", exact: true }).click();
+  await expect(page.locator(".gallery-card:visible")).toHaveCount(8);
+});
 
 test("@frontend-smoke @responsive ana sayfa dinamik kartları kompakt gridde tutar", async ({
   page

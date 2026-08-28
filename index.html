@@ -420,7 +420,7 @@
       </section>
 
       <section
-        class="gallery-section"
+        class="gallery-section gallery-section--preview"
         id="galeri"
         data-header-surface="light"
         aria-labelledby="gallery-title"
@@ -476,30 +476,29 @@
             </button>
           </div>
 
-          <div class="gallery-viewport" id="gallery-collection" data-gallery-viewport>
-            <div class="gallery-track" aria-label="Düğün fotoğrafları galerisi">
-              <button
-                class="gallery-card gallery-card--tall"
-                type="button"
-                data-gallery-index="0"
-                data-gallery-category="dugun kina dis-cekim"
+          <div class="gallery-preview" data-gallery-preview>
+            <div
+              class="gallery-preview__stage"
+              tabindex="0"
+              role="group"
+              aria-label="Fotoğraflar arasında geçiş yapın"
+              aria-live="polite"
+            >
+              <figure
+                class="gallery-preview__photo gallery-preview__photo--left"
+                aria-hidden="true"
               >
                 <img
                   src="/media/images/wedding-gallery-01.webp"
-                  alt="Çiçek yaprakları arasında yürüyen gelin ve damat"
+                  alt=""
                   width="1280"
                   height="1920"
                   loading="lazy"
                   decoding="async"
+                  data-gallery-preview-left
                 />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button
-                class="gallery-card gallery-card--medium"
-                type="button"
-                data-gallery-index="1"
-                data-gallery-category="dugun nisan"
-              >
+              </figure>
+              <figure class="gallery-preview__photo gallery-preview__photo--main">
                 <img
                   src="/media/images/wedding-gallery-02.webp"
                   alt="Hareketli davetliler arasında birbirini öpen gelin ve damat"
@@ -507,122 +506,188 @@
                   height="1920"
                   loading="lazy"
                   decoding="async"
+                  data-gallery-preview-main
                 />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button
-                class="gallery-card gallery-card--hero"
-                type="button"
-                data-gallery-index="2"
-                data-gallery-category="nisan dis-cekim"
+                <span class="gallery-preview__heart" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path
+                      d="M12 20.5S4.5 16 4.5 10.2A4.2 4.2 0 0 1 12 7.6a4.2 4.2 0 0 1 7.5 2.6C19.5 16 12 20.5 12 20.5Z"
+                    />
+                  </svg>
+                </span>
+                <figcaption class="visually-hidden" data-gallery-preview-caption>
+                  Hareketli davetliler arasında birbirini öpen gelin ve damat
+                </figcaption>
+              </figure>
+              <figure
+                class="gallery-preview__photo gallery-preview__photo--right"
+                aria-hidden="true"
               >
                 <img
                   src="/media/images/wedding-gallery-03.webp"
-                  alt="Düğün eğlencesinde renkli gözlüklerle poz veren çift"
+                  alt=""
                   width="1280"
                   height="1920"
                   loading="lazy"
                   decoding="async"
+                  data-gallery-preview-right
                 />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button
-                class="gallery-card gallery-card--short"
-                type="button"
-                data-gallery-index="3"
-                data-gallery-category="kina"
-              >
-                <img
-                  src="/media/images/wedding-gallery-04.webp"
-                  alt="Çiçek yaprakları altında el ele yürüyen gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button
-                class="gallery-card gallery-card--medium"
-                type="button"
-                data-gallery-index="4"
-                data-gallery-category="dugun kina"
-              >
-                <img
-                  src="/media/images/wedding-gallery-05.webp"
-                  alt="Düğün eğlencesinde dans eden gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button
-                class="gallery-card gallery-card--tall"
-                type="button"
-                data-gallery-index="5"
-                data-gallery-category="nisan dis-cekim"
-              >
-                <img
-                  src="/media/images/wedding-gallery-06.webp"
-                  alt="Çiçekli nikâh kapısında gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button
-                class="gallery-card gallery-card--hero"
-                type="button"
-                data-gallery-index="6"
-                data-gallery-category="dugun dis-cekim"
-              >
-                <img
-                  src="/media/images/wedding-gallery-07.webp"
-                  alt="Açık hava düğününde birbirine sarılan gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
-              <button
-                class="gallery-card gallery-card--short"
-                type="button"
-                data-gallery-index="7"
-                data-gallery-category="nisan kina"
-              >
-                <img
-                  src="/media/images/wedding-gallery-08.webp"
-                  alt="Çiçekli nikâh alanında poz veren gelin ve damat"
-                  width="1280"
-                  height="1920"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
-              </button>
+              </figure>
             </div>
-          </div>
 
-          <div class="gallery-reveal-row">
-            <button
-              class="gallery-reveal"
-              type="button"
-              aria-controls="gallery-collection"
-              aria-expanded="false"
-              data-gallery-reveal
-              hidden
-            >
-              <span data-gallery-reveal-label>Tümünü Gör</span>
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="m5.5 7.5 4.5 4.25 4.5-4.25" />
-              </svg>
-            </button>
+            <div class="gallery-preview__dock">
+              <div class="gallery-preview__thumbs" aria-label="Öne çıkan fotoğrafı seçin">
+                <button
+                  class="gallery-preview__thumb"
+                  type="button"
+                  aria-label="Çiçek yaprakları arasında yürüyen gelin ve damat"
+                  aria-pressed="false"
+                  data-gallery-preview-item
+                  data-gallery-category="dugun kina dis-cekim"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-01.webp"
+                    alt=""
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </button>
+                <button
+                  class="gallery-preview__thumb"
+                  type="button"
+                  aria-label="Hareketli davetliler arasında birbirini öpen gelin ve damat"
+                  aria-pressed="true"
+                  data-gallery-preview-item
+                  data-gallery-category="dugun nisan"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-02.webp"
+                    alt=""
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </button>
+                <button
+                  class="gallery-preview__thumb"
+                  type="button"
+                  aria-label="Düğün eğlencesinde renkli gözlüklerle poz veren çift"
+                  aria-pressed="false"
+                  data-gallery-preview-item
+                  data-gallery-category="nisan dis-cekim"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-03.webp"
+                    alt=""
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </button>
+                <button
+                  class="gallery-preview__thumb"
+                  type="button"
+                  aria-label="Çiçek yaprakları altında el ele yürüyen gelin ve damat"
+                  aria-pressed="false"
+                  data-gallery-preview-item
+                  data-gallery-category="kina"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-04.webp"
+                    alt=""
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </button>
+                <button
+                  class="gallery-preview__thumb"
+                  type="button"
+                  aria-label="Düğün eğlencesinde dans eden gelin ve damat"
+                  aria-pressed="false"
+                  data-gallery-preview-item
+                  data-gallery-category="dugun kina"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-05.webp"
+                    alt=""
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </button>
+                <button
+                  class="gallery-preview__thumb"
+                  type="button"
+                  aria-label="Çiçekli nikâh kapısında gelin ve damat"
+                  aria-pressed="false"
+                  data-gallery-preview-item
+                  data-gallery-category="nisan dis-cekim"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-06.webp"
+                    alt=""
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </button>
+                <button
+                  class="gallery-preview__thumb"
+                  type="button"
+                  aria-label="Açık hava düğününde birbirine sarılan gelin ve damat"
+                  aria-pressed="false"
+                  data-gallery-preview-item
+                  data-gallery-category="dugun dis-cekim"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-07.webp"
+                    alt=""
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </button>
+                <button
+                  class="gallery-preview__thumb"
+                  type="button"
+                  aria-label="Çiçekli nikâh alanında poz veren gelin ve damat"
+                  aria-pressed="false"
+                  data-gallery-preview-item
+                  data-gallery-category="nisan kina"
+                >
+                  <img
+                    src="/media/images/wedding-gallery-08.webp"
+                    alt=""
+                    width="1280"
+                    height="1920"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </button>
+              </div>
+
+              <a class="gallery-preview__link" href="galeri.html" data-gallery-page-link>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M12 2.8c.6 4.8 2.4 6.6 7.2 7.2-4.8.6-6.6 2.4-7.2 7.2-.6-4.8-2.4-6.6-7.2-7.2 4.8-.6 6.6-2.4 7.2-7.2Z"
+                  />
+                  <path
+                    d="M19 15.5c.2 1.8.9 2.5 2.7 2.7-1.8.2-2.5.9-2.7 2.7-.2-1.8-.9-2.5-2.7-2.7 1.8-.2 2.5-.9 2.7-2.7Z"
+                  />
+                </svg>
+                <span>Galeriyi Gör</span>
+                <span aria-hidden="true">→</span>
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -1094,39 +1159,6 @@
         </div>
       </div>
     </footer>
-
-    <dialog class="gallery-lightbox" aria-label="Büyütülmüş galeri fotoğrafı">
-      <button class="gallery-lightbox__close" type="button" aria-label="Galeriyi kapat">×</button>
-      <button
-        class="gallery-lightbox__nav gallery-lightbox__nav--prev"
-        type="button"
-        aria-label="Önceki fotoğraf"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="m14.5 5-7 7 7 7" />
-        </svg>
-      </button>
-      <figure>
-        <img
-          src="/media/images/wedding-gallery-01.webp"
-          alt=""
-          width="1280"
-          height="1920"
-          loading="lazy"
-          decoding="async"
-        />
-        <figcaption></figcaption>
-      </figure>
-      <button
-        class="gallery-lightbox__nav gallery-lightbox__nav--next"
-        type="button"
-        aria-label="Sonraki fotoğraf"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="m9.5 5 7 7-7 7" />
-        </svg>
-      </button>
-    </dialog>
 
     <dialog class="video-lightbox" aria-label="Büyütülmüş video çekimi">
       <button class="video-lightbox__close" type="button" aria-label="Videoyu kapat">×</button>

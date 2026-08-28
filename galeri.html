@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <!-- site-content:seo:start -->
+    <meta
+      name="description"
+      content="Düğünajansım'ın gerçek düğün, nişan, kına ve dış çekimlerinden öne çıkan fotoğrafları keşfedin."
+    />
+    <title>Düğün Fotoğrafları Galerisi | Düğünajansım</title>
+    <meta name="theme-color" content="#f7f3ed" />
+    <link rel="canonical" href="./galeri.html" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="tr_TR" />
+    <meta property="og:site_name" content="Düğünajansım" />
+    <meta property="og:title" content="Düğün Fotoğrafları Galerisi | Düğünajansım" />
+    <meta
+      property="og:description"
+      content="Gerçek düğünlerden, nişanlardan ve dış çekimlerden seçilen Düğünajansım fotoğraflarını inceleyin."
+    />
+    <meta property="og:url" content="./galeri.html" />
+    <meta property="og:image" content="/media/images/wedding-gallery-01.webp" />
+    <meta property="og:image:alt" content="Çiçek yaprakları arasında yürüyen gelin ve damat" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Düğün Fotoğrafları Galerisi | Düğünajansım" />
+    <meta
+      name="twitter:description"
+      content="Gerçek düğünlerden, nişanlardan ve dış çekimlerden seçilen Düğünajansım fotoğraflarını inceleyin."
+    />
+    <meta name="twitter:image" content="/media/images/wedding-gallery-01.webp" />
+    <meta name="twitter:image:alt" content="Çiçek yaprakları arasında yürüyen gelin ve damat" />
+    <!-- site-content:seo:end -->
+    <script src="js/home/bootstrap.js"></script>
+    <link rel="stylesheet" href="css/shared/fonts.css" />
+    <link rel="stylesheet" href="css/home/site.css" />
+    <link rel="modulepreload" href="js/gallery/app.js" />
+    <script type="module" src="js/gallery/app.js"></script>
+  </head>
+  <body class="gallery-page" data-nav-section="galeri">
+    <div id="app-preloader" class="app-preloader" aria-hidden="true">
+      <div class="app-preloader__brand">
+        <img
+          class="app-preloader__mark"
+          src="assets/favicon.svg"
+          alt=""
+          width="128"
+          height="128"
+          aria-hidden="true"
+        />
+        <span class="app-preloader__name">Düğünajansım</span>
+      </div>
+      <div class="app-preloader__bar"></div>
+    </div>
+
+    <header class="site-header">
+      <a class="brand" href="index.html#anasayfa" aria-label="Düğünajansım ana sayfa">
+        <img
+          class="brand__mark"
+          src="assets/favicon.svg"
+          alt=""
+          width="128"
+          height="128"
+          aria-hidden="true"
+        />
+        <span class="brand__name">Düğünajansım</span>
+        <span class="brand__year">8.Yıl</span>
+      </a>
+
+      <nav class="desktop-nav" aria-label="Ana navigasyon">
+        <a href="index.html#cekimler" data-nav-sections="cekimler">Çekimler</a>
+        <a href="galeri.html" data-nav-sections="galeri">Galeri</a>
+        <a href="index.html#hizmetler" data-nav-sections="hizmetler">Hizmetlerimiz</a>
+        <a href="index.html#mekanlar" data-nav-sections="mekanlar">Mekânlar</a>
+      </nav>
+
+      <div class="header-actions">
+        <a class="header-login" href="login.html">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="8" r="3.5" />
+            <path d="M5.5 20c.4-4 2.7-6 6.5-6s6.1 2 6.5 6" />
+          </svg>
+          Giriş Yap
+        </a>
+        <a class="header-cta" href="paketini-olustur.html">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M7 2v3M17 2v3M3.5 9h17M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
+            />
+            <path d="M7.5 13h2v2h-2zM11 13h2v2h-2zM14.5 13h2v2h-2z" />
+          </svg>
+          Paket Oluştur
+        </a>
+      </div>
+
+      <button
+        class="menu-toggle"
+        type="button"
+        aria-label="Menüyü aç"
+        aria-controls="mobile-menu"
+        aria-expanded="false"
+      >
+        <span></span><span></span><span></span>
+      </button>
+    </header>
+
+    <div class="mobile-menu" id="mobile-menu" aria-hidden="true" inert>
+      <nav aria-label="Mobil navigasyon">
+        <a href="index.html#cekimler" data-nav-sections="cekimler">Çekimler</a>
+        <a href="galeri.html" data-nav-sections="galeri">Galeri</a>
+        <a href="index.html#hizmetler" data-nav-sections="hizmetler">Hizmetlerimiz</a>
+        <a href="index.html#mekanlar" data-nav-sections="mekanlar">Mekânlar</a>
+      </nav>
+      <div class="mobile-menu__actions">
+        <a class="button mobile-login-button" href="login.html">Giriş Yap</a>
+        <a class="button button--primary" href="paketini-olustur.html">Paket Oluştur</a>
+      </div>
+    </div>
+
+    <main id="ana-icerik">
+      <section
+        class="gallery-section gallery-section--page"
+        id="galeri"
+        data-header-surface="light"
+        aria-labelledby="gallery-title"
+      >
+        <div class="gallery-section__inner">
+          <header class="gallery-heading">
+            <h1 id="gallery-title">
+              <span class="section-title__lead">Düğün</span> <em>Fotoğrafları</em>
+            </h1>
+            <p>Gerçek düğünlerden öne çıkan kareler.</p>
+          </header>
+
+          <div class="gallery-filters" role="group" aria-label="Galeriyi filtrele">
+            <button
+              class="gallery-filter"
+              type="button"
+              aria-pressed="true"
+              data-gallery-filter="all"
+            >
+              Tümü
+            </button>
+            <button
+              class="gallery-filter"
+              type="button"
+              aria-pressed="false"
+              data-gallery-filter="dugun"
+            >
+              Düğün
+            </button>
+            <button
+              class="gallery-filter"
+              type="button"
+              aria-pressed="false"
+              data-gallery-filter="nisan"
+            >
+              Nişan
+            </button>
+            <button
+              class="gallery-filter"
+              type="button"
+              aria-pressed="false"
+              data-gallery-filter="kina"
+            >
+              Kına
+            </button>
+            <button
+              class="gallery-filter"
+              type="button"
+              aria-pressed="false"
+              data-gallery-filter="dis-cekim"
+            >
+              Dış Çekim
+            </button>
+          </div>
+
+          <div class="gallery-viewport" id="gallery-collection" data-gallery-viewport>
+            <div class="gallery-track" aria-label="Düğün fotoğrafları galerisi">
+              <button
+                class="gallery-card gallery-card--tall"
+                type="button"
+                data-gallery-index="0"
+                data-gallery-category="dugun kina dis-cekim"
+              >
+                <img
+                  src="/media/images/wedding-gallery-01.webp"
+                  alt="Çiçek yaprakları arasında yürüyen gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button
+                class="gallery-card gallery-card--medium"
+                type="button"
+                data-gallery-index="1"
+                data-gallery-category="dugun nisan"
+              >
+                <img
+                  src="/media/images/wedding-gallery-02.webp"
+                  alt="Hareketli davetliler arasında birbirini öpen gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button
+                class="gallery-card gallery-card--hero"
+                type="button"
+                data-gallery-index="2"
+                data-gallery-category="nisan dis-cekim"
+              >
+                <img
+                  src="/media/images/wedding-gallery-03.webp"
+                  alt="Düğün eğlencesinde renkli gözlüklerle poz veren çift"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button
+                class="gallery-card gallery-card--short"
+                type="button"
+                data-gallery-index="3"
+                data-gallery-category="kina"
+              >
+                <img
+                  src="/media/images/wedding-gallery-04.webp"
+                  alt="Çiçek yaprakları altında el ele yürüyen gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button
+                class="gallery-card gallery-card--medium"
+                type="button"
+                data-gallery-index="4"
+                data-gallery-category="dugun kina"
+              >
+                <img
+                  src="/media/images/wedding-gallery-05.webp"
+                  alt="Düğün eğlencesinde dans eden gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button
+                class="gallery-card gallery-card--tall"
+                type="button"
+                data-gallery-index="5"
+                data-gallery-category="nisan dis-cekim"
+              >
+                <img
+                  src="/media/images/wedding-gallery-06.webp"
+                  alt="Çiçekli nikâh kapısında gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button
+                class="gallery-card gallery-card--hero"
+                type="button"
+                data-gallery-index="6"
+                data-gallery-category="dugun dis-cekim"
+              >
+                <img
+                  src="/media/images/wedding-gallery-07.webp"
+                  alt="Açık hava düğününde birbirine sarılan gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+              <button
+                class="gallery-card gallery-card--short"
+                type="button"
+                data-gallery-index="7"
+                data-gallery-category="nisan kina"
+              >
+                <img
+                  src="/media/images/wedding-gallery-08.webp"
+                  alt="Çiçekli nikâh alanında poz veren gelin ve damat"
+                  width="1280"
+                  height="1920"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer" id="iletisim" data-header-surface="dark">
+      <div class="site-footer__glow" aria-hidden="true"></div>
+      <div class="site-footer__inner">
+        <div class="site-footer__top">
+          <div class="site-footer__brand">
+            <a class="footer-brand" href="index.html#anasayfa" aria-label="Düğünajansım ana sayfa">
+              <img
+                class="footer-brand__mark"
+                src="assets/favicon.svg"
+                alt=""
+                width="128"
+                height="128"
+                loading="lazy"
+                aria-hidden="true"
+              />
+              <span><strong>Düğünajansım</strong><small>En güzel “evet”lere şahidiz.</small></span>
+            </a>
+            <p>
+              Fotoğraf, sinematik film, drone, Jimmy Jib ve tüm görsel prodüksiyon süreçlerini tek
+              profesyonel ekiple yönetiyoruz.
+            </p>
+          </div>
+
+          <div class="site-footer__nav">
+            <div class="footer-links">
+              <p class="footer-links__title">Keşfedin</p>
+              <a href="index.html#cekimler">Çekimler</a>
+              <a href="galeri.html">Galeri</a>
+              <a href="index.html#sss">Sıkça Sorulanlar</a>
+            </div>
+            <div class="footer-links">
+              <p class="footer-links__title">Planlayın</p>
+              <a href="index.html#hizmetler">Hizmetlerimiz</a>
+              <a href="#iletisim">İletişim</a>
+            </div>
+            <div class="footer-links">
+              <p class="footer-links__title">Yasal</p>
+              <a href="kvkk-aydinlatma.html">KVKK Aydınlatma</a>
+              <a href="gizlilik-politikasi.html">Gizlilik Politikası</a>
+              <a href="kullanim-sartlari.html">Kullanım Şartları</a>
+            </div>
+          </div>
+
+          <div class="site-footer__cta">
+            <span class="site-footer__eyebrow">Hayalinizdeki güne ilk adım</span>
+            <p>Hikâyenizi birlikte planlayalım.</p>
+            <a class="site-footer__action" href="paketini-olustur.html">
+              <span>Paket Oluştur</span><span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </div>
+
+        <address class="site-footer__contact" aria-label="İletişim seçenekleri">
+          <span class="site-footer__eyebrow">Bize ulaşın</span>
+          <a href="tel:+905386888306">
+            <span>Telefon</span><strong>+90&nbsp;538&nbsp;688&nbsp;83&nbsp;06</strong>
+          </a>
+          <a href="https://wa.me/905386888306" target="_blank" rel="noopener noreferrer">
+            <span>WhatsApp</span><strong>Mesaj gönderin</strong>
+          </a>
+        </address>
+
+        <div class="site-footer__signature" aria-hidden="true">
+          <span></span>
+          <svg viewBox="0 0 32 32">
+            <path
+              d="M16 27S5 20.2 5 11.7C5 7.8 8 5 11.7 5c2.1 0 3.8 1 4.3 2.2C16.5 6 18.2 5 20.3 5 24 5 27 7.8 27 11.7 27 20.2 16 27 16 27Z"
+            />
+          </svg>
+          <span></span>
+        </div>
+
+        <div class="site-footer__bottom">
+          <p>© <span data-current-year></span> Düğünajansım. Tüm hakları saklıdır.</p>
+          <a href="#galeri">Başa dön <span aria-hidden="true">↑</span></a>
+        </div>
+      </div>
+    </footer>
+
+    <dialog class="gallery-lightbox" aria-label="Büyütülmüş galeri fotoğrafı">
+      <button class="gallery-lightbox__close" type="button" aria-label="Galeriyi kapat">×</button>
+      <button
+        class="gallery-lightbox__nav gallery-lightbox__nav--prev"
+        type="button"
+        aria-label="Önceki fotoğraf"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7" /></svg>
+      </button>
+      <figure>
+        <img
+          src="/media/images/wedding-gallery-01.webp"
+          alt=""
+          width="1280"
+          height="1920"
+          loading="lazy"
+          decoding="async"
+        />
+        <figcaption></figcaption>
+      </figure>
+      <button
+        class="gallery-lightbox__nav gallery-lightbox__nav--next"
+        type="button"
+        aria-label="Sonraki fotoğraf"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 5 7 7-7 7" /></svg>
+      </button>
+    </dialog>
+  </body>
+</html>

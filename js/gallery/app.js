@@ -1,12 +1,5 @@
-import "./navigation.js";
-import "./faq.js";
-import "./gallery.js";
-import "./gallery-preview.js";
-import "./shoots.js";
-import "./services.js";
-import "./packages.js";
-import "./venues.js";
-import "./motion.js";
+import "../home/navigation.js";
+import "../home/gallery.js";
 import { initHeaderAuth } from "../shared/auth-session.js";
 import { initCurrentYear } from "../shared/site-content.js";
 

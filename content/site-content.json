@@ -31,6 +31,14 @@
       "imageUrl": "assets/images/hero-couple.webp",
       "imageAlt": "Düğünajansım düğün çekimi"
     },
+    "galeri.html": {
+      "title": "Düğün Fotoğrafları Galerisi | Düğünajansım",
+      "description": "Düğünajansım'ın gerçek düğün, nişan, kına ve dış çekimlerinden öne çıkan fotoğrafları keşfedin.",
+      "socialDescription": "Gerçek düğünlerden, nişanlardan ve dış çekimlerden seçilen Düğünajansım fotoğraflarını inceleyin.",
+      "canonicalUrl": "./galeri.html",
+      "imageUrl": "/media/images/wedding-gallery-01.webp",
+      "imageAlt": "Çiçek yaprakları arasında yürüyen gelin ve damat"
+    },
     "admin.html": { "title": "Yönetim Merkezi | Düğünajansım" },
     "operasyon-paneli.html": { "title": "Salon Sorumlusu | Düğünajansım" },
     "musteri-paneli.html": { "title": "Teslimat Paneli | Düğünajansım" },
