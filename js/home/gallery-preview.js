@@ -9,16 +9,46 @@ if (galleryPreview) {
   const rightImage = galleryPreview.querySelector("[data-gallery-preview-right]");
   const caption = galleryPreview.querySelector("[data-gallery-preview-caption]");
   const stage = galleryPreview.querySelector(".gallery-preview__stage");
+  const thumbnailStrip = galleryPreview.querySelector(".gallery-preview__thumbs");
   const previousButton = galleryPreview.querySelector("[data-gallery-preview-prev]");
   const nextButton = galleryPreview.querySelector("[data-gallery-preview-next]");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let activeItem = items.find((item) => item.getAttribute("aria-pressed") === "true") || items[0];
   let pointerStart = null;
+  let thumbnailScrollFrame;
 
   const setImage = (target, source, alt = "") => {
     const image = source.querySelector("img");
     target.src = image.getAttribute("src");
     target.alt = alt;
+  };
+
+  const keepActiveThumbnailVisible = () => {
+    if (!thumbnailStrip || !activeItem || activeItem.hidden) return;
+
+    cancelAnimationFrame(thumbnailScrollFrame);
+    thumbnailScrollFrame = requestAnimationFrame(() => {
+      const stripBounds = thumbnailStrip.getBoundingClientRect();
+      const itemBounds = activeItem.getBoundingClientRect();
+      const edgeInset = 3;
+      let nextScrollLeft = thumbnailStrip.scrollLeft;
+
+      if (itemBounds.right > stripBounds.right - edgeInset) {
+        nextScrollLeft += itemBounds.right - stripBounds.right + edgeInset;
+      } else if (itemBounds.left < stripBounds.left + edgeInset) {
+        nextScrollLeft -= stripBounds.left - itemBounds.left + edgeInset;
+      }
+
+      const maximumScroll = Math.max(0, thumbnailStrip.scrollWidth - thumbnailStrip.clientWidth);
+      nextScrollLeft = Math.max(0, Math.min(nextScrollLeft, maximumScroll));
+
+      if (Math.abs(nextScrollLeft - thumbnailStrip.scrollLeft) < 1) return;
+
+      thumbnailStrip.scrollTo({
+        left: nextScrollLeft,
+        behavior: reducedMotion.matches ? "auto" : "smooth"
+      });
+    });
   };
 
   const updateStage = (nextItem, direction = 0) => {
@@ -35,6 +65,8 @@ if (galleryPreview) {
     items.forEach((item) => {
       item.setAttribute("aria-pressed", String(item === activeItem));
     });
+
+    keepActiveThumbnailVisible();
 
     setImage(mainImage, activeItem, activeLabel);
     setImage(leftImage, previousItem);

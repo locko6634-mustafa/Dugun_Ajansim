@@ -322,8 +322,13 @@
   padding: 2px;
   overflow-x: auto;
   gap: clamp(7px, 1vw, 11px);
+  overscroll-behavior-inline: contain;
+  scroll-behavior: smooth;
+  scroll-padding-inline: 2px;
+  scroll-snap-type: inline proximity;
   scrollbar-color: hsl(34 35% 65%) transparent;
   scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
 .gallery-preview__thumb {
@@ -338,6 +343,7 @@
   background: hsl(40 36% 94%);
   cursor: pointer;
   flex: 0 0 auto;
+  scroll-snap-align: start;
   transition:
     border-color 220ms ease,
     box-shadow 240ms ease,
@@ -1288,6 +1294,10 @@
 @media (prefers-reduced-motion: reduce) {
   .gallery-section::before {
     animation: none;
+  }
+
+  .gallery-preview__thumbs {
+    scroll-behavior: auto;
   }
 
   .gallery-filter,

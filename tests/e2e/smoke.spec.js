@@ -30,7 +30,9 @@ test("@frontend-smoke @responsive galeri önizlemesi tam galeri sayfasına açı
   const galleryLink = page.locator("[data-gallery-page-link]");
   const previewItems = page.locator("[data-gallery-preview-item]");
   const mainPreview = page.locator("[data-gallery-preview-main]");
+  const thumbnailStrip = page.locator(".gallery-preview__thumbs");
   await expect(previewItems).toHaveCount(8);
+  const initialThumbnailScroll = await thumbnailStrip.evaluate((element) => element.scrollLeft);
 
   const initialImage = await mainPreview.getAttribute("src");
   await page.getByRole("button", { name: "Sonraki fotoğraf" }).click();
@@ -48,6 +50,12 @@ test("@frontend-smoke @responsive galeri önizlemesi tam galeri sayfasına açı
     clientY: 305
   });
   await expect(mainPreview).not.toHaveAttribute("src", imageAfterArrow);
+
+  await page.getByRole("button", { name: "Sonraki fotoğraf" }).click();
+  await expect(previewItems.nth(4)).toHaveAttribute("aria-pressed", "true");
+  await expect
+    .poll(() => thumbnailStrip.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(initialThumbnailScroll);
 
   await expect(galleryLink).toHaveAttribute("href", "galeri.html");
   await galleryLink.click();
