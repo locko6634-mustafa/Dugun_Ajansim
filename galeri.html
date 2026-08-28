@@ -122,15 +122,23 @@
       <section
         class="gallery-section gallery-section--page"
         id="galeri"
-        data-header-surface="light"
+        data-header-surface="dark"
         aria-labelledby="gallery-title"
       >
         <div class="gallery-section__inner">
           <header class="gallery-heading">
-            <h1 id="gallery-title">
-              <span class="section-title__lead">Düğün</span> <em>Fotoğrafları</em>
-            </h1>
-            <p>Gerçek düğünlerden öne çıkan kareler.</p>
+            <a class="gallery-home-link" href="index.html#anasayfa">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m14.5 5-7 7 7 7" />
+              </svg>
+              <span>Anasayfaya dön</span>
+            </a>
+            <div class="gallery-heading__copy">
+              <h1 id="gallery-title">
+                <span class="section-title__lead">Düğün</span> <em>Fotoğrafları</em>
+              </h1>
+              <p>Gerçek düğünlerden öne çıkan kareler.</p>
+            </div>
           </header>
 
           <div class="gallery-filters" role="group" aria-label="Galeriyi filtrele">
@@ -311,85 +319,6 @@
         </div>
       </section>
     </main>
-
-    <footer class="site-footer" id="iletisim" data-header-surface="dark">
-      <div class="site-footer__glow" aria-hidden="true"></div>
-      <div class="site-footer__inner">
-        <div class="site-footer__top">
-          <div class="site-footer__brand">
-            <a class="footer-brand" href="index.html#anasayfa" aria-label="Düğünajansım ana sayfa">
-              <img
-                class="footer-brand__mark"
-                src="assets/favicon.svg"
-                alt=""
-                width="128"
-                height="128"
-                loading="lazy"
-                aria-hidden="true"
-              />
-              <span><strong>Düğünajansım</strong><small>En güzel “evet”lere şahidiz.</small></span>
-            </a>
-            <p>
-              Fotoğraf, sinematik film, drone, Jimmy Jib ve tüm görsel prodüksiyon süreçlerini tek
-              profesyonel ekiple yönetiyoruz.
-            </p>
-          </div>
-
-          <div class="site-footer__nav">
-            <div class="footer-links">
-              <p class="footer-links__title">Keşfedin</p>
-              <a href="index.html#cekimler">Çekimler</a>
-              <a href="galeri.html">Galeri</a>
-              <a href="index.html#sss">Sıkça Sorulanlar</a>
-            </div>
-            <div class="footer-links">
-              <p class="footer-links__title">Planlayın</p>
-              <a href="index.html#hizmetler">Hizmetlerimiz</a>
-              <a href="#iletisim">İletişim</a>
-            </div>
-            <div class="footer-links">
-              <p class="footer-links__title">Yasal</p>
-              <a href="kvkk-aydinlatma.html">KVKK Aydınlatma</a>
-              <a href="gizlilik-politikasi.html">Gizlilik Politikası</a>
-              <a href="kullanim-sartlari.html">Kullanım Şartları</a>
-            </div>
-          </div>
-
-          <div class="site-footer__cta">
-            <span class="site-footer__eyebrow">Hayalinizdeki güne ilk adım</span>
-            <p>Hikâyenizi birlikte planlayalım.</p>
-            <a class="site-footer__action" href="paketini-olustur.html">
-              <span>Paket Oluştur</span><span aria-hidden="true">↗</span>
-            </a>
-          </div>
-        </div>
-
-        <address class="site-footer__contact" aria-label="İletişim seçenekleri">
-          <span class="site-footer__eyebrow">Bize ulaşın</span>
-          <a href="tel:+905386888306">
-            <span>Telefon</span><strong>+90&nbsp;538&nbsp;688&nbsp;83&nbsp;06</strong>
-          </a>
-          <a href="https://wa.me/905386888306" target="_blank" rel="noopener noreferrer">
-            <span>WhatsApp</span><strong>Mesaj gönderin</strong>
-          </a>
-        </address>
-
-        <div class="site-footer__signature" aria-hidden="true">
-          <span></span>
-          <svg viewBox="0 0 32 32">
-            <path
-              d="M16 27S5 20.2 5 11.7C5 7.8 8 5 11.7 5c2.1 0 3.8 1 4.3 2.2C16.5 6 18.2 5 20.3 5 24 5 27 7.8 27 11.7 27 20.2 16 27 16 27Z"
-            />
-          </svg>
-          <span></span>
-        </div>
-
-        <div class="site-footer__bottom">
-          <p>© <span data-current-year></span> Düğünajansım. Tüm hakları saklıdır.</p>
-          <a href="#galeri">Başa dön <span aria-hidden="true">↑</span></a>
-        </div>
-      </div>
-    </footer>
 
     <dialog class="gallery-lightbox" aria-label="Büyütülmüş galeri fotoğrafı">
       <button class="gallery-lightbox__close" type="button" aria-label="Galeriyi kapat">×</button>

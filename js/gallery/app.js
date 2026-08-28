@@ -1,10 +1,8 @@
 import "../home/navigation.js";
 import "../home/gallery.js";
 import { initHeaderAuth } from "../shared/auth-session.js";
-import { initCurrentYear } from "../shared/site-content.js";
 
 initHeaderAuth();
-initCurrentYear();
 
 const preloader = document.getElementById("app-preloader");
 if (preloader) {
