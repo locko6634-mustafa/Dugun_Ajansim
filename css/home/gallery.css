@@ -1,7 +1,5 @@
 /* Asymmetric editorial photo mosaic */
 .gallery-section {
-  --gallery-stage: hsl(42 35% 98%);
-  --gallery-stage-deep: hsl(36 24% 91%);
   --gallery-ink: hsl(28 18% 12%);
   --gallery-muted: hsl(28 8% 39%);
   --gallery-gold: var(--gold-dark);
@@ -13,10 +11,7 @@
   overflow: hidden;
   padding: 0;
   color: var(--gallery-ink);
-  background:
-    linear-gradient(90deg, transparent 0 7%, hsl(34 30% 62% / 0.18) 7.05%, transparent 7.1%),
-    radial-gradient(circle at 86% 8%, hsl(36 47% 87% / 0.62), transparent 25%),
-    linear-gradient(137deg, var(--gallery-stage), var(--gallery-stage-deep));
+  background: transparent;
 }
 
 .gallery-section::before {
