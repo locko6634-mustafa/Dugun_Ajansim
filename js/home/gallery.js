@@ -3,6 +3,7 @@ const galleryViewport = document.querySelector("[data-gallery-viewport]");
 const galleryTrack = galleryViewport?.querySelector(".gallery-track");
 const galleryReveal = document.querySelector("[data-gallery-reveal]");
 const galleryRevealLabel = galleryReveal?.querySelector("[data-gallery-reveal-label]");
+const galleryFilters = [...document.querySelectorAll("[data-gallery-filter]")];
 const galleryLightbox = document.querySelector(".gallery-lightbox");
 const galleryLightboxImage = galleryLightbox.querySelector("img");
 const galleryLightboxCaption = galleryLightbox.querySelector("figcaption");
@@ -10,6 +11,7 @@ const galleryLightboxClose = galleryLightbox.querySelector(".gallery-lightbox__c
 const galleryLightboxPrev = galleryLightbox.querySelector(".gallery-lightbox__nav--prev");
 const galleryLightboxNext = galleryLightbox.querySelector(".gallery-lightbox__nav--next");
 let activeGalleryIndex = 0;
+let visibleGalleryCards = galleryCards;
 
 if (galleryViewport && galleryTrack && galleryReveal && galleryRevealLabel) {
   const setCollapsedCardAccess = (isExpanded) => {
@@ -45,6 +47,47 @@ if (galleryViewport && galleryTrack && galleryReveal && galleryRevealLabel) {
     setCollapsedCardAccess(isExpanded);
   };
 
+  const setGalleryFilter = (filter) => {
+    const showAll = filter === "all";
+    let filterOrder = 0;
+
+    galleryFilters.forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.galleryFilter === filter));
+    });
+
+    galleryCards.forEach((card) => {
+      const categories = card.dataset.galleryCategory?.split(" ") || [];
+      const isVisible = showAll || categories.includes(filter);
+
+      card.hidden = !isVisible;
+      card.toggleAttribute("inert", !isVisible);
+      if (isVisible && !showAll) {
+        filterOrder += 1;
+        card.dataset.filterOrder = String(filterOrder);
+      } else {
+        delete card.dataset.filterOrder;
+      }
+    });
+
+    visibleGalleryCards = galleryCards.filter((card) => !card.hidden);
+    galleryTrack.classList.toggle("is-filtered", !showAll);
+
+    if (showAll) {
+      galleryViewport.classList.add("is-collapsible");
+      galleryReveal.hidden = false;
+      setGalleryExpanded(false);
+      return;
+    }
+
+    galleryViewport.classList.remove("is-collapsible", "is-expanded");
+    galleryViewport.style.removeProperty("--gallery-collapsed-height");
+    galleryViewport.style.removeProperty("--gallery-expanded-height");
+    galleryReveal.hidden = true;
+    galleryReveal.classList.remove("is-expanded");
+    galleryReveal.setAttribute("aria-expanded", "false");
+    galleryRevealLabel.textContent = "Tümünü Gör";
+  };
+
   syncExpandedHeight();
   galleryViewport.classList.add("is-collapsible");
   galleryReveal.hidden = false;
@@ -52,6 +95,12 @@ if (galleryViewport && galleryTrack && galleryReveal && galleryRevealLabel) {
 
   galleryReveal.addEventListener("click", () => {
     setGalleryExpanded(galleryReveal.getAttribute("aria-expanded") !== "true");
+  });
+
+  galleryFilters.forEach((button) => {
+    button.addEventListener("click", () => {
+      setGalleryFilter(button.dataset.galleryFilter || "all");
+    });
   });
 
   if ("ResizeObserver" in window) {
@@ -62,8 +111,8 @@ if (galleryViewport && galleryTrack && galleryReveal && galleryRevealLabel) {
 }
 
 function showGalleryImage(index) {
-  activeGalleryIndex = (index + galleryCards.length) % galleryCards.length;
-  const image = galleryCards[activeGalleryIndex].querySelector("img");
+  activeGalleryIndex = (index + visibleGalleryCards.length) % visibleGalleryCards.length;
+  const image = visibleGalleryCards[activeGalleryIndex].querySelector("img");
 
   galleryLightboxImage.src = image.currentSrc || image.src;
   galleryLightboxImage.alt = image.alt;
@@ -72,7 +121,8 @@ function showGalleryImage(index) {
 
 galleryCards.forEach((card, index) => {
   card.addEventListener("click", () => {
-    showGalleryImage(index);
+    const visibleIndex = visibleGalleryCards.indexOf(card);
+    showGalleryImage(visibleIndex === -1 ? index : visibleIndex);
     galleryLightbox.showModal();
   });
 });

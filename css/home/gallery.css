@@ -99,6 +99,65 @@
   line-height: 1.72;
 }
 
+.gallery-filters {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: clamp(8px, 0.85vw, 13px);
+  margin-bottom: clamp(18px, 2.2vw, 30px);
+  padding: clamp(9px, 0.9vw, 13px);
+  border: 1px solid hsl(38 30% 58% / 0.18);
+  border-radius: clamp(20px, 2vw, 30px);
+  background: linear-gradient(120deg, hsl(25 18% 8%), hsl(28 15% 12%));
+  box-shadow: 0 18px 46px hsl(24 20% 8% / 0.18);
+}
+
+.gallery-filter {
+  min-width: 0;
+  min-height: 52px;
+  padding: 11px clamp(10px, 1.5vw, 22px);
+  border: 1px solid transparent;
+  border-radius: clamp(14px, 1.35vw, 20px);
+  color: hsl(38 22% 86%);
+  background: transparent;
+  font-family: var(--sans);
+  font-size: clamp(11px, 0.95vw, 14px);
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    border-color 220ms ease,
+    color 220ms ease,
+    background-color 220ms ease,
+    box-shadow 260ms ease,
+    transform 260ms var(--ease);
+}
+
+.gallery-filter:hover {
+  border-color: hsl(38 45% 67% / 0.34);
+  color: var(--white);
+  background: hsl(37 42% 70% / 0.08);
+}
+
+.gallery-filter[aria-pressed="true"] {
+  border-color: hsl(37 58% 70% / 0.72);
+  color: hsl(25 20% 10%);
+  background: linear-gradient(135deg, hsl(38 73% 77%), hsl(34 62% 65%));
+  box-shadow:
+    0 9px 24px hsl(32 55% 44% / 0.26),
+    inset 0 1px hsl(0 0% 100% / 0.55);
+}
+
+.gallery-filter:active {
+  transform: translateY(1px);
+}
+
+.gallery-filter:focus-visible {
+  outline: 3px solid hsl(39 66% 80%);
+  outline-offset: 3px;
+}
+
 .gallery-viewport {
   position: relative;
 }
@@ -196,6 +255,30 @@
 .gallery-card:nth-child(8) {
   grid-column: 5 / 9;
   grid-row: 9 / 11;
+}
+
+.gallery-track.is-filtered .gallery-card[data-filter-order="1"] {
+  grid-column: 1 / 5;
+  grid-row: 1 / 6;
+}
+
+.gallery-track.is-filtered .gallery-card[data-filter-order="2"] {
+  grid-column: 5 / 13;
+  grid-row: 1 / 4;
+}
+
+.gallery-track.is-filtered .gallery-card[data-filter-order="3"] {
+  grid-column: 5 / 9;
+  grid-row: 4 / 6;
+}
+
+.gallery-track.is-filtered .gallery-card[data-filter-order="4"] {
+  grid-column: 9 / 13;
+  grid-row: 4 / 6;
+}
+
+.gallery-track.is-filtered .gallery-card:not([hidden]) {
+  animation: gallery-filter-in 420ms var(--ease) backwards;
 }
 
 .gallery-viewport.is-collapsible:not(.is-expanded) .gallery-card:nth-child(n + 5) {
@@ -533,6 +616,18 @@
   }
 }
 
+@keyframes gallery-filter-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (max-width: 760px) {
   .gallery-section {
     --gallery-card-radius: clamp(16px, 5vw, 22px);
@@ -581,6 +676,22 @@
     line-height: 1.58;
   }
 
+  .gallery-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: clamp(14px, 4.5vw, 20px);
+    padding: 8px;
+    border-radius: 20px;
+  }
+
+  .gallery-filter {
+    min-height: 46px;
+    padding: 8px 6px;
+    border-radius: 14px;
+    font-size: clamp(9px, 2.9vw, 11px);
+    letter-spacing: 0.045em;
+  }
+
   .gallery-track {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-auto-rows: clamp(52px, 15vw, 68px);
@@ -625,6 +736,26 @@
   .gallery-card:nth-child(8) {
     grid-column: 1 / 3;
     grid-row: 11 / 13;
+  }
+
+  .gallery-track.is-filtered .gallery-card[data-filter-order="1"] {
+    grid-column: 1;
+    grid-row: 1 / 5;
+  }
+
+  .gallery-track.is-filtered .gallery-card[data-filter-order="2"] {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  .gallery-track.is-filtered .gallery-card[data-filter-order="3"] {
+    grid-column: 2;
+    grid-row: 3 / 5;
+  }
+
+  .gallery-track.is-filtered .gallery-card[data-filter-order="4"] {
+    grid-column: 1 / 3;
+    grid-row: 5 / 7;
   }
 
   .gallery-card::after {
@@ -706,6 +837,7 @@
     animation: none;
   }
 
+  .gallery-filter,
   .gallery-card,
   .gallery-card img,
   .gallery-card__hint,
@@ -716,6 +848,10 @@
   }
 
   .gallery-viewport.is-expanded .gallery-card:nth-child(n + 5) {
+    animation: none;
+  }
+
+  .gallery-track.is-filtered .gallery-card:not([hidden]) {
     animation: none;
   }
 }

@@ -433,9 +433,65 @@
             <p>Gerçek düğünlerden öne çıkan kareler.</p>
           </header>
 
+          <div class="gallery-filters" role="group" aria-label="Galeriyi filtrele">
+            <button
+              class="gallery-filter"
+              type="button"
+              aria-pressed="true"
+              data-gallery-filter="all"
+            >
+              Tümü
+            </button>
+            <button
+              class="gallery-filter"
+              type="button"
+              aria-pressed="false"
+              data-gallery-filter="dugun"
+            >
+              Düğün
+            </button>
+            <button
+              class="gallery-filter"
+              type="button"
+              aria-pressed="false"
+              data-gallery-filter="nisan"
+            >
+              Nişan
+            </button>
+            <button
+              class="gallery-filter"
+              type="button"
+              aria-pressed="false"
+              data-gallery-filter="kina"
+            >
+              Kına
+            </button>
+            <button
+              class="gallery-filter"
+              type="button"
+              aria-pressed="false"
+              data-gallery-filter="dis-cekim"
+            >
+              Dış Çekim
+            </button>
+            <button
+              class="gallery-filter"
+              type="button"
+              aria-pressed="false"
+              data-gallery-filter="detaylar"
+            >
+              Detaylar
+            </button>
+          </div>
+
           <div class="gallery-viewport" id="gallery-collection" data-gallery-viewport>
             <div class="gallery-track" aria-label="Düğün fotoğrafları galerisi">
-              <button class="gallery-card gallery-card--tall" type="button" data-gallery-index="0">
+              <button
+                class="gallery-card gallery-card--tall"
+                type="button"
+                data-gallery-index="0"
+                data-gallery-category="dugun kina dis-cekim"
+              >
                 <img
                   src="/media/images/wedding-gallery-01.webp"
                   alt="Çiçek yaprakları arasında yürüyen gelin ve damat"
@@ -450,6 +506,7 @@
                 class="gallery-card gallery-card--medium"
                 type="button"
                 data-gallery-index="1"
+                data-gallery-category="dugun nisan detaylar"
               >
                 <img
                   src="/media/images/wedding-gallery-02.webp"
@@ -461,7 +518,12 @@
                 />
                 <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
               </button>
-              <button class="gallery-card gallery-card--hero" type="button" data-gallery-index="2">
+              <button
+                class="gallery-card gallery-card--hero"
+                type="button"
+                data-gallery-index="2"
+                data-gallery-category="nisan dis-cekim"
+              >
                 <img
                   src="/media/images/wedding-gallery-03.webp"
                   alt="Düğün eğlencesinde renkli gözlüklerle poz veren çift"
@@ -472,7 +534,12 @@
                 />
                 <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
               </button>
-              <button class="gallery-card gallery-card--short" type="button" data-gallery-index="3">
+              <button
+                class="gallery-card gallery-card--short"
+                type="button"
+                data-gallery-index="3"
+                data-gallery-category="kina detaylar"
+              >
                 <img
                   src="/media/images/wedding-gallery-04.webp"
                   alt="Çiçek yaprakları altında el ele yürüyen gelin ve damat"
@@ -487,6 +554,7 @@
                 class="gallery-card gallery-card--medium"
                 type="button"
                 data-gallery-index="4"
+                data-gallery-category="dugun kina detaylar"
               >
                 <img
                   src="/media/images/wedding-gallery-05.webp"
@@ -498,7 +566,12 @@
                 />
                 <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
               </button>
-              <button class="gallery-card gallery-card--tall" type="button" data-gallery-index="5">
+              <button
+                class="gallery-card gallery-card--tall"
+                type="button"
+                data-gallery-index="5"
+                data-gallery-category="nisan dis-cekim"
+              >
                 <img
                   src="/media/images/wedding-gallery-06.webp"
                   alt="Çiçekli nikâh kapısında gelin ve damat"
@@ -509,7 +582,12 @@
                 />
                 <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
               </button>
-              <button class="gallery-card gallery-card--hero" type="button" data-gallery-index="6">
+              <button
+                class="gallery-card gallery-card--hero"
+                type="button"
+                data-gallery-index="6"
+                data-gallery-category="dugun dis-cekim"
+              >
                 <img
                   src="/media/images/wedding-gallery-07.webp"
                   alt="Açık hava düğününde birbirine sarılan gelin ve damat"
@@ -520,7 +598,12 @@
                 />
                 <span class="gallery-card__hint" aria-hidden="true">Büyüt</span>
               </button>
-              <button class="gallery-card gallery-card--short" type="button" data-gallery-index="7">
+              <button
+                class="gallery-card gallery-card--short"
+                type="button"
+                data-gallery-index="7"
+                data-gallery-category="nisan kina detaylar"
+              >
                 <img
                   src="/media/images/wedding-gallery-08.webp"
                   alt="Çiçekli nikâh alanında poz veren gelin ve damat"
