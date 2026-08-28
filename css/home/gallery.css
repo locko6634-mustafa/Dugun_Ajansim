@@ -679,20 +679,31 @@
   }
 
   .gallery-filters {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 3px;
-    margin-bottom: clamp(12px, 3.8vw, 16px);
-    padding: 5px;
-    border-radius: 16px;
-    box-shadow: 0 9px 24px hsl(29 18% 28% / 0.08);
+    display: flex;
+    gap: 2px;
+    margin-bottom: 8px;
+    padding: 0 0 6px;
+    border: 0;
+    border-bottom: 1px solid hsl(36 28% 73% / 0.48);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .gallery-filter {
+    flex: 1 1 0;
+    min-width: 44px;
     min-height: 44px;
     padding: 4px 2px;
-    border-radius: 11px;
+    border-radius: 999px;
     font-size: clamp(8px, 2.4vw, 9.5px);
     letter-spacing: 0.01em;
+  }
+
+  .gallery-filter[aria-pressed="true"] {
+    box-shadow:
+      0 5px 12px hsl(32 55% 44% / 0.16),
+      inset 0 1px hsl(0 0% 100% / 0.48);
   }
 
   .gallery-track {
