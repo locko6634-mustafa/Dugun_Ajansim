@@ -105,10 +105,12 @@
   gap: clamp(8px, 0.85vw, 13px);
   margin-bottom: clamp(18px, 2.2vw, 30px);
   padding: clamp(9px, 0.9vw, 13px);
-  border: 1px solid hsl(38 30% 58% / 0.18);
+  border: 1px solid hsl(36 28% 73% / 0.58);
   border-radius: clamp(20px, 2vw, 30px);
-  background: linear-gradient(120deg, hsl(25 18% 8%), hsl(28 15% 12%));
-  box-shadow: 0 18px 46px hsl(24 20% 8% / 0.18);
+  background: linear-gradient(120deg, hsl(42 40% 99% / 0.96), hsl(37 34% 95% / 0.92));
+  box-shadow:
+    0 14px 34px hsl(29 18% 28% / 0.09),
+    inset 0 1px hsl(0 0% 100% / 0.78);
 }
 
 .gallery-filter {
@@ -117,7 +119,7 @@
   padding: 11px clamp(10px, 1.5vw, 22px);
   border: 1px solid transparent;
   border-radius: clamp(14px, 1.35vw, 20px);
-  color: hsl(38 22% 86%);
+  color: var(--gallery-muted);
   background: transparent;
   font-family: var(--sans);
   font-size: clamp(11px, 0.95vw, 14px);
@@ -135,9 +137,9 @@
 }
 
 .gallery-filter:hover {
-  border-color: hsl(38 45% 67% / 0.34);
-  color: var(--white);
-  background: hsl(37 42% 70% / 0.08);
+  border-color: hsl(38 45% 58% / 0.34);
+  color: var(--gallery-ink);
+  background: hsl(37 48% 68% / 0.12);
 }
 
 .gallery-filter[aria-pressed="true"] {
@@ -677,19 +679,20 @@
   }
 
   .gallery-filters {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    margin-bottom: clamp(14px, 4.5vw, 20px);
-    padding: 8px;
-    border-radius: 20px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 3px;
+    margin-bottom: clamp(12px, 3.8vw, 16px);
+    padding: 5px;
+    border-radius: 16px;
+    box-shadow: 0 9px 24px hsl(29 18% 28% / 0.08);
   }
 
   .gallery-filter {
-    min-height: 46px;
-    padding: 8px 6px;
-    border-radius: 14px;
-    font-size: clamp(9px, 2.9vw, 11px);
-    letter-spacing: 0.045em;
+    min-height: 44px;
+    padding: 4px 2px;
+    border-radius: 11px;
+    font-size: clamp(8px, 2.4vw, 9.5px);
+    letter-spacing: 0.01em;
   }
 
   .gallery-track {
