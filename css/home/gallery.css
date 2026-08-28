@@ -101,7 +101,7 @@
 
 .gallery-filters {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: clamp(8px, 0.85vw, 13px);
   margin-bottom: clamp(18px, 2.2vw, 30px);
   padding: clamp(9px, 0.9vw, 13px);
@@ -206,7 +206,7 @@
   margin: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid hsl(40 28% 82% / 0.3);
+  border: 0;
   border-radius: var(--gallery-card-radius);
   color: var(--gallery-ink);
   background: hsl(27 12% 16%);
@@ -214,7 +214,6 @@
   cursor: zoom-in;
   transform: translateZ(0);
   transition:
-    border-color 300ms ease,
     box-shadow 400ms var(--ease),
     transform 500ms var(--ease);
 }
@@ -361,7 +360,6 @@
 .gallery-card:hover,
 .gallery-card:focus-visible {
   z-index: 2;
-  border-color: hsl(38 55% 68% / 0.48);
   box-shadow: 0 26px 52px hsl(0 0% 0% / 0.34);
   transform: translateY(-5px);
 }
