@@ -1,5 +1,6 @@
 import "../home/navigation.js";
 import "../home/gallery.js";
+import "../home/motion.js";
 import { initHeaderAuth } from "../shared/auth-session.js";
 
 initHeaderAuth();

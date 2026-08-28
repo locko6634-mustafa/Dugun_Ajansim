@@ -1,9 +1,14 @@
 const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+const compactViewportQuery = window.matchMedia("(max-width: 640px)");
+const desktopParallaxQuery = window.matchMedia("(min-width: 768px) and (pointer: fine)");
+const supportsIntersectionObserver = "IntersectionObserver" in window;
 const motionHeadings = [
   document.querySelector("#hero-title"),
   document.querySelector("#gallery-title"),
   document.querySelector("#shoots-title"),
   document.querySelector("#services-title"),
+  document.querySelector("#venues-title"),
+  document.querySelector("#package-invitation-title"),
   document.querySelector("#faq-title")
 ].filter(Boolean);
 
@@ -12,6 +17,8 @@ function hasVisibleContent(nodes) {
 }
 
 function splitHeadingIntoLines(heading) {
+  if (heading.classList.contains("motion-heading")) return;
+
   const nodes = [...heading.childNodes];
   const hasExplicitBreak = nodes.some(
     (node) => node.nodeType === Node.ELEMENT_NODE && node.tagName === "BR"
@@ -68,25 +75,84 @@ function splitHeadingIntoLines(heading) {
 }
 
 const observedMotionElements = new Set();
+let revealObserver;
+let revealWithoutObserver = false;
+
+function revealMotionElement(element) {
+  element.classList.add("is-visible");
+}
 
 function registerMotionGroup(selector, options = {}) {
   const elements = [...document.querySelectorAll(selector)];
   const { direction = "up", delay = 0, stagger = 80, maximumDelay = 420 } = options;
+  const resolvedStagger = compactViewportQuery.matches ? Math.min(stagger, 55) : stagger;
+  const resolvedMaximumDelay = compactViewportQuery.matches
+    ? Math.min(maximumDelay, 260)
+    : maximumDelay;
 
   elements.forEach((element, index) => {
+    if (observedMotionElements.has(element)) return;
+
     const resolvedDirection =
       typeof direction === "function" ? direction(index, element) : direction;
 
     element.classList.add("motion-reveal", `motion-reveal--${resolvedDirection}`);
     element.style.setProperty(
       "--motion-delay",
-      `${Math.min(delay + index * stagger, maximumDelay)}ms`
+      `${Math.min(delay + index * resolvedStagger, resolvedMaximumDelay)}ms`
     );
     observedMotionElements.add(element);
+
+    if (reducedMotionQuery.matches || revealWithoutObserver) {
+      revealMotionElement(element);
+      return;
+    }
+
+    revealObserver?.observe(element);
   });
 }
 
-const runIdle = window.requestIdleCallback || ((cb) => setTimeout(cb, 10));
+const motionGroups = [
+  [".gallery-page .gallery-home-link", { direction: "left" }],
+  [".gallery-heading > p:last-of-type", { stagger: 70 }],
+  [".gallery-filters", { delay: 45 }],
+  [".gallery-preview__stage", { direction: "soft-scale", delay: 60 }],
+  [".gallery-preview__dock", { delay: 100 }],
+  [
+    ".gallery-card",
+    {
+      direction: (index) => (index % 2 === 0 ? "photo-left" : "photo-right"),
+      stagger: 65
+    }
+  ],
+  [".shoots-heading > p", { stagger: 70 }],
+  [".shoot-card", { direction: "soft-scale", stagger: 75 }],
+  [".shoots-reveal-row", { delay: 70 }],
+  [".services-heading > p, .services-divider", { stagger: 65 }],
+  [".service-card", { direction: "soft-scale", stagger: 65 }],
+  [".venues-heading > p", { stagger: 65 }],
+  [".venue-card", { direction: "soft-scale", stagger: 60 }],
+  [".venues-toggle-wrapper", { delay: 60 }],
+  [".package-invitation__eyebrow, .package-invitation__heading > p:last-child", { stagger: 65 }],
+  [".package-invitation__divider", { direction: "soft-scale", delay: 55 }],
+  [".package-card", { direction: "soft-scale", stagger: 65 }],
+  [".package-invitation__custom", { direction: "soft-scale", delay: 70 }],
+  [".faq-heading__eyebrow, .faq-heading__rule, .faq-heading > p", { stagger: 65 }],
+  [".faq-item", { stagger: 55 }],
+  [".faq-actions", { delay: 55 }],
+  [
+    ".site-footer__brand, .site-footer__nav, .site-footer__cta, .site-footer__contact, .site-footer__signature, .site-footer__bottom",
+    { stagger: 70 }
+  ]
+];
+
+function registerAllMotionGroups() {
+  motionGroups.forEach(([selector, options]) => registerMotionGroup(selector, options));
+}
+
+const runIdle = window.requestIdleCallback
+  ? (callback) => window.requestIdleCallback(callback, { timeout: 160 })
+  : (callback) => setTimeout(callback, 10);
 
 const heroMotionSequence = [
   [document.querySelector(".hero-collage"), "hero", 30],
@@ -95,6 +161,8 @@ const heroMotionSequence = [
   [document.querySelector(".hero__lead"), "up", 370],
   [document.querySelector(".hero__actions"), "up", 470]
 ];
+
+if (!reducedMotionQuery.matches) motionHeadings.forEach(splitHeadingIntoLines);
 
 heroMotionSequence.forEach(([element, direction, delay]) => {
   if (!element) return;
@@ -113,41 +181,25 @@ requestAnimationFrame(() => {
 });
 
 function initNonHeroMotion() {
-  motionHeadings.forEach(splitHeadingIntoLines);
+  if (supportsIntersectionObserver) {
+    revealObserver = new IntersectionObserver(
+      (entries, observer) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          revealMotionElement(entry.target);
+          observer.unobserve(entry.target);
+        });
+      },
+      {
+        threshold: compactViewportQuery.matches ? 0.08 : 0.14,
+        rootMargin: compactViewportQuery.matches ? "0px 0px -4% 0px" : "0px 0px -8% 0px"
+      }
+    );
+  } else {
+    revealWithoutObserver = true;
+  }
 
-  registerMotionGroup(".gallery-heading > p:last-of-type", { stagger: 85 });
-  registerMotionGroup(".gallery-card", {
-    direction: "up",
-    stagger: 70
-  });
-  registerMotionGroup(".shoots-heading > p", { stagger: 85 });
-  registerMotionGroup(".shoot-card", {
-    direction: "up",
-    stagger: 90
-  });
-  registerMotionGroup(".services-heading > p, .services-divider", {
-    stagger: 75
-  });
-  registerMotionGroup(".service-card", {
-    direction: (index) => (index % 2 === 0 ? "left" : "right"),
-    stagger: 75
-  });
-  registerMotionGroup(".venues-heading__eyebrow, .venues-heading__rule, .venues-heading > p", {
-    stagger: 80
-  });
-  registerMotionGroup(".venue-card", {
-    direction: (index) => (index % 2 === 0 ? "left" : "right"),
-    stagger: 75
-  });
-  registerMotionGroup(".faq-heading__eyebrow, .faq-heading__rule, .faq-heading > p", {
-    stagger: 80
-  });
-  registerMotionGroup(".faq-item", { stagger: 65 });
-  registerMotionGroup(".faq-actions", { stagger: 80 });
-  registerMotionGroup(
-    ".site-footer__brand, .site-footer__nav, .site-footer__cta, .site-footer__signature, .site-footer__bottom",
-    { stagger: 85 }
-  );
+  registerAllMotionGroups();
 
   motionHeadings
     .filter((heading) => heading.id !== "hero-title")
@@ -157,25 +209,13 @@ function initNonHeroMotion() {
     observedMotionElements.forEach((element) => element.classList.add("is-visible"));
   }
 
-  if (reducedMotionQuery.matches || !("IntersectionObserver" in window)) {
+  if (revealWithoutObserver) {
     revealAllMotionElements();
   } else {
-    const revealObserver = new IntersectionObserver(
-      (entries, observer) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        });
-      },
-      {
-        threshold: 0.15,
-        rootMargin: "0px 0px -8% 0px"
-      }
-    );
-
     observedMotionElements.forEach((element) => revealObserver.observe(element));
   }
+
+  document.addEventListener("home:layoutchange", registerAllMotionGroups);
 }
 
 if (!reducedMotionQuery.matches) {
@@ -205,7 +245,7 @@ function requestParallaxUpdate() {
   parallaxFrame = requestAnimationFrame(updateParallax);
 }
 
-if (!reducedMotionQuery.matches) {
+if (!reducedMotionQuery.matches && desktopParallaxQuery.matches) {
   parallaxImages.forEach((image) => image.classList.add("motion-parallax"));
   window.addEventListener("scroll", requestParallaxUpdate, { passive: true });
   window.addEventListener("resize", requestParallaxUpdate);

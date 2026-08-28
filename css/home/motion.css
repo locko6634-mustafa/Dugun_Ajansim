@@ -5,6 +5,7 @@
   --motion-duration: 620ms;
   --motion-heading-duration: 650ms;
   --motion-stagger: 90ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .motion-heading__line {
@@ -33,14 +34,17 @@ html.motion-ready .motion-reveal {
   --motion-x: 0px;
   --motion-y: var(--motion-distance);
   --motion-scale: 1;
+  --motion-rotate: 0deg;
   translate: var(--motion-x) var(--motion-y);
   scale: var(--motion-scale);
+  rotate: var(--motion-rotate);
   transition:
-    opacity var(--motion-duration) var(--ease),
-    translate var(--motion-duration) var(--ease),
-    scale var(--motion-duration) var(--ease);
+    opacity var(--motion-duration) var(--motion-ease),
+    translate var(--motion-duration) var(--motion-ease),
+    scale var(--motion-duration) var(--motion-ease),
+    rotate var(--motion-duration) var(--motion-ease);
   transition-delay: var(--motion-delay, 0ms);
-  will-change: opacity, translate, scale;
+  will-change: opacity, translate, scale, rotate;
 }
 
 html.motion-ready .motion-reveal--left {
@@ -58,6 +62,25 @@ html.motion-ready .motion-reveal--hero {
   --motion-scale: 0.985;
 }
 
+html.motion-ready .motion-reveal--soft-scale {
+  --motion-y: 18px;
+  --motion-scale: 0.975;
+}
+
+html.motion-ready .motion-reveal--photo-left {
+  --motion-x: -10px;
+  --motion-y: 18px;
+  --motion-scale: 0.98;
+  --motion-rotate: -0.65deg;
+}
+
+html.motion-ready .motion-reveal--photo-right {
+  --motion-x: 10px;
+  --motion-y: 18px;
+  --motion-scale: 0.98;
+  --motion-rotate: 0.65deg;
+}
+
 .hero .motion-reveal {
   --motion-duration: 500ms;
 }
@@ -70,14 +93,15 @@ html.motion-ready .motion-reveal.is-visible {
   opacity: 1;
   translate: 0 0;
   scale: 1;
+  rotate: 0deg;
   will-change: auto;
 }
 
 html.motion-ready .motion-heading .motion-heading__inner {
   transform: translate3d(0, 112%, 0);
   transition:
-    opacity var(--motion-heading-duration) var(--ease),
-    transform var(--motion-heading-duration) var(--ease);
+    opacity var(--motion-heading-duration) var(--motion-ease),
+    transform var(--motion-heading-duration) var(--motion-ease);
   transition-delay: calc(
     var(--motion-delay, 0ms) + var(--motion-line-index, 0) * var(--motion-stagger)
   );
@@ -98,14 +122,21 @@ html.motion-ready .motion-heading.is-visible .motion-heading__inner {
 @media (max-width: 640px) {
   :root {
     --motion-distance: 22px;
-    --motion-side-distance: 24px;
-    --motion-duration: 560ms;
-    --motion-heading-duration: 590ms;
-    --motion-stagger: 85ms;
+    --motion-side-distance: 18px;
+    --motion-duration: 460ms;
+    --motion-heading-duration: 520ms;
+    --motion-stagger: 55ms;
   }
 
   .hero .motion-reveal {
-    --motion-duration: 480ms;
+    --motion-duration: 420ms;
+  }
+
+  html.motion-ready .motion-reveal--photo-left,
+  html.motion-ready .motion-reveal--photo-right {
+    --motion-x: 0px;
+    --motion-y: 14px;
+    --motion-rotate: 0deg;
   }
 }
 
@@ -117,6 +148,7 @@ html.motion-ready .motion-heading.is-visible .motion-heading__inner {
     transform: none !important;
     translate: none !important;
     scale: none !important;
+    rotate: none !important;
     transition: none !important;
     animation: none !important;
   }
