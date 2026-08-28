@@ -1471,12 +1471,10 @@
 }
 
 .gallery-page .gallery-track {
-  counter-reset: gallery-photo;
   gap: clamp(10px, 1.25vw, 19px);
 }
 
 .gallery-page .gallery-card {
-  counter-increment: gallery-photo;
   isolation: isolate;
   padding: clamp(4px, 0.42vw, 7px);
   border: 1px solid hsl(38 34% 55% / 0.24);
@@ -1485,28 +1483,6 @@
   box-shadow:
     0 24px 48px hsl(24 38% 2% / 0.36),
     inset 0 1px hsl(38 35% 78% / 0.12);
-}
-
-.gallery-page .gallery-card::before {
-  position: absolute;
-  top: clamp(12px, 1vw, 18px);
-  left: clamp(12px, 1vw, 18px);
-  z-index: 3;
-  display: grid;
-  min-width: 34px;
-  min-height: 25px;
-  padding-inline: 8px;
-  border: 1px solid hsl(38 42% 72% / 0.32);
-  border-radius: 999px;
-  color: hsl(40 38% 93%);
-  background: hsl(25 25% 6% / 0.64);
-  content: counter(gallery-photo, decimal-leading-zero);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  backdrop-filter: blur(10px);
-  place-items: center;
-  pointer-events: none;
 }
 
 .gallery-page .gallery-card::after {
@@ -1669,15 +1645,6 @@
   .gallery-page .gallery-card {
     padding: 3px;
     border-radius: 8px;
-  }
-
-  .gallery-page .gallery-card::before {
-    top: 9px;
-    left: 9px;
-    min-width: 28px;
-    min-height: 22px;
-    padding-inline: 6px;
-    font-size: 8px;
   }
 
   .gallery-page .gallery-card::after {
