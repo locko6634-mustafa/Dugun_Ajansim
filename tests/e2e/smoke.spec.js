@@ -33,6 +33,10 @@ test("@frontend-smoke @responsive galeri önizlemesi tam galeri sayfasına açı
   await expect(previewItems).toHaveCount(8);
 
   const initialImage = await mainPreview.getAttribute("src");
+  await page.getByRole("button", { name: "Sonraki fotoğraf" }).click();
+  await expect(mainPreview).not.toHaveAttribute("src", initialImage);
+
+  const imageAfterArrow = await mainPreview.getAttribute("src");
   await page.locator(".gallery-preview__stage").dispatchEvent("pointerdown", {
     pointerId: 1,
     clientX: 300,
@@ -43,7 +47,7 @@ test("@frontend-smoke @responsive galeri önizlemesi tam galeri sayfasına açı
     clientX: 100,
     clientY: 305
   });
-  await expect(mainPreview).not.toHaveAttribute("src", initialImage);
+  await expect(mainPreview).not.toHaveAttribute("src", imageAfterArrow);
 
   await expect(galleryLink).toHaveAttribute("href", "galeri.html");
   await galleryLink.click();

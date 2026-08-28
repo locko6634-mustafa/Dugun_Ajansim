@@ -9,6 +9,8 @@ if (galleryPreview) {
   const rightImage = galleryPreview.querySelector("[data-gallery-preview-right]");
   const caption = galleryPreview.querySelector("[data-gallery-preview-caption]");
   const stage = galleryPreview.querySelector(".gallery-preview__stage");
+  const previousButton = galleryPreview.querySelector("[data-gallery-preview-prev]");
+  const nextButton = galleryPreview.querySelector("[data-gallery-preview-next]");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let activeItem = items.find((item) => item.getAttribute("aria-pressed") === "true") || items[0];
   let pointerStart = null;
@@ -79,8 +81,12 @@ if (galleryPreview) {
     item.addEventListener("click", () => updateStage(item));
   });
 
+  previousButton?.addEventListener("click", () => moveStage(-1));
+  nextButton?.addEventListener("click", () => moveStage(1));
+
   stage.addEventListener("pointerdown", (event) => {
     if (!window.matchMedia("(max-width: 760px)").matches) return;
+    if (event.target.closest("button, a")) return;
     pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
     stage.setPointerCapture?.(event.pointerId);
   });
