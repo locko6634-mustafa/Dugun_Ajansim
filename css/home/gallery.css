@@ -1288,7 +1288,7 @@
 
 /* Dedicated gallery page: immersive analog album */
 .gallery-page {
-  --gallery-page-bg: hsl(26 24% 7%);
+  --gallery-page-bg: var(--espresso);
   --gallery-page-surface: hsl(28 19% 11%);
   --gallery-page-surface-soft: hsl(29 16% 14%);
   --gallery-page-ink: hsl(40 35% 94%);
@@ -1301,7 +1301,7 @@
 
 .gallery-page main {
   min-height: calc(100dvh - var(--header-height));
-  background: hsl(40 34% 93%);
+  background: var(--gallery-page-bg);
 }
 
 .gallery-page .gallery-section {
@@ -1313,19 +1313,9 @@
   padding: 0;
   color: var(--gallery-page-ink);
   background:
-    linear-gradient(90deg, transparent 49.95%, hsl(38 40% 68% / 0.055) 50%, transparent 50.05%),
-    radial-gradient(circle at 82% 5%, hsl(37 56% 40% / 0.18), transparent 25%),
-    radial-gradient(circle at 10% 38%, hsl(8 39% 25% / 0.16), transparent 28%),
-    linear-gradient(
-      180deg,
-      hsl(25 27% 6%) 0%,
-      var(--gallery-page-bg) 18%,
-      hsl(29 20% 16%) 27%,
-      hsl(34 18% 47%) 36%,
-      hsl(38 25% 80%) 47%,
-      hsl(40 33% 91%) 60%,
-      hsl(40 34% 93%) 100%
-    );
+    linear-gradient(90deg, transparent 0 7%, hsl(38 35% 62% / 0.13) 7.05%, transparent 7.1%),
+    radial-gradient(circle at 8% 8%, hsl(35 48% 30% / 0.18), transparent 24%),
+    linear-gradient(138deg, var(--gallery-page-bg), hsl(24 24% 4%));
 }
 
 .gallery-page .gallery-section::before {
