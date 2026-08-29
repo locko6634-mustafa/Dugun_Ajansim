@@ -360,24 +360,6 @@ button {
   backdrop-filter: blur(8px);
 }
 
-.proof-pill__icon {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--gold-dark);
-  border-radius: 50%;
-  color: var(--gold-dark);
-  background: transparent;
-  place-items: center;
-}
-
-.proof-pill__icon svg {
-  width: 19px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-}
-
 .proof-pill i {
   width: 22px;
   height: 1px;
@@ -396,24 +378,8 @@ button {
   line-height: 0.94;
 }
 
-.hero h1::before,
 .hero h1::after {
   position: absolute;
-  color: var(--gold-light);
-  content: "";
-  font-family: serif;
-  font-size: 24px;
-}
-
-.hero h1::before {
-  top: -13px;
-  left: 0;
-  width: 58px;
-  height: 1px;
-  background: var(--gold);
-}
-
-.hero h1::after {
   right: auto;
   bottom: -17px;
   left: 0;
@@ -421,6 +387,10 @@ button {
   height: 18px;
   border: 1px solid var(--gold-muted);
   border-radius: 50%;
+  color: var(--gold-light);
+  content: "";
+  font-family: serif;
+  font-size: 24px;
 }
 
 .hero h1 span,
@@ -900,10 +870,6 @@ button {
     margin-inline: auto;
   }
 
-  .hero h1::before {
-    left: 7%;
-  }
-
   .hero h1::after {
     right: 6%;
   }
@@ -1014,11 +980,6 @@ button {
     font-size: clamp(10px, 2.9vw, 13px);
   }
 
-  .proof-pill__icon {
-    width: 27px;
-    height: 27px;
-  }
-
   .proof-pill i {
     width: 4px;
     height: 4px;
@@ -1036,12 +997,6 @@ button {
     margin-top: 5px;
     font-size: 0.75em;
     line-height: 1.1;
-  }
-
-  .hero h1::before {
-    top: -5px;
-    left: 2%;
-    font-size: 16px;
   }
 
   .hero h1::after {
