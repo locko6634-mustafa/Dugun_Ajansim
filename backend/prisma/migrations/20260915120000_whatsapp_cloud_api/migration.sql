@@ -4,5 +4,5 @@ ALTER TABLE "message_tasks"
   ADD COLUMN "providerStatusAt" TIMESTAMP(3);
 
 CREATE UNIQUE INDEX "message_tasks_providerMessageId_key"
-  ON "message_tasks"("providerMessageId");
+  ON "message_tasks"("providerMessageId") WHERE "providerMessageId" IS NOT NULL;
 CREATE INDEX "message_tasks_providerStatusAt_idx" ON "message_tasks"("providerStatusAt");
