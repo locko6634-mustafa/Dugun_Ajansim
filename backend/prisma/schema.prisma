@@ -622,6 +622,9 @@ model MessageTask {
   preparedTokenId           String?             @unique
   preparedToken             PasswordSetupToken? @relation(fields: [preparedTokenId], references: [id], onDelete: SetNull)
   sentAt                    DateTime?
+  providerMessageId         String?             @unique
+  providerStatus            String?
+  providerStatusAt          DateTime?
   sentById                  String?
   sentBy                    User?               @relation("MessageSender", fields: [sentById], references: [id], onDelete: SetNull)
   createdAt                 DateTime            @default(now())
@@ -635,6 +638,7 @@ model MessageTask {
   @@index([status, dueAt])
   @@index([dueAt, id])
   @@index([sentById])
+  @@index([providerStatusAt])
   @@map("message_tasks")
 }
 

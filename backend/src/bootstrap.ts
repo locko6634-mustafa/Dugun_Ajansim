@@ -9,11 +9,13 @@ import { createGracefulShutdown, type GracefulShutdown } from "./utils/processLi
 import { drainPendingBackgroundTasks } from "./utils/pendingTasks.js";
 import { expireStalePaymentFlows } from "./services/booking.service.js";
 import { synchronizeAutomaticDeliveryStatuses } from "./services/delivery-automation.service.js";
+import { processDueWhatsAppTasks } from "./services/whatsapp-cloud.service.js";
 
 // Kapanış süreci için maksimum bekleme süresi (25 saniye)
 const SHUTDOWN_TIMEOUT_MS = 25_000;
 const PAYMENT_FLOW_SWEEP_INTERVAL_MS = 60_000;
 const DELIVERY_STATUS_SWEEP_INTERVAL_MS = 60 * 60 * 1_000;
+const WHATSAPP_SWEEP_INTERVAL_MS = 60_000;
 
 // Sunucuyu başlatan ve sinyal dinleyicilerini kuran ana bootstrap fonksiyonu
 export const startServer = (): GracefulShutdown => {
@@ -71,6 +73,27 @@ export const startServer = (): GracefulShutdown => {
   );
   deliveryStatusSweepTimer.unref();
 
+  let whatsappSweepRunning = false;
+  const sweepWhatsAppTasks = async (): Promise<void> => {
+    if (whatsappSweepRunning) return;
+    whatsappSweepRunning = true;
+    try {
+      console.log(
+        JSON.stringify({ event: "whatsapp_task_sweep", ...(await processDueWhatsAppTasks()) })
+      );
+    } catch {
+      console.error(JSON.stringify({ event: "whatsapp_task_sweep_alarm", failedCount: 1 }));
+    } finally {
+      whatsappSweepRunning = false;
+    }
+  };
+  void sweepWhatsAppTasks();
+  const whatsappSweepTimer = setInterval(
+    () => void sweepWhatsAppTasks(),
+    WHATSAPP_SWEEP_INTERVAL_MS
+  );
+  whatsappSweepTimer.unref();
+
   // HTTP sunucusunu belirtilen PORT üzerinden dinlemeye başla
   const server = app.listen(env.PORT, () => {
     console.log(`🚀 Düğün Ajansım Backend Sunucusu Çalışıyor: http://localhost:${env.PORT}`);
@@ -126,6 +149,7 @@ export const startServer = (): GracefulShutdown => {
   const gracefulShutdown: GracefulShutdown = (signal, exitCode) => {
     clearInterval(paymentFlowSweepTimer);
     clearInterval(deliveryStatusSweepTimer);
+    clearInterval(whatsappSweepTimer);
     return baseGracefulShutdown(signal, exitCode);
   };
 

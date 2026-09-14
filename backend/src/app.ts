@@ -1,25 +1,26 @@
 // Express çatısını ve türünü içe aktar
-import express, { type Express } from 'express';
+import express, { type Express } from "express";
 // HTTP Parameter Pollution koruması için hpp kütüphanesini içe aktar
-import hpp from 'hpp';
+import hpp from "hpp";
 // Ortam değişkenleri nesnemizi içe aktar
-import { env } from './config/env.config.js';
+import { env } from "./config/env.config.js";
 // Güvenlik middleware yapılandırıcısını içe aktar
-import { configureSecurityMiddleware } from './middlewares/security.middleware.js';
+import { configureSecurityMiddleware } from "./middlewares/security.middleware.js";
 // Global hata yakalama middleware'ini içe aktar
-import { globalErrorHandler } from './middlewares/error.middleware.js';
+import { globalErrorHandler } from "./middlewares/error.middleware.js";
 // Sağlık kontrolü rota modülünü içe aktar
-import healthRoutes from './routes/health.routes.js';
-import publicRoutes from './routes/public.routes.js';
-import authRoutes from './routes/auth.routes.js';
-import adminRoutes from './routes/admin.routes.js';
-import customerRoutes from './routes/customer.routes.js';
-import operationsRoutes from './routes/operations.routes.js';
-import montageRoutes from './routes/montage.routes.js';
+import healthRoutes from "./routes/health.routes.js";
+import publicRoutes from "./routes/public.routes.js";
+import authRoutes from "./routes/auth.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+import customerRoutes from "./routes/customer.routes.js";
+import operationsRoutes from "./routes/operations.routes.js";
+import montageRoutes from "./routes/montage.routes.js";
+import whatsappWebhookRoutes from "./routes/whatsapp-webhook.routes.js";
 // Özel hata sınıfımızı içe aktar
-import { AppError } from './utils/appError.js';
-import { attachRequestContext } from './middlewares/requestContext.middleware.js';
-import { assertBookingBotProtectionConfigured } from './utils/turnstile.js';
+import { AppError } from "./utils/appError.js";
+import { attachRequestContext } from "./middlewares/requestContext.middleware.js";
+import { assertBookingBotProtectionConfigured } from "./utils/turnstile.js";
 
 // Rota kaydedici fonksiyon tipi tanımı
 type RouteRegistrar = (application: Express) => void;
@@ -27,13 +28,14 @@ type RouteRegistrar = (application: Express) => void;
 // Varsayılan API rotalarını uygulamaya bağlayan fonksiyon
 const registerApplicationRoutes: RouteRegistrar = (application) => {
   // /api/v1/health yoluna gelen istekleri healthRoutes modülüne ilet
-  application.use('/api/v1/health', healthRoutes);
-  application.use('/api/v1', publicRoutes);
-  application.use('/api/v1/auth', authRoutes);
-  application.use('/api/v1/admin', adminRoutes);
-  application.use('/api/v1/customer', customerRoutes);
-  application.use('/api/v1/operations', operationsRoutes);
-  application.use('/api/v1/montage', montageRoutes);
+  application.use("/api/v1/health", healthRoutes);
+  application.use("/api/v1/webhooks/whatsapp", whatsappWebhookRoutes);
+  application.use("/api/v1", publicRoutes);
+  application.use("/api/v1/auth", authRoutes);
+  application.use("/api/v1/admin", adminRoutes);
+  application.use("/api/v1/customer", customerRoutes);
+  application.use("/api/v1/operations", operationsRoutes);
+  application.use("/api/v1/montage", montageRoutes);
 };
 
 // Express uygulamasını oluşturan ve tüm middleware/rotaları bağlayan ana fabrika fonksiyonu
@@ -44,10 +46,10 @@ export const createApp = (registerRoutes: RouteRegistrar = registerApplicationRo
 
   // Yalnız izole test ortamında dış teslimat sağlayıcılarına bağımlı olmayan deterministik sözleşme.
   // Production env doğrulaması bu modu kesin olarak reddeder.
-  if (env.DELIVERY_LINK_VERIFICATION_MODE === 'synthetic') {
+  if (env.DELIVERY_LINK_VERIFICATION_MODE === "synthetic") {
     application.locals.deliveryLinkAccessVerifier = async () => ({
       status: 200,
-      redirectHost: null,
+      redirectHost: null
     });
   }
 
@@ -55,15 +57,22 @@ export const createApp = (registerRoutes: RouteRegistrar = registerApplicationRo
   application.use(attachRequestContext);
 
   // Production'da yalnız açıkça izin verilen reverse proxy IP'lerinden forwarded header kabul et.
-  application.set('trust proxy', env.TRUST_PROXY);
+  application.set("trust proxy", env.TRUST_PROXY);
 
   // Güvenlik Katmanı Middleware'lerini (Helmet, Rate Limiter, CORS) bağla
   configureSecurityMiddleware(application);
 
   // Gelen JSON istek gövdelerini ayrıştır (Maximum 10 kilobayt sınırıyla)
-  application.use(express.json({ limit: '10kb' }));
+  application.use(
+    express.json({
+      limit: "10kb",
+      verify: (req, _res, buffer) => {
+        (req as unknown as Express.Request).rawBody = Buffer.from(buffer);
+      }
+    })
+  );
   // URL ile kodlanmış form verilerini ayrıştır (Maximum 10 kilobayt sınırıyla)
-  application.use(express.urlencoded({ extended: true, limit: '10kb' }));
+  application.use(express.urlencoded({ extended: true, limit: "10kb" }));
 
   // HTTP Parameter Pollution (HPP) korumasını gövde ayrıştırma sonrasında aktif et
   application.use(hpp());
@@ -72,8 +81,8 @@ export const createApp = (registerRoutes: RouteRegistrar = registerApplicationRo
   registerRoutes(application);
 
   // Tanımsız tüm HTTP adresleri (404) için özel yakalayıcı middleware
-  application.use('*', (_req, _res, next) => {
-    next(new AppError('İstenen API adresi bulunamadı.', 404));
+  application.use("*", (_req, _res, next) => {
+    next(new AppError("İstenen API adresi bulunamadı.", 404));
   });
 
   // Uygulama genelindeki en son halka olan Global Hata Yakalama Middleware'ini ekle
