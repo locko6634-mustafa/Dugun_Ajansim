@@ -14,8 +14,8 @@ test("bağımlılık audit kapısı ve güvenli transitive sürümler korunur", 
   const lockfile = JSON.parse(readProjectFile("package-lock.json"));
   const expectedVersions = {
     "brace-expansion": "1.1.18",
-    "fast-uri": "3.1.5",
-    "js-yaml": "4.3.1",
+    "fast-uri": "3.1.8",
+    "js-yaml": "4.3.2",
     nanoid: "3.3.18"
   };
 

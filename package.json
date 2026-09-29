@@ -49,8 +49,13 @@
     "eslint": "^9.35.0",
     "html-validate": "^11.5.6",
     "prettier": "^3.6.2",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.5",
     "stylelint": "^17.14.1",
     "stylelint-config-standard": "^40.0.0"
+  },
+  "overrides": {
+    "colord": "2.10.0",
+    "fast-uri": "3.1.8",
+    "js-yaml": "4.3.2"
   }
 }
