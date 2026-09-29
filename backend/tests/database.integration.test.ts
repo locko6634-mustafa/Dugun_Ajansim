@@ -3119,7 +3119,8 @@ test("başvuru, atomik onay, rol izolasyonu ve gizli teslimat uçtan uca çalı�
   assert.equal(venueCalendar.body.data.selectedVenue.id, venue.id);
   assert.equal(venueCalendar.body.data.month, weddingDate.slice(0, 7));
   const expectedVenueCalendarWeddingCount =
-    2 +
+    1 +
+    Number(addCalendarDays(weddingDate, 2).slice(0, 7) === weddingDate.slice(0, 7)) +
     Number(approvalExpiryRaceDate.slice(0, 7) === weddingDate.slice(0, 7)) +
     Number(addCalendarDays(weddingDate, 4).slice(0, 7) === weddingDate.slice(0, 7));
   assert.equal(venueCalendar.body.data.weddings.length, expectedVenueCalendarWeddingCount);
