@@ -13,6 +13,8 @@
     <script type="module" src="js/customer-panel/app.js"></script>
   </head>
   <body>
+    <div class="ambient-glow" aria-hidden="true"></div>
+
     <header class="customer-header">
       <a href="index.html" class="customer-brand" aria-label="Düğünajansım ana sayfa">
         <span>DA</span>
@@ -20,7 +22,7 @@
       </a>
       <div class="header-actions">
         <span class="secure-session"><i aria-hidden="true"></i> Güvenli müşteri alanı</span>
-        <button class="quiet-button js-logout" type="button">Çıkış</button>
+        <button class="quiet-button js-logout" type="button">Çıkış Yap</button>
       </div>
     </header>
 
@@ -28,40 +30,115 @@
       <p class="page-message" role="status" aria-live="polite" aria-atomic="true">
         Teslimat bilgileriniz hazırlanıyor…
       </p>
+
       <section class="customer-hero" hidden aria-labelledby="welcome-title">
         <div class="customer-hero__copy">
+          <div class="couple-crest" aria-hidden="true">
+            <span class="couple-crest__seal js-couple-monogram">DA</span>
+          </div>
           <p class="eyebrow"><span>Özel teslimat dosyanız</span></p>
           <h1 id="welcome-title">
-            <span class="js-bride">—</span> <em>&amp;</em> <span class="js-groom">—</span>
+            <span class="js-bride">—</span> <em class="couple-amp">&amp;</em>
+            <span class="js-groom">—</span>
           </h1>
           <p class="hero-note">
             En değerli gününüzden kalan her kare özenle hazırlanıyor. Sürecin hangi aşamada olduğunu
-            ve tahmini teslim tarihini buradan takip edebilirsiniz.
+            ve tahmini teslim tarihini buradan anlık takip edebilirsiniz.
           </p>
         </div>
-        <aside class="countdown-card">
-          <div class="countdown-card__heading">
-            <span>Tahmini teslimat</span>
-            <i aria-hidden="true"></i>
+
+        <aside class="countdown-card" aria-label="Tahmini teslimat sayacı">
+          <div class="countdown-card__header">
+            <span class="countdown-badge"
+              ><i class="countdown-badge__pulse" aria-hidden="true"></i> Canlı Süreç</span
+            >
+            <span class="countdown-card__title">Tahmini Teslimat</span>
           </div>
-          <div class="countdown-card__value">
-            <strong class="js-days">—</strong>
-            <p class="js-days-label">gün kaldı</p>
+
+          <div class="countdown-grid" role="timer" aria-label="Kalan teslimat süresi">
+            <div class="countdown-slot">
+              <strong class="countdown-num js-countdown-days js-days">—</strong>
+              <span class="countdown-unit">GÜN</span>
+            </div>
+            <span class="countdown-colon" aria-hidden="true">:</span>
+            <div class="countdown-slot">
+              <strong class="countdown-num js-countdown-hours">00</strong>
+              <span class="countdown-unit">SAAT</span>
+            </div>
+            <span class="countdown-colon" aria-hidden="true">:</span>
+            <div class="countdown-slot">
+              <strong class="countdown-num js-countdown-minutes">00</strong>
+              <span class="countdown-unit">DAKİKA</span>
+            </div>
+            <span class="countdown-colon" aria-hidden="true">:</span>
+            <div class="countdown-slot">
+              <strong class="countdown-num js-countdown-seconds">00</strong>
+              <span class="countdown-unit">SANİYE</span>
+            </div>
           </div>
-          <div class="countdown-card__date">
-            <span>Planlanan tarih</span>
-            <time class="js-due-date">—</time>
+
+          <div class="countdown-card__footer">
+            <div class="countdown-status">
+              <span class="countdown-footer-label">Durum</span>
+              <p class="js-days-label countdown-status-text">hesaplanıyor…</p>
+            </div>
+            <div class="countdown-due">
+              <span class="countdown-footer-label">Planlanan Tarih</span>
+              <time class="js-due-date countdown-due-time">—</time>
+            </div>
           </div>
         </aside>
       </section>
 
       <section class="event-strip" hidden aria-label="Düğün ve teslimat özeti">
         <div class="event-detail">
-          <span>01 · Düğün tarihi</span><strong class="js-wedding-date">—</strong>
+          <div class="event-detail__header">
+            <span>01 · Düğün Tarihi</span>
+            <svg
+              class="event-detail__icon"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              aria-hidden="true"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+          </div>
+          <strong class="js-wedding-date">—</strong>
         </div>
-        <div class="event-detail"><span>02 · Mekân</span><strong class="js-venue">—</strong></div>
+
+        <div class="event-detail">
+          <div class="event-detail__header">
+            <span>02 · Mekân</span>
+            <svg
+              class="event-detail__icon"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              aria-hidden="true"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+          </div>
+          <strong class="js-venue">—</strong>
+        </div>
+
         <div class="event-detail event-detail--status">
-          <span>03 · Güncel durum</span><strong class="status-badge js-current-status">—</strong>
+          <div class="event-detail__header">
+            <span>03 · Güncel Durum</span>
+            <span class="status-indicator-dot" aria-hidden="true"></span>
+          </div>
+          <strong class="status-badge js-current-status">—</strong>
         </div>
       </section>
 
@@ -73,23 +150,42 @@
           </div>
           <p>
             Ekibimiz tamamlanan her aşamanın ardından dosyanızı bir sonraki uzmanımıza aktarıyor.
+            Sürecinizin her adımını şeffaflıkla buradan takip edebilirsiniz.
           </p>
         </header>
+
         <div class="timeline-shell">
           <div class="timeline-progress" aria-hidden="true"><span></span></div>
           <ol class="delivery-timeline js-timeline"></ol>
         </div>
       </section>
 
-      <section class="delivery-release" hidden>
-        <div>
-          <p class="eyebrow">Teslimatınız hazır</p>
-          <h2>Hikâyeniz artık sizinle.</h2>
-          <p>Fotoğraf ve videolarınıza güvenli müşteri oturumunuz üzerinden ulaşabilirsiniz.</p>
+      <section class="delivery-release" hidden aria-labelledby="release-title">
+        <div class="delivery-release__card">
+          <div class="delivery-release__decor" aria-hidden="true"></div>
+          <div class="delivery-release__body">
+            <p class="eyebrow"><span>Teslimatınız hazır</span></p>
+            <h2 id="release-title">Hikâyeniz artık sizinle.</h2>
+            <p class="delivery-release__note">
+              En özel gününüzün sinematik fotoğraf ve video arşivine güvenli müşteri oturumunuz
+              üzerinden hemen erişebilir, anılarınızı yüksek kalitede indirebilirsiniz.
+            </p>
+            <div class="delivery-release__features">
+              <span class="feature-tag">✦ Orijinal 4K Çözünürlük</span>
+              <span class="feature-tag">✦ Yüksek Kalite Fotoğraf Galerisi</span>
+              <span class="feature-tag">✦ Güvenli Bulut Arşivi</span>
+            </div>
+          </div>
+          <div class="delivery-release__action-box">
+            <button class="delivery-button js-open-delivery" type="button">
+              <span>Dosyaları Görüntüle &amp; İndir</span>
+              <span class="delivery-button__arrow" aria-hidden="true">→</span>
+            </button>
+            <small class="delivery-release__hint"
+              >Bağlantı güvenli Google Drive klasörünü yeni sekmede açar.</small
+            >
+          </div>
         </div>
-        <button class="delivery-button js-open-delivery" type="button">
-          Dosyaları görüntüle →
-        </button>
       </section>
     </main>
   </body>

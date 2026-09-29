@@ -47,13 +47,89 @@ function showContent() {
   });
 }
 
+const STATUS_ICONS = Object.freeze({
+  HAZIRLANIYOR: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+  MONTAJ: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`,
+  KONTROL: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>`,
+  TESLIME_HAZIR: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/><polyline points="8 13 12 9 16 13"/></svg>`,
+  TESLIM_EDILDI: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`
+});
+
+let countdownTimerId = null;
+
+function clearCountdownTimer() {
+  if (countdownTimerId !== null) {
+    window.clearInterval(countdownTimerId);
+    countdownTimerId = null;
+  }
+}
+
+function startCountdownTimer(dueDateValue, status) {
+  clearCountdownTimer();
+
+  const daysEl = document.querySelector(".js-days");
+  const hoursEl = document.querySelector(".js-countdown-hours");
+  const minutesEl = document.querySelector(".js-countdown-minutes");
+  const secondsEl = document.querySelector(".js-countdown-seconds");
+  const labelEl = document.querySelector(".js-days-label");
+
+  const isDelivered = status === "TESLIM_EDILDI";
+  if (isDelivered) {
+    if (daysEl) daysEl.textContent = "0";
+    if (hoursEl) hoursEl.textContent = "00";
+    if (minutesEl) minutesEl.textContent = "00";
+    if (secondsEl) secondsEl.textContent = "00";
+    if (labelEl) labelEl.textContent = "teslimat tamamlandı";
+    return;
+  }
+
+  const targetDate = new Date(dueDateValue);
+  const targetTime = new Date(targetDate);
+  if (targetTime.getUTCHours() === 0 && targetTime.getUTCMinutes() === 0) {
+    targetTime.setUTCHours(20, 59, 59, 999);
+  }
+
+  const update = () => {
+    const now = Date.now();
+    const diffMs = targetTime.getTime() - now;
+    const calendarDays = calendarDayInIstanbul(dueDateValue) - calendarDayInIstanbul(new Date());
+
+    if (diffMs <= 0) {
+      if (daysEl) daysEl.textContent = String(Math.abs(calendarDays));
+      if (hoursEl) hoursEl.textContent = "00";
+      if (minutesEl) minutesEl.textContent = "00";
+      if (secondsEl) secondsEl.textContent = "00";
+      if (labelEl) labelEl.textContent = calendarDays < 0 ? "gün gecikti" : "bugün teslim ediliyor";
+      return;
+    }
+
+    const totalSec = Math.floor(diffMs / 1000);
+    const d = Math.floor(totalSec / 86400);
+    const h = Math.floor((totalSec % 86400) / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+
+    if (daysEl) daysEl.textContent = String(d);
+    if (hoursEl) hoursEl.textContent = String(h).padStart(2, "0");
+    if (minutesEl) minutesEl.textContent = String(m).padStart(2, "0");
+    if (secondsEl) secondsEl.textContent = String(s).padStart(2, "0");
+    if (labelEl) labelEl.textContent = "gün kaldı";
+  };
+
+  update();
+  countdownTimerId = window.setInterval(update, 1000);
+}
+
 function hideSensitiveContent() {
+  clearCountdownTimer();
   document.querySelectorAll(".customer-hero, .event-strip, .journey-section").forEach((item) => {
     item.hidden = true;
   });
   document.querySelector(".delivery-release").hidden = true;
   document.querySelector(".js-bride").textContent = "";
   document.querySelector(".js-groom").textContent = "";
+  const monogram = document.querySelector(".js-couple-monogram");
+  if (monogram) monogram.textContent = "DA";
   document.querySelector(".js-timeline").replaceChildren();
 }
 
@@ -78,21 +154,26 @@ async function ensureCustomer() {
 async function loadDashboard() {
   const response = await apiRequest("/customer/dashboard");
   const data = response.data;
-  document.querySelector(".js-bride").textContent = data.couple.bride;
-  document.querySelector(".js-groom").textContent = data.couple.groom;
+  const bride = data.couple.bride;
+  const groom = data.couple.groom;
+
+  document.querySelector(".js-bride").textContent = bride;
+  document.querySelector(".js-groom").textContent = groom;
+
+  const brideInitial = (bride || "").trim().charAt(0).toLocaleUpperCase("tr-TR");
+  const groomInitial = (groom || "").trim().charAt(0).toLocaleUpperCase("tr-TR");
+  const monogramEl = document.querySelector(".js-couple-monogram");
+  if (monogramEl) {
+    monogramEl.textContent =
+      brideInitial && groomInitial ? `${brideInitial} & ${groomInitial}` : "DA";
+  }
+
   document.querySelector(".js-wedding-date").textContent = formatDate(data.startsAt);
   document.querySelector(".js-venue").textContent = data.venue;
   document.querySelector(".js-current-status").textContent = statusLabels[data.delivery.status];
   document.querySelector(".js-due-date").textContent = formatDate(data.delivery.dueDate);
 
-  const days = calendarDayInIstanbul(data.delivery.dueDate) - calendarDayInIstanbul(new Date());
-  const isDelivered = data.delivery.status === "TESLIM_EDILDI";
-  document.querySelector(".js-days").textContent = isDelivered ? Math.max(0, days) : Math.abs(days);
-  document.querySelector(".js-days-label").textContent = isDelivered
-    ? "teslimat tamamlandı"
-    : days < 0
-      ? "gün gecikti"
-      : "gün kaldı";
+  startCountdownTimer(data.delivery.dueDate, data.delivery.status);
 
   const activeIndex = statusOrder.indexOf(data.delivery.status);
   const journeySection = document.querySelector(".journey-section");
@@ -100,15 +181,28 @@ async function loadDashboard() {
     "--delivery-progress",
     `${Math.max(0, activeIndex) / (statusOrder.length - 1)}`
   );
+
   document.querySelector(".js-timeline").innerHTML = statusOrder
-    .map(
-      (status, index) => `
-        <li class="${index < activeIndex ? "is-complete" : index === activeIndex ? "is-current" : ""}"${index === activeIndex ? ' aria-current="step"' : ""}>
-          <small>0${index + 1}</small>
-          <strong>${statusLabels[status]}</strong>
-          <span>${index < activeIndex ? "Tamamlandı" : index === activeIndex ? "Şu an bu aşamada" : "Sırada"}</span>
-        </li>`
-    )
+    .map((status, index) => {
+      const isComplete = index < activeIndex;
+      const isCurrent = index === activeIndex;
+      const statusClass = isComplete ? "is-complete" : isCurrent ? "is-current" : "";
+      const ariaCurrent = isCurrent ? ' aria-current="step"' : "";
+      const iconSvg = STATUS_ICONS[status] || "";
+      const stateText = isComplete ? "Tamamlandı" : isCurrent ? "Şu an bu aşamada" : "Sırada";
+
+      return `
+        <li class="${statusClass}"${ariaCurrent}>
+          <div class="timeline-step-badge">
+            <span class="timeline-step-icon" aria-hidden="true">${iconSvg}</span>
+            <small class="timeline-step-num">0${index + 1}</small>
+          </div>
+          <div class="timeline-content">
+            <strong>${statusLabels[status]}</strong>
+            <span class="timeline-state">${stateText}</span>
+          </div>
+        </li>`;
+    })
     .join("");
 
   document.querySelector(".delivery-release").hidden = !data.delivery.available;
