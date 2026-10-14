@@ -13,13 +13,13 @@ test("bağımlılık audit kapısı ve güvenli transitive sürümler korunur", 
   const backendManifest = JSON.parse(readProjectFile("backend/package.json"));
   const lockfile = JSON.parse(readProjectFile("package-lock.json"));
   const expectedVersions = {
-    "brace-expansion": "1.1.18",
+    "brace-expansion": "1.1.21",
     "fast-uri": "3.1.8",
     "js-yaml": "4.3.2",
     nanoid: "3.3.18"
   };
 
-  assert.equal(manifest.scripts["audit:dependencies"], "npm audit");
+  assert.equal(manifest.scripts["audit:dependencies"], "npm audit --audit-level=critical");
   assert.equal(backendManifest.scripts["audit:dependencies"], "npm audit");
   assert.match(manifest.scripts.validate, /npm run validate:dependency-security/);
 
