@@ -1,7 +1,13 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
-const criticalPages = ["/index.html", "/galeri.html", "/login.html", "/paketini-olustur.html"];
+const criticalPages = [
+  "/index.html",
+  "/cok-yakinda.html",
+  "/galeri.html",
+  "/login.html",
+  "/paketini-olustur.html"
+];
 
 for (const pagePath of criticalPages) {
   test(`@frontend-smoke @responsive ${pagePath} temel sözleşmesi`, async ({ page }) => {
@@ -20,6 +26,22 @@ for (const pagePath of criticalPages) {
     expect(results.violations.filter(({ impact }) => impact === "critical")).toEqual([]);
   });
 }
+
+test("@frontend-smoke @responsive kök dizin çok yakında karşılama ekranını sunar", async ({
+  page
+}) => {
+  await page.goto("/");
+
+  await expect(page.locator(".brand-header__name")).toHaveText("DÜĞÜN AJANSIM");
+  await expect(page.locator(".status-pill")).toContainText("Yeni web sitemiz hazırlanıyor.");
+  await expect(page.locator("#main-announcement-title")).toContainText("Yenilenen Yüzümüzle");
+  await expect(page.locator("#main-announcement-title")).toContainText("Çok Yakında!");
+  await expect(page.locator(".description-text")).toContainText(
+    "Daha modern bir tasarım, yenilenen hizmetlerimiz ve geliştirilmiş dijital deneyimimizle çok yakında yeniden sizlerleyiz."
+  );
+  await expect(page.locator(".feature-item")).toHaveCount(3);
+  await expect(page.locator(".contact-section")).toHaveCount(0);
+});
 
 test("@frontend-smoke @responsive galeri önizlemesi tam galeri sayfasına açılır", async ({
   page

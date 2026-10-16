@@ -33,6 +33,8 @@ after(async () => {
 });
 
 test("statik sunucu yalnız yayımlanabilir ön yüz dosyalarını sunar", async () => {
+  assert.equal(await request("/"), 200);
+  assert.equal(await request("/cok-yakinda.html"), 200);
   assert.equal(await request("/index.html"), 200);
   assert.equal(await request("/js/shared/runtime-config.js"), 200);
 });

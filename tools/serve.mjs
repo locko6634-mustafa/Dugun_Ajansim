@@ -48,7 +48,7 @@ function resolvePublicPath(rawUrl) {
     return null;
   }
 
-  if (pathname === "/") pathname = "/index.html";
+  if (pathname === "/") pathname = "/cok-yakinda.html";
   if (pathname.includes("\\") || pathname.includes("\0")) return null;
 
   const segments = pathname.split("/").filter(Boolean);
