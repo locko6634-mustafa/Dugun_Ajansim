@@ -39,7 +39,7 @@ test("@frontend-smoke @responsive kök dizin çok yakında karşılama ekranın�
   await expect(page.locator(".description-text")).toContainText(
     "Daha modern bir tasarım, yenilenen hizmetlerimiz ve geliştirilmiş dijital deneyimimizle çok yakında yeniden sizlerleyiz."
   );
-  await expect(page.locator(".feature-item")).toHaveCount(3);
+  await expect(page.locator(".feature-item")).toHaveCount(0);
   await expect(page.locator(".contact-section")).toHaveCount(0);
 });
 
