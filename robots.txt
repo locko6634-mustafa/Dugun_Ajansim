@@ -1,0 +1,34 @@
+# Robots.txt - Düğünajansım
+# https://dugunajansim.com
+
+User-agent: *
+Allow: /
+Allow: /assets/
+Allow: /css/
+Allow: /js/
+Allow: /media/
+Allow: /galeri.html
+Allow: /paketini-olustur.html
+Allow: /kvkk-aydinlatma.html
+Allow: /gizlilik-politikasi.html
+Allow: /kullanim-sartlari.html
+
+# Panel ve yetkilendirme sayfalarının indekslenmesini engelle
+Disallow: /admin.html
+Disallow: /operasyon-paneli.html
+Disallow: /musteri-paneli.html
+Disallow: /montajci-paneli.html
+Disallow: /login.html
+Disallow: /api/
+
+# Arama motorları özel izinleri
+User-agent: Googlebot
+Allow: /
+Allow: /galeri.html
+Allow: /paketini-olustur.html
+
+User-agent: Googlebot-Image
+Allow: /assets/
+Allow: /media/
+
+Sitemap: __APP_ORIGIN__/sitemap.xml

@@ -6,14 +6,14 @@
   },
   "pages": {
     "index.html": {
-      "title": "Düğünajansım | Düğün Fotoğrafı ve Video Prodüksiyonu",
-      "description": "Düğünajansım; fotoğraf, sinematik film, drone, Jimmy Jib ve tüm görsel prodüksiyon süreçlerini tek çatı altında yönetir.",
-      "socialDescription": "Düğününüzün her anını fotoğraftan sinematik filme, drone'dan Jimmy Jib çekimine kadar tek profesyonel ekiple planlayın.",
+      "title": "Düğünajansım | Düğün Fotoğrafçısı, Video ve Kır Düğünü Mekânları",
+      "description": "İstanbul düğün fotoğrafçısı, sinematik düğün filmi, drone çekimi ve 7 seçkin kır düğünü salonunda profesyonel görsel prodüksiyon hizmetleri.",
+      "socialDescription": "Düğün fotoğrafçılığı, sinematik düğün klibi, drone ve Jimmy Jib çekimlerini seçkin kır düğünü salonlarında tek profesyonel ekiple planlayın.",
       "canonicalUrl": "__APP_ORIGIN__/",
       "imageUrl": "__APP_ORIGIN__/assets/images/hero-couple.webp",
       "logoUrl": "__APP_ORIGIN__/assets/favicon.svg",
-      "imageAlt": "Düğünajansım'da romantik düğün çekimi",
-      "organizationDescription": "Fotoğraf, sinematik film, drone, Jimmy Jib ve uçtan uca düğün prodüksiyon hizmetleri."
+      "imageAlt": "Düğünajansım profesyonel düğün fotoğrafı ve video çekimi",
+      "organizationDescription": "Fotoğraf, sinematik film, drone, Jimmy Jib ve seçkin düğün salonlarında uçtan uca profesyonel düğün prodüksiyon hizmetleri."
     },
     "login.html": {
       "title": "Giriş Yap | Düğünajansım",
@@ -24,19 +24,19 @@
       "imageAlt": "Düğünajansım düğün çekimi"
     },
     "paketini-olustur.html": {
-      "title": "Paketini Oluştur | Düğünajansım",
-      "description": "Düğünajansım çekim paketinizi temel paket ve ek hizmetlerle kendiniz oluşturun.",
+      "title": "Düğün Çekim Paketini Oluştur & Fiyat Hesapla | Düğünajansım",
+      "description": "Düğün fotoğrafçılığı, sinematik film, drone, albüm ve dış çekim hizmetlerini seçin; düğün çekim paketinizi ve fiyatınızı hemen hesaplayın.",
       "socialDescription": "Düğün çekim paketinizi temel paket ve ek hizmetlerle kendi hikâyenize göre oluşturun.",
-      "canonicalUrl": "./paketini-olustur.html",
-      "imageUrl": "assets/images/hero-couple.webp",
+      "canonicalUrl": "__APP_ORIGIN__/paketini-olustur.html",
+      "imageUrl": "__APP_ORIGIN__/assets/images/hero-couple.webp",
       "imageAlt": "Düğünajansım düğün çekimi"
     },
     "galeri.html": {
-      "title": "Düğün Fotoğrafları Galerisi | Düğünajansım",
-      "description": "Düğünajansım'ın gerçek düğün, nişan, kına ve dış çekimlerinden öne çıkan fotoğrafları keşfedin.",
+      "title": "Düğün Fotoğrafları Galerisi & Dış Çekimler | Düğünajansım",
+      "description": "Düğünajansım'ın gerçek düğün, nişan, kına ve anlaşmalı kır bahçelerindeki dış çekimlerinden öne çıkan fotoğrafları keşfedin.",
       "socialDescription": "Gerçek düğünlerden, nişanlardan ve dış çekimlerden seçilen Düğünajansım fotoğraflarını inceleyin.",
-      "canonicalUrl": "./galeri.html",
-      "imageUrl": "/media/images/wedding-gallery-01.webp",
+      "canonicalUrl": "__APP_ORIGIN__/galeri.html",
+      "imageUrl": "__APP_ORIGIN__/assets/images/hero-couple.webp",
       "imageAlt": "Çiçek yaprakları arasında yürüyen gelin ve damat"
     },
     "admin.html": { "title": "Yönetim Merkezi | Düğünajansım" },
@@ -88,6 +88,11 @@
           "icon": "camera",
           "question": "Dış çekim için mekân seçebiliyor muyuz?",
           "answer": "Evet. Dilerseniz önerdiğimiz konsept lokasyonlarda, dilerseniz sizin belirlediğiniz mekânlarda profesyonel dış çekim gerçekleştiriyoruz."
+        },
+        {
+          "icon": "venue",
+          "question": "Bünyenizde veya anlaşmalı olduğunuz düğün salonları hangileridir?",
+          "answer": "İstanbul genelinde başta Rena Garden, Mafsel Ömerli, Green House Garden, Cess Wedding (Park & Orman), Yeşil Nesil Garden (Hayal, Masal, Kale, Rüya Bahçeleri), Bella Garden ve Talia Garden olmak üzere 7 seçkin açık hava ve kır düğünü mekânında profesyonel prodüksiyon iş ortağı olarak fotoğraf ve video çekim hizmeti sunuyoruz."
         },
         {
           "icon": "calendar",

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>__APP_ORIGIN__/</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>__APP_ORIGIN__/assets/images/hero-team.webp</image:loc>
+      <image:title>Düğünajansım Profesyonel Düğün Çekim Ekibi</image:title>
+      <image:caption>Düğün fotoğrafçılığı, sinematik film, drone ve Jimmy Jib prodüksiyon ekibi</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>__APP_ORIGIN__/assets/images/hero-couple.webp</image:loc>
+      <image:title>Düğün Dış Çekim ve Fotoğrafçılık</image:title>
+      <image:caption>İstanbul kır düğünü ve romantik dış çekim anları</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>__APP_ORIGIN__/assets/images/venues/rena.webp</image:loc>
+      <image:title>Rena Garden Düğün Çekimleri</image:title>
+      <image:caption>Rena Garden düğün ve nişan fotoğraf, video prodüksiyonu</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>__APP_ORIGIN__/assets/images/venues/omerli-mafsel.webp</image:loc>
+      <image:title>Mafsel Ömerli Kır Düğünü Çekimleri</image:title>
+      <image:caption>Mafsel Ömerli açık hava düğün ve dış çekim prodüksiyonu</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>__APP_ORIGIN__/assets/images/venues/green-house.webp</image:loc>
+      <image:title>Green House Garden Düğün Çekimleri</image:title>
+      <image:caption>Green House Garden düğün fotoğrafı ve sinematik video çekimleri</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>__APP_ORIGIN__/assets/images/venues/cess.webp</image:loc>
+      <image:title>Cess Wedding Park ve Orman Düğün Çekimleri</image:title>
+      <image:caption>Cess Wedding Park ve Cess Orman açık hava düğün klibi ve drone çekimi</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>__APP_ORIGIN__/assets/images/venues/yesil-nesil.webp</image:loc>
+      <image:title>Yeşil Nesil Garden Düğün Çekimleri</image:title>
+      <image:caption>Yeşil Nesil Garden Hayal, Masal, Kale ve Rüya Bahçeleri düğün prodüksiyonu</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>__APP_ORIGIN__/assets/images/venues/bella.webp</image:loc>
+      <image:title>Bella Garden Düğün Çekimleri</image:title>
+      <image:caption>Bella Garden seçkin kır düğünü fotoğraf ve video prodüksiyonu</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>__APP_ORIGIN__/assets/images/venues/talia.webp</image:loc>
+      <image:title>Talia Garden Düğün Çekimleri</image:title>
+      <image:caption>Talia Garden ışıklandırmalı bahçe ve kır düğünü prodüksiyonu</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>__APP_ORIGIN__/galeri.html</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>__APP_ORIGIN__/assets/images/hero-couple.webp</image:loc>
+      <image:title>Düğün Fotoğrafları Galerisi</image:title>
+      <image:caption>Gerçek düğün ve dış çekim kareleri</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>__APP_ORIGIN__/paketini-olustur.html</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>__APP_ORIGIN__/kvkk-aydinlatma.html</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>__APP_ORIGIN__/gizlilik-politikasi.html</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>__APP_ORIGIN__/kullanim-sartlari.html</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+</urlset>

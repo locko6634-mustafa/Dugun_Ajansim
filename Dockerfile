@@ -11,6 +11,7 @@ RUN test -n "${APP_ORIGIN}" \
 
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY *.html /usr/share/nginx/html/
+COPY robots.txt sitemap.xml /usr/share/nginx/html/
 COPY assets /usr/share/nginx/html/assets
 COPY css /usr/share/nginx/html/css
 COPY js /usr/share/nginx/html/js
