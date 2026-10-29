@@ -25,9 +25,11 @@ import {
   montageUserBodySchema,
   montageUserUpdateBodySchema,
   packageBodySchema,
+  packageUpdateBodySchema,
   permanentDeleteBodySchema,
   rejectBookingBodySchema,
   serviceBodySchema,
+  serviceUpdateBodySchema,
   staffBodySchema,
   staffSpecialtySchema,
   staffUpdateBodySchema,
@@ -35,6 +37,7 @@ import {
   venueBodySchema,
   venueManagerBodySchema,
   venueManagerUpdateBodySchema,
+  venueUpdateBodySchema,
   weddingListQuerySchema,
   weddingUpdateBodySchema
 } from "../schemas/api.schemas.js";
@@ -3297,15 +3300,13 @@ router.post(
   })
 );
 
-const catalogRoutes = (path: "packages" | "services", schema: z.ZodObject<any>) => {
+const catalogRoutes = (
+  path: "packages" | "services",
+  schema: z.ZodTypeAny,
+  partialSchema: z.ZodTypeAny
+) => {
   const targetType = path === "packages" ? "Package" : "Service";
   const actionPrefix = path === "packages" ? "package" : "service";
-  const partialSchema = schema
-    .partial()
-    .refine(
-      (value: Record<string, unknown>) => Object.keys(value).length > 0,
-      "En az bir alan gönderin."
-    );
 
   router.get(
     `/${path}`,
@@ -3425,10 +3426,6 @@ const catalogRoutes = (path: "packages" | "services", schema: z.ZodObject<any>) 
   );
 };
 
-const venueUpdateBodySchema = venueBodySchema
-  .partial()
-  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
-
 router.get(
   "/venues",
   validateRequest(z.object({ body: emptyBody, query: emptyQuery, params: z.object({}) })),
@@ -3535,8 +3532,8 @@ router.delete(
   })
 );
 
-catalogRoutes("packages", packageBodySchema);
-catalogRoutes("services", serviceBodySchema);
+catalogRoutes("packages", packageBodySchema, packageUpdateBodySchema);
+catalogRoutes("services", serviceBodySchema, serviceUpdateBodySchema);
 
 router.get(
   "/message-tasks",

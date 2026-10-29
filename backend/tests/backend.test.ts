@@ -43,7 +43,12 @@ import {
   adminStepUpBodySchema,
   montageUserBodySchema,
   montageUserUpdateBodySchema,
+  packageUpdateBodySchema,
   permanentDeleteBodySchema,
+  serviceUpdateBodySchema,
+  staffUpdateBodySchema,
+  venueStaffUpdateBodySchema,
+  venueUpdateBodySchema,
 } from '../src/schemas/api.schemas.js';
 import { createGlobalErrorHandler } from '../src/middlewares/error.middleware.js';
 import { hashRateLimitKey } from '../src/middlewares/databaseRateLimitStore.js';
@@ -2594,4 +2599,35 @@ test('ödeme talimatları test modunda açık uyarı ve yalnız gerekli bilgiler
   assert.equal(response.body.data.iban, 'TR000000000000000000000000');
   assert.match(response.body.data.notice, /gerçek para göndermeyin/i);
   assert.equal('idempotencyKey' in response.body.data, false);
+});
+
+test('kısmi güncelleme (PATCH) şemaları boş gövdeyi reddeder ve gönderilmeyen alanlara varsayılan değer enjekte etmez', () => {
+  for (const schema of [
+    venueUpdateBodySchema,
+    packageUpdateBodySchema,
+    serviceUpdateBodySchema,
+    staffUpdateBodySchema,
+    venueStaffUpdateBodySchema,
+  ]) {
+    const emptyResult = schema.safeParse({});
+    assert.equal(emptyResult.success, false);
+  }
+
+  const partialVenue = venueUpdateBodySchema.parse({
+    displayName: 'Güncel Vitrin Mekânı',
+    displayOrder: 3,
+  });
+  assert.deepEqual(partialVenue, {
+    displayName: 'Güncel Vitrin Mekânı',
+    displayOrder: 3,
+  });
+
+  const partialPackage = packageUpdateBodySchema.parse({ priceCents: 1_200_000 });
+  assert.deepEqual(partialPackage, { priceCents: 1_200_000 });
+
+  const partialService = serviceUpdateBodySchema.parse({ priceCents: 350_000 });
+  assert.deepEqual(partialService, { priceCents: 350_000 });
+
+  const partialStaff = staffUpdateBodySchema.parse({ firstName: 'Ayşe' });
+  assert.deepEqual(partialStaff, { firstName: 'Ayşe' });
 });

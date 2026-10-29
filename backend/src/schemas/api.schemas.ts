@@ -322,7 +322,10 @@ export const rejectBookingBodySchema = z
   })
   .strict();
 
-export const packageBodySchema = z
+const hasDefinedField = (value: Record<string, unknown>): boolean =>
+  Object.values(value).some((item) => item !== undefined);
+
+const packageFieldsSchema = z
   .object({
     code: codeSchema.regex(new RegExp(adminCatalogFormConstraints.code.pattern)),
     name: catalogNameSchema,
@@ -352,13 +355,27 @@ export const packageBodySchema = z
       .nullable(),
     features: z
       .array(z.string().trim().max(adminCatalogFormConstraints.feature.maxLength))
+      .optional(),
+    isActive: z.boolean()
+  })
+  .strict();
+
+export const packageBodySchema = packageFieldsSchema
+  .extend({
+    features: z
+      .array(z.string().trim().max(adminCatalogFormConstraints.feature.maxLength))
       .optional()
       .default([]),
     isActive: z.boolean().default(true)
   })
   .strict();
 
-export const serviceBodySchema = z
+export const packageUpdateBodySchema = packageFieldsSchema
+  .partial()
+  .strict()
+  .refine(hasDefinedField, "En az bir alan gönderin.");
+
+const serviceFieldsSchema = z
   .object({
     code: codeSchema.regex(new RegExp(adminCatalogFormConstraints.code.pattern)),
     category: codeSchema,
@@ -389,6 +406,16 @@ export const serviceBodySchema = z
       .nullable(),
     features: z
       .array(z.string().trim().max(adminCatalogFormConstraints.feature.maxLength))
+      .optional(),
+    gallery: z.array(imageAssetPathSchema).optional(),
+    isActive: z.boolean()
+  })
+  .strict();
+
+export const serviceBodySchema = serviceFieldsSchema
+  .extend({
+    features: z
+      .array(z.string().trim().max(adminCatalogFormConstraints.feature.maxLength))
       .optional()
       .default([]),
     gallery: z.array(imageAssetPathSchema).optional().default([]),
@@ -396,7 +423,12 @@ export const serviceBodySchema = z
   })
   .strict();
 
-export const venueBodySchema = z
+export const serviceUpdateBodySchema = serviceFieldsSchema
+  .partial()
+  .strict()
+  .refine(hasDefinedField, "En az bir alan gönderin.");
+
+const venueFieldsSchema = z
   .object({
     slug: codeSchema.regex(new RegExp(adminCatalogFormConstraints.code.pattern)),
     name: catalogNameSchema,
@@ -412,6 +444,19 @@ export const venueBodySchema = z
       .number()
       .int()
       .min(adminCatalogFormConstraints.venue.displayOrder.minimum)
+      .max(adminCatalogFormConstraints.venue.displayOrder.maximum),
+    isFeatured: z.boolean(),
+    isActive: z.boolean(),
+    isPartner: z.boolean()
+  })
+  .strict();
+
+export const venueBodySchema = venueFieldsSchema
+  .extend({
+    displayOrder: z
+      .number()
+      .int()
+      .min(adminCatalogFormConstraints.venue.displayOrder.minimum)
       .max(adminCatalogFormConstraints.venue.displayOrder.maximum)
       .default(0),
     isFeatured: z.boolean().default(false),
@@ -419,6 +464,11 @@ export const venueBodySchema = z
     isPartner: z.boolean().default(true)
   })
   .strict();
+
+export const venueUpdateBodySchema = venueFieldsSchema
+  .partial()
+  .strict()
+  .refine(hasDefinedField, "En az bir alan gönderin.");
 
 export const deliveryUpdateBodySchema = z
   .object({
@@ -428,7 +478,7 @@ export const deliveryUpdateBodySchema = z
     reason: z.string().trim().min(10).max(500).optional()
   })
   .strict()
-  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+  .refine(hasDefinedField, "En az bir alan gönderin.");
 
 export const weddingUpdateBodySchema = z
   .object({
@@ -484,12 +534,18 @@ const venueIdsSchema = z
   .max(50)
   .transform((ids) => [...new Set(ids)]);
 
-const staffFieldsSchema = z
+const staffBaseFieldsSchema = z
   .object({
     firstName: personNameSchema,
     lastName: personNameSchema,
     phone: phoneSchema,
     specialties: z.array(staffSpecialtySchema).min(1).max(staffSpecialtySchema.options.length),
+    isActive: z.boolean()
+  })
+  .strict();
+
+const staffFieldsSchema = staffBaseFieldsSchema
+  .extend({
     isActive: z.boolean().default(true)
   })
   .strict();
@@ -500,6 +556,7 @@ export const staffBodySchema = staffFieldsSchema
     venueId: z.string().uuid().optional(),
     venueIds: venueIdsSchema.optional()
   })
+  .strict()
   .superRefine((value, context) => {
     if (value.isExtra && (value.venueId || value.venueIds?.length)) {
       context.addIssue({
@@ -516,23 +573,25 @@ export const staffBodySchema = staffFieldsSchema
     }
   });
 
-export const staffUpdateBodySchema = staffFieldsSchema
+export const staffUpdateBodySchema = staffBaseFieldsSchema
   .extend({
     isExtra: z.boolean().optional(),
     venueId: z.string().uuid().optional(),
     venueIds: venueIdsSchema.optional()
   })
   .partial()
-  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.")
+  .strict()
+  .refine(hasDefinedField, "En az bir alan gönderin.")
   .refine((value) => !(value.isExtra && (value.venueId || value.venueIds?.length)), {
     path: ["venueIds"],
     message: "Extra personel için sabit salon seçmeyin."
   });
 
 export const venueStaffBodySchema = staffFieldsSchema;
-export const venueStaffUpdateBodySchema = staffFieldsSchema
+export const venueStaffUpdateBodySchema = staffBaseFieldsSchema
   .partial()
-  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+  .strict()
+  .refine(hasDefinedField, "En az bir alan gönderin.");
 
 export const venueManagerBodySchema = z
   .object({
@@ -573,7 +632,7 @@ export const venueManagerUpdateBodySchema = z
   })
   .strict()
   .superRefine(addUsernamePasswordIssue)
-  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+  .refine(hasDefinedField, "En az bir alan gönderin.");
 
 export const montageUserBodySchema = z
   .object({
@@ -601,7 +660,7 @@ export const montageUserUpdateBodySchema = z
   })
   .strict()
   .superRefine(addUsernamePasswordIssue)
-  .refine((value) => Object.keys(value).length > 0, "En az bir alan gönderin.");
+  .refine(hasDefinedField, "En az bir alan gönderin.");
 
 export const operationalWeddingUpdateBodySchema = z
   .object({
