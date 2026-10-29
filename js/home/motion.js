@@ -227,16 +227,37 @@ let parallaxFrame;
 
 function updateParallax() {
   parallaxFrame = undefined;
-  const viewportCenter = window.innerHeight / 2;
+  const viewportHeight = window.innerHeight || 1;
+  const viewportCenter = viewportHeight / 2;
+  const maxScroll = Math.max(1, document.documentElement.scrollHeight - viewportHeight);
+  const scrollProgress = Math.max(0, Math.min(1, window.scrollY / maxScroll));
+
+  document.documentElement.style.setProperty("--scroll-progress", scrollProgress.toFixed(4));
+
+  const heroSection = document.querySelector(".hero");
+  if (heroSection) {
+    const heroRect = heroSection.getBoundingClientRect();
+    const heroProgress = Math.max(0, Math.min(1, -heroRect.top / Math.max(1, heroRect.height)));
+    heroSection.style.setProperty("--hero-scroll-progress", heroProgress.toFixed(3));
+  }
 
   parallaxImages.forEach((image) => {
     const bounds = image.getBoundingClientRect();
 
-    if (bounds.bottom < -100 || bounds.top > window.innerHeight + 100) return;
+    if (bounds.bottom < -100 || bounds.top > viewportHeight + 100) return;
 
     const imageCenter = bounds.top + bounds.height / 2;
-    const progress = Math.max(-1, Math.min(1, (imageCenter - viewportCenter) / window.innerHeight));
-    image.style.setProperty("--motion-parallax-y", `${(-progress * 10).toFixed(2)}px`);
+    const progress = Math.max(-1, Math.min(1, (imageCenter - viewportCenter) / viewportHeight));
+    image.style.setProperty("--motion-parallax-y", `${(-progress * 18).toFixed(2)}px`);
+  });
+
+  const botanicals = document.querySelectorAll(".faq-botanical");
+  botanicals.forEach((svg, index) => {
+    const bounds = svg.getBoundingClientRect();
+    if (bounds.bottom < -150 || bounds.top > viewportHeight + 150) return;
+    const progress = (bounds.top - viewportCenter) / viewportHeight;
+    const shiftY = (-progress * (index % 2 === 0 ? 22 : -18)).toFixed(2);
+    svg.style.setProperty("--botanical-shift-y", `${shiftY}px`);
   });
 }
 
@@ -245,9 +266,219 @@ function requestParallaxUpdate() {
   parallaxFrame = requestAnimationFrame(updateParallax);
 }
 
-if (!reducedMotionQuery.matches && desktopParallaxQuery.matches) {
-  parallaxImages.forEach((image) => image.classList.add("motion-parallax"));
+if (!reducedMotionQuery.matches) {
   window.addEventListener("scroll", requestParallaxUpdate, { passive: true });
   window.addEventListener("resize", requestParallaxUpdate);
   requestParallaxUpdate();
+}
+
+if (!reducedMotionQuery.matches && desktopParallaxQuery.matches) {
+  parallaxImages.forEach((image) => image.classList.add("motion-parallax"));
+}
+
+const interactiveElements = new WeakSet();
+
+const TILT_CARD_SELECTOR = [
+  ".shoot-card",
+  ".service-card",
+  ".venue-card",
+  ".package-card",
+  ".package-invitation__custom",
+  ".gallery-preview__photo--main",
+  ".gallery-card",
+  ".faq-item"
+].join(", ");
+
+const MAGNETIC_BUTTON_SELECTOR = [
+  ".button--primary",
+  ".button--outline",
+  ".header-cta",
+  ".package-invitation__action",
+  ".faq-cta",
+  ".site-footer__action",
+  ".gallery-preview__link",
+  ".gallery-preview__arrow",
+  ".shoots-reveal",
+  ".venues-toggle-btn"
+].join(", ");
+
+function attachCardSpotlightAndTilt(card) {
+  if (interactiveElements.has(card)) return;
+  interactiveElements.add(card);
+  card.classList.add("interactive-surface");
+
+  const isSubtleTilt =
+    card.classList.contains("faq-item") || card.classList.contains("package-invitation__custom");
+  const maxTilt = isSubtleTilt ? 1.8 : 4.8;
+
+  let rafId = null;
+
+  card.addEventListener(
+    "pointermove",
+    (event) => {
+      if (reducedMotionQuery.matches || !desktopParallaxQuery.matches) return;
+      const clientX = event.clientX;
+      const clientY = event.clientY;
+
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const rect = card.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+
+        const relX = clientX - rect.left;
+        const relY = clientY - rect.top;
+        const normX = Math.max(0, Math.min(1, relX / rect.width));
+        const normY = Math.max(0, Math.min(1, relY / rect.height));
+        const tiltY = ((normX - 0.5) * 2 * maxTilt).toFixed(2);
+        const tiltX = ((0.5 - normY) * 2 * maxTilt).toFixed(2);
+
+        card.style.setProperty("--spot-x", `${relX.toFixed(1)}px`);
+        card.style.setProperty("--spot-y", `${relY.toFixed(1)}px`);
+        card.style.setProperty("--spot-opacity", "1");
+        card.style.setProperty("--tilt-x", `${tiltX}deg`);
+        card.style.setProperty("--tilt-y", `${tiltY}deg`);
+      });
+    },
+    { passive: true }
+  );
+
+  card.addEventListener("pointerleave", () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    card.style.setProperty("--spot-opacity", "0");
+    card.style.setProperty("--tilt-x", "0deg");
+    card.style.setProperty("--tilt-y", "0deg");
+  });
+}
+
+function attachMagneticEffect(button) {
+  if (interactiveElements.has(button)) return;
+  interactiveElements.add(button);
+  button.classList.add("magnetic-btn");
+
+  const isCompactControl = button.classList.contains("gallery-preview__arrow");
+  const maxPull = isCompactControl ? 5 : 8;
+  let rafId = null;
+
+  button.addEventListener(
+    "pointermove",
+    (event) => {
+      if (reducedMotionQuery.matches || !desktopParallaxQuery.matches) return;
+      const clientX = event.clientX;
+      const clientY = event.clientY;
+
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const rect = button.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const deltaX = ((clientX - centerX) / (rect.width / 2)) * maxPull;
+        const deltaY = ((clientY - centerY) / (rect.height / 2)) * (maxPull * 0.72);
+        const spotX = clientX - rect.left;
+        const spotY = clientY - rect.top;
+
+        button.style.setProperty("--mag-x", `${deltaX.toFixed(2)}px`);
+        button.style.setProperty("--mag-y", `${deltaY.toFixed(2)}px`);
+        button.style.setProperty("--btn-spot-x", `${spotX.toFixed(1)}px`);
+        button.style.setProperty("--btn-spot-y", `${spotY.toFixed(1)}px`);
+      });
+    },
+    { passive: true }
+  );
+
+  button.addEventListener("pointerleave", () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    button.style.setProperty("--mag-x", "0px");
+    button.style.setProperty("--mag-y", "0px");
+  });
+}
+
+function initHeroInteractiveParallax() {
+  const hero = document.querySelector(".hero");
+  if (!hero || interactiveElements.has(hero)) return;
+  interactiveElements.add(hero);
+
+  let rafId = null;
+  hero.addEventListener(
+    "pointermove",
+    (event) => {
+      if (reducedMotionQuery.matches || !desktopParallaxQuery.matches) return;
+      const clientX = event.clientX;
+      const clientY = event.clientY;
+
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const rect = hero.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+
+        const relX = clientX - rect.left;
+        const relY = clientY - rect.top;
+        const normX = (relX / rect.width - 0.5) * 2;
+        const normY = (relY / rect.height - 0.5) * 2;
+
+        hero.style.setProperty("--hero-spot-x", `${relX.toFixed(1)}px`);
+        hero.style.setProperty("--hero-spot-y", `${relY.toFixed(1)}px`);
+        hero.style.setProperty("--hero-tilt-x", `${(-normY * 2.6).toFixed(2)}deg`);
+        hero.style.setProperty("--hero-tilt-y", `${(normX * 3.2).toFixed(2)}deg`);
+        hero.style.setProperty("--hero-shift-x", `${(normX * 14).toFixed(2)}px`);
+        hero.style.setProperty("--hero-shift-y", `${(normY * 10).toFixed(2)}px`);
+      });
+    },
+    { passive: true }
+  );
+
+  hero.addEventListener("pointerleave", () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    hero.style.setProperty("--hero-tilt-x", "0deg");
+    hero.style.setProperty("--hero-tilt-y", "0deg");
+    hero.style.setProperty("--hero-shift-x", "0px");
+    hero.style.setProperty("--hero-shift-y", "0px");
+  });
+}
+
+function initGalleryFilterSlidingPill() {
+  const filterGroups = document.querySelectorAll(".gallery-filters");
+  filterGroups.forEach((group) => {
+    if (interactiveElements.has(group)) return;
+    interactiveElements.add(group);
+
+    const buttons = [...group.querySelectorAll(".gallery-filter")];
+    const updateActiveIndicator = () => {
+      const activeBtn =
+        buttons.find((btn) => btn.getAttribute("aria-pressed") === "true") || buttons[0];
+      if (!activeBtn) return;
+
+      const groupRect = group.getBoundingClientRect();
+      const btnRect = activeBtn.getBoundingClientRect();
+      if (!groupRect.width || !btnRect.width) return;
+
+      group.style.setProperty("--pill-left", `${(btnRect.left - groupRect.left).toFixed(1)}px`);
+      group.style.setProperty("--pill-top", `${(btnRect.top - groupRect.top).toFixed(1)}px`);
+      group.style.setProperty("--pill-width", `${btnRect.width.toFixed(1)}px`);
+      group.style.setProperty("--pill-height", `${btnRect.height.toFixed(1)}px`);
+      group.classList.add("has-pill-indicator");
+    };
+
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        requestAnimationFrame(updateActiveIndicator);
+      });
+    });
+
+    window.addEventListener("resize", updateActiveIndicator, { passive: true });
+    requestAnimationFrame(updateActiveIndicator);
+  });
+}
+
+function registerInteractiveEnhancements() {
+  document.querySelectorAll(TILT_CARD_SELECTOR).forEach(attachCardSpotlightAndTilt);
+  document.querySelectorAll(MAGNETIC_BUTTON_SELECTOR).forEach(attachMagneticEffect);
+  initHeroInteractiveParallax();
+  initGalleryFilterSlidingPill();
+}
+
+if (!reducedMotionQuery.matches) {
+  runIdle(registerInteractiveEnhancements);
+  document.addEventListener("home:layoutchange", registerInteractiveEnhancements);
 }

@@ -74,11 +74,32 @@ if (galleryPreview) {
     caption.textContent = activeLabel;
 
     if (direction && !reducedMotion.matches) {
-      stage.querySelectorAll(".gallery-preview__photo").forEach((photo) => {
-        photo.animate([{ opacity: 0.62 }, { opacity: 1 }], {
-          duration: 240,
-          easing: "cubic-bezier(0.22, 1, 0.36, 1)"
-        });
+      stage.classList.remove("is-shifting-next", "is-shifting-prev");
+      void stage.offsetWidth;
+      stage.classList.add(direction > 0 ? "is-shifting-next" : "is-shifting-prev");
+
+      stage.querySelectorAll(".gallery-preview__photo").forEach((photo, idx) => {
+        const shift = direction * (idx === 1 ? 18 : 10);
+        photo.animate(
+          [
+            {
+              opacity: idx === 1 ? 0.45 : 0.35,
+              filter: "brightness(1.18) saturate(1.12)",
+              translate: `${shift}px 6px`,
+              scale: idx === 1 ? "0.96" : "0.94"
+            },
+            {
+              opacity: 1,
+              filter: "brightness(1) saturate(1)",
+              translate: "0px 0px",
+              scale: "1"
+            }
+          ],
+          {
+            duration: 460,
+            easing: "cubic-bezier(0.22, 1, 0.36, 1)"
+          }
+        );
       });
     }
   };

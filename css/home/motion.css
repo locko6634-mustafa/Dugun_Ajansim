@@ -1,18 +1,101 @@
-﻿/* Mobil Ã¶ncelikli, ilerlemeli animasyon sistemi */
+/* Mobil öncelikli, ilerlemeli Awwwards sinematik animasyon ve etkileşim sistemi */
 :root {
-  --motion-distance: 26px;
-  --motion-side-distance: 34px;
-  --motion-duration: 620ms;
-  --motion-heading-duration: 650ms;
-  --motion-stagger: 90ms;
-  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-distance: 32px;
+  --motion-side-distance: 38px;
+  --motion-duration: 760ms;
+  --motion-heading-duration: 780ms;
+  --motion-stagger: 95ms;
+  --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --scroll-progress: 0;
 }
 
+/* Tarayıcı Varsayılan Kaydırma Çubuğunu (Scrollbar) Gizleme */
+html,
+body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Header Altı Altın İlerleme Işıltısı (Scroll Progress Beam) */
+.site-header::before {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  z-index: 30;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(35 55% 48% / 0.85) 35%,
+    hsl(40 75% 74%) 75%,
+    hsl(42 90% 88%)
+  );
+  box-shadow: 0 0 14px hsl(38 68% 62% / 0.65);
+  content: "";
+  pointer-events: none;
+  transform: scaleX(var(--scroll-progress, 0));
+  transform-origin: left center;
+  transition: transform 90ms linear;
+}
+
+/* Cam Derinliği (Deep Glassmorphism) — Üst Bar */
+.site-header {
+  background: linear-gradient(180deg, hsl(42 38% 98% / 0.86), hsl(40 32% 96% / 0.78));
+  box-shadow:
+    0 14px 38px hsl(26 24% 12% / 0.06),
+    inset 0 1px 0 hsl(0 0% 100% / 0.75);
+  backdrop-filter: blur(22px) saturate(1.35);
+}
+
+.site-header.is-on-dark {
+  background: linear-gradient(180deg, hsl(24 20% 8% / 0.88), hsl(24 19% 6% / 0.8));
+  box-shadow:
+    0 18px 44px hsl(24 30% 2% / 0.42),
+    inset 0 1px 0 hsl(38 50% 75% / 0.14);
+}
+
+/* Marka Rozeti Mikro-Etkileşimi */
+.brand {
+  transition: transform 360ms var(--motion-ease);
+}
+
+.brand:hover .brand__mark {
+  filter: drop-shadow(0 0 10px hsl(36 60% 58% / 0.45));
+  transform: rotate(-6deg) scale(1.06);
+}
+
+.brand__mark {
+  transition:
+    transform 440ms var(--motion-ease),
+    filter 440ms ease,
+    stroke 260ms ease;
+}
+
+.brand__year {
+  transition:
+    transform 440ms var(--motion-ease),
+    text-shadow 440ms ease;
+}
+
+.brand:hover .brand__year {
+  text-shadow: 0 4px 16px hsl(36 65% 55% / 0.38);
+  transform: translateY(0) rotate(-6deg) scale(1.06);
+}
+
+/* Tipografik Başlık Maskeleme ve Koreografi */
 .motion-heading__line {
   display: inline-block;
   overflow: hidden;
-  padding-bottom: 0.08em;
-  margin-bottom: -0.08em;
+  padding-bottom: 0.1em;
+  margin-bottom: -0.1em;
   vertical-align: bottom;
 }
 
@@ -58,13 +141,13 @@ html.motion-ready .motion-reveal--right {
 }
 
 html.motion-ready .motion-reveal--hero {
-  --motion-y: 16px;
-  --motion-scale: 0.985;
+  --motion-y: 22px;
+  --motion-scale: 0.965;
 }
 
 html.motion-ready .motion-reveal--soft-scale {
-  --motion-y: 18px;
-  --motion-scale: 0.975;
+  --motion-y: 24px;
+  --motion-scale: 0.96;
 }
 
 html.motion-ready .motion-reveal--fade {
@@ -75,25 +158,25 @@ html.motion-ready .motion-reveal--fade {
 }
 
 html.motion-ready .motion-reveal--photo-left {
-  --motion-x: -10px;
-  --motion-y: 18px;
-  --motion-scale: 0.98;
-  --motion-rotate: -0.65deg;
+  --motion-x: -14px;
+  --motion-y: 22px;
+  --motion-scale: 0.97;
+  --motion-rotate: -0.85deg;
 }
 
 html.motion-ready .motion-reveal--photo-right {
-  --motion-x: 10px;
-  --motion-y: 18px;
-  --motion-scale: 0.98;
-  --motion-rotate: 0.65deg;
+  --motion-x: 14px;
+  --motion-y: 22px;
+  --motion-scale: 0.97;
+  --motion-rotate: 0.85deg;
 }
 
 .hero .motion-reveal {
-  --motion-duration: 500ms;
+  --motion-duration: 680ms;
 }
 
 .hero .motion-heading {
-  --motion-heading-duration: 540ms;
+  --motion-heading-duration: 720ms;
 }
 
 html.motion-ready .motion-reveal.is-visible {
@@ -105,9 +188,12 @@ html.motion-ready .motion-reveal.is-visible {
 }
 
 html.motion-ready .motion-heading .motion-heading__inner {
-  transform: translate3d(0, 112%, 0);
+  filter: blur(3px);
+  transform: translate3d(0, 114%, 0) rotate(1.2deg);
+  transform-origin: left bottom;
   transition:
     opacity var(--motion-heading-duration) var(--motion-ease),
+    filter var(--motion-heading-duration) var(--motion-ease),
     transform var(--motion-heading-duration) var(--motion-ease);
   transition-delay: calc(
     var(--motion-delay, 0ms) + var(--motion-line-index, 0) * var(--motion-stagger)
@@ -116,27 +202,701 @@ html.motion-ready .motion-heading .motion-heading__inner {
 
 html.motion-ready .motion-heading.is-visible .motion-heading__inner {
   opacity: 1;
-  transform: translate3d(0, 0, 0);
+  filter: blur(0);
+  transform: translate3d(0, 0, 0) rotate(0deg);
   will-change: auto;
 }
 
+/* Tipografik Altın Parıltı (Editorial Shimmer) */
+@keyframes gold-editorial-shimmer {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    filter: drop-shadow(0 4px 18px hsl(37 68% 58% / 0.28));
+  }
+}
+
+.hero h1 em,
+.shoots-heading h2 em,
+.services-heading h2 em,
+.package-invitation h2 em,
+.faq-heading h2 em {
+  animation: gold-editorial-shimmer 6s ease-in-out infinite;
+}
+
+/* Hero Atmosferik Işık Küreleri ve 3D Paralaks Derinliği */
+@keyframes hero-orb-float {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-18px, 14px, 0) scale(1.045);
+  }
+  100% {
+    transform: translate3d(14px, -12px, 0) scale(0.975);
+  }
+}
+
+.hero {
+  --hero-spot-x: 65%;
+  --hero-spot-y: 42%;
+  --hero-tilt-x: 0deg;
+  --hero-tilt-y: 0deg;
+  --hero-shift-x: 0px;
+  --hero-shift-y: 0px;
+  background:
+    radial-gradient(
+      640px circle at var(--hero-spot-x) var(--hero-spot-y),
+      hsl(38 72% 84% / 0.36),
+      transparent 65%
+    ),
+    linear-gradient(90deg, transparent 0 49.9%, hsl(34 26% 75% / 0.28) 50%, transparent 50.1%),
+    linear-gradient(var(--paper), hsl(39 30% 95%));
+}
+
+.hero::before {
+  box-shadow:
+    inset 0 0 60px hsl(37 64% 78% / 0.18),
+    0 0 80px hsl(37 64% 78% / 0.14);
+  animation: hero-orb-float 14s ease-in-out infinite alternate;
+}
+
+.hero::after {
+  box-shadow:
+    inset 0 0 80px hsl(35 55% 74% / 0.14),
+    0 0 110px hsl(35 55% 74% / 0.12);
+  animation: hero-orb-float 18s ease-in-out infinite alternate-reverse;
+}
+
+.proof-pill i {
+  position: relative;
+  overflow: hidden;
+}
+
+.proof-pill i::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, hsl(42 90% 88%), transparent);
+  content: "";
+  animation: sheen-sweep 3.4s ease-in-out infinite;
+}
+
+@keyframes sheen-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  60%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@media (min-width: 1181px) and (pointer: fine) {
+  .hero-collage {
+    perspective: 1200px;
+    transform-style: preserve-3d;
+  }
+
+  .hero-collage .photo--main {
+    box-shadow:
+      0 34px 90px hsl(24 26% 10% / 0.24),
+      0 0 0 1px hsl(38 55% 75% / 0.32);
+    transform: rotateX(var(--hero-tilt-x, 0deg)) rotateY(var(--hero-tilt-y, 0deg))
+      translate3d(calc(var(--hero-shift-x, 0px) * -0.45), calc(var(--hero-shift-y, 0px) * -0.45), 0);
+    transition:
+      transform 380ms var(--motion-ease),
+      box-shadow 380ms ease;
+  }
+
+  .hero-collage::before {
+    transform: translate3d(
+      calc(var(--hero-shift-x, 0px) * 0.55),
+      calc(var(--hero-shift-y, 0px) * 0.55),
+      24px
+    );
+    transition: transform 420ms var(--motion-ease);
+  }
+}
+
 .motion-parallax {
+  scale: 1.045;
   translate: 0 var(--motion-parallax-y, 0px);
-  transition: translate 120ms linear;
+  transition: translate 140ms linear;
   will-change: translate;
+}
+
+/* Manyetik Çekim ve Parlak Işık Geçişi (Sheen) — Buton Sistemi */
+.magnetic-btn {
+  --mag-x: 0px;
+  --mag-y: 0px;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  translate: var(--mag-x) var(--mag-y);
+  transition:
+    translate 260ms var(--motion-ease),
+    transform 260ms var(--motion-ease),
+    box-shadow 280ms ease,
+    border-color 260ms ease,
+    background-color 260ms ease,
+    color 260ms ease;
+}
+
+.gallery-preview__arrow.magnetic-btn {
+  position: absolute;
+}
+
+.button--primary::before,
+.header-cta::before,
+.package-invitation__action::before,
+.faq-cta--primary::before,
+.site-footer__action::before,
+.gallery-preview__link::before,
+.shoots-reveal::before,
+.venues-toggle-btn::before {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -35%;
+  z-index: 1;
+  width: 55%;
+  background: linear-gradient(
+    105deg,
+    transparent 15%,
+    hsl(44 95% 94% / 0.42) 48%,
+    hsl(40 90% 85% / 0.14) 62%,
+    transparent 85%
+  );
+  content: "";
+  pointer-events: none;
+  transform: translateX(-170%) skewX(-22deg);
+  transition: transform 680ms var(--motion-ease);
+}
+
+.button--primary:hover::before,
+.button--primary:focus-visible::before,
+.header-cta:hover::before,
+.header-cta:focus-visible::before,
+.package-invitation__action:hover::before,
+.package-invitation__action:focus-visible::before,
+.faq-cta--primary:hover::before,
+.faq-cta--primary:focus-visible::before,
+.site-footer__action:hover::before,
+.site-footer__action:focus-visible::before,
+.gallery-preview__link:hover::before,
+.gallery-preview__link:focus-visible::before,
+.shoots-reveal:hover::before,
+.shoots-reveal:focus-visible::before,
+.venues-toggle-btn:hover::before,
+.venues-toggle-btn:focus-visible::before {
+  transform: translateX(350%) skewX(-22deg);
+}
+
+.button--primary:hover,
+.header-cta:hover {
+  box-shadow:
+    0 20px 42px hsl(31 52% 28% / 0.32),
+    0 0 24px hsl(36 65% 58% / 0.28);
+}
+
+/* 3D Tilt, Dinamik Spotlight Işıltısı ve Derin Glassmorphism Yüzeyler */
+.interactive-surface {
+  --spot-x: 50%;
+  --spot-y: 50%;
+  --spot-opacity: 0;
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+}
+
+@media (min-width: 768px) and (pointer: fine) {
+  .shoot-card.interactive-surface,
+  .service-card.interactive-surface,
+  .venue-card.interactive-surface,
+  .package-card.interactive-surface,
+  .gallery-card.interactive-surface {
+    transform: perspective(1100px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg))
+      translate3d(var(--shoot-shift-x, 0px), var(--shoot-shift-y, 0px), 0);
+    transition:
+      transform 280ms var(--motion-ease),
+      box-shadow 380ms var(--motion-ease),
+      border-color 320ms ease;
+    will-change: transform;
+  }
+
+  .shoot-card.interactive-surface:hover,
+  .service-card.interactive-surface:hover,
+  .venue-card.interactive-surface:hover,
+  .package-card.interactive-surface:hover,
+  .gallery-card.interactive-surface:hover {
+    transform: perspective(1100px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg))
+      translate3d(var(--shoot-shift-x, 0px), calc(var(--shoot-shift-y, 0px) - 6px), 8px);
+  }
+
+  .gallery-preview__photo--main.interactive-surface {
+    transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    transition:
+      transform 280ms var(--motion-ease),
+      box-shadow 360ms var(--motion-ease);
+  }
+}
+
+/* Çekimler (Shoots) — Darkroom Sinematik Spotlight ve Ses Halkası */
+.shoot-card {
+  border-color: hsl(38 38% 72% / 0.22);
+  box-shadow:
+    0 24px 54px hsl(26 30% 3% / 0.42),
+    inset 0 1px 0 hsl(39 60% 85% / 0.16);
+}
+
+.shoot-card::after {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  background: radial-gradient(
+    360px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    hsl(39 78% 76% / 0.22),
+    transparent 65%
+  );
+  content: "";
+  opacity: var(--spot-opacity, 0);
+  pointer-events: none;
+  transition: opacity 320ms ease;
+}
+
+.shoot-card:hover {
+  border-color: hsl(38 62% 74% / 0.52);
+  box-shadow:
+    0 36px 76px hsl(26 32% 2% / 0.58),
+    0 0 34px hsl(37 60% 56% / 0.18);
+}
+
+@keyframes sound-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 hsl(38 75% 70% / 0.65);
+  }
+  70% {
+    box-shadow: 0 0 0 14px hsl(38 75% 70% / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(38 75% 70% / 0);
+  }
+}
+
+.shoot-card__sound:not(.is-muted) {
+  border-color: var(--gold-light);
+  background: hsl(34 58% 46% / 0.92);
+  animation: sound-pulse-ring 1.8s infinite;
+}
+
+.shoot-card__caption h3 {
+  transition:
+    transform 360ms var(--motion-ease),
+    letter-spacing 360ms var(--motion-ease);
+}
+
+.shoot-card:hover .shoot-card__caption h3 {
+  letter-spacing: 0.005em;
+  transform: translateY(-3px);
+}
+
+/* Galeri Önizleme (Gallery Preview) — Kayan Sekme Kapsülü ve 3D Sahne */
+.gallery-filters {
+  position: relative;
+  backdrop-filter: blur(18px) saturate(1.25);
+  box-shadow:
+    0 18px 44px hsl(29 22% 22% / 0.11),
+    inset 0 1px 0 hsl(0 0% 100% / 0.85);
+}
+
+.gallery-filters.has-pill-indicator::before {
+  position: absolute;
+  top: var(--pill-top, 9px);
+  left: var(--pill-left, 9px);
+  z-index: 0;
+  width: var(--pill-width, 0px);
+  height: var(--pill-height, 52px);
+  border: 1px solid hsl(37 58% 70% / 0.78);
+  border-radius: clamp(14px, 1.35vw, 20px);
+  background: linear-gradient(135deg, hsl(38 76% 79%), hsl(34 64% 65%));
+  box-shadow:
+    0 10px 26px hsl(32 55% 42% / 0.28),
+    inset 0 1px 0 hsl(0 0% 100% / 0.65);
+  content: "";
+  pointer-events: none;
+  transition:
+    left 420ms var(--motion-ease),
+    top 420ms var(--motion-ease),
+    width 420ms var(--motion-ease),
+    height 420ms var(--motion-ease);
+}
+
+.gallery-filters.has-pill-indicator .gallery-filter {
+  position: relative;
+  z-index: 1;
+}
+
+.gallery-filters.has-pill-indicator .gallery-filter[aria-pressed="true"] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.gallery-preview__photo {
+  transition:
+    transform 520ms var(--motion-ease),
+    filter 520ms ease,
+    box-shadow 520ms var(--motion-ease);
+}
+
+.gallery-preview__stage:hover .gallery-preview__photo--left {
+  filter: saturate(0.78) contrast(1.04);
+  transform: rotate(-9.5deg) translate(-16px, 18px) scale(1.02);
+}
+
+.gallery-preview__stage:hover .gallery-preview__photo--right {
+  filter: sepia(0.14) saturate(0.92);
+  transform: rotate(9.5deg) translate(16px, 18px) scale(1.02);
+}
+
+.gallery-preview__photo--main::before {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: radial-gradient(
+    320px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    hsl(40 85% 90% / 0.26),
+    transparent 62%
+  );
+  content: "";
+  opacity: var(--spot-opacity, 0);
+  pointer-events: none;
+  transition: opacity 280ms ease;
+}
+
+.gallery-preview__dock {
+  background: linear-gradient(135deg, hsl(42 46% 99% / 0.88), hsl(38 36% 95% / 0.82));
+  box-shadow:
+    0 24px 56px hsl(28 24% 18% / 0.16),
+    inset 0 1px 0 hsl(0 0% 100% / 0.92);
+  backdrop-filter: blur(20px) saturate(1.3);
+}
+
+/* Hizmetlerimiz (Services) — Buzlu Cam, Spotlight ve Parlayan Yıldız */
+@keyframes star-spin-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 6px hsl(38 72% 68% / 0.35));
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 16px hsl(38 85% 75% / 0.85));
+    transform: rotate(180deg) scale(1.22);
+  }
+}
+
+.services-divider b {
+  display: inline-block;
+  animation: star-spin-pulse 7s ease-in-out infinite;
+}
+
+.service-card {
+  position: relative;
+  border-color: hsl(38 42% 72% / 0.22);
+  background: linear-gradient(160deg, hsl(28 19% 13% / 0.88), hsl(26 18% 9% / 0.92));
+  box-shadow:
+    0 24px 48px hsl(24 32% 3% / 0.36),
+    inset 0 1px 0 hsl(39 60% 84% / 0.14);
+  backdrop-filter: blur(16px);
+}
+
+.service-card::before {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: radial-gradient(
+    380px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    hsl(37 78% 72% / 0.18),
+    transparent 65%
+  );
+  content: "";
+  opacity: var(--spot-opacity, 0);
+  pointer-events: none;
+  transition: opacity 320ms ease;
+}
+
+.service-card:hover,
+.service-card:focus-within {
+  border-color: hsl(38 62% 72% / 0.52);
+  box-shadow:
+    0 32px 68px hsl(24 34% 2% / 0.52),
+    0 0 32px hsl(36 65% 58% / 0.15),
+    inset 0 1px 0 hsl(40 80% 88% / 0.28);
+}
+
+/* Mekânlar (Venues) — Kristal Çerçeve ve Spotlight */
+.venue-card {
+  border-color: hsl(34 32% 80% / 0.82);
+  background: linear-gradient(155deg, hsl(42 50% 99% / 0.95), hsl(37 35% 96% / 0.9));
+  box-shadow:
+    0 20px 44px hsl(30 24% 22% / 0.11),
+    inset 0 1px 0 hsl(0 0% 100% / 0.92);
+  backdrop-filter: blur(14px);
+}
+
+.venue-card::before {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(
+    420px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    hsl(36 78% 72% / 0.22),
+    transparent 68%
+  );
+  content: "";
+  opacity: var(--spot-opacity, 0);
+  pointer-events: none;
+  transition: opacity 320ms ease;
+}
+
+.venue-card__content {
+  position: relative;
+  z-index: 2;
+}
+
+.venue-card:hover,
+.venue-card:focus-visible {
+  border-color: hsl(33 54% 52% / 0.72);
+  box-shadow:
+    0 30px 62px hsl(30 26% 18% / 0.2),
+    0 0 28px hsl(35 65% 62% / 0.18);
+}
+
+/* Paket Daveti (Package Invitation) — Lüks Cam Kartlar ve Mücevher Işıltısı */
+@keyframes diamond-float {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 hsl(37 58% 63% / 0.2);
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    box-shadow: 0 0 22px 2px hsl(37 68% 68% / 0.28);
+    transform: translateY(-3px) rotate(8deg);
+  }
+}
+
+.package-card {
+  position: relative;
+  border-color: hsl(37 48% 72% / 0.28);
+  background: linear-gradient(155deg, hsl(29 16% 16% / 0.9), hsl(28 16% 10% / 0.94));
+  box-shadow:
+    0 28px 64px hsl(25 32% 3% / 0.42),
+    inset 0 1px 0 hsl(39 68% 86% / 0.18);
+  backdrop-filter: blur(18px);
+  transition:
+    border-color 320ms ease,
+    box-shadow 360ms var(--motion-ease);
+}
+
+.package-card::before {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(
+    440px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    hsl(38 80% 72% / 0.18),
+    transparent 66%
+  );
+  content: "";
+  opacity: var(--spot-opacity, 0);
+  pointer-events: none;
+  transition: opacity 320ms ease;
+}
+
+.package-card > * {
+  position: relative;
+  z-index: 2;
+}
+
+.package-card:hover {
+  border-color: hsl(38 68% 74% / 0.58);
+  box-shadow:
+    0 36px 80px hsl(25 35% 2% / 0.56),
+    0 0 38px hsl(37 64% 58% / 0.18),
+    inset 0 1px 0 hsl(40 85% 90% / 0.3);
+}
+
+.package-card li {
+  transition: transform 260ms var(--motion-ease);
+}
+
+.package-card:hover li:hover {
+  transform: translateX(4px);
+}
+
+.package-invitation__custom {
+  position: relative;
+  overflow: hidden;
+  border-color: hsl(37 48% 72% / 0.32);
+  background: linear-gradient(135deg, hsl(29 15% 15% / 0.92), hsl(28 17% 9% / 0.95));
+  box-shadow:
+    0 24px 56px hsl(25 30% 3% / 0.36),
+    inset 0 1px 0 hsl(39 68% 86% / 0.16);
+  backdrop-filter: blur(16px);
+}
+
+.package-invitation__custom::before {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    460px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    hsl(38 80% 72% / 0.16),
+    transparent 68%
+  );
+  content: "";
+  opacity: var(--spot-opacity, 0);
+  pointer-events: none;
+  transition: opacity 320ms ease;
+}
+
+.package-invitation__custom-icon {
+  animation: diamond-float 5s ease-in-out infinite;
+}
+
+/* Sıkça Sorulanlar (FAQ) — Botanik Rüzgar Salınımı ve Akordiyon Şovu */
+@media (min-width: 761px) {
+  .faq-botanical {
+    display: block;
+    opacity: 0.68;
+    translate: 0 var(--botanical-shift-y, 0px);
+    transition: translate 180ms linear;
+  }
+}
+
+.faq-item {
+  background: linear-gradient(90deg, transparent, hsl(40 50% 99% / 0.45) 50%, transparent);
+}
+
+.faq-item::before {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    380px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    hsl(36 72% 76% / 0.22),
+    transparent 70%
+  );
+  content: "";
+  opacity: var(--spot-opacity, 0);
+  pointer-events: none;
+  transition: opacity 280ms ease;
+}
+
+.faq-item:hover {
+  background: hsl(40 55% 99% / 0.62);
+}
+
+.faq-item.is-open {
+  border-color: hsl(34 56% 64% / 0.75);
+  background: linear-gradient(135deg, hsl(41 60% 99% / 0.86), hsl(36 45% 96% / 0.78));
+  box-shadow:
+    0 18px 42px hsl(30 24% 20% / 0.08),
+    inset 0 1px 0 hsl(0 0% 100% / 0.9);
+  backdrop-filter: blur(12px);
+}
+
+.faq-item__icon svg {
+  transition:
+    transform 380ms var(--motion-ease),
+    filter 380ms ease;
+}
+
+.faq-question:hover .faq-item__icon svg,
+.faq-item.is-open .faq-item__icon svg {
+  filter: drop-shadow(0 4px 10px hsl(33 60% 48% / 0.32));
+  transform: scale(1.12) rotate(-4deg);
+}
+
+.faq-toggle {
+  transition:
+    background-color 280ms ease,
+    border-color 280ms ease,
+    transform 340ms var(--motion-ease),
+    box-shadow 280ms ease;
+}
+
+.faq-question:hover .faq-toggle {
+  border-color: var(--faq-gold);
+  box-shadow: 0 0 14px hsl(33 58% 52% / 0.24);
+  transform: scale(1.06);
+}
+
+.faq-item.is-open .faq-toggle {
+  background: var(--faq-gold);
+  box-shadow: 0 6px 16px hsl(32 56% 42% / 0.28);
+}
+
+.faq-item.is-open .faq-toggle::before,
+.faq-item.is-open .faq-toggle::after {
+  background: var(--white);
+}
+
+/* Footer Atmosferik Parıltı ve Kalp İmzası */
+@keyframes footer-glow-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes signature-heartbeat {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px hsl(37 65% 68% / 0.25));
+    transform: scale(1);
+  }
+  18% {
+    filter: drop-shadow(0 0 12px hsl(37 80% 74% / 0.7));
+    transform: scale(1.16);
+  }
+  34% {
+    transform: scale(0.96);
+  }
+  50% {
+    filter: drop-shadow(0 0 14px hsl(37 80% 74% / 0.8));
+    transform: scale(1.12);
+  }
+}
+
+.site-footer__glow {
+  animation: footer-glow-breathe 9s ease-in-out infinite;
+}
+
+.site-footer__signature {
+  display: grid;
+}
+
+.site-footer__signature svg {
+  animation: signature-heartbeat 3.6s ease-in-out infinite;
 }
 
 @media (max-width: 640px) {
   :root {
     --motion-distance: 22px;
     --motion-side-distance: 18px;
-    --motion-duration: 460ms;
-    --motion-heading-duration: 520ms;
+    --motion-duration: 480ms;
+    --motion-heading-duration: 540ms;
     --motion-stagger: 55ms;
   }
 
   .hero .motion-reveal {
-    --motion-duration: 420ms;
+    --motion-duration: 440ms;
   }
 
   html.motion-ready .motion-reveal--photo-left,
@@ -150,13 +910,31 @@ html.motion-ready .motion-heading.is-visible .motion-heading__inner {
 @media (prefers-reduced-motion: reduce) {
   html.motion-ready .motion-reveal,
   html.motion-ready .motion-heading .motion-heading__inner,
-  .motion-parallax {
+  .motion-parallax,
+  .magnetic-btn,
+  .interactive-surface {
     opacity: 1 !important;
+    filter: none !important;
     transform: none !important;
     translate: none !important;
     scale: none !important;
     rotate: none !important;
     transition: none !important;
+    animation: none !important;
+  }
+
+  .hero::before,
+  .hero::after,
+  .proof-pill i::after,
+  .services-divider b,
+  .package-invitation__custom-icon,
+  .site-footer__glow,
+  .site-footer__signature svg,
+  .hero h1 em,
+  .shoots-heading h2 em,
+  .services-heading h2 em,
+  .package-invitation h2 em,
+  .faq-heading h2 em {
     animation: none !important;
   }
 }
