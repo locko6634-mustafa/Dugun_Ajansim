@@ -1,7 +1,7 @@
 // Express türlerini içe aktar
 import type { Request, Response, NextFunction } from "express";
 // Zod hata türünü ve Zod nesne şeması türünü içe aktar
-import { ZodError, type AnyZodObject } from "zod";
+import { ZodError, type z } from "zod";
 // Özel uygulama hata sınıfımızı içe aktar
 import { AppError } from "../utils/appError.js";
 
@@ -10,8 +10,14 @@ type ValidationOptions = {
   code?: string;
 };
 
+type RequestValidationSchema = z.ZodType<{
+  body?: unknown;
+  query?: unknown;
+  params?: unknown;
+}>;
+
 // İstemciden gelen HTTP isteğinin body, query ve params verilerini Zod şeması ile doğrulayan middleware üretici fonksiyonu
-export const validateRequest = (schema: AnyZodObject, options: ValidationOptions = {}) => {
+export const validateRequest = (schema: RequestValidationSchema, options: ValidationOptions = {}) => {
   // Express middleware fonksiyonu döndür
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -24,8 +30,8 @@ export const validateRequest = (schema: AnyZodObject, options: ValidationOptions
 
       // Doğrulanmış ve temizlenmiş (normalize edilmiş) verileri tekrar request nesnesine geri yaz
       req.body = validatedRequest.body;
-      req.query = validatedRequest.query;
-      req.params = validatedRequest.params;
+      req.query = validatedRequest.query as Request["query"];
+      req.params = validatedRequest.params as Request["params"];
 
       // Bir sonraki middleware veya kontrolcüye (controller) geç
       next();
@@ -33,7 +39,7 @@ export const validateRequest = (schema: AnyZodObject, options: ValidationOptions
       // Hata bir Zod doğrulama hatası ise
       if (error instanceof ZodError) {
         // Hatalı alanları ve mesajlarını kullanıcıya dönülecek temiz bir diziye dönüştür
-        const formattedErrors = error.errors.map((err) => ({
+        const formattedErrors = error.issues.map((err) => ({
           field: err.path.join("."),
           message: err.message
         }));

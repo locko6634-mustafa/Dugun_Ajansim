@@ -2018,8 +2018,8 @@ test('kapanış zaman aşımı tek disconnect ile kesin olarak hata kodu döndü
 test('request validator geçersiz girdiyi AppError olarak iletir', async () => {
   const schema = z.object({
     body: z.object({ email: z.string().email() }),
-    query: z.record(z.unknown()),
-    params: z.record(z.unknown()),
+    query: z.record(z.string(), z.unknown()),
+    params: z.record(z.string(), z.unknown()),
   });
   const middleware = validateRequest(schema);
   let forwardedError: unknown;

@@ -19,11 +19,13 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 loadFileBackedSecrets();
 
 // PORT değişkeni için Zod şeması (Metin -> Sayı dönüşümü ve 1-65535 aralığı kontrolü)
-const portSchema = z
-  .string()
-  .regex(/^\d+$/, "PORT yalnızca rakamlardan oluşmalıdır")
-  .transform(Number)
-  .pipe(z.number().int().min(1).max(65535));
+const portSchema = (defaultValue: string) =>
+  z
+    .string()
+    .default(defaultValue)
+    .refine((value) => /^\d+$/.test(value), "PORT yalnızca rakamlardan oluşmalıdır")
+    .transform(Number)
+    .pipe(z.number().int().min(1).max(65535));
 
 // CORS_ORIGIN değişkeni için Zod şeması (Virgülle ayrılmış URI adreslerini diziye çevirir ve URL formatını doğrular)
 const corsOriginSchema = z
@@ -74,40 +76,50 @@ const decodeDatabaseCredential = (credential: string): string | undefined => {
 };
 
 // Belirli sınırlar içindeki tam sayı değişkenleri için genel Zod şema üreticisi
-const boundedIntegerSchema = (name: string, minimum: number, maximum: number) =>
+const boundedIntegerSchema = (
+  name: string,
+  minimum: number,
+  maximum: number,
+  defaultValue: string
+) =>
   z
     .string()
-    .regex(/^\d+$/, `${name} yalnızca rakamlardan oluşmalıdır`)
+    .default(defaultValue)
+    .refine((value) => /^\d+$/.test(value), `${name} yalnızca rakamlardan oluşmalıdır`)
     .transform(Number)
     .pipe(z.number().int().min(minimum).max(maximum));
 
-const trustProxySchema = z.string().transform((rawValue, context): number | string[] => {
-  const value = rawValue.trim();
-  if (/^\d+$/.test(value)) {
-    const hops = Number(value);
-    if (Number.isInteger(hops) && hops >= 0 && hops <= 10) return hops;
-  } else {
-    const addresses = value
-      .split(",")
-      .map((address) => address.trim())
-      .filter(Boolean);
-    if (addresses.length > 0 && addresses.every((address) => isIP(address) !== 0)) {
-      return addresses;
+const trustProxySchema = z
+  .string()
+  .default("0")
+  .transform((rawValue, context): number | string[] => {
+    const value = rawValue.trim();
+    if (/^\d+$/.test(value)) {
+      const hops = Number(value);
+      if (Number.isInteger(hops) && hops >= 0 && hops <= 10) return hops;
+    } else {
+      const addresses = value
+        .split(",")
+        .map((address) => address.trim())
+        .filter(Boolean);
+      if (addresses.length > 0 && addresses.every((address) => isIP(address) !== 0)) {
+        return addresses;
+      }
     }
-  }
 
-  context.addIssue({
-    code: z.ZodIssueCode.custom,
-    message: "TRUST_PROXY 0-10 hop sayısı veya virgülle ayrılmış kesin IP adresleri olmalıdır"
+    context.addIssue({
+      code: "custom",
+      message: "TRUST_PROXY 0-10 hop sayısı veya virgülle ayrılmış kesin IP adresleri olmalıdır"
+    });
+    return z.NEVER;
   });
-  return z.NEVER;
-});
 
-const booleanStringSchema = (name: string) =>
+const booleanStringSchema = (name: string, defaultValue: "true" | "false") =>
   z
     .enum(["true", "false"], {
-      errorMap: () => ({ message: `${name} true veya false olmalıdır` })
+      message: `${name} true veya false olmalıdır`
     })
+    .default(defaultValue)
     .transform((value) => value === "true");
 
 const smtpHostnameSchema = z
@@ -222,7 +234,7 @@ export const parsePiiBlindIndexKeyring = (rawValue: string): Record<string, stri
 // Ortam değişkenlerinin tamamını denetleyen ana Zod şeması
 const envSchema = z
   .object({
-    PORT: portSchema.default("5000"),
+    PORT: portSchema("5000"),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
     STAFF_PHOTO_STORAGE_DIR: z
       .string()
@@ -246,34 +258,34 @@ const envSchema = z
     TURNSTILE_VERIFY_TIMEOUT_MS: boundedIntegerSchema(
       "TURNSTILE_VERIFY_TIMEOUT_MS",
       500,
-      10_000
-    ).default("5000"),
+      10_000,
+      "5000"
+    ),
     DELIVERY_LINK_VERIFICATION_MODE: z.enum(["remote", "synthetic"]).default("remote"),
     DATABASE_URL: databaseUrlSchema,
     ALLOW_PRIVATE_DATABASE_WITHOUT_TLS: booleanStringSchema(
-      "ALLOW_PRIVATE_DATABASE_WITHOUT_TLS"
-    ).default("false"),
-    TRUST_PROXY: trustProxySchema.default("0"),
-    HEALTHCHECK_TIMEOUT_MS: boundedIntegerSchema("HEALTHCHECK_TIMEOUT_MS", 250, 10_000).default(
-      "3000"
+      "ALLOW_PRIVATE_DATABASE_WITHOUT_TLS",
+      "false"
     ),
+    TRUST_PROXY: trustProxySchema,
+    HEALTHCHECK_TIMEOUT_MS: boundedIntegerSchema("HEALTHCHECK_TIMEOUT_MS", 250, 10_000, "3000"),
     HTTP_REQUEST_TIMEOUT_MS: boundedIntegerSchema(
       "HTTP_REQUEST_TIMEOUT_MS",
       1_000,
-      120_000
-    ).default("15000"),
-    HTTP_HEADERS_TIMEOUT_MS: boundedIntegerSchema("HTTP_HEADERS_TIMEOUT_MS", 1_000, 60_000).default(
-      "10000"
+      120_000,
+      "15000"
     ),
+    HTTP_HEADERS_TIMEOUT_MS: boundedIntegerSchema("HTTP_HEADERS_TIMEOUT_MS", 1_000, 60_000, "10000"),
     HTTP_KEEP_ALIVE_TIMEOUT_MS: boundedIntegerSchema(
       "HTTP_KEEP_ALIVE_TIMEOUT_MS",
       1_000,
-      30_000
-    ).default("5000"),
+      30_000,
+      "5000"
+    ),
     MAIL_TRANSPORT_MODE: z.enum(["disabled", "smtp"]).default("disabled"),
     SMTP_HOST: smtpHostnameSchema.default(""),
-    SMTP_PORT: portSchema.default("465"),
-    SMTP_SECURE: booleanStringSchema("SMTP_SECURE").default("true"),
+    SMTP_PORT: portSchema("465"),
+    SMTP_SECURE: booleanStringSchema("SMTP_SECURE", "true"),
     SMTP_USER: z.string().trim().toLowerCase().max(254).default(""),
     SMTP_PASSWORD: z.string().min(1).max(1024).default("smtp-disabled"),
     MAIL_FROM_ADDRESS: z.string().trim().toLowerCase().max(254).default(""),
@@ -334,7 +346,7 @@ const envSchema = z
           parseDataEncryptionKeyring(value);
         } catch (error) {
           context.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message: error instanceof Error ? error.message : "Encryption keyring geçersiz"
           });
         }
@@ -355,7 +367,7 @@ const envSchema = z
           parsePiiBlindIndexKeyring(value);
         } catch (error) {
           context.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message: error instanceof Error ? error.message : "Blind-index keyring geçersiz"
           });
         }
@@ -371,90 +383,95 @@ const envSchema = z
       .default(DEVELOPMENT_PASSWORD_RESET_CODE_HMAC_KEY),
     PII_ENCRYPTION_MODE: z.enum(["dual", "encrypted", "strict"]).default("encrypted"),
     ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES: booleanStringSchema(
-      "ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES"
-    ).default("false"),
+      "ALLOW_NON_PRODUCTION_SYNTHETIC_PII_WRITES",
+      "false"
+    ),
     SESSION_COOKIE_NAME: z
       .string()
       .regex(/^[A-Za-z0-9_-]+$/)
       .default("dugunajansim_session"),
-    SESSION_TTL_HOURS: boundedIntegerSchema("SESSION_TTL_HOURS", 1, 720).default("12"),
-    ADMIN_SESSION_TTL_HOURS: boundedIntegerSchema("ADMIN_SESSION_TTL_HOURS", 1, 24).default("8"),
-    REMEMBER_SESSION_TTL_DAYS: boundedIntegerSchema("REMEMBER_SESSION_TTL_DAYS", 1, 90).default(
-      "30"
-    ),
-    ADMIN_SESSION_IDLE_MINUTES: boundedIntegerSchema("ADMIN_SESSION_IDLE_MINUTES", 5, 1440).default(
-      "240"
-    ),
-    SALON_SESSION_IDLE_MINUTES: boundedIntegerSchema("SALON_SESSION_IDLE_MINUTES", 5, 1440).default(
-      "60"
-    ),
+    SESSION_TTL_HOURS: boundedIntegerSchema("SESSION_TTL_HOURS", 1, 720, "12"),
+    ADMIN_SESSION_TTL_HOURS: boundedIntegerSchema("ADMIN_SESSION_TTL_HOURS", 1, 24, "8"),
+    REMEMBER_SESSION_TTL_DAYS: boundedIntegerSchema("REMEMBER_SESSION_TTL_DAYS", 1, 90, "30"),
+    ADMIN_SESSION_IDLE_MINUTES: boundedIntegerSchema("ADMIN_SESSION_IDLE_MINUTES", 5, 1440, "240"),
+    SALON_SESSION_IDLE_MINUTES: boundedIntegerSchema("SALON_SESSION_IDLE_MINUTES", 5, 1440, "60"),
     CUSTOMER_SESSION_IDLE_HOURS: boundedIntegerSchema(
       "CUSTOMER_SESSION_IDLE_HOURS",
       1,
-      168
-    ).default("12"),
+      168,
+      "12"
+    ),
     TEMPORARY_PASSWORD_TTL_HOURS: boundedIntegerSchema(
       "TEMPORARY_PASSWORD_TTL_HOURS",
       1,
-      168
-    ).default("24"),
+      168,
+      "24"
+    ),
     PASSWORD_RESET_CODE_TTL_MINUTES: boundedIntegerSchema(
       "PASSWORD_RESET_CODE_TTL_MINUTES",
       5,
-      30
-    ).default("10"),
+      30,
+      "10"
+    ),
     PUBLIC_APPLICATION_RETENTION_DAYS: boundedIntegerSchema(
       "PUBLIC_APPLICATION_RETENTION_DAYS",
       30,
-      3650
-    ).default("90"),
+      3650,
+      "90"
+    ),
     ARCHIVED_APPLICATION_RETENTION_DAYS: boundedIntegerSchema(
       "ARCHIVED_APPLICATION_RETENTION_DAYS",
       30,
-      3650
-    ).default("365"),
+      3650,
+      "365"
+    ),
     ARCHIVED_WEDDING_RETENTION_DAYS: boundedIntegerSchema(
       "ARCHIVED_WEDDING_RETENTION_DAYS",
       365,
-      3650
-    ).default("3650"),
+      3650,
+      "3650"
+    ),
     SECURITY_ARTIFACT_RETENTION_DAYS: boundedIntegerSchema(
       "SECURITY_ARTIFACT_RETENTION_DAYS",
       7,
-      365
-    ).default("30"),
-    DATA_RETENTION_BATCH_SIZE: boundedIntegerSchema("DATA_RETENTION_BATCH_SIZE", 10, 500).default(
-      "100"
+      365,
+      "30"
     ),
+    DATA_RETENTION_BATCH_SIZE: boundedIntegerSchema("DATA_RETENTION_BATCH_SIZE", 10, 500, "100"),
     DATA_RETENTION_MAX_BATCHES: boundedIntegerSchema(
       "DATA_RETENTION_MAX_BATCHES",
       1,
-      10_000
-    ).default("1000"),
+      10_000,
+      "1000"
+    ),
     PAYMENT_MODE: z.enum(["test", "live"]).default("test"),
     PAYMENT_HANDOFF_TTL_MINUTES: boundedIntegerSchema(
       "PAYMENT_HANDOFF_TTL_MINUTES",
       5,
-      1440
-    ).default("1440"),
+      1440,
+      "1440"
+    ),
     PAYMENT_BANK_NAME: z.string().trim().min(2).max(120).default(TEST_PAYMENT_BANK_NAME),
     PAYMENT_ACCOUNT_HOLDER: z.string().trim().min(2).max(160).default(TEST_PAYMENT_ACCOUNT_HOLDER),
     PAYMENT_IBAN: z
       .string()
-      .trim()
-      .regex(/^TR(?:\s?\d){24}$/i, "PAYMENT_IBAN Türkiye IBAN biçiminde olmalıdır")
-      .transform((value) => value.replace(/\s+/g, "").toUpperCase())
-      .default(TEST_PAYMENT_IBAN),
+      .default(TEST_PAYMENT_IBAN)
+      .transform((value) => value.trim())
+      .refine((value) => /^TR(?:\s?\d){24}$/i.test(value), "PAYMENT_IBAN Türkiye IBAN biçiminde olmalıdır")
+      .transform((value) => value.replace(/\s+/g, "").toUpperCase()),
     PAYMENT_WHATSAPP_PHONE: z
       .string()
-      .trim()
-      .regex(/^\+?[\d\s()\-]+$/, "PAYMENT_WHATSAPP_PHONE telefon biçiminde olmalıdır")
+      .default(TEST_PAYMENT_WHATSAPP_PHONE)
+      .transform((value) => value.trim())
+      .refine(
+        (value) => /^\+?[\d\s()\-]+$/.test(value),
+        "PAYMENT_WHATSAPP_PHONE telefon biçiminde olmalıdır"
+      )
       .transform((value) => value.replace(/\D/g, ""))
       .refine(
         (value) => /^[1-9]\d{9,14}$/.test(value),
         "PAYMENT_WHATSAPP_PHONE ülke kodlu telefon biçiminde olmalıdır"
       )
-      .default(TEST_PAYMENT_WHATSAPP_PHONE)
   })
   // Production moduna özel ek güvenlik ve SSL kontrollerini gerçekleştiren geliştirilmiş doğrulama (superRefine)
   .superRefine((environment, context) => {
